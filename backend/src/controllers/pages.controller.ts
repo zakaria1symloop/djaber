@@ -12,7 +12,7 @@ export const connectFacebookPage = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const redirectUri = `http://72.61.102.55:5000/api/pages/callback/facebook`;
+    const redirectUri = `https://djaberio.symloop.com/api/pages/callback/facebook`;
     const scope = 'pages_show_list,pages_read_engagement,pages_manage_metadata,pages_messaging';
 
     const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?` +
@@ -45,7 +45,7 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
     }
 
     // Exchange code for access token
-    const redirectUri = `http://72.61.102.55:5000/api/pages/callback/facebook`;
+    const redirectUri = `https://djaberio.symloop.com/api/pages/callback/facebook`;
     const tokenResponse = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
       params: {
         client_id: process.env.META_APP_ID,
