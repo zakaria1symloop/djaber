@@ -67,6 +67,36 @@ export const getPageInfo = async ({
   }
 };
 
+interface GetPageInsightsParams {
+  pageId: string;
+  accessToken: string;
+  metrics?: string[];
+}
+
+export const getPageInsights = async ({
+  pageId,
+  accessToken,
+  metrics = ['page_followers_count', 'page_impressions', 'page_engaged_users', 'page_post_engagements'],
+}: GetPageInsightsParams): Promise<any> => {
+  try {
+    const response = await axios.get(
+      `${META_GRAPH_API_URL}/${pageId}/insights`,
+      {
+        params: {
+          metric: metrics.join(','),
+          period: 'day',
+          access_token: accessToken,
+        },
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error('Meta get page insights error:', error);
+    throw new Error('Failed to get page insights from Meta API');
+  }
+};
+
 interface VerifyWebhookParams {
   mode: string;
   token: string;

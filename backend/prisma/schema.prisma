@@ -29,14 +29,15 @@ model Page {
   platform       String   // facebook, instagram
   pageId         String   // Platform's page ID
   pageName       String
-  pageAccessToken String  // Encrypted access token
+  pageAccessToken String  @db.Text // Encrypted access token
   userId         String
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversations Conversation[]
+  aiSettings    PageAISettings?
 
   @@unique([platform, pageId])
 }
@@ -57,6 +58,8 @@ model Conversation {
   messages Message[]
 
   @@unique([platform, pageId, senderId])
+  @@index([pageId, status, updatedAt])
+  @@index([userId, status])
 }
 
 model Message {
@@ -65,7 +68,7 @@ model Message {
   messageId      String   // Platform's message ID
   senderId       String
   recipientId    String
-  text           String?
+  text           String?  @db.Text
   timestamp      DateTime
   isFromPage     Boolean  @default(false) // true if sent by AI/page, false if from user
   createdAt      DateTime @default(now())
@@ -73,6 +76,8 @@ model Message {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, conversationId])
+  @@index([conversationId, timestamp])
+  @@index([createdAt])
 }
 
 model AISettings {
@@ -81,8 +86,23 @@ model AISettings {
   aiModel           String   @default("gpt-4") // gpt-4, gpt-3.5-turbo, claude-3
   responseStyle     String   @default("professional") // professional, casual, friendly
   autoReply         Boolean  @default(true)
-  businessContext   String?  // Context about the business for AI
-  customInstructions String? // Custom instructions for AI behavior
+  businessContext   String?  @db.Text // Context about the business for AI
+  customInstructions String? @db.Text // Custom instructions for AI behavior
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+model PageAISettings {
+  id                  String   @id @default(uuid())
+  pageId              String   @unique
+  aiEnabled           Boolean  @default(true)
+  aiPersonality       String   @default("professional") // professional, friendly, casual, technical
+  customInstructions  String?  @db.Text
+  autoReply           Boolean  @default(true)
+  responseTone        String   @default("balanced") // balanced, formal, casual, enthusiastic
+  responseLength      String   @default("medium") // short, medium, detailed
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
 }

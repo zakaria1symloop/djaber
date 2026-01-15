@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh root@72.61.102.55 \"cd /var/www/djaber/backend && npx prisma db push\")",
+      "Bash(scp:*)",
+      "Bash(ssh:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

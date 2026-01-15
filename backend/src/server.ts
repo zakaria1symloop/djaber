@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/auth.routes';
 import webhookRoutes from './routes/webhook.routes';
 import pagesRoutes from './routes/pages.routes';
+import pageConfigRoutes from './routes/page-config.routes';
 
 // Load environment variables
 dotenv.config();
@@ -48,6 +49,7 @@ app.get('/api', (_req: Request, res: Response) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/pages', pagesRoutes);
+app.use('/api/pages', pageConfigRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {

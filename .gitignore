@@ -49,3 +49,7 @@ backend/*.log
 # temp files
 tmpclaude-*
 nul
+
+# deployment keys (NEVER commit these)
+.github-deploy-key
+.github-deploy-key.pub
