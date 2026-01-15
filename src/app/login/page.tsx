@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 const statsData = [
   [
@@ -64,10 +66,13 @@ const testimonials = [
 ];
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { login, loading, clearError } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
+  const [error, setError] = useState('');
   const [currentStatsIndex, setCurrentStatsIndex] = useState(0);
   const [currentTestimonialIndex, setCurrentTestimonialIndex] = useState(0);
   const [currentFeatureIndex, setCurrentFeatureIndex] = useState(0);
@@ -106,9 +111,17 @@ export default function LoginPage() {
     return () => clearInterval(featureInterval);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Login submitted:', formData);
+    setError('');
+    clearError();
+
+    try {
+      await login(formData);
+      router.push('/dashboard');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
+    }
   };
 
   return (
@@ -126,11 +139,11 @@ export default function LoginPage() {
         {/* Left Side - Promotional Content */}
         <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-[#0a0a0a] to-[#000] p-12 flex-col justify-center overflow-hidden">
           {/* Vertical Divider */}
-          <div className="absolute right-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-[#00fff0]/30 to-transparent"></div>
+          <div className="absolute right-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-white/30 to-transparent"></div>
         {/* Background decoration */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 left-20 w-72 h-72 bg-[#00fff0] rounded-full blur-3xl animate-float" style={{ animationDelay: '0s', animationDuration: '6s' }}></div>
-          <div className="absolute bottom-20 right-20 w-96 h-96 bg-[#a855f7] rounded-full blur-3xl animate-float" style={{ animationDelay: '1s', animationDuration: '8s' }}></div>
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute top-20 left-20 w-72 h-72 bg-white rounded-full blur-3xl animate-float" style={{ animationDelay: '0s', animationDuration: '6s' }}></div>
+          <div className="absolute bottom-20 right-20 w-96 h-96 bg-zinc-400 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s', animationDuration: '8s' }}></div>
         </div>
 
         <div className="relative z-10 max-w-xl mx-auto">
@@ -139,20 +152,20 @@ export default function LoginPage() {
             <div className="logo-glow">
               <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
                 <circle cx="20" cy="20" r="18" stroke="url(#sideLogoGradient)" strokeWidth="1.5" fill="none" />
-                <circle cx="20" cy="12" r="3" fill="#00fff0" />
-                <circle cx="12" cy="24" r="3" fill="#00fff0" />
-                <circle cx="28" cy="24" r="3" fill="#00fff0" />
+                <circle cx="20" cy="12" r="3" fill="white" />
+                <circle cx="12" cy="24" r="3" fill="white" />
+                <circle cx="28" cy="24" r="3" fill="white" />
                 <defs>
                   <linearGradient id="sideLogoGradient" x1="0" y1="0" x2="40" y2="40">
-                    <stop offset="0%" stopColor="#00fff0" />
-                    <stop offset="100%" stopColor="#a855f7" />
+                    <stop offset="0%" stopColor="white" />
+                    <stop offset="100%" stopColor="#a1a1aa" />
                   </linearGradient>
                 </defs>
               </svg>
             </div>
             <span className="text-2xl font-bold" style={{ fontFamily: 'Syne, sans-serif' }}>
               <span className="text-white">Djaber</span>
-              <span className="text-[#00fff0]">.ai</span>
+              <span className="text-zinc-400">.ai</span>
             </span>
           </div>
 
@@ -246,18 +259,18 @@ export default function LoginPage() {
             <div className="logo-glow">
               <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
                 <circle cx="20" cy="20" r="18" stroke="url(#loginLogoGradient)" strokeWidth="1.5" fill="none" />
-                <circle cx="20" cy="12" r="3" fill="#00fff0" />
-                <circle cx="12" cy="24" r="3" fill="#00fff0" />
-                <circle cx="28" cy="24" r="3" fill="#00fff0" />
-                <circle cx="20" cy="28" r="2" fill="#a855f7" />
-                <line x1="20" y1="15" x2="14" y2="22" stroke="#00fff0" strokeWidth="1.5" opacity="0.6" />
-                <line x1="20" y1="15" x2="26" y2="22" stroke="#00fff0" strokeWidth="1.5" opacity="0.6" />
-                <line x1="14" y1="25" x2="20" y2="28" stroke="#a855f7" strokeWidth="1.5" opacity="0.6" />
-                <line x1="26" y1="25" x2="20" y2="28" stroke="#a855f7" strokeWidth="1.5" opacity="0.6" />
+                <circle cx="20" cy="12" r="3" fill="white" />
+                <circle cx="12" cy="24" r="3" fill="white" />
+                <circle cx="28" cy="24" r="3" fill="white" />
+                <circle cx="20" cy="28" r="2" fill="#a1a1aa" />
+                <line x1="20" y1="15" x2="14" y2="22" stroke="white" strokeWidth="1.5" opacity="0.6" />
+                <line x1="20" y1="15" x2="26" y2="22" stroke="white" strokeWidth="1.5" opacity="0.6" />
+                <line x1="14" y1="25" x2="20" y2="28" stroke="#a1a1aa" strokeWidth="1.5" opacity="0.6" />
+                <line x1="26" y1="25" x2="20" y2="28" stroke="#a1a1aa" strokeWidth="1.5" opacity="0.6" />
                 <defs>
                   <linearGradient id="loginLogoGradient" x1="0" y1="0" x2="40" y2="40">
-                    <stop offset="0%" stopColor="#00fff0" />
-                    <stop offset="100%" stopColor="#a855f7" />
+                    <stop offset="0%" stopColor="white" />
+                    <stop offset="100%" stopColor="#a1a1aa" />
                   </linearGradient>
                 </defs>
               </svg>
@@ -288,7 +301,7 @@ export default function LoginPage() {
                   required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-[#00fff0] focus:outline-none transition-colors"
+                  className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-white focus:outline-none transition-colors"
                   placeholder="john@company.com"
                 />
               </div>
@@ -298,7 +311,7 @@ export default function LoginPage() {
                   <label className="block text-sm font-medium text-zinc-300">
                     Password
                   </label>
-                  <Link href="/forgot-password" className="text-sm text-[#00fff0] hover:underline">
+                  <Link href="/forgot-password" className="text-sm text-white hover:underline">
                     Forgot?
                   </Link>
                 </div>
@@ -307,10 +320,16 @@ export default function LoginPage() {
                   required
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-[#00fff0] focus:outline-none transition-colors"
+                  className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-white focus:outline-none transition-colors"
                   placeholder="••••••••"
                 />
               </div>
+
+              {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  <p className="text-sm text-red-400">{error}</p>
+                </div>
+              )}
 
               <div className="flex items-center group cursor-pointer">
                 <input
@@ -325,9 +344,10 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                className="w-full btn-primary px-6 py-4 rounded-full font-semibold"
+                disabled={loading}
+                className="w-full btn-primary px-6 py-4 rounded-full font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span>Sign In</span>
+                <span>{loading ? 'Signing in...' : 'Sign In'}</span>
               </button>
             </form>
 
@@ -364,7 +384,7 @@ export default function LoginPage() {
           {/* Sign Up Link */}
           <p className="text-center text-sm text-zinc-400">
             Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-[#00fff0] hover:underline font-medium">
+            <Link href="/signup" className="text-white hover:underline font-medium">
               Get started for free
             </Link>
           </p>

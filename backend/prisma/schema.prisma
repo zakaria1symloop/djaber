@@ -1,0 +1,88 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  plan      String   @default("individual") // individual, teams
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pages         Page[]
+  conversations Conversation[]
+}
+
+model Page {
+  id             String   @id @default(uuid())
+  platform       String   // facebook, instagram
+  pageId         String   // Platform's page ID
+  pageName       String
+  pageAccessToken String  // Encrypted access token
+  userId         String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@unique([platform, pageId])
+}
+
+model Conversation {
+  id         String   @id @default(uuid())
+  pageId     String
+  senderId   String   // Platform's user/sender ID
+  senderName String?
+  platform   String   // facebook, instagram
+  userId     String
+  status     String   @default("active") // active, resolved, archived
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  page     Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([platform, pageId, senderId])
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String
+  messageId      String   // Platform's message ID
+  senderId       String
+  recipientId    String
+  text           String?
+  timestamp      DateTime
+  isFromPage     Boolean  @default(false) // true if sent by AI/page, false if from user
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, conversationId])
+}
+
+model AISettings {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  aiModel           String   @default("gpt-4") // gpt-4, gpt-3.5-turbo, claude-3
+  responseStyle     String   @default("professional") // professional, casual, friendly
+  autoReply         Boolean  @default(true)
+  businessContext   String?  // Context about the business for AI
+  customInstructions String? // Custom instructions for AI behavior
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}

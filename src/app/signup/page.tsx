@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 const quickSteps = [
   [
@@ -81,14 +83,14 @@ export default function SignupPage() {
                 {/* Teams Plan */}
                 <div
                   onClick={() => setSelectedPlan('teams')}
-                  className="group relative p-10 rounded-3xl bg-[#0a0a0a] border border-white/10 hover:border-[#00fff0]/50 transition-all duration-300 cursor-pointer"
+                  className="group relative p-10 rounded-3xl bg-[#0a0a0a] border border-white/10 hover:border-white/50 transition-all duration-300 cursor-pointer"
                 >
-                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-[#00fff0]/5 to-[#a855f7]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-white/5 to-zinc-400/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
                   <div className="relative">
                     {/* Icon */}
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#00fff0]/20 to-[#a855f7]/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                      <svg className="w-8 h-8 text-[#00fff0]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-white/20 to-zinc-400/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                      <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                       </svg>
                     </div>
@@ -112,7 +114,7 @@ export default function SignupPage() {
                         'Priority support'
                       ].map((feature, i) => (
                         <li key={i} className="flex items-center gap-3 text-zinc-300">
-                          <svg className="w-5 h-5 text-[#00fff0] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-5 h-5 text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
                           {feature}
@@ -128,8 +130,8 @@ export default function SignupPage() {
                           <span className="text-zinc-500">/month</span>
                         </div>
                       </div>
-                      <div className="w-12 h-12 rounded-full bg-[#00fff0]/20 flex items-center justify-center group-hover:bg-[#00fff0] transition-colors duration-300">
-                        <svg className="w-6 h-6 text-[#00fff0] group-hover:text-black transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white transition-colors duration-300">
+                        <svg className="w-6 h-6 text-white group-hover:text-black transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                         </svg>
                       </div>
@@ -140,14 +142,14 @@ export default function SignupPage() {
                 {/* Individual Plan */}
                 <div
                   onClick={() => setSelectedPlan('individual')}
-                  className="group relative p-10 rounded-3xl bg-[#0a0a0a] border border-white/10 hover:border-[#a855f7]/50 transition-all duration-300 cursor-pointer"
+                  className="group relative p-10 rounded-3xl bg-[#0a0a0a] border border-white/10 hover:border-zinc-400/50 transition-all duration-300 cursor-pointer"
                 >
-                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-[#a855f7]/5 to-[#00fff0]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-zinc-400/5 to-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
                   <div className="relative">
                     {/* Icon */}
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#a855f7]/20 to-[#00fff0]/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                      <svg className="w-8 h-8 text-[#a855f7]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-zinc-400/20 to-white/20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                      <svg className="w-8 h-8 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                     </div>
@@ -171,7 +173,7 @@ export default function SignupPage() {
                         '14-day free trial'
                       ].map((feature, i) => (
                         <li key={i} className="flex items-center gap-3 text-zinc-300">
-                          <svg className="w-5 h-5 text-[#a855f7] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-5 h-5 text-zinc-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
                           {feature}
@@ -187,8 +189,8 @@ export default function SignupPage() {
                           <span className="text-zinc-500">/month</span>
                         </div>
                       </div>
-                      <div className="w-12 h-12 rounded-full bg-[#a855f7]/20 flex items-center justify-center group-hover:bg-[#a855f7] transition-colors duration-300">
-                        <svg className="w-6 h-6 text-[#a855f7] group-hover:text-black transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="w-12 h-12 rounded-full bg-zinc-400/20 flex items-center justify-center group-hover:bg-zinc-400 transition-colors duration-300">
+                        <svg className="w-6 h-6 text-zinc-400 group-hover:text-black transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                         </svg>
                       </div>
@@ -215,6 +217,8 @@ export default function SignupPage() {
 }
 
 function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: () => void }) {
+  const router = useRouter();
+  const { register, loading, clearError } = useAuth();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     fullName: '',
@@ -224,6 +228,7 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
     password: '',
     confirmPassword: ''
   });
+  const [error, setError] = useState('');
   const [currentStepsIndex, setCurrentStepsIndex] = useState(0);
   const [currentBenefitsIndex, setCurrentBenefitsIndex] = useState(0);
   const [currentMetricIndex, setCurrentMetricIndex] = useState(0);
@@ -262,12 +267,42 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
     return () => clearInterval(metricInterval);
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    clearError();
+
     if (step < 2) {
       setStep(step + 1);
-    } else {
-      console.log('Form submitted:', formData);
+      return;
+    }
+
+    // Final step - validate and submit
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+
+    try {
+      const [firstName, ...lastNameParts] = formData.fullName.split(' ');
+      const lastName = lastNameParts.join(' ') || firstName;
+
+      await register({
+        email: formData.email,
+        password: formData.password,
+        firstName,
+        lastName,
+        plan
+      });
+
+      router.push('/dashboard');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
     }
   };
 
@@ -286,11 +321,11 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
         {/* Left Side - Getting Started Tips */}
         <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-[#0a0a0a] to-[#000] p-12 flex-col justify-center overflow-hidden">
           {/* Vertical Divider */}
-          <div className="absolute right-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-[#00fff0]/30 to-transparent"></div>
+          <div className="absolute right-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-white/30 to-transparent"></div>
         {/* Background decoration */}
         <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 left-20 w-72 h-72 bg-[#00fff0] rounded-full blur-3xl animate-float" style={{ animationDelay: '0s', animationDuration: '6s' }}></div>
-          <div className="absolute bottom-20 right-20 w-96 h-96 bg-[#a855f7] rounded-full blur-3xl animate-float" style={{ animationDelay: '1s', animationDuration: '8s' }}></div>
+          <div className="absolute top-20 left-20 w-72 h-72 bg-white rounded-full blur-3xl animate-float" style={{ animationDelay: '0s', animationDuration: '6s' }}></div>
+          <div className="absolute bottom-20 right-20 w-96 h-96 bg-zinc-400 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s', animationDuration: '8s' }}></div>
         </div>
 
         <div className="relative z-10 max-w-xl mx-auto">
@@ -299,20 +334,20 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
             <div className="logo-glow">
               <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
                 <circle cx="20" cy="20" r="18" stroke="url(#sideSignupGradient)" strokeWidth="1.5" fill="none" />
-                <circle cx="20" cy="12" r="3" fill="#00fff0" />
-                <circle cx="12" cy="24" r="3" fill="#00fff0" />
-                <circle cx="28" cy="24" r="3" fill="#00fff0" />
+                <circle cx="20" cy="12" r="3" fill="white" />
+                <circle cx="12" cy="24" r="3" fill="white" />
+                <circle cx="28" cy="24" r="3" fill="white" />
                 <defs>
                   <linearGradient id="sideSignupGradient" x1="0" y1="0" x2="40" y2="40">
-                    <stop offset="0%" stopColor="#00fff0" />
-                    <stop offset="100%" stopColor="#a855f7" />
+                    <stop offset="0%" stopColor="white" />
+                    <stop offset="100%" stopColor="#a1a1aa" />
                   </linearGradient>
                 </defs>
               </svg>
             </div>
             <span className="text-2xl font-bold" style={{ fontFamily: 'Syne, sans-serif' }}>
               <span className="text-white">Djaber</span>
-              <span className="text-[#00fff0]">.ai</span>
+              <span className="text-white">.ai</span>
             </span>
           </div>
 
@@ -405,18 +440,18 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
               <div className="logo-glow">
                 <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
                   <circle cx="20" cy="20" r="18" stroke="url(#signupLogoGradient)" strokeWidth="1.5" fill="none" />
-                  <circle cx="20" cy="12" r="3" fill="#00fff0" />
-                  <circle cx="12" cy="24" r="3" fill="#00fff0" />
-                  <circle cx="28" cy="24" r="3" fill="#00fff0" />
-                  <circle cx="20" cy="28" r="2" fill="#a855f7" />
-                  <line x1="20" y1="15" x2="14" y2="22" stroke="#00fff0" strokeWidth="1.5" opacity="0.6" />
-                  <line x1="20" y1="15" x2="26" y2="22" stroke="#00fff0" strokeWidth="1.5" opacity="0.6" />
-                  <line x1="14" y1="25" x2="20" y2="28" stroke="#a855f7" strokeWidth="1.5" opacity="0.6" />
-                  <line x1="26" y1="25" x2="20" y2="28" stroke="#a855f7" strokeWidth="1.5" opacity="0.6" />
+                  <circle cx="20" cy="12" r="3" fill="white" />
+                  <circle cx="12" cy="24" r="3" fill="white" />
+                  <circle cx="28" cy="24" r="3" fill="white" />
+                  <circle cx="20" cy="28" r="2" fill="#a1a1aa" />
+                  <line x1="20" y1="15" x2="14" y2="22" stroke="white" strokeWidth="1.5" opacity="0.6" />
+                  <line x1="20" y1="15" x2="26" y2="22" stroke="white" strokeWidth="1.5" opacity="0.6" />
+                  <line x1="14" y1="25" x2="20" y2="28" stroke="#a1a1aa" strokeWidth="1.5" opacity="0.6" />
+                  <line x1="26" y1="25" x2="20" y2="28" stroke="#a1a1aa" strokeWidth="1.5" opacity="0.6" />
                   <defs>
                     <linearGradient id="signupLogoGradient" x1="0" y1="0" x2="40" y2="40">
-                      <stop offset="0%" stopColor="#00fff0" />
-                      <stop offset="100%" stopColor="#a855f7" />
+                      <stop offset="0%" stopColor="white" />
+                      <stop offset="100%" stopColor="#a1a1aa" />
                     </linearGradient>
                   </defs>
                 </svg>
@@ -437,7 +472,7 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
           <div className="flex items-center justify-center gap-4 mb-12">
             <div className="flex items-center gap-2">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold ${
-                step >= 1 ? 'bg-[#00fff0] text-black' : 'bg-white/5 text-zinc-500'
+                step >= 1 ? 'bg-white text-black' : 'bg-white/5 text-zinc-500'
               }`}>
                 1
               </div>
@@ -446,7 +481,7 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
             <div className="w-12 h-px bg-white/10"></div>
             <div className="flex items-center gap-2">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold ${
-                step >= 2 ? 'bg-[#00fff0] text-black' : 'bg-white/5 text-zinc-500'
+                step >= 2 ? 'bg-white text-black' : 'bg-white/5 text-zinc-500'
               }`}>
                 2
               </div>
@@ -468,7 +503,7 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
                       required
                       value={formData.fullName}
                       onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                      className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-[#00fff0] focus:outline-none transition-colors"
+                      className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-[white] focus:outline-none transition-colors"
                       placeholder="John Doe"
                     />
                   </div>
@@ -482,7 +517,7 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
                       required
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-[#00fff0] focus:outline-none transition-colors"
+                      className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-[white] focus:outline-none transition-colors"
                       placeholder="john@company.com"
                     />
                   </div>
@@ -498,7 +533,7 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
                           required
                           value={formData.company}
                           onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                          className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-[#00fff0] focus:outline-none transition-colors"
+                          className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-[white] focus:outline-none transition-colors"
                           placeholder="Acme Inc."
                         />
                       </div>
@@ -511,7 +546,7 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
                           type="tel"
                           value={formData.phone}
                           onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-[#00fff0] focus:outline-none transition-colors"
+                          className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-[white] focus:outline-none transition-colors"
                           placeholder="+1 (555) 000-0000"
                         />
                       </div>
@@ -527,7 +562,7 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
                       required
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-[#00fff0] focus:outline-none transition-colors"
+                      className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-[white] focus:outline-none transition-colors"
                       placeholder="••••••••"
                     />
                   </div>
@@ -541,7 +576,7 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
                       required
                       value={formData.confirmPassword}
                       onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                      className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-[#00fff0] focus:outline-none transition-colors"
+                      className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-[white] focus:outline-none transition-colors"
                       placeholder="••••••••"
                     />
                   </div>
@@ -554,7 +589,7 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
                     <label className="block text-sm font-medium text-zinc-300 mb-2">
                       What industry are you in?
                     </label>
-                    <select className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white focus:border-[#00fff0] focus:outline-none transition-colors">
+                    <select className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white focus:border-[white] focus:outline-none transition-colors">
                       <option value="">Select industry</option>
                       <option>E-commerce</option>
                       <option>Fashion & Retail</option>
@@ -569,7 +604,7 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
                     <label className="block text-sm font-medium text-zinc-300 mb-2">
                       How many pages will you manage?
                     </label>
-                    <select className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white focus:border-[#00fff0] focus:outline-none transition-colors">
+                    <select className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white focus:border-[white] focus:outline-none transition-colors">
                       <option value="">Select range</option>
                       <option>1-2 pages</option>
                       <option>3-5 pages</option>
@@ -582,7 +617,7 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
                     <label className="block text-sm font-medium text-zinc-300 mb-2">
                       Expected monthly messages
                     </label>
-                    <select className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white focus:border-[#00fff0] focus:outline-none transition-colors">
+                    <select className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white focus:border-[white] focus:outline-none transition-colors">
                       <option value="">Select range</option>
                       <option>Less than 1,000</option>
                       <option>1,000 - 5,000</option>
@@ -615,7 +650,7 @@ function SignupForm({ plan, onBack }: { plan: 'teams' | 'individual'; onBack: ()
 
             <p className="text-center text-sm text-zinc-500">
               Already have an account?{' '}
-              <Link href="/login" className="text-[#00fff0] hover:underline">
+              <Link href="/login" className="text-white hover:underline">
                 Sign in
               </Link>
             </p>
