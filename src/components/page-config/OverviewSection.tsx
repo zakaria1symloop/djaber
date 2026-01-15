@@ -189,10 +189,10 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div>
-              <h3 className="text-blue-400 font-medium">Insights Coming Soon</h3>
+              <h3 className="text-blue-400 font-medium">Insights Not Available</h3>
               <p className="text-blue-300/80 text-sm mt-1">
-                Facebook typically takes 24-48 hours to provide insights data for newly connected pages.
-                Check back tomorrow to see your page metrics.
+                Facebook Page Insights require additional permissions that are currently under review by Facebook.
+                In the meantime, you can still use the Messages and AI Settings features to manage your page.
               </p>
             </div>
           </div>

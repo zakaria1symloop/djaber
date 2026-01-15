@@ -13,7 +13,7 @@ export const connectFacebookPage = async (req: Request, res: Response): Promise<
     }
 
     const redirectUri = `https://djaberio.symloop.com/api/pages/callback/facebook`;
-    const scope = 'pages_show_list,pages_manage_metadata,pages_messaging,pages_manage_posts,pages_manage_engagement';
+    const scope = 'pages_show_list,pages_manage_metadata,pages_messaging';
 
     const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?` +
       `client_id=${process.env.META_APP_ID}` +
