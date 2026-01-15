@@ -150,10 +150,11 @@ export const disconnectPage = async (req: Request, res: Response): Promise<void>
     }
 
     const { pageId } = req.params;
+    const pageIdString = Array.isArray(pageId) ? pageId[0] : pageId;
 
     const page = await prisma.page.findFirst({
       where: {
-        id: pageId,
+        id: pageIdString,
         userId: req.user.userId,
       },
     });
@@ -164,7 +165,7 @@ export const disconnectPage = async (req: Request, res: Response): Promise<void>
     }
 
     await prisma.page.update({
-      where: { id: pageId },
+      where: { id: pageIdString },
       data: { isActive: false },
     });
 
