@@ -87,56 +87,65 @@ function PageConfigContent() {
 
   return (
     <div className="min-h-screen bg-black">
-      {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-[#0a0a0a] border-b border-white/10 px-4 py-4">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="text-white hover:text-zinc-400 transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <h1 className="text-lg font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-            {currentPage.pageName}
-          </h1>
+      {/* ChatGPT-style Header - No background, minimal */}
+      <header className="fixed top-0 left-0 right-0 z-40 lg:pl-64">
+        <div className="flex items-center justify-between px-4 py-3">
+          {/* Mobile Menu Button */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-white hover:text-zinc-400 transition-colors"
+            className="lg:hidden text-zinc-400 hover:text-white transition-colors"
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-        </div>
-      </div>
 
-      {/* Sidebar */}
+          {/* Page Title - Center on mobile, left on desktop */}
+          <div className="flex-1 lg:flex-none text-center lg:text-left">
+            <h1 className="text-base font-medium text-white">
+              {currentPage.pageName}
+            </h1>
+          </div>
+
+          {/* Desktop Back Button */}
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="hidden lg:flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back
+          </button>
+        </div>
+      </header>
+
+      {/* Sidebar - Higher z-index */}
       <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-[#0a0a0a] border-r border-white/10 z-40 transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed top-0 left-0 h-full w-64 bg-black border-r border-white/10 z-50 transition-transform duration-300 lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Sidebar Header */}
-        <div className="p-6 border-b border-white/10 hidden lg:block">
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors mb-4"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Dashboard
-          </button>
-          <h2 className="text-xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-            {currentPage.pageName}
-          </h2>
-          <p className="text-sm text-zinc-500 capitalize mt-1">{currentPage.platform}</p>
+        <div className="p-4 border-b border-white/10">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-white">
+              {currentPage.pageName}
+            </h2>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden text-zinc-400 hover:text-white transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <p className="text-xs text-zinc-500 capitalize">{currentPage.platform}</p>
         </div>
 
         {/* Sidebar Navigation */}
-        <nav className="p-4 space-y-2 mt-20 lg:mt-0">
+        <nav className="p-3 space-y-1">
           {sections.map((section) => (
             <button
               key={section.id}
@@ -144,9 +153,9 @@ function PageConfigContent() {
                 setActiveSection(section.id);
                 setSidebarOpen(false);
               }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
                 activeSection === section.id
-                  ? 'bg-white text-black'
+                  ? 'bg-white/10 text-white'
                   : 'text-zinc-400 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -155,18 +164,31 @@ function PageConfigContent() {
             </button>
           ))}
         </nav>
+
+        {/* Sidebar Footer */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-white transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Dashboard
+          </button>
+        </div>
       </aside>
 
       {/* Overlay for mobile sidebar */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          className="fixed inset-0 bg-black/70 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Main Content */}
-      <main className="lg:ml-64 pt-20 lg:pt-8 px-4 sm:px-6 lg:px-8 pb-8">
+      <main className="lg:ml-64 pt-16 px-4 sm:px-6 lg:px-8 pb-8">
         <div className="max-w-7xl mx-auto">
           {activeSection === 'overview' && <OverviewSection pageId={pageId} page={currentPage} />}
           {activeSection === 'messages' && <MessagesSection pageId={pageId} page={currentPage} />}
