@@ -38,17 +38,29 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading true
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   // Initialize auth state from localStorage
   useEffect(() => {
-    const storedUser = getStoredUser();
-    if (storedUser && checkAuth()) {
-      setUser(storedUser);
-      setIsAuthenticated(true);
-    }
+    const initAuth = () => {
+      try {
+        const storedUser = getStoredUser();
+        if (storedUser && checkAuth()) {
+          setUser(storedUser);
+          setIsAuthenticated(true);
+        }
+      } catch (err) {
+        console.error('Error initializing auth:', err);
+      } finally {
+        setLoading(false);
+        setInitialized(true);
+      }
+    };
+
+    initAuth();
   }, []);
 
   const login = async (credentials: LoginRequest) => {

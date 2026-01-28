@@ -4,18 +4,65 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePages } from '@/contexts/PagesContext';
+import {
+  Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  Badge,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  Input,
+  Avatar,
+  EmptyState,
+  FacebookIcon,
+  InstagramIcon,
+  WhatsAppIcon,
+  PlusIcon,
+  SettingsIcon,
+  CloseIcon,
+  HomeIcon,
+  ChatIcon,
+  ChartIcon,
+  MenuIcon,
+  LogoutIcon,
+  ClockIcon,
+  BoltIcon,
+  GlobeIcon,
+  MessageIcon,
+} from '@/components/ui';
 
 export default function DashboardPage() {
   const router = useRouter();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
-  const { pages, loading: pagesLoading, connectFacebookPage, disconnectPage, error: pagesError, clearError } = usePages();
+  const { pages, loading: pagesLoading, connectFacebookPage, disconnectPage } = usePages();
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [activeSection, setActiveSection] = useState('overview');
+  const [activePlatformTab, setActivePlatformTab] = useState('all');
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login');
     }
   }, [isAuthenticated, authLoading, router]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showUserMenu && !target.closest('.user-menu-container')) {
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showUserMenu]);
 
   const handleConnectFacebook = async () => {
     try {
@@ -36,244 +83,566 @@ export default function DashboardPage() {
 
   if (authLoading || !isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="text-white">Loading...</div>
       </div>
     );
   }
 
+  const filteredPages = activePlatformTab === 'all'
+    ? pages
+    : pages.filter(page => page.platform === activePlatformTab);
+
+  const navigationItems = [
+    { id: 'overview', name: 'Overview', icon: <HomeIcon className="w-5 h-5" /> },
+    { id: 'pages', name: 'Pages', icon: <ChatIcon className="w-5 h-5" />, badge: pages.length },
+    { id: 'analytics', name: 'Analytics', icon: <ChartIcon className="w-5 h-5" /> },
+    { id: 'settings', name: 'Settings', icon: <SettingsIcon className="w-5 h-5" /> },
+  ];
+
+  const getPlatformIcon = (platform: string) => {
+    switch (platform) {
+      case 'facebook':
+        return <FacebookIcon className="w-6 h-6 text-[#1877F2]" />;
+      case 'instagram':
+        return <InstagramIcon className="w-6 h-6 text-[#E4405F]" />;
+      case 'whatsapp':
+        return <WhatsAppIcon className="w-6 h-6 text-[#25D366]" />;
+      default:
+        return <ChatIcon className="w-6 h-6" />;
+    }
+  };
+
   return (
-    <main className="min-h-screen pt-32 pb-20 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Welcome Header */}
-        <div className="mb-12">
-          <h1
-            className="text-4xl sm:text-5xl font-bold text-white mb-4"
-            style={{ fontFamily: 'Syne, sans-serif' }}
-          >
-            Welcome back, {user?.firstName}!
-          </h1>
-          <p className="text-xl text-zinc-400">
-            Manage your social media pages and AI agents from here.
-          </p>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-all">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-zinc-400">Connected Pages</h3>
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-              </svg>
+    <>
+      {/* Sidebar */}
+      <aside
+        className={`fixed top-0 left-0 h-full w-64 bg-black border-r border-white/10 z-50 transition-transform duration-300 lg:translate-x-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="p-6 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center">
+              <span className="text-black font-bold text-xl" style={{ fontFamily: 'Syne, sans-serif' }}>D</span>
             </div>
-            <div className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>{pages.length}</div>
-            <p className="text-xs text-zinc-500">{pages.length === 0 ? 'No pages connected yet' : `${pages.length} page${pages.length > 1 ? 's' : ''} connected`}</p>
-          </div>
-
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-all">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-zinc-400">Active Conversations</h3>
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-              </svg>
+            <div>
+              <h1 className="text-white font-bold text-lg" style={{ fontFamily: 'Syne, sans-serif' }}>Djaber.ai</h1>
+              <p className="text-xs text-zinc-500">AI Social Agent</p>
             </div>
-            <div className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>0</div>
-            <p className="text-xs text-zinc-500">No active conversations</p>
-          </div>
-
-          <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-all">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-zinc-400">AI Responses (24h)</h3>
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <div className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>0</div>
-            <p className="text-xs text-zinc-500">AI not active yet</p>
           </div>
         </div>
 
-        {/* Connected Pages Section */}
-        {pages.length > 0 && (
-          <div className="mb-12">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-                Connected Pages
-              </h2>
+        <nav className="p-3 space-y-1">
+          {navigationItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => {
+                setActiveSection(item.id);
+                setSidebarOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-all ${
+                activeSection === item.id
+                  ? 'bg-white text-black'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                {item.icon}
+                <span className="font-medium">{item.name}</span>
+              </div>
+              {item.badge !== undefined && (
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                  activeSection === item.id ? 'bg-black/10' : 'bg-white/10'
+                }`}>
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </nav>
+
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
+          <Card variant="default" padding="sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-zinc-400">Your Plan</span>
+              <Badge variant="default" size="sm">{user?.plan || 'Free'}</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-zinc-400">Pages</span>
+              <span className="text-xs font-semibold text-white">{pages.length} / 10</span>
+            </div>
+          </Card>
+        </div>
+      </aside>
+
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/70 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Header */}
+      <header className="fixed top-0 left-0 right-0 z-30 bg-black/80 backdrop-blur-sm border-b border-white/10 lg:pl-64">
+        <div className="px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between py-3">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="lg:hidden text-zinc-400 hover:text-white transition-colors"
+            >
+              <MenuIcon className="w-6 h-6" />
+            </button>
+
+            <h1 className="text-base font-medium text-white capitalize">{activeSection}</h1>
+
+            <div className="relative user-menu-container">
               <button
-                onClick={handleConnectFacebook}
-                disabled={pagesLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white text-sm transition-all disabled:opacity-50"
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-white/5 transition-all"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Add Page
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {pages.map((page) => (
-                <div key={page.id} className="bg-[#0a0a0a] border border-white/10 rounded-xl p-6 hover:border-white/20 transition-all">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
-                        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h3 className="text-white font-semibold">{page.pageName}</h3>
-                        <p className="text-xs text-zinc-500 capitalize">{page.platform}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
-                      Active
-                    </span>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => router.push(`/dashboard/page/${page.id}`)}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white text-xs transition-all"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        Configure
-                      </button>
-
-                      <button
-                        onClick={() => setShowDisconnectConfirm(page.id)}
-                        className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1.5"
-                      >
-                        Disconnect
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Disconnect Confirmation */}
-                  {showDisconnectConfirm === page.id && (
-                    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-                      <div className="bg-[#0a0a0a] border border-white/10 rounded-2xl p-6 max-w-md mx-4">
-                        <h3 className="text-xl font-bold text-white mb-2">Disconnect Page?</h3>
-                        <p className="text-zinc-400 mb-6">
-                          Are you sure you want to disconnect {page.pageName}? You won't receive messages anymore.
-                        </p>
-                        <div className="flex gap-3">
-                          <button
-                            onClick={() => setShowDisconnectConfirm(null)}
-                            className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-white transition-all"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => handleDisconnect(page.id)}
-                            className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg text-white transition-all"
-                          >
-                            Disconnect
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                <div className="hidden sm:block text-right">
+                  <p className="text-sm font-medium text-white">{user?.firstName} {user?.lastName}</p>
+                  <p className="text-xs text-zinc-400">{user?.email}</p>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+                <Avatar initials={`${user?.firstName?.[0]}${user?.lastName?.[0]}`} size="md" />
+              </button>
 
-        {/* Get Started Section - Show only if no pages */}
-        {pages.length === 0 && (
-          <div className="bg-gradient-to-br from-[#0a0a0a] to-black border border-white/10 rounded-3xl p-8 sm:p-12 mb-12">
-            <div className="max-w-3xl">
-              <h2 className="text-3xl font-bold text-white mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>
-                Get Started with Djaber.ai
-              </h2>
-              <p className="text-lg text-zinc-400 mb-8">
-                Connect your Facebook and Instagram pages to let AI handle your customer conversations 24/7.
-              </p>
-
-              {pagesError && (
-                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
-                  <p className="text-sm text-red-400">{pagesError}</p>
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-64 bg-zinc-900 border border-white/10 rounded-xl shadow-xl overflow-hidden">
+                  <div className="p-4 border-b border-white/10">
+                    <p className="text-sm font-semibold text-white">{user?.firstName} {user?.lastName}</p>
+                    <p className="text-xs text-zinc-400 mt-1">{user?.email}</p>
+                    <Badge variant="info" size="sm" className="mt-2">
+                      {user?.plan || 'Free'} Plan
+                    </Badge>
+                  </div>
+                  <div className="p-2">
+                    <button
+                      onClick={() => {
+                        setActiveSection('settings');
+                        setShowUserMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-all"
+                    >
+                      <SettingsIcon className="w-4 h-4" />
+                      Settings
+                    </button>
+                    <button
+                      onClick={() => router.push('/')}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-all"
+                    >
+                      <HomeIcon className="w-4 h-4" />
+                      Back to Home
+                    </button>
+                  </div>
+                  <div className="p-2 border-t border-white/10">
+                    <button
+                      onClick={() => {
+                        localStorage.removeItem('token');
+                        router.push('/login');
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all"
+                    >
+                      <LogoutIcon className="w-4 h-4" />
+                      Logout
+                    </button>
+                  </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      </header>
 
-              <div className="space-y-4 mb-8">
-                <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-black font-bold text-sm flex-shrink-0">
-                    1
-                  </div>
-                  <div>
-                    <h3 className="text-white font-semibold mb-1">Connect Your Social Media Pages</h3>
-                    <p className="text-sm text-zinc-500">Link your Facebook and Instagram business pages with one click</p>
-                  </div>
-                </div>
+      <main className="min-h-screen lg:ml-64 pt-20 pb-20 px-4 sm:px-6 lg:px-8 bg-black">
+        <div className="max-w-7xl mx-auto">
+          {/* Overview Section */}
+          {activeSection === 'overview' && (
+            <>
+              <div className="mb-12">
+                <h1
+                  className="text-4xl sm:text-5xl font-bold text-white mb-4"
+                  style={{ fontFamily: 'Syne, sans-serif' }}
+                >
+                  Welcome back, {user?.firstName}!
+                </h1>
+                <p className="text-xl text-zinc-400">
+                  Manage your social media pages and AI agents from here.
+                </p>
+              </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 rounded-full bg-zinc-400 flex items-center justify-center text-black font-bold text-sm flex-shrink-0">
-                    2
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
+                <Card variant="interactive">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-medium text-zinc-400">Connected Pages</h3>
+                    <ChatIcon className="w-5 h-5 text-white" />
                   </div>
-                  <div>
-                    <h3 className="text-white font-semibold mb-1">Configure Your AI Agent</h3>
-                    <p className="text-sm text-zinc-500">Customize your AI's personality and response style</p>
-                  </div>
-                </div>
+                  <div className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>{pages.length}</div>
+                  <p className="text-xs text-zinc-500">{pages.length === 0 ? 'No pages connected yet' : `${pages.length} page${pages.length > 1 ? 's' : ''} connected`}</p>
+                </Card>
 
-                <div className="flex items-start gap-4">
-                  <div className="w-8 h-8 rounded-full bg-zinc-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                    3
+                <Card variant="interactive">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-medium text-zinc-400">Active Conversations</h3>
+                    <MessageIcon className="w-5 h-5 text-white" />
                   </div>
+                  <div className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>0</div>
+                  <p className="text-xs text-zinc-500">No active conversations</p>
+                </Card>
+
+                <Card variant="interactive">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-medium text-zinc-400">AI Responses (24h)</h3>
+                    <BoltIcon className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>0</div>
+                  <p className="text-xs text-zinc-500">AI not active yet</p>
+                </Card>
+
+                <Card variant="interactive">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-medium text-zinc-400">Total Reach</h3>
+                    <GlobeIcon className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>0</div>
+                  <p className="text-xs text-zinc-500">Connect pages to see reach</p>
+                </Card>
+              </div>
+
+              <div className="mb-12">
+                <h2 className="text-2xl font-bold text-white mb-6" style={{ fontFamily: 'Syne, sans-serif' }}>
+                  Recent Activity
+                </h2>
+                <Card>
+                  <EmptyState
+                    icon={<ClockIcon className="w-16 h-16" />}
+                    title="No recent activity"
+                    description="Your recent conversations and AI responses will appear here"
+                  />
+                </Card>
+              </div>
+            </>
+          )}
+
+          {/* Pages Section */}
+          {activeSection === 'pages' && (
+            <>
+              <div className="mb-8">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
-                    <h3 className="text-white font-semibold mb-1">Let AI Handle Conversations</h3>
-                    <p className="text-sm text-zinc-500">Watch your AI respond to customers automatically</p>
+                    <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>
+                      Connected Pages
+                    </h1>
+                    <p className="text-zinc-400">Manage all your connected social media pages</p>
                   </div>
+                  <Button
+                    onClick={handleConnectFacebook}
+                    loading={pagesLoading}
+                    icon={<PlusIcon className="w-4 h-4" />}
+                  >
+                    Connect New Page
+                  </Button>
                 </div>
               </div>
 
-              <button
-                onClick={handleConnectFacebook}
-                disabled={pagesLoading}
-                className="btn-primary px-8 py-4 rounded-full font-semibold disabled:opacity-50"
-              >
-                <span>{pagesLoading ? 'Connecting...' : 'Connect Your First Page'}</span>
-              </button>
-            </div>
-          </div>
-        )}
+              {/* Platform Tabs */}
+              <Tabs defaultValue="all" value={activePlatformTab} onValueChange={setActivePlatformTab}>
+                <TabsList className="mb-6">
+                  <TabsTrigger value="all">
+                    All Platforms
+                  </TabsTrigger>
+                  <TabsTrigger value="facebook" icon={<FacebookIcon className="w-4 h-4" />}>
+                    Facebook
+                  </TabsTrigger>
+                  <TabsTrigger value="instagram" icon={<InstagramIcon className="w-4 h-4" />}>
+                    Instagram
+                  </TabsTrigger>
+                  <TabsTrigger value="whatsapp" icon={<WhatsAppIcon className="w-4 h-4" />}>
+                    WhatsApp
+                  </TabsTrigger>
+                </TabsList>
 
-        {/* Account Info */}
-        <div className="mt-12 bg-[#0a0a0a] border border-white/10 rounded-2xl p-6">
-          <h3 className="text-lg font-bold text-white mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>
-            Account Information
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-zinc-500 mb-1">Name</p>
-              <p className="text-white">{user?.firstName} {user?.lastName}</p>
-            </div>
-            <div>
-              <p className="text-sm text-zinc-500 mb-1">Email</p>
-              <p className="text-white">{user?.email}</p>
-            </div>
-            <div>
-              <p className="text-sm text-zinc-500 mb-1">Plan</p>
-              <p className="text-white capitalize">{user?.plan}</p>
-            </div>
-            <div>
-              <p className="text-sm text-zinc-500 mb-1">Status</p>
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
-                Active
-              </span>
-            </div>
-          </div>
+                <TabsContent value={activePlatformTab}>
+                  {filteredPages.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filteredPages.map((page) => (
+                        <Card key={page.id} variant="interactive">
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
+                                {getPlatformIcon(page.platform)}
+                              </div>
+                              <div>
+                                <h3 className="text-white font-semibold">{page.pageName}</h3>
+                                <p className="text-xs text-zinc-500 capitalize">{page.platform}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-3 mb-4">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-zinc-400">Status</span>
+                              <Badge variant="success">Active</Badge>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-zinc-400">Connected</span>
+                              <span className="text-white">{new Date(page.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-zinc-400">AI Agent</span>
+                              <Badge variant="success">Active</Badge>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => router.push(`/dashboard/page/${page.id}`)}
+                              icon={<SettingsIcon className="w-4 h-4" />}
+                            >
+                              Configure
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setShowDisconnectConfirm(page.id)}
+                              className="text-red-400 hover:text-red-300"
+                            >
+                              <CloseIcon className="w-4 h-4" />
+                            </Button>
+                          </div>
+
+                          {showDisconnectConfirm === page.id && (
+                            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+                              <Card className="max-w-md mx-4">
+                                <h3 className="text-xl font-bold text-white mb-2">Disconnect Page?</h3>
+                                <p className="text-zinc-400 mb-6">
+                                  Are you sure you want to disconnect {page.pageName}? You won't receive messages anymore.
+                                </p>
+                                <div className="flex gap-3">
+                                  <Button
+                                    variant="outline"
+                                    className="flex-1"
+                                    onClick={() => setShowDisconnectConfirm(null)}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    variant="danger"
+                                    className="flex-1"
+                                    onClick={() => handleDisconnect(page.id)}
+                                  >
+                                    Disconnect
+                                  </Button>
+                                </div>
+                              </Card>
+                            </div>
+                          )}
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <Card>
+                      <EmptyState
+                        icon={<ChatIcon className="w-20 h-20" />}
+                        title={activePlatformTab === 'all' ? 'No Pages Connected' : `No ${activePlatformTab.charAt(0).toUpperCase() + activePlatformTab.slice(1)} Pages`}
+                        description={
+                          activePlatformTab === 'all'
+                            ? 'Connect your social media pages to start managing them with AI'
+                            : `Connect your ${activePlatformTab.charAt(0).toUpperCase() + activePlatformTab.slice(1)} pages to get started`
+                        }
+                        action={
+                          <Button
+                            onClick={handleConnectFacebook}
+                            loading={pagesLoading}
+                            icon={<PlusIcon className="w-4 h-4" />}
+                          >
+                            Connect Your First Page
+                          </Button>
+                        }
+                      />
+                    </Card>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </>
+          )}
+
+          {/* Analytics Section */}
+          {activeSection === 'analytics' && (
+            <>
+              <div className="mb-8">
+                <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>
+                  Analytics
+                </h1>
+                <p className="text-zinc-400">Track performance across all your pages</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <Card variant="interactive">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-medium text-zinc-400">Total Messages</h3>
+                    <MessageIcon className="w-5 h-5 text-zinc-400" />
+                  </div>
+                  <div className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>0</div>
+                  <p className="text-xs text-zinc-500">+0% from last week</p>
+                </Card>
+
+                <Card variant="interactive">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-medium text-zinc-400">AI Response Rate</h3>
+                    <ChartIcon className="w-5 h-5 text-zinc-400" />
+                  </div>
+                  <div className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>0%</div>
+                  <p className="text-xs text-zinc-500">No data yet</p>
+                </Card>
+
+                <Card variant="interactive">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-medium text-zinc-400">Avg Response Time</h3>
+                    <ClockIcon className="w-5 h-5 text-zinc-400" />
+                  </div>
+                  <div className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>--</div>
+                  <p className="text-xs text-zinc-500">No data yet</p>
+                </Card>
+              </div>
+
+              <Card>
+                <EmptyState
+                  icon={<ChartIcon className="w-20 h-20" />}
+                  title="Analytics Coming Soon"
+                  description="Connect your pages and start using the AI to see detailed analytics about performance, engagement, and customer interactions."
+                />
+              </Card>
+            </>
+          )}
+
+          {/* Settings Section */}
+          {activeSection === 'settings' && (
+            <>
+              <div className="mb-8">
+                <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>
+                  Settings
+                </h1>
+                <p className="text-zinc-400">Manage your account and application settings</p>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-xl font-bold text-white mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>
+                    Account Information
+                  </h2>
+                  <Card>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Input
+                        label="First Name"
+                        value={user?.firstName || ''}
+                        disabled
+                      />
+                      <Input
+                        label="Last Name"
+                        value={user?.lastName || ''}
+                        disabled
+                      />
+                      <div className="md:col-span-2">
+                        <Input
+                          label="Email"
+                          type="email"
+                          value={user?.email || ''}
+                          disabled
+                        />
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+                <div>
+                  <h2 className="text-xl font-bold text-white mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>
+                    Plan & Billing
+                  </h2>
+                  <Card>
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-white font-semibold mb-1">Current Plan</p>
+                        <p className="text-zinc-400 text-sm">You are on the <span className="text-white capitalize">{user?.plan || 'Free'}</span> plan</p>
+                      </div>
+                      <Badge variant="info" size="md">{user?.plan || 'Free'}</Badge>
+                    </div>
+                    <div className="pt-4 border-t border-white/10">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-zinc-400 text-sm">Pages Limit</span>
+                        <span className="text-white text-sm">{pages.length} / 10</span>
+                      </div>
+                      <div className="w-full bg-zinc-800 rounded-full h-2 mb-4">
+                        <div
+                          className="bg-white h-2 rounded-full transition-all"
+                          style={{ width: `${(pages.length / 10) * 100}%` }}
+                        />
+                      </div>
+                      <Button className="w-full">
+                        Upgrade Plan
+                      </Button>
+                    </div>
+                  </Card>
+                </div>
+
+                <div>
+                  <h2 className="text-xl font-bold text-white mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>
+                    Facebook API Permissions
+                  </h2>
+                  <Card>
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="text-white font-semibold mb-2">Currently Active Permissions</h3>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="success">pages_show_list</Badge>
+                          <Badge variant="success">pages_manage_metadata</Badge>
+                          <Badge variant="success">pages_messaging</Badge>
+                        </div>
+                      </div>
+                      <div className="pt-4 border-t border-white/10">
+                        <h3 className="text-white font-semibold mb-2">Available Advanced Permissions</h3>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          <Badge variant="info">pages_read_engagement</Badge>
+                          <Badge variant="info">pages_read_user_content</Badge>
+                          <Badge variant="info">pages_manage_posts</Badge>
+                          <Badge variant="info">pages_manage_engagement</Badge>
+                          <Badge variant="info">read_insights</Badge>
+                        </div>
+                        <p className="text-sm text-zinc-400">
+                          These permissions require Facebook App Review approval.
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+                <div>
+                  <h2 className="text-xl font-bold text-red-400 mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>
+                    Danger Zone
+                  </h2>
+                  <Card className="border-red-500/20 bg-red-500/5">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <h3 className="text-red-400 font-semibold mb-1">Delete Account</h3>
+                        <p className="text-red-300/80 text-sm">
+                          Permanently delete your account and all associated data.
+                        </p>
+                      </div>
+                      <Button variant="danger">
+                        Delete Account
+                      </Button>
+                    </div>
+                  </Card>
+                </div>
+              </div>
+            </>
+          )}
         </div>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }

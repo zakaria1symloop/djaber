@@ -12,7 +12,7 @@ export const getPageInsightsController = async (req: Request, res: Response): Pr
       return;
     }
 
-    const { pageId } = req.params;
+    const pageId = req.params.pageId as string;
 
     // Verify page ownership
     const page = await prisma.page.findFirst({
@@ -62,7 +62,7 @@ export const getPageConversationsController = async (req: Request, res: Response
       return;
     }
 
-    const { pageId } = req.params;
+    const pageId = req.params.pageId as string;
     const { status = 'active', limit = '50', offset = '0' } = req.query;
 
     // Verify page ownership
@@ -150,7 +150,7 @@ export const getPageMessagesController = async (req: Request, res: Response): Pr
       return;
     }
 
-    const { pageId } = req.params;
+    const pageId = req.params.pageId as string;
     const { dateFrom, dateTo, type, limit = '50', offset = '0' } = req.query;
 
     // Verify page ownership
@@ -253,17 +253,14 @@ export const getPageAISettingsController = async (req: Request, res: Response): 
       return;
     }
 
-    const { pageId } = req.params;
+    const pageId = req.params.pageId as string;
 
-    // Verify page ownership
+    // Verify page ownership and get AI settings
     const page = await prisma.page.findFirst({
       where: {
         id: pageId,
         userId: req.user.userId,
         isActive: true,
-      },
-      include: {
-        aiSettings: true,
       },
     });
 
@@ -272,8 +269,12 @@ export const getPageAISettingsController = async (req: Request, res: Response): 
       return;
     }
 
+    const aiSettings = await prisma.pageAISettings.findUnique({
+      where: { pageId: page.id },
+    });
+
     // If no settings exist, return defaults
-    if (!page.aiSettings) {
+    if (!aiSettings) {
       const defaults = {
         pageId: page.id,
         aiEnabled: true,
@@ -288,7 +289,7 @@ export const getPageAISettingsController = async (req: Request, res: Response): 
       return;
     }
 
-    res.json({ settings: page.aiSettings });
+    res.json({ settings: aiSettings });
   } catch (error) {
     console.error('Get page AI settings error:', error);
     res.status(500).json({
@@ -308,7 +309,7 @@ export const updatePageAISettingsController = async (req: Request, res: Response
       return;
     }
 
-    const { pageId } = req.params;
+    const pageId = req.params.pageId as string;
     const {
       aiEnabled,
       aiPersonality,
@@ -374,7 +375,7 @@ export const sendReplyController = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const { conversationId } = req.params;
+    const conversationId = req.params.conversationId as string;
     const { message } = req.body;
 
     if (!message || !message.trim()) {
@@ -382,14 +383,11 @@ export const sendReplyController = async (req: Request, res: Response): Promise<
       return;
     }
 
-    // Get conversation with page
+    // Get conversation
     const conversation = await prisma.conversation.findFirst({
       where: {
         id: conversationId,
         userId: req.user.userId,
-      },
-      include: {
-        page: true,
       },
     });
 
@@ -398,10 +396,20 @@ export const sendReplyController = async (req: Request, res: Response): Promise<
       return;
     }
 
+    // Get the page for this conversation
+    const page = await prisma.page.findUnique({
+      where: { id: conversation.pageId },
+    });
+
+    if (!page) {
+      res.status(404).json({ error: 'Not Found', message: 'Page not found' });
+      return;
+    }
+
     // Send message via Meta API
     try {
       const metaResponse = await sendMessage({
-        pageAccessToken: conversation.page.pageAccessToken,
+        pageAccessToken: page.pageAccessToken,
         recipientId: conversation.senderId,
         message: message.trim(),
         platform: conversation.platform as 'facebook' | 'instagram',
@@ -412,7 +420,7 @@ export const sendReplyController = async (req: Request, res: Response): Promise<
         data: {
           conversationId: conversation.id,
           messageId: metaResponse.message_id || `manual_${Date.now()}`,
-          senderId: conversation.page.pageId,
+          senderId: page.pageId,
           recipientId: conversation.senderId,
           text: message.trim(),
           timestamp: new Date(),

@@ -12,7 +12,9 @@ export const connectFacebookPage = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const redirectUri = `https://djaberio.symloop.com/api/pages/callback/facebook`;
+    // Use environment variable or default to production URL
+    const baseUrl = process.env.BACKEND_URL || 'https://djaberio.symloop.com';
+    const redirectUri = `${baseUrl}/api/pages/callback/facebook`;
     const scope = 'pages_show_list,pages_manage_metadata,pages_messaging';
 
     const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?` +
@@ -36,16 +38,44 @@ export const connectFacebookPage = async (req: Request, res: Response): Promise<
  */
 export const facebookCallback = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { code, state } = req.query;
+    const { code, state, error: fbError } = req.query;
     const userId = state as string;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5175';
+
+    // Handle user cancellation or errors
+    if (fbError) {
+      res.send(`
+        <html>
+          <body>
+            <script>
+              window.opener && window.opener.postMessage({ type: 'facebook-oauth-error', error: '${fbError}' }, '${frontendUrl}');
+              window.close();
+            </script>
+            <p>Authorization cancelled. This window will close automatically.</p>
+          </body>
+        </html>
+      `);
+      return;
+    }
 
     if (!code) {
-      res.status(400).json({ error: 'Bad Request', message: 'Authorization code missing' });
+      res.send(`
+        <html>
+          <body>
+            <script>
+              window.opener && window.opener.postMessage({ type: 'facebook-oauth-error', error: 'No authorization code' }, '${frontendUrl}');
+              window.close();
+            </script>
+            <p>Authorization failed. This window will close automatically.</p>
+          </body>
+        </html>
+      `);
       return;
     }
 
     // Exchange code for access token
-    const redirectUri = `https://djaberio.symloop.com/api/pages/callback/facebook`;
+    const baseUrl = process.env.BACKEND_URL || 'https://djaberio.symloop.com';
+    const redirectUri = `${baseUrl}/api/pages/callback/facebook`;
     const tokenResponse = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
       params: {
         client_id: process.env.META_APP_ID,
@@ -65,7 +95,7 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
     });
 
     // Save pages to database
-    const pages = pagesResponse.data.data;
+    const pages = pagesResponse.data.data || [];
     for (const page of pages) {
       await prisma.page.upsert({
         where: {
@@ -78,6 +108,7 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
           pageName: page.name,
           pageAccessToken: page.access_token,
           isActive: true,
+          userId: userId, // Update userId in case page was connected by different user before
         },
         create: {
           platform: 'facebook',
@@ -90,17 +121,32 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
       });
     }
 
-    res.json({
-      success: true,
-      message: `Successfully connected ${pages.length} page(s)`,
-      pages: pages.map((p: any) => ({ id: p.id, name: p.name })),
-    });
+    // Send success response that closes the popup
+    res.send(`
+      <html>
+        <body>
+          <script>
+            window.opener && window.opener.postMessage({ type: 'facebook-oauth-success', pages: ${pages.length} }, '${frontendUrl}');
+            window.close();
+          </script>
+          <p>Successfully connected ${pages.length} page(s). This window will close automatically.</p>
+        </body>
+      </html>
+    `);
   } catch (error) {
     console.error('Facebook callback error:', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to connect Facebook pages',
-    });
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5175';
+    res.send(`
+      <html>
+        <body>
+          <script>
+            window.opener && window.opener.postMessage({ type: 'facebook-oauth-error', error: 'Connection failed' }, '${frontendUrl}');
+            window.close();
+          </script>
+          <p>Failed to connect pages. This window will close automatically.</p>
+        </body>
+      </html>
+    `);
   }
 };
 

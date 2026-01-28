@@ -34,6 +34,22 @@ export function PagesProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated]);
 
+  // Listen for OAuth popup messages
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'facebook-oauth-success') {
+        console.log('Facebook OAuth success, refreshing pages...');
+        refreshPages();
+      } else if (event.data?.type === 'facebook-oauth-error') {
+        console.error('Facebook OAuth error:', event.data.error);
+        setError(event.data.error || 'Facebook connection failed');
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [isAuthenticated]);
+
   const refreshPages = async () => {
     if (!isAuthenticated) return;
 
@@ -70,12 +86,12 @@ export function PagesProvider({ children }: { children: ReactNode }) {
         `width=${width},height=${height},left=${left},top=${top}`
       );
 
-      // Listen for OAuth completion
+      // Also listen for popup close as fallback
       const checkPopup = setInterval(() => {
         if (popup?.closed) {
           clearInterval(checkPopup);
-          // Refresh pages after popup closes
-          setTimeout(() => refreshPages(), 1000);
+          // Refresh pages after popup closes (fallback if postMessage fails)
+          setTimeout(() => refreshPages(), 500);
         }
       }, 500);
 
