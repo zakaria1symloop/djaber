@@ -352,8 +352,9 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
       console.warn('Failed to get long-lived token, using short-lived:', ltErr.response?.data || ltErr.message);
     }
 
-    // Step 3: Get user profile info
+    // Step 3: Get user profile info (user_id here is the IGSID used in webhooks)
     let username = `instagram-${igUserId}`;
+    let igsId = String(igUserId); // fallback to OAuth user_id
     try {
       const profileResponse = await axios.get(`https://graph.instagram.com/v21.0/me`, {
         params: {
@@ -362,16 +363,31 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
         },
       });
       username = profileResponse.data.username || username;
+      // user_id from the profile API is the IGSID that webhooks use
+      if (profileResponse.data.user_id) {
+        igsId = String(profileResponse.data.user_id);
+      }
+      console.log(`Instagram profile: username=${username}, oauth_id=${igUserId}, igsid=${igsId}`);
     } catch (profErr: any) {
       console.warn('Failed to fetch Instagram profile:', profErr.response?.data || profErr.message);
     }
 
-    // Step 4: Save to database
+    // Step 4: Save to database using IGSID as pageId (matches webhook entry.id)
+    // First, clean up any old record with the OAuth user_id if different
+    if (igsId !== String(igUserId)) {
+      await prisma.page.deleteMany({
+        where: {
+          platform: 'instagram',
+          pageId: String(igUserId),
+        },
+      });
+    }
+
     await prisma.page.upsert({
       where: {
         platform_pageId: {
           platform: 'instagram',
-          pageId: String(igUserId),
+          pageId: igsId,
         },
       },
       update: {
@@ -382,7 +398,7 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
       },
       create: {
         platform: 'instagram',
-        pageId: String(igUserId),
+        pageId: igsId,
         pageName: username,
         pageAccessToken: longLivedToken,
         userId: userId,

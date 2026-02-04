@@ -51,8 +51,10 @@ export const handleMetaWebhook = async (
         }
       }
     } else if (body.object === 'instagram') {
+      console.log('Instagram webhook received');
       for (const entry of body.entry) {
         const igUserId = entry.id;
+        console.log(`Instagram entry for user: ${igUserId}`);
 
         // Handle Instagram messaging events
         if (entry.messaging) {

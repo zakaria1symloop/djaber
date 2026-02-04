@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 const META_GRAPH_API_URL = 'https://graph.facebook.com/v18.0';
+const INSTAGRAM_GRAPH_API_URL = 'https://graph.instagram.com/v21.0';
 
 interface SendMessageParams {
   pageAccessToken: string;
@@ -16,12 +17,27 @@ export const sendMessage = async ({
   platform,
 }: SendMessageParams): Promise<any> => {
   try {
-    const endpoint = platform === 'instagram'
-      ? `${META_GRAPH_API_URL}/me/messages`
-      : `${META_GRAPH_API_URL}/me/messages`;
+    if (platform === 'instagram') {
+      // Instagram API requires Authorization header
+      const response = await axios.post(
+        `${INSTAGRAM_GRAPH_API_URL}/me/messages`,
+        {
+          recipient: { id: recipientId },
+          message: { text: message },
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${pageAccessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      return response.data;
+    }
 
+    // Facebook uses access_token as query param
     const response = await axios.post(
-      endpoint,
+      `${META_GRAPH_API_URL}/me/messages`,
       {
         recipient: { id: recipientId },
         message: { text: message },
@@ -34,8 +50,8 @@ export const sendMessage = async ({
     );
 
     return response.data;
-  } catch (error) {
-    console.error('Meta send message error:', error);
+  } catch (error: any) {
+    console.error('Meta send message error:', error.response?.data || error.message);
     throw new Error('Failed to send message via Meta API');
   }
 };

@@ -116,8 +116,8 @@ export default function AgentsPage() {
             Create and manage AI agents that sell your products on connected pages
           </p>
         </div>
-        <Button onClick={() => router.push('/dashboard/agents/new')} icon={<PlusIcon className="w-4 h-4" />}>
-          New Agent
+        <Button disabled className="opacity-50 cursor-not-allowed" icon={<PlusIcon className="w-4 h-4" />}>
+          New Agent (Coming Soon)
         </Button>
       </div>
 
@@ -230,8 +230,8 @@ export default function AgentsPage() {
           <p className="text-sm text-zinc-500 max-w-md mx-auto mb-4">
             Create an AI agent to automatically respond to messages on your connected pages and sell your products.
           </p>
-          <Button onClick={() => router.push('/dashboard/agents/new')} icon={<PlusIcon className="w-4 h-4" />}>
-            Create Your First Agent
+          <Button disabled className="opacity-50 cursor-not-allowed" icon={<PlusIcon className="w-4 h-4" />}>
+            Create Agent (Coming Soon)
           </Button>
         </div>
       )}
