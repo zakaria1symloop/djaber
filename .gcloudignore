@@ -1,0 +1,14 @@
+node_modules
+.next
+dist
+.git
+.github
+.claude
+.1code
+*.md
+.env
+.env.local
+.env.*.local
+backend
+courier-bridge
+uploads

@@ -1,21 +1,14 @@
 /**
  * API Client for Djaber.ai Backend
- *
- * This file provides all API communication between frontend and backend.
- * Base URL: http://localhost:5000
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+import { API_BASE_URL, getAuthHeader, apiRequest as baseApiRequest } from './api-config';
 
-/**
- * Generic API request handler
- */
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
-
   const config: RequestInit = {
     ...options,
     headers: {
@@ -29,7 +22,6 @@ async function apiRequest<T>(
     const data = await response.json();
 
     if (!response.ok) {
-      // Handle validation errors from express-validator
       if (data.errors && Array.isArray(data.errors)) {
         const errorMessages = data.errors.map((err: any) => err.msg).join(', ');
         throw new Error(errorMessages);
@@ -44,19 +36,6 @@ async function apiRequest<T>(
     }
     throw new Error('Network error occurred');
   }
-}
-
-/**
- * Get authorization header with JWT token
- */
-function getAuthHeader(): Record<string, string> {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    return {};
-  }
-  return {
-    Authorization: `Bearer ${token}`,
-  };
 }
 
 // ============================================================================

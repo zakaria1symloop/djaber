@@ -10,12 +10,13 @@ import { PagesProvider } from '@/contexts/PagesContext';
 export default function ClientLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const isAuthPage = pathname === '/login' || pathname === '/signup';
+  const isDashboard = pathname?.startsWith('/dashboard');
 
   return (
     <AuthProvider>
       <PagesProvider>
-        {/* Background effects - only on non-auth pages */}
-        {!isAuthPage && (
+        {/* Background effects - only on non-auth and non-dashboard pages */}
+        {!isAuthPage && !isDashboard && (
           <>
             <div className="gradient-bg" />
             <div className="grid-pattern" />
@@ -23,7 +24,8 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
           </>
         )}
 
-        {!isAuthPage && <Header />}
+        {/* Show header only on non-auth and non-dashboard pages */}
+        {!isAuthPage && !isDashboard && <Header />}
 
         <PageTransition>
           {children}

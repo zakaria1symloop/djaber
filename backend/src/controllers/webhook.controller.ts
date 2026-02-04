@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { verifyWebhook } from '../services/meta.service';
-import { generateAIResponse } from '../services/ai.service';
+import { generateAIResponse, generateAgentResponse } from '../services/ai.service';
 import { sendMessage } from '../services/meta.service';
 import prisma from '../config/database';
 
@@ -33,6 +33,8 @@ export const handleMetaWebhook = async (
   try {
     const body = req.body;
 
+    console.log('Webhook received:', JSON.stringify(body, null, 2));
+
     // Acknowledge webhook immediately
     res.status(200).send('EVENT_RECEIVED');
 
@@ -54,16 +56,56 @@ export const handleMetaWebhook = async (
   }
 };
 
+// Unsupported attachment types — AI can't process these yet
+const UNSUPPORTED_ATTACHMENT_TYPES = new Set(['audio', 'video', 'file', 'location', 'fallback']);
+
+function extractAttachments(message: any): {
+  imageUrls: string[];
+  unsupportedType: string | null;
+} {
+  const imageUrls: string[] = [];
+  let unsupportedType: string | null = null;
+
+  if (message.attachments && Array.isArray(message.attachments)) {
+    for (const att of message.attachments) {
+      if (att.type === 'image' && att.payload?.url) {
+        imageUrls.push(att.payload.url);
+      } else if (UNSUPPORTED_ATTACHMENT_TYPES.has(att.type)) {
+        unsupportedType = att.type;
+      }
+    }
+  }
+
+  return { imageUrls, unsupportedType };
+}
+
 async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
   try {
     const senderId = event.sender.id;
     const recipientId = event.recipient.id;
     const message = event.message;
 
-    // Ignore messages sent by the page itself
-    if (!message || !message.text) {
+    // Ignore echo messages or empty events
+    if (!message || message.is_echo) {
       return;
     }
+
+    // Extract text and attachments
+    const messageText = message.text || null;
+    const { imageUrls, unsupportedType } = extractAttachments(message);
+
+    // Determine primary attachment type for storage
+    const attachmentType = imageUrls.length > 0
+      ? 'image'
+      : unsupportedType || (message.attachments?.[0]?.type ?? null);
+    const attachmentUrl = imageUrls[0] || message.attachments?.[0]?.payload?.url || null;
+
+    // Skip if no text, no images, and no attachments at all
+    if (!messageText && imageUrls.length === 0 && !unsupportedType) {
+      return;
+    }
+
+    console.log(`Message from ${senderId} on page ${pageId}: text="${messageText || ''}", images=${imageUrls.length}, unsupported=${unsupportedType || 'none'}`);
 
     // Find the page in our database
     const page = await prisma.page.findFirst({
@@ -92,9 +134,7 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       },
       include: {
         messages: {
-          orderBy: {
-            timestamp: 'desc',
-          },
+          orderBy: { timestamp: 'desc' },
           take: 10,
         },
       },
@@ -114,44 +154,191 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       });
     }
 
-    // Save incoming message
+    // Save incoming message (always — regardless of type)
     await prisma.message.create({
       data: {
         conversationId: conversation.id,
         messageId: message.mid,
         senderId: senderId,
         recipientId: recipientId,
-        text: message.text,
+        text: messageText,
+        attachmentType,
+        attachmentUrl,
         timestamp: new Date(message.timestamp || Date.now()),
         isFromPage: false,
       },
     });
 
-    // Get AI settings for the user
-    const aiSettings = await prisma.aISettings.findUnique({
-      where: {
-        userId: page.userId,
-      },
-    });
+    // ========================================================================
+    // If the message is an unsupported type (voice, video, file, etc.)
+    // and has NO text and NO images — reply with a polite message
+    // ========================================================================
+    if (unsupportedType && !messageText && imageUrls.length === 0) {
+      const typeLabels: Record<string, string> = {
+        audio: 'voice messages',
+        video: 'videos',
+        file: 'files',
+        location: 'locations',
+        fallback: 'this type of message',
+      };
+      const label = typeLabels[unsupportedType] || 'this type of message';
+      const politeReply = `Sorry, I can't process ${label} yet. Please send me a text message and I'll be happy to help! 😊`;
 
-    // Check if auto-reply is enabled
-    if (!aiSettings || !aiSettings.autoReply) {
+      await sendMessage({
+        pageAccessToken: page.pageAccessToken,
+        recipientId: senderId,
+        message: politeReply,
+        platform: page.platform as 'facebook' | 'instagram',
+      });
+
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          messageId: `auto_${Date.now()}`,
+          senderId: recipientId,
+          recipientId: senderId,
+          text: politeReply,
+          timestamp: new Date(),
+          isFromPage: true,
+        },
+      });
+
       return;
     }
 
-    // Build conversation history
+    // Build conversation history from recent messages
     const conversationHistory = conversation.messages.reverse().map((msg: any) => ({
       role: (msg.isFromPage ? 'assistant' : 'user') as 'user' | 'assistant',
       content: msg.text || '',
     }));
 
-    // Add the new message
-    conversationHistory.push({
-      role: 'user',
-      content: message.text,
+    // ========================================================================
+    // Try Agent-based response first (new system)
+    // ========================================================================
+    const agentPage = await prisma.agentPage.findUnique({
+      where: { pageId: page.id },
+      include: {
+        agent: {
+          include: {
+            products: {
+              include: {
+                product: {
+                  include: {
+                    variants: {
+                      where: { isActive: true },
+                      select: { name: true, sellingPrice: true, quantity: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
-    // Generate AI response
+    if (agentPage && agentPage.agent.isActive) {
+      const agent = agentPage.agent;
+      console.log(`Agent "${agent.name}" handling message on page ${pageId}`);
+
+      // Get products for the agent
+      let products: any[];
+      if (agent.sellAllProducts) {
+        // Fetch all user's active products
+        const allProducts = await prisma.product.findMany({
+          where: { userId: page.userId, isActive: true },
+          include: {
+            variants: {
+              where: { isActive: true },
+              select: { name: true, sellingPrice: true, quantity: true },
+            },
+          },
+        });
+        products = allProducts;
+      } else {
+        // Use only the agent's linked products
+        products = agent.products
+          .map((ap) => ap.product)
+          .filter((p) => p.isActive);
+      }
+
+      // Format products for the AI
+      const productInfos = products.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        description: p.description,
+        sellingPrice: Number(p.sellingPrice),
+        quantity: p.quantity,
+        hasVariants: p.hasVariants ?? (p.variants && p.variants.length > 0),
+        variants: p.variants,
+        imageUrl: p.imageUrl,
+      }));
+
+      // Generate response via LangChain (pass image URLs for multimodal)
+      const aiResponse = await generateAgentResponse({
+        agent: {
+          name: agent.name,
+          personality: agent.personality,
+          customInstructions: agent.customInstructions,
+          aiModel: agent.aiModel,
+          temperature: agent.temperature,
+          maxTokens: agent.maxTokens,
+        },
+        products: productInfos,
+        conversationHistory,
+        userMessage: messageText || (imageUrls.length > 0 ? 'The customer sent an image.' : ''),
+        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+        userId: page.userId,
+        conversationId: conversation.id,
+      });
+
+      // Send response
+      await sendMessage({
+        pageAccessToken: page.pageAccessToken,
+        recipientId: senderId,
+        message: aiResponse,
+        platform: page.platform as 'facebook' | 'instagram',
+      });
+
+      // Save AI response
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          messageId: `agent_${Date.now()}`,
+          senderId: recipientId,
+          recipientId: senderId,
+          text: aiResponse,
+          timestamp: new Date(),
+          isFromPage: true,
+        },
+      });
+
+      return;
+    }
+
+    // ========================================================================
+    // Fallback: Legacy AISettings flow (text only)
+    // ========================================================================
+    if (!messageText) {
+      // Legacy flow doesn't support images — skip
+      return;
+    }
+
+    const aiSettings = await prisma.aISettings.findUnique({
+      where: { userId: page.userId },
+    });
+
+    if (!aiSettings || !aiSettings.autoReply) {
+      return;
+    }
+
+    // Add current message to history
+    conversationHistory.push({
+      role: 'user',
+      content: messageText,
+    });
+
     const aiResponse = await generateAIResponse({
       conversationHistory,
       businessContext: aiSettings.businessContext || undefined,
@@ -159,7 +346,6 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       model: aiSettings.aiModel,
     });
 
-    // Send response via Meta API
     await sendMessage({
       pageAccessToken: page.pageAccessToken,
       recipientId: senderId,
@@ -167,7 +353,6 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       platform: page.platform as 'facebook' | 'instagram',
     });
 
-    // Save AI response to database
     await prisma.message.create({
       data: {
         conversationId: conversation.id,

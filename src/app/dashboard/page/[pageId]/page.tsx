@@ -126,22 +126,35 @@ function PageConfigContent() {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* Sidebar Header */}
-        <div className="p-4 border-b border-white/10">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-white">
-              {currentPage.pageName}
-            </h2>
+        {/* Logo Section */}
+        <div className="p-6 border-b border-white/10">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+              <span className="text-white font-bold text-xl" style={{ fontFamily: 'Syne, sans-serif' }}>D</span>
+            </div>
+            <div>
+              <h1 className="text-white font-bold text-lg" style={{ fontFamily: 'Syne, sans-serif' }}>Djaber.ai</h1>
+              <p className="text-xs text-zinc-500">AI Social Agent</p>
+            </div>
+          </div>
+
+          {/* Current Page Info */}
+          <div className="flex items-center justify-between pt-3 border-t border-white/10">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white truncate">
+                {currentPage.pageName}
+              </p>
+              <p className="text-xs text-zinc-500 capitalize">{currentPage.platform}</p>
+            </div>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden text-zinc-400 hover:text-white transition-colors"
+              className="lg:hidden text-zinc-400 hover:text-white transition-colors ml-2"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
-          <p className="text-xs text-zinc-500 capitalize">{currentPage.platform}</p>
         </div>
 
         {/* Sidebar Navigation */}
@@ -163,6 +176,23 @@ function PageConfigContent() {
               <span className="font-medium">{section.name}</span>
             </button>
           ))}
+
+          {/* Divider */}
+          <div className="my-3 border-t border-white/10" />
+
+          {/* Stock Management Link */}
+          <button
+            onClick={() => {
+              router.push(`/dashboard/page/${pageId}/stock`);
+              setSidebarOpen(false);
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all text-zinc-400 hover:text-white hover:bg-white/5"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+            <span className="font-medium">Stock Management</span>
+          </button>
         </nav>
 
         {/* Sidebar Footer */}

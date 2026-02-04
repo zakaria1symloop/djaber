@@ -22,6 +22,8 @@ model User {
 
   pages         Page[]
   conversations Conversation[]
+  agents        Agent[]
+  notifications Notification[]
 }
 
 model Page {
@@ -38,6 +40,7 @@ model Page {
   user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversations Conversation[]
   aiSettings    PageAISettings?
+  agentPages    AgentPage[]
 
   @@unique([platform, pageId])
 }
@@ -49,12 +52,14 @@ model Conversation {
   senderName String?
   platform   String   // facebook, instagram
   userId     String
+  clientId   String?  // Link conversation to a Client
   status     String   @default("active") // active, resolved, archived
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   page     Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client   Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
   messages Message[]
 
   @@unique([platform, pageId, senderId])
@@ -69,6 +74,8 @@ model Message {
   senderId       String
   recipientId    String
   text           String?  @db.Text
+  attachmentType String?  // image, video, audio, file, location, fallback
+  attachmentUrl  String?  @db.Text
   timestamp      DateTime
   isFromPage     Boolean  @default(false) // true if sent by AI/page, false if from user
   createdAt      DateTime @default(now())
@@ -105,4 +112,464 @@ model PageAISettings {
   updatedAt           DateTime @updatedAt
 
   page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================================
+// AI Agents
+// ============================================================================
+
+model Agent {
+  id                 String   @id @default(uuid())
+  userId             String
+  name               String
+  description        String?  @db.Text
+  personality        String   @default("professional") // professional, friendly, casual, technical
+  customInstructions String?  @db.Text
+  aiModel            String   @default("gpt-4")
+  temperature        Float    @default(0.7)
+  maxTokens          Int      @default(1000)
+  sellAllProducts    Boolean  @default(true) // if true, agent knows entire catalog
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pages    AgentPage[]
+  products AgentProduct[]
+
+  @@index([userId, isActive])
+}
+
+model AgentPage {
+  id        String   @id @default(uuid())
+  agentId   String
+  pageId    String
+  createdAt DateTime @default(now())
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  page  Page  @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, pageId])
+  @@unique([pageId]) // one agent per page
+  @@index([agentId])
+}
+
+model AgentProduct {
+  id        String   @id @default(uuid())
+  agentId   String
+  productId String
+  createdAt DateTime @default(now())
+
+  agent   Agent   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, productId])
+  @@index([agentId])
+  @@index([productId])
+}
+
+// ============================================================================
+// Clients / Customers
+// ============================================================================
+
+model Client {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  phone       String?
+  email       String?
+  address     String?  @db.Text
+  notes       String?  @db.Text
+  source      String   @default("manual") // manual, ai
+  isActive    Boolean  @default(true)
+  totalOrders Int      @default(0)
+  totalSpent  Decimal  @default(0) @db.Decimal(10, 2)
+  lastOrderDate DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orders        Order[]
+  conversations Conversation[]
+
+  @@unique([userId, phone])
+  @@index([userId, isActive])
+  @@index([userId, name])
+}
+
+// ============================================================================
+// Stock Management System
+// ============================================================================
+
+model Unit {
+  id           String   @id @default(uuid())
+  userId       String?  // null = system default
+  name         String
+  abbreviation String
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  products     Product[]
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  pageId      String?
+  userId      String?
+  name        String
+  description String?
+  color       String?  @default("#6B7280") // For UI display
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  products Product[]
+
+  @@unique([pageId, name])
+  @@unique([userId, name])
+  @@index([pageId])
+  @@index([userId])
+}
+
+model Supplier {
+  id          String   @id @default(uuid())
+  pageId      String?
+  userId      String?
+  name        String
+  email       String?
+  phone       String?
+  address     String?  @db.Text
+  notes       String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  purchases Purchase[]
+
+  @@unique([pageId, name])
+  @@unique([userId, name])
+  @@index([pageId])
+  @@index([userId])
+}
+
+model Product {
+  id           String   @id @default(uuid())
+  pageId       String?
+  userId       String?
+  categoryId   String?
+  unitId       String?
+  sku          String   // Stock Keeping Unit
+  name         String
+  description  String?  @db.Text
+  costPrice    Decimal  @default(0) @db.Decimal(10, 2) // Purchase price
+  sellingPrice Decimal  @default(0) @db.Decimal(10, 2) // Sale price
+  quantity     Int      @default(0) // Current stock
+  minQuantity  Int      @default(0) // Alert threshold
+  unit         String   @default("piece") // Legacy field, kept for backward compat
+  hasVariants  Boolean  @default(false)
+  imageUrl     String?  // Legacy field, kept for backward compat
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  category       Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  unitRef        Unit?            @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  images         ProductImage[]
+  variants       ProductVariant[]
+  saleItems      SaleItem[]
+  purchaseItems  PurchaseItem[]
+  orderItems     OrderItem[]
+  stockMovements StockMovement[]
+  agentProducts  AgentProduct[]
+
+  @@unique([pageId, sku])
+  @@unique([userId, sku])
+  @@index([pageId, isActive])
+  @@index([userId, isActive])
+  @@index([pageId, categoryId])
+  @@index([pageId, quantity])
+  @@index([userId, quantity])
+}
+
+model ProductImage {
+  id         String   @id @default(uuid())
+  productId  String
+  url        String
+  filename   String
+  sortOrder  Int      @default(0)
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  @@index([productId, sortOrder])
+}
+
+model ProductVariant {
+  id           String   @id @default(uuid())
+  productId    String
+  name         String           // e.g. "Red - Large", "500ml"
+  sku          String?
+  costPrice    Decimal  @default(0) @db.Decimal(10, 2)
+  sellingPrice Decimal  @default(0) @db.Decimal(10, 2)
+  quantity     Int      @default(0)
+  minQuantity  Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  stockMovements StockMovement[]
+  @@unique([productId, name])
+  @@index([productId, isActive])
+}
+
+model Sale {
+  id            String   @id @default(uuid())
+  pageId        String?
+  userId        String?
+  saleNumber    String   // Auto-generated sale reference
+  customerName  String?
+  customerPhone String?
+  subtotal      Decimal  @db.Decimal(10, 2)
+  discount      Decimal  @default(0) @db.Decimal(10, 2)
+  tax           Decimal  @default(0) @db.Decimal(10, 2)
+  total         Decimal  @db.Decimal(10, 2)
+  paymentMethod String   @default("cash") // cash, card, transfer, other
+  paymentStatus String   @default("paid") // paid, pending, partial
+  notes         String?  @db.Text
+  saleDate      DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  items SaleItem[]
+
+  @@unique([pageId, saleNumber])
+  @@unique([userId, saleNumber])
+  @@index([pageId, saleDate])
+  @@index([userId, saleDate])
+  @@index([pageId, paymentStatus])
+  @@index([userId, paymentStatus])
+}
+
+model SaleItem {
+  id           String  @id @default(uuid())
+  saleId       String
+  productId    String
+  productName  String  // Snapshot of product name at time of sale
+  quantity     Int
+  unitPrice    Decimal @db.Decimal(10, 2) // Price at time of sale
+  discount     Decimal @default(0) @db.Decimal(10, 2)
+  total        Decimal @db.Decimal(10, 2)
+
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model Purchase {
+  id              String   @id @default(uuid())
+  pageId          String?
+  userId          String?
+  purchaseNumber  String   // Auto-generated purchase reference
+  supplierId      String?
+  subtotal        Decimal  @db.Decimal(10, 2)
+  tax             Decimal  @default(0) @db.Decimal(10, 2)
+  shippingCost    Decimal  @default(0) @db.Decimal(10, 2)
+  total           Decimal  @db.Decimal(10, 2)
+  paymentStatus   String   @default("pending") // paid, pending, partial
+  status          String   @default("pending") // pending, received, partial, cancelled
+  notes           String?  @db.Text
+  purchaseDate    DateTime @default(now())
+  expectedDate    DateTime?
+  receivedDate    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  supplier Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  items    PurchaseItem[]
+
+  @@unique([pageId, purchaseNumber])
+  @@unique([userId, purchaseNumber])
+  @@index([pageId, purchaseDate])
+  @@index([userId, purchaseDate])
+  @@index([pageId, status])
+  @@index([userId, status])
+}
+
+model PurchaseItem {
+  id            String  @id @default(uuid())
+  purchaseId    String
+  productId     String
+  productName   String  // Snapshot of product name
+  quantity      Int     // Ordered quantity
+  receivedQty   Int     @default(0) // Actually received
+  unitCost      Decimal @db.Decimal(10, 2)
+  total         Decimal @db.Decimal(10, 2)
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseId])
+  @@index([productId])
+}
+
+// ============================================================================
+// Orders (E-commerce / Customer Orders with Call Confirmation)
+// ============================================================================
+
+model Order {
+  id                String   @id @default(uuid())
+  userId            String
+  orderNumber       String   // Auto-generated order reference (ORD-YYYYMMDD-XXXX)
+  clientId          String?  // Link to Client record
+  clientName        String
+  clientPhone       String?
+  clientAddress     String?  @db.Text
+  subtotal          Decimal  @db.Decimal(10, 2)
+  discount          Decimal  @default(0) @db.Decimal(10, 2)
+  tax               Decimal  @default(0) @db.Decimal(10, 2)
+  total             Decimal  @db.Decimal(10, 2)
+  amountPaid        Decimal  @default(0) @db.Decimal(10, 2)
+  paymentMethod     String   @default("cash") // cash, card, transfer, ccp
+  paymentStatus     String   @default("pending") // paid, pending, partial
+  status            String   @default("pending") // pending, confirmed, dispatched, delivered, cancelled
+  deliveryStatus    String   @default("not_sent") // not_sent, sent, in_transit, delivered
+  confirmationStatus String  @default("not_called") // not_called, no_answer, confirmed, rejected
+  callAttempts      Int      @default(0)
+  source            String   @default("manual") // manual, ai
+  notes             String?  @db.Text
+  orderDate         DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  client    Client?     @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  items     OrderItem[]
+  calls     OrderCall[]
+
+  trackingNumber     String?
+  deliveryProvider   String?
+  deliveryFee        Decimal  @default(0) @db.Decimal(10, 2)
+  deliverySentAt     DateTime?
+
+  @@unique([userId, orderNumber])
+  @@index([userId, orderDate])
+  @@index([userId, status])
+  @@index([userId, paymentStatus])
+  @@index([userId, confirmationStatus])
+  @@index([userId, deliveryStatus])
+  @@index([clientId])
+}
+
+model OrderItem {
+  id          String  @id @default(uuid())
+  orderId     String
+  productId   String
+  productName String  // Snapshot of product name
+  variantId   String?
+  variantName String?
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(10, 2)
+  discount    Decimal @default(0) @db.Decimal(10, 2)
+  total       Decimal @db.Decimal(10, 2)
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model OrderCall {
+  id        String   @id @default(uuid())
+  orderId   String
+  result    String   // picked_up, no_answer, busy, rejected, voicemail
+  notes     String?  @db.Text // What the client said / response
+  calledAt  DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, calledAt])
+}
+
+model StockMovement {
+  id          String   @id @default(uuid())
+  pageId      String?
+  userId      String?
+  productId   String
+  variantId   String?
+  type        String   // in, out, adjustment, return
+  quantity    Int      // Positive for in, negative for out
+  reference   String?  // Sale ID, Purchase ID, or manual reference
+  reason      String?  // adjustment reason
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  product Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([pageId, createdAt])
+  @@index([userId, createdAt])
+  @@index([productId, createdAt])
+  @@index([pageId, type])
+  @@index([userId, type])
+  @@index([variantId])
+}
+
+// ============================================================================
+// AI Providers (super admin managed)
+// ============================================================================
+
+model AIProvider {
+  id          String   @id @default(uuid())
+  provider    String   @unique // openai, anthropic, google, groq
+  displayName String           // "OpenAI", "Anthropic", etc.
+  apiKey      String   @db.Text
+  isActive    Boolean  @default(false)
+  models      String   @db.Text // JSON array of model IDs available for this provider
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================================================
+// Notifications
+// ============================================================================
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String   // ai_order, stock_alert, etc.
+  title     String
+  message   String   @db.Text
+  metadata  Json?    // { orderId, agentName, orderNumber, total, clientName, ... }
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+  @@index([userId, type, createdAt])
+}
+
+// ============================================================================
+// Delivery Providers (CourierDZ integration)
+// ============================================================================
+
+model DeliveryProvider {
+  id             String   @id @default(uuid())
+  userId         String
+  provider       String   // yalidine, zrexpress, maystro
+  displayName    String
+  credentials    String   @db.Text // AES-256 encrypted JSON
+  isActive       Boolean  @default(true)
+  isDefault      Boolean  @default(false)
+  senderName     String?
+  senderPhone    String?
+  senderAddress  String?
+  senderWilayaId Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, provider])
+  @@index([userId, isActive])
 }

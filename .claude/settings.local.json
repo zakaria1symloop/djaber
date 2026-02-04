@@ -9,7 +9,12 @@
       "Bash(git push:*)",
       "Bash(tar:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nUpdate page config dashboard with ChatGPT-style UI and fix Facebook OAuth scopes\n\nUI Changes:\n- Redesign header with minimal ChatGPT-style \\(no background\\)\n- Increase sidebar z-index to z-50 for proper layering\n- Add close button to mobile sidebar\n- Cleaner navigation with better spacing\n- Add \"Back to Dashboard\" in sidebar footer\n- Improve mobile responsiveness\n\nBackend Fix:\n- Remove invalid Facebook permissions \\(pages_read_engagement, pages_read_user_content\\)\n- Use valid scopes: pages_show_list, pages_manage_metadata, pages_messaging, pages_manage_posts, pages_manage_engagement\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix Facebook OAuth with valid permissions only\n\nChanges:\n- Revert to basic valid Facebook permissions: pages_show_list, pages_manage_metadata, pages_messaging\n- Remove invalid scopes that were causing OAuth errors \\(pages_manage_posts, pages_manage_engagement\\)\n- Update Overview section message to explain insights require additional permissions\n- Users can now successfully reconnect Facebook pages and use Messages/AI Settings features\n\nNote: Page Insights will be available once Facebook approves advanced permissions in app review.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix Facebook OAuth with valid permissions only\n\nChanges:\n- Revert to basic valid Facebook permissions: pages_show_list, pages_manage_metadata, pages_messaging\n- Remove invalid scopes that were causing OAuth errors \\(pages_manage_posts, pages_manage_engagement\\)\n- Update Overview section message to explain insights require additional permissions\n- Users can now successfully reconnect Facebook pages and use Messages/AI Settings features\n\nNote: Page Insights will be available once Facebook approves advanced permissions in app review.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "WebSearch",
+      "Bash(curl:*)",
+      "Bash(npm run build:*)",
+      "Bash(node diagnose-facebook-webhook.js:*)",
+      "Bash(python:*)"
     ]
   }
 }

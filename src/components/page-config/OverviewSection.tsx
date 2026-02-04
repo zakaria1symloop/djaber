@@ -136,33 +136,6 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
         </button>
       </div>
 
-      {/* Error State */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
-          <div className="flex items-start gap-3">
-            <svg className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div className="flex-1">
-              <h3 className="text-red-400 font-medium">Unable to Load Insights</h3>
-              <p className="text-red-300/80 text-sm mt-1">{error}</p>
-              <p className="text-red-300/60 text-xs mt-2">
-                Note: Facebook insights may take 24-48 hours to become available for newly connected pages.
-              </p>
-              <button
-                onClick={() => {
-                  clearError();
-                  loadInsights();
-                }}
-                className="mt-3 text-sm text-red-400 hover:text-red-300 underline"
-              >
-                Try Again
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {metrics.map((metric) => (
@@ -181,8 +154,8 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
         ))}
       </div>
 
-      {/* Info Box */}
-      {(!insights || insights.data.length === 0) && !error && (
+      {/* Info Box - Show when insights are not available (expected behavior) */}
+      {(!insights || insights.data.length === 0 || error) && (
         <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
           <div className="flex items-start gap-3">
             <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
