@@ -245,6 +245,183 @@ export const getUserPages = async (req: Request, res: Response): Promise<void> =
 };
 
 /**
+ * Initiate Instagram Professional Login OAuth flow
+ */
+export const connectInstagramPage = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized', message: 'User not authenticated' });
+      return;
+    }
+
+    const baseUrl = process.env.BACKEND_URL || 'https://djaberio.symloop.com';
+    const redirectUri = `${baseUrl}/api/pages/callback/instagram`;
+    const scope = 'instagram_business_basic,instagram_business_manage_messages';
+
+    const authUrl = `https://www.instagram.com/oauth/authorize?` +
+      `client_id=${process.env.INSTAGRAM_APP_ID}` +
+      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+      `&scope=${encodeURIComponent(scope)}` +
+      `&response_type=code` +
+      `&state=${req.user.userId}`;
+
+    res.json({ authUrl });
+  } catch (error) {
+    console.error('Instagram connect error:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to initiate Instagram connection',
+    });
+  }
+};
+
+/**
+ * Handle Instagram OAuth callback
+ */
+export const instagramCallback = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { code, state, error: igError } = req.query;
+    const userId = state as string;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5175';
+
+    // Handle user cancellation or errors
+    if (igError) {
+      res.send(`
+        <html>
+          <body>
+            <script>
+              window.opener && window.opener.postMessage({ type: 'instagram-oauth-error', error: '${igError}' }, '${frontendUrl}');
+              window.close();
+            </script>
+            <p>Authorization cancelled. This window will close automatically.</p>
+          </body>
+        </html>
+      `);
+      return;
+    }
+
+    if (!code) {
+      res.send(`
+        <html>
+          <body>
+            <script>
+              window.opener && window.opener.postMessage({ type: 'instagram-oauth-error', error: 'No authorization code' }, '${frontendUrl}');
+              window.close();
+            </script>
+            <p>Authorization failed. This window will close automatically.</p>
+          </body>
+        </html>
+      `);
+      return;
+    }
+
+    // Step 1: Exchange code for short-lived token
+    const baseUrl = process.env.BACKEND_URL || 'https://djaberio.symloop.com';
+    const redirectUri = `${baseUrl}/api/pages/callback/instagram`;
+
+    const tokenResponse = await axios.post(
+      'https://api.instagram.com/oauth/access_token',
+      new URLSearchParams({
+        client_id: process.env.INSTAGRAM_APP_ID || '',
+        client_secret: process.env.INSTAGRAM_APP_SECRET || '',
+        grant_type: 'authorization_code',
+        redirect_uri: redirectUri,
+        code: code as string,
+      }),
+      {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      }
+    );
+
+    const shortLivedToken = tokenResponse.data.access_token;
+    const igUserId = tokenResponse.data.user_id;
+
+    // Step 2: Exchange short-lived token for long-lived token
+    let longLivedToken = shortLivedToken;
+    try {
+      const longTokenResponse = await axios.get('https://graph.instagram.com/access_token', {
+        params: {
+          grant_type: 'ig_exchange_token',
+          client_secret: process.env.INSTAGRAM_APP_SECRET,
+          access_token: shortLivedToken,
+        },
+      });
+      longLivedToken = longTokenResponse.data.access_token;
+      console.log('Got long-lived Instagram token, expires in:', longTokenResponse.data.expires_in);
+    } catch (ltErr: any) {
+      console.warn('Failed to get long-lived token, using short-lived:', ltErr.response?.data || ltErr.message);
+    }
+
+    // Step 3: Get user profile info
+    let username = `instagram-${igUserId}`;
+    try {
+      const profileResponse = await axios.get(`https://graph.instagram.com/v21.0/me`, {
+        params: {
+          fields: 'user_id,username',
+          access_token: longLivedToken,
+        },
+      });
+      username = profileResponse.data.username || username;
+    } catch (profErr: any) {
+      console.warn('Failed to fetch Instagram profile:', profErr.response?.data || profErr.message);
+    }
+
+    // Step 4: Save to database
+    await prisma.page.upsert({
+      where: {
+        platform_pageId: {
+          platform: 'instagram',
+          pageId: String(igUserId),
+        },
+      },
+      update: {
+        pageName: username,
+        pageAccessToken: longLivedToken,
+        isActive: true,
+        userId: userId,
+      },
+      create: {
+        platform: 'instagram',
+        pageId: String(igUserId),
+        pageName: username,
+        pageAccessToken: longLivedToken,
+        userId: userId,
+        isActive: true,
+      },
+    });
+
+    console.log(`Connected Instagram account: ${username} (${igUserId})`);
+
+    // Send success response that closes the popup
+    res.send(`
+      <html>
+        <body>
+          <script>
+            window.opener && window.opener.postMessage({ type: 'instagram-oauth-success', username: '${username}' }, '${frontendUrl}');
+            window.close();
+          </script>
+          <p>Successfully connected Instagram account @${username}. This window will close automatically.</p>
+        </body>
+      </html>
+    `);
+  } catch (error: any) {
+    console.error('Instagram callback error:', error.response?.data || error);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5175';
+    res.send(`
+      <html>
+        <body>
+          <script>
+            window.opener && window.opener.postMessage({ type: 'instagram-oauth-error', error: 'Connection failed' }, '${frontendUrl}');
+            window.close();
+          </script>
+          <p>Failed to connect Instagram. This window will close automatically.</p>
+        </body>
+      </html>
+    `);
+  }
+};
+
+/**
  * Disconnect a page
  */
 export const disconnectPage = async (req: Request, res: Response): Promise<void> => {

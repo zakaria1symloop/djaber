@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import {
   getUserPages,
   connectFacebookPage as apiConnectFacebook,
+  connectInstagramPage as apiConnectInstagram,
   disconnectPage as apiDisconnectPage,
   type Page,
 } from '@/lib/pages-api';
@@ -14,6 +15,7 @@ interface PagesContextType {
   loading: boolean;
   error: string | null;
   connectFacebookPage: () => Promise<void>;
+  connectInstagramPage: () => Promise<void>;
   disconnectPage: (pageId: string) => Promise<void>;
   refreshPages: () => Promise<void>;
   clearError: () => void;
@@ -43,6 +45,12 @@ export function PagesProvider({ children }: { children: ReactNode }) {
       } else if (event.data?.type === 'facebook-oauth-error') {
         console.error('Facebook OAuth error:', event.data.error);
         setError(event.data.error || 'Facebook connection failed');
+      } else if (event.data?.type === 'instagram-oauth-success') {
+        console.log('Instagram OAuth success, refreshing pages...');
+        refreshPages();
+      } else if (event.data?.type === 'instagram-oauth-error') {
+        console.error('Instagram OAuth error:', event.data.error);
+        setError(event.data.error || 'Instagram connection failed');
       }
     };
 
@@ -104,6 +112,42 @@ export function PagesProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const connectInstagramPage = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await apiConnectInstagram();
+
+      // Open Instagram OAuth in popup
+      const width = 600;
+      const height = 700;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
+
+      const popup = window.open(
+        response.authUrl,
+        'Instagram Login',
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+
+      // Also listen for popup close as fallback
+      const checkPopup = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(checkPopup);
+          setTimeout(() => refreshPages(), 500);
+        }
+      }, 500);
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to connect Instagram page';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const disconnectPage = async (pageId: string) => {
     try {
       setLoading(true);
@@ -131,6 +175,7 @@ export function PagesProvider({ children }: { children: ReactNode }) {
     loading,
     error,
     connectFacebookPage,
+    connectInstagramPage,
     disconnectPage,
     refreshPages,
     clearError,

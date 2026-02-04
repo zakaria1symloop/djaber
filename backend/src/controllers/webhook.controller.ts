@@ -50,6 +50,17 @@ export const handleMetaWebhook = async (
           }
         }
       }
+    } else if (body.object === 'instagram') {
+      for (const entry of body.entry) {
+        const igUserId = entry.id;
+
+        // Handle Instagram messaging events
+        if (entry.messaging) {
+          for (const event of entry.messaging) {
+            await handleMessagingEvent(event, igUserId);
+          }
+        }
+      }
     }
   } catch (error) {
     console.error('Webhook handling error:', error);

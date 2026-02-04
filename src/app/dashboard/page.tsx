@@ -41,7 +41,7 @@ function DashboardPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const { pages, loading: pagesLoading, connectFacebookPage, disconnectPage } = usePages();
+  const { pages, loading: pagesLoading, connectFacebookPage, connectInstagramPage, disconnectPage } = usePages();
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState<string | null>(null);
   const [activePlatformTab, setActivePlatformTab] = useState('all');
 
@@ -52,6 +52,14 @@ function DashboardPageInner() {
       await connectFacebookPage();
     } catch (error) {
       console.error('Failed to connect Facebook:', error);
+    }
+  };
+
+  const handleConnectInstagram = async () => {
+    try {
+      await connectInstagramPage();
+    } catch (error) {
+      console.error('Failed to connect Instagram:', error);
     }
   };
 
@@ -162,13 +170,23 @@ function DashboardPageInner() {
                 </h1>
                 <p className="text-zinc-400">Manage all your connected social media pages and platforms</p>
               </div>
-              <Button
-                onClick={handleConnectFacebook}
-                loading={pagesLoading}
-                icon={<PlusIcon className="w-4 h-4" />}
-              >
-                Connect New Page
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleConnectFacebook}
+                  loading={pagesLoading}
+                  icon={<FacebookIcon className="w-4 h-4" />}
+                >
+                  Connect Facebook
+                </Button>
+                <Button
+                  onClick={handleConnectInstagram}
+                  loading={pagesLoading}
+                  variant="outline"
+                  icon={<InstagramIcon className="w-4 h-4" />}
+                >
+                  Connect Instagram
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -268,9 +286,14 @@ function DashboardPageInner() {
                         : `Connect your ${activePlatformTab.charAt(0).toUpperCase() + activePlatformTab.slice(1)} pages to get started`
                     }
                     action={
-                      <Button onClick={handleConnectFacebook} loading={pagesLoading} icon={<PlusIcon className="w-4 h-4" />}>
-                        Connect Your First Page
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button onClick={handleConnectFacebook} loading={pagesLoading} icon={<FacebookIcon className="w-4 h-4" />}>
+                          Connect Facebook
+                        </Button>
+                        <Button onClick={handleConnectInstagram} loading={pagesLoading} variant="outline" icon={<InstagramIcon className="w-4 h-4" />}>
+                          Connect Instagram
+                        </Button>
+                      </div>
                     }
                   />
                 </Card>

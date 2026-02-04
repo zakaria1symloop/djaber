@@ -25,6 +25,10 @@ export interface ConnectFacebookResponse {
   authUrl: string;
 }
 
+export interface ConnectInstagramResponse {
+  authUrl: string;
+}
+
 export interface DisconnectPageResponse {
   success: boolean;
   message: string;
@@ -44,6 +48,15 @@ export async function getUserPages(): Promise<GetPagesResponse> {
  */
 export async function connectFacebookPage(): Promise<ConnectFacebookResponse> {
   return apiRequest<ConnectFacebookResponse>('/api/pages/connect/facebook', {
+    headers: getAuthHeader(),
+  });
+}
+
+/**
+ * Initiate Instagram page connection (OAuth)
+ */
+export async function connectInstagramPage(): Promise<ConnectInstagramResponse> {
+  return apiRequest<ConnectInstagramResponse>('/api/pages/connect/instagram', {
     headers: getAuthHeader(),
   });
 }
