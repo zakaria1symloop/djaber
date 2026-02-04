@@ -83,7 +83,7 @@ export const TabsTrigger = forwardRef<HTMLButtonElement, TabsTriggerProps>(
         type="button"
         role="tab"
         aria-selected={isActive}
-        onClick={() => setActiveTab(value)}
+        onClick={() => !props.disabled && setActiveTab(value)}
         className={`
           inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md
           transition-all duration-200 ease-out

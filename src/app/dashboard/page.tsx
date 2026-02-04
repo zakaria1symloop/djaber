@@ -179,12 +179,12 @@ function DashboardPageInner() {
                   Connect Facebook
                 </Button>
                 <Button
-                  onClick={handleConnectInstagram}
-                  loading={pagesLoading}
+                  disabled
+                  className="opacity-50 cursor-not-allowed"
                   variant="outline"
                   icon={<InstagramIcon className="w-4 h-4" />}
                 >
-                  Connect Instagram
+                  Instagram (Coming Soon)
                 </Button>
               </div>
             </div>
@@ -194,8 +194,8 @@ function DashboardPageInner() {
             <TabsList className="mb-6">
               <TabsTrigger value="all">All Platforms</TabsTrigger>
               <TabsTrigger value="facebook" icon={<FacebookIcon className="w-4 h-4" />}>Facebook</TabsTrigger>
-              <TabsTrigger value="instagram" icon={<InstagramIcon className="w-4 h-4" />}>Instagram</TabsTrigger>
-              <TabsTrigger value="whatsapp" icon={<WhatsAppIcon className="w-4 h-4" />}>WhatsApp</TabsTrigger>
+              <TabsTrigger value="instagram" icon={<InstagramIcon className="w-4 h-4" />} disabled className="opacity-50 cursor-not-allowed">Instagram (Soon)</TabsTrigger>
+              <TabsTrigger value="whatsapp" icon={<WhatsAppIcon className="w-4 h-4" />} disabled className="opacity-50 cursor-not-allowed">WhatsApp (Soon)</TabsTrigger>
             </TabsList>
 
             <TabsContent value={activePlatformTab}>
@@ -286,14 +286,9 @@ function DashboardPageInner() {
                         : `Connect your ${activePlatformTab.charAt(0).toUpperCase() + activePlatformTab.slice(1)} pages to get started`
                     }
                     action={
-                      <div className="flex gap-2">
-                        <Button onClick={handleConnectFacebook} loading={pagesLoading} icon={<FacebookIcon className="w-4 h-4" />}>
-                          Connect Facebook
-                        </Button>
-                        <Button onClick={handleConnectInstagram} loading={pagesLoading} variant="outline" icon={<InstagramIcon className="w-4 h-4" />}>
-                          Connect Instagram
-                        </Button>
-                      </div>
+                      <Button onClick={handleConnectFacebook} loading={pagesLoading} icon={<FacebookIcon className="w-4 h-4" />}>
+                        Connect Facebook
+                      </Button>
                     }
                   />
                 </Card>
