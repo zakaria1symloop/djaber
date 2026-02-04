@@ -15,7 +15,7 @@ export const connectFacebookPage = async (req: Request, res: Response): Promise<
     // Use environment variable or default to production URL
     const baseUrl = process.env.BACKEND_URL || 'https://djaberio.symloop.com';
     const redirectUri = `${baseUrl}/api/pages/callback/facebook`;
-    const scope = 'pages_show_list,pages_manage_metadata,pages_messaging,instagram_basic,instagram_manage_messages';
+    const scope = 'pages_show_list,pages_manage_metadata,pages_messaging';
 
     const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?` +
       `client_id=${process.env.META_APP_ID}` +
