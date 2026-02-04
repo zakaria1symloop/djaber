@@ -15,7 +15,7 @@ export const connectFacebookPage = async (req: Request, res: Response): Promise<
     // Use environment variable or default to production URL
     const baseUrl = process.env.BACKEND_URL || 'https://djaberio.symloop.com';
     const redirectUri = `${baseUrl}/api/pages/callback/facebook`;
-    const scope = 'pages_show_list,pages_manage_metadata,pages_messaging';
+    const scope = 'pages_show_list,pages_manage_metadata,pages_messaging,instagram_basic,instagram_manage_messages';
 
     const authUrl = `https://www.facebook.com/v18.0/dialog/oauth?` +
       `client_id=${process.env.META_APP_ID}` +
@@ -135,6 +135,48 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
         console.log(`Subscribed page ${page.name} (${page.id}) to webhooks`);
       } catch (subErr: any) {
         console.error(`Failed to subscribe page ${page.id}:`, subErr.response?.data || subErr.message);
+      }
+
+      // Check for linked Instagram account
+      try {
+        const igResponse = await axios.get(
+          `https://graph.facebook.com/v18.0/${page.id}`,
+          {
+            params: {
+              fields: 'instagram_business_account{id,name,username,profile_picture_url}',
+              access_token: page.access_token,
+            },
+          }
+        );
+
+        const igAccount = igResponse.data?.instagram_business_account;
+        if (igAccount) {
+          await prisma.page.upsert({
+            where: {
+              platform_pageId: {
+                platform: 'instagram',
+                pageId: igAccount.id,
+              },
+            },
+            update: {
+              pageName: igAccount.username || igAccount.name || `IG-${page.name}`,
+              pageAccessToken: page.access_token, // Instagram uses the Facebook page token
+              isActive: true,
+              userId: userId,
+            },
+            create: {
+              platform: 'instagram',
+              pageId: igAccount.id,
+              pageName: igAccount.username || igAccount.name || `IG-${page.name}`,
+              pageAccessToken: page.access_token,
+              userId: userId,
+              isActive: true,
+            },
+          });
+          console.log(`Connected Instagram: ${igAccount.username || igAccount.id}`);
+        }
+      } catch (igErr: any) {
+        console.error(`Failed to fetch Instagram for page ${page.id}:`, igErr.response?.data || igErr.message);
       }
     }
 
