@@ -360,9 +360,13 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                   </div>
                 ))}
               </div>
-            ) : (
+            ) : loadingProducts ? (
               <div className="text-center py-4 text-sm text-zinc-500">
                 Loading available models...
+              </div>
+            ) : (
+              <div className="text-center py-4 text-sm text-zinc-500">
+                No AI providers configured. Ask your admin to set up AI providers.
               </div>
             )}
           </div>
