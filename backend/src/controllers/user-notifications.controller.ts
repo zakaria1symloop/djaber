@@ -4,7 +4,7 @@ import prisma from '../config/database';
 // GET /api/user-stock/notifications
 export const getNotifications = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user!.userId;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const type = req.query.type as string | undefined;
@@ -35,7 +35,7 @@ export const getNotifications = async (req: Request, res: Response): Promise<voi
 // GET /api/user-stock/notifications/unread-count
 export const getUnreadCount = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user!.userId;
     const count = await prisma.notification.count({
       where: { userId, isRead: false },
     });
@@ -49,7 +49,7 @@ export const getUnreadCount = async (req: Request, res: Response): Promise<void>
 // PUT /api/user-stock/notifications/read-all
 export const markAllAsRead = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user!.userId;
     const result = await prisma.notification.updateMany({
       where: { userId, isRead: false },
       data: { isRead: true },
@@ -64,7 +64,7 @@ export const markAllAsRead = async (req: Request, res: Response): Promise<void> 
 // PUT /api/user-stock/notifications/:id/read
 export const markAsRead = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user.id;
+    const userId = req.user!.userId;
     const id = req.params.id as string;
 
     const notification = await prisma.notification.updateMany({
