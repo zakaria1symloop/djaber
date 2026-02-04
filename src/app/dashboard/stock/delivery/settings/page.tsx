@@ -190,7 +190,7 @@ export default function DeliverySettingsPage() {
         >
           <option value="">Select a provider...</option>
           {availableProviders
-            .filter(ap => !providers.find(p => p.provider === ap.id) || editProvider?.provider === ap.id)
+            .filter(ap => !providers.find(p => p.provider === ap.id))
             .map(ap => (
               <option key={ap.id} value={ap.id}>{ap.name}</option>
             ))}

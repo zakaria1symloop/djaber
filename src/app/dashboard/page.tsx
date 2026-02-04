@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePages } from '@/contexts/PagesContext';
@@ -30,6 +30,14 @@ import {
 } from '@/components/ui';
 
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="text-white">Loading...</div>}>
+      <DashboardPageInner />
+    </Suspense>
+  );
+}
+
+function DashboardPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
