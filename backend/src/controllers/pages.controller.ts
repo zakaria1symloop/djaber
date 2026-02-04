@@ -108,7 +108,7 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
           pageName: page.name,
           pageAccessToken: page.access_token,
           isActive: true,
-          userId: userId, // Update userId in case page was connected by different user before
+          userId: userId,
         },
         create: {
           platform: 'facebook',
@@ -119,6 +119,23 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
           isActive: true,
         },
       });
+
+      // Subscribe page to webhook so it receives messages
+      try {
+        await axios.post(
+          `https://graph.facebook.com/v18.0/${page.id}/subscribed_apps`,
+          null,
+          {
+            params: {
+              subscribed_fields: 'messages,messaging_postbacks',
+              access_token: page.access_token,
+            },
+          }
+        );
+        console.log(`Subscribed page ${page.name} (${page.id}) to webhooks`);
+      } catch (subErr: any) {
+        console.error(`Failed to subscribe page ${page.id}:`, subErr.response?.data || subErr.message);
+      }
     }
 
     // Send success response that closes the popup
