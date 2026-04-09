@@ -55,3 +55,32 @@ export async function getAdminAnalytics(
 ): Promise<AdminAnalytics> {
   return apiRequest<AdminAnalytics>(`/api/admin/analytics?period=${period}`);
 }
+
+// ============================================================================
+// AI Providers
+// ============================================================================
+
+export interface AdminAIProvider {
+  id: string;
+  provider: string;
+  displayName: string;
+  apiKey: string; // masked from server: '...last8'
+  isActive: boolean;
+  models: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function getAdminAIProviders(): Promise<{ providers: AdminAIProvider[] }> {
+  return apiRequest<{ providers: AdminAIProvider[] }>('/api/admin/ai-providers');
+}
+
+export async function updateAdminAIProvider(
+  provider: string,
+  data: { apiKey?: string; isActive?: boolean; models?: string[] }
+): Promise<{ provider: AdminAIProvider }> {
+  return apiRequest<{ provider: AdminAIProvider }>(`/api/admin/ai-providers/${provider}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}

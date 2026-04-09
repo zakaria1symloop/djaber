@@ -10,12 +10,13 @@ import {
   BoxIcon,
   ChatIcon,
   SettingsIcon,
-  ArrowDownIcon,
+  BoltIcon,
 } from '@/components/ui/icons';
 
 const adminNavItems = [
   { href: '/admin', label: 'Overview', icon: ChartIcon, exact: true },
   { href: '/admin/analytics', label: 'Analytics', icon: ChartIcon },
+  { href: '/admin/ai-providers', label: 'AI Providers', icon: BoltIcon },
   { href: '/admin/users', label: 'Users', icon: UsersIcon },
   { href: '/admin/products', label: 'Products', icon: BoxIcon },
   { href: '/admin/conversations', label: 'Conversations', icon: ChatIcon },
