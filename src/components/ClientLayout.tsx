@@ -6,6 +6,7 @@ import Header from './Header';
 import { usePathname } from 'next/navigation';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { PagesProvider } from '@/contexts/PagesContext';
+import { ToastProvider } from '@/components/ui/Toast';
 
 export default function ClientLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -15,21 +16,23 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
       <PagesProvider>
-        {/* Background effects - only on non-auth and non-dashboard pages */}
-        {!isAuthPage && !isDashboard && (
-          <>
-            <div className="gradient-bg" />
-            <div className="grid-pattern" />
-            <div className="noise-overlay" />
-          </>
-        )}
+        <ToastProvider>
+          {/* Background effects - only on non-auth and non-dashboard pages */}
+          {!isAuthPage && !isDashboard && (
+            <>
+              <div className="gradient-bg" />
+              <div className="grid-pattern" />
+              <div className="noise-overlay" />
+            </>
+          )}
 
-        {/* Show header only on non-auth and non-dashboard pages */}
-        {!isAuthPage && !isDashboard && <Header />}
+          {/* Show header only on non-auth and non-dashboard pages */}
+          {!isAuthPage && !isDashboard && <Header />}
 
-        <PageTransition>
-          {children}
-        </PageTransition>
+          <PageTransition>
+            {children}
+          </PageTransition>
+        </ToastProvider>
       </PagesProvider>
     </AuthProvider>
   );
