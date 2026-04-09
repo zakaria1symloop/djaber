@@ -64,6 +64,7 @@ export interface AuthResponse {
     firstName: string;
     lastName: string;
     plan: string;
+    isAdmin?: boolean;
   };
 }
 
@@ -74,6 +75,7 @@ export interface ProfileResponse {
     firstName: string;
     lastName: string;
     plan: string;
+    isAdmin?: boolean;
     createdAt: string;
   };
 }

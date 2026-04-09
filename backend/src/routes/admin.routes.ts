@@ -1,15 +1,21 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth';
+import { authenticate, requireAdmin } from '../middleware/auth';
 import {
   getAllProviders,
   updateProvider,
 } from '../controllers/ai-providers.controller';
+import { getAdminAnalytics } from '../controllers/admin.controller';
 
 const router = Router();
 
-// All admin routes require authentication
-// TODO: Add admin role check middleware when super admin system is built
+// All admin routes require authentication + admin role
 router.use(authenticate);
+router.use(requireAdmin);
+
+// ============================================================================
+// Platform analytics
+// ============================================================================
+router.get('/analytics', getAdminAnalytics);
 
 // ============================================================================
 // AI Providers (admin management)

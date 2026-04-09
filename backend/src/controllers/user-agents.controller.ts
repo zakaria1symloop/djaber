@@ -352,3 +352,179 @@ export const testAgent = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ error: 'Failed to generate response' });
   }
 };
+
+// ============================================================================
+// Get Agent Metrics (KPIs)
+// ============================================================================
+
+export const getAgentMetrics = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+
+    const agentId = String(req.params.agentId);
+
+    const agent = await prisma.agent.findFirst({
+      where: { id: agentId, userId: req.user.userId },
+    });
+
+    if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
+
+    // Get conversations handled by this agent
+    const conversations = await prisma.conversation.findMany({
+      where: { agentId, userId: req.user.userId },
+      select: { id: true },
+    });
+
+    const conversationIds = conversations.map(c => c.id);
+
+    let totalMessages = 0;
+    let messagesFromCustomers = 0;
+    let messagesFromAgent = 0;
+    let lastActiveDate: Date | null = null;
+
+    if (conversationIds.length > 0) {
+      const [total, fromCustomers, fromAgent, lastMsg] = await Promise.all([
+        prisma.message.count({ where: { conversationId: { in: conversationIds } } }),
+        prisma.message.count({ where: { conversationId: { in: conversationIds }, isFromPage: false } }),
+        prisma.message.count({ where: { conversationId: { in: conversationIds }, isFromPage: true } }),
+        prisma.message.findFirst({
+          where: { conversationId: { in: conversationIds } },
+          orderBy: { timestamp: 'desc' },
+          select: { timestamp: true },
+        }),
+      ]);
+
+      totalMessages = total;
+      messagesFromCustomers = fromCustomers;
+      messagesFromAgent = fromAgent;
+      lastActiveDate = lastMsg?.timestamp || null;
+    }
+
+    // Count orders linked via conversations this agent handled
+    const ordersCreated = await prisma.order.count({
+      where: {
+        userId: req.user.userId,
+        source: 'ai',
+        client: {
+          conversations: { some: { agentId } },
+        },
+      },
+    });
+
+    // Count insights
+    const [insightsPending, insightsResolved] = await Promise.all([
+      prisma.agentInsight.count({ where: { agentId, status: 'pending' } }),
+      prisma.agentInsight.count({ where: { agentId, status: { in: ['resolved', 'dismissed'] } } }),
+    ]);
+
+    res.json({
+      metrics: {
+        conversationCount: conversations.length,
+        totalMessages,
+        messagesFromCustomers,
+        messagesFromAgent,
+        ordersCreated,
+        insightsPending,
+        insightsResolved,
+        lastActiveDate,
+      },
+    });
+  } catch (error) {
+    console.error('Get agent metrics error:', error);
+    res.status(500).json({ error: 'Failed to fetch agent metrics' });
+  }
+};
+
+// ============================================================================
+// Get Agent Insights (flagged conversations)
+// ============================================================================
+
+export const getAgentInsights = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+
+    const agentId = String(req.params.agentId);
+    const statusFilter = req.query.status as string | undefined;
+
+    const agent = await prisma.agent.findFirst({
+      where: { id: agentId, userId: req.user.userId },
+    });
+
+    if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
+
+    const where: any = { agentId };
+    if (statusFilter) {
+      where.status = statusFilter;
+    }
+
+    const insights = await prisma.agentInsight.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        conversation: {
+          select: { senderId: true, platform: true },
+        },
+      },
+    });
+
+    res.json({ insights });
+  } catch (error) {
+    console.error('Get agent insights error:', error);
+    res.status(500).json({ error: 'Failed to fetch agent insights' });
+  }
+};
+
+// ============================================================================
+// Resolve Agent Insight (add instruction or dismiss)
+// ============================================================================
+
+export const resolveInsight = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+
+    const insightId = String(req.params.insightId);
+    const { action, newInstruction } = req.body;
+
+    if (!action || !['resolve', 'dismiss'].includes(action)) {
+      res.status(400).json({ error: 'Action must be "resolve" or "dismiss"' });
+      return;
+    }
+
+    const insight = await prisma.agentInsight.findUnique({
+      where: { id: insightId },
+      include: { agent: true },
+    });
+
+    if (!insight || insight.agent.userId !== req.user.userId) {
+      res.status(404).json({ error: 'Insight not found' });
+      return;
+    }
+
+    // If resolving with a new instruction, append to agent's customInstructions
+    if (action === 'resolve' && newInstruction?.trim()) {
+      const existing = insight.agent.customInstructions || '';
+      const updated = existing
+        ? `${existing}\n- ${newInstruction.trim()}`
+        : `- ${newInstruction.trim()}`;
+
+      await prisma.agent.update({
+        where: { id: insight.agentId },
+        data: { customInstructions: updated },
+      });
+    }
+
+    // Mark insight as resolved/dismissed
+    const updatedInsight = await prisma.agentInsight.update({
+      where: { id: insightId },
+      data: {
+        status: action === 'resolve' ? 'resolved' : 'dismissed',
+        resolvedAt: new Date(),
+      },
+    });
+
+    res.json({ insight: updatedInsight });
+  } catch (error) {
+    console.error('Resolve insight error:', error);
+    res.status(500).json({ error: 'Failed to resolve insight' });
+  }
+};

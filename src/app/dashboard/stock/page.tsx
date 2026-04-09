@@ -32,6 +32,19 @@ export default function StockOverviewPage() {
   const [purchaseStats, setPurchaseStats] = useState<{
     totalPurchases: number; totalSpent: number; pendingPurchases: number; receivedPurchases: number;
   } | null>(null);
+  const [stockMode, setStockMode] = useState<'simple' | 'advanced'>('simple');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('stockMode');
+    if (saved === 'simple' || saved === 'advanced') setStockMode(saved);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'stockMode' && (e.newValue === 'simple' || e.newValue === 'advanced')) {
+        setStockMode(e.newValue);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const loadData = async () => {
     try {
@@ -56,12 +69,10 @@ export default function StockOverviewPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-zinc-800 rounded w-48" />
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-zinc-800 rounded-xl" />)}
-          </div>
+      <div className="animate-pulse space-y-6">
+        <div className="h-8 bg-zinc-800 rounded w-48" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-zinc-800 rounded-xl" />)}
         </div>
       </div>
     );
@@ -69,17 +80,15 @@ export default function StockOverviewPage() {
 
   if (error) {
     return (
-      <div className="p-6">
-        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400">
-          {error}
-          <Button variant="outline" size="sm" className="ml-4" onClick={loadData}>Retry</Button>
-        </div>
+      <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400">
+        {error}
+        <Button variant="outline" size="sm" className="ml-4" onClick={loadData}>Retry</Button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -140,8 +149,8 @@ export default function StockOverviewPage() {
         </>
       )}
 
-      {/* Sales Summary */}
-      {salesStats && (
+      {/* Sales Summary (Advanced only) */}
+      {stockMode === 'advanced' && salesStats && (
         <div>
           <h2 className="text-lg font-semibold text-white mb-3">Sales This Month</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -172,8 +181,8 @@ export default function StockOverviewPage() {
         </div>
       )}
 
-      {/* Purchase Summary */}
-      {purchaseStats && (
+      {/* Purchase Summary (Advanced only) */}
+      {stockMode === 'advanced' && purchaseStats && (
         <div>
           <h2 className="text-lg font-semibold text-white mb-3">Purchases This Month</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

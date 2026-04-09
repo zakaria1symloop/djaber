@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { usePageConfig } from '@/contexts/PageConfigContext';
+import { DatePicker } from '@/components/stock';
 
 interface Page {
   id: string;
@@ -110,30 +111,18 @@ export default function MessageHistorySection({ pageId }: MessageHistorySectionP
           </div>
 
           {/* Date From */}
-          <div>
-            <label className="block text-white text-sm font-medium mb-2">
-              From Date
-            </label>
-            <input
-              type="date"
-              value={filters.dateFrom}
-              onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
-              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-white/20"
-            />
-          </div>
+          <DatePicker
+            label="From Date"
+            value={filters.dateFrom}
+            onChange={(v) => setFilters({ ...filters, dateFrom: v })}
+          />
 
           {/* Date To */}
-          <div>
-            <label className="block text-white text-sm font-medium mb-2">
-              To Date
-            </label>
-            <input
-              type="date"
-              value={filters.dateTo}
-              onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-white/20"
-            />
-          </div>
+          <DatePicker
+            label="To Date"
+            value={filters.dateTo}
+            onChange={(v) => setFilters({ ...filters, dateTo: v })}
+          />
 
           {/* Filter Actions */}
           <div className="flex items-end gap-2">

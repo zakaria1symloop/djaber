@@ -44,11 +44,17 @@ export const getOrders = async (req: Request, res: Response): Promise<void> => {
       paymentStatus,
       confirmationStatus,
       search,
+      minTotal,
+      maxTotal,
+      hasRemaining,
+      clientId,
       limit = '50',
       offset = '0',
     } = req.query;
 
     const where: any = { userId: req.user.userId };
+
+    if (clientId) where.clientId = clientId as string;
 
     if (startDate || endDate) {
       where.orderDate = {};
@@ -57,8 +63,18 @@ export const getOrders = async (req: Request, res: Response): Promise<void> => {
     }
 
     if (status) where.status = status as string;
-    if (paymentStatus) where.paymentStatus = paymentStatus as string;
+    if (hasRemaining === 'true') {
+      where.paymentStatus = { not: 'paid' };
+    } else if (paymentStatus) {
+      where.paymentStatus = paymentStatus as string;
+    }
     if (confirmationStatus) where.confirmationStatus = confirmationStatus as string;
+
+    if (minTotal || maxTotal) {
+      where.total = {};
+      if (minTotal) where.total.gte = parseFloat(minTotal as string);
+      if (maxTotal) where.total.lte = parseFloat(maxTotal as string);
+    }
 
     if (search) {
       const s = search as string;
@@ -66,6 +82,9 @@ export const getOrders = async (req: Request, res: Response): Promise<void> => {
         { orderNumber: { contains: s } },
         { clientName: { contains: s } },
         { clientPhone: { contains: s } },
+        { clientAddress: { contains: s } },
+        { notes: { contains: s } },
+        { items: { some: { productName: { contains: s } } } },
       ];
     }
 
@@ -92,9 +111,9 @@ export const getOrders = async (req: Request, res: Response): Promise<void> => {
     ]);
 
     res.json({ orders, total });
-  } catch (error) {
-    console.error('Get orders error:', error);
-    res.status(500).json({ error: 'Failed to fetch orders' });
+  } catch (error: any) {
+    console.error('Get orders error:', error.message, error.code, error.meta);
+    res.status(500).json({ error: 'Failed to fetch orders', details: error.message });
   }
 };
 
@@ -289,6 +308,23 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             });
           }
 
+          // Auto caisse entry if paid
+          if (computedPaymentStatus === 'paid' || actualPaid > 0) {
+            await tx.caisseTransaction.create({
+              data: {
+                userId: req.user!.userId,
+                type: 'income',
+                amount: actualPaid,
+                category: 'order',
+                reference: orderNumber,
+                description: `Order ${orderNumber}`,
+                date: new Date(),
+                isAutomatic: true,
+                sourceId: newOrder.id,
+              },
+            });
+          }
+
           return newOrder;
         });
         break;
@@ -338,13 +374,39 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
     if (amountPaid !== undefined) updateData.amountPaid = Number(amountPaid);
     if (notes !== undefined) updateData.notes = notes?.trim() || null;
 
-    const order = await prisma.order.update({
-      where: { id: orderId },
-      data: updateData,
-      include: {
-        items: true,
-        calls: { orderBy: { calledAt: 'desc' } },
-      },
+    const order = await prisma.$transaction(async (tx) => {
+      const updated = await tx.order.update({
+        where: { id: orderId },
+        data: updateData,
+        include: {
+          items: true,
+          calls: { orderBy: { calledAt: 'desc' } },
+        },
+      });
+
+      // Auto caisse entry if amountPaid increased
+      if (amountPaid !== undefined) {
+        const oldPaid = Number(existing.amountPaid);
+        const newPaid = Number(amountPaid);
+        const delta = newPaid - oldPaid;
+        if (delta > 0) {
+          await tx.caisseTransaction.create({
+            data: {
+              userId: req.user!.userId,
+              type: 'income',
+              amount: delta,
+              category: 'order',
+              reference: existing.orderNumber,
+              description: `Order ${existing.orderNumber} payment`,
+              date: new Date(),
+              isAutomatic: true,
+              sourceId: orderId,
+            },
+          });
+        }
+      }
+
+      return updated;
     });
 
     res.json({ order });
@@ -413,6 +475,11 @@ export const deleteOrder = async (req: Request, res: Response): Promise<void> =>
           },
         });
       }
+
+      // Delete related caisse transactions
+      await tx.caisseTransaction.deleteMany({
+        where: { userId: req.user!.userId, sourceId: orderId },
+      });
 
       // Delete order (cascades to items and calls)
       await tx.order.delete({ where: { id: orderId } });

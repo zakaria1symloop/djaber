@@ -2,7 +2,14 @@ import { Request, Response } from 'express';
 import { verifyWebhook } from '../services/meta.service';
 import { generateAIResponse, generateAgentResponse } from '../services/ai.service';
 import { sendMessage } from '../services/meta.service';
+import { createNotification } from '../services/notification.service';
+import { trackImpressions } from '../services/recommendation.service';
 import prisma from '../config/database';
+
+// Regex to extract [STATUS:OK|UNCLEAR|UNKNOWN:detail] from end of AI response
+const STATUS_TAG_RE = /\[STATUS:(OK|UNCLEAR|UNKNOWN)(?::([^\]]*))?\]\s*$/;
+// Regex to extract [RECOMMEND:sourceId:recommendedId] tags
+const RECOMMEND_TAG_RE = /\[RECOMMEND:([^\]:]+):([^\]]+)\]/g;
 
 export const verifyMetaWebhook = async (
   req: Request,
@@ -167,6 +174,45 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       });
     }
 
+    // Auto-link conversation to a client (non-fatal)
+    if (!conversation.clientId) {
+      try {
+        // Look for an existing client linked to any conversation with the same senderId
+        const linkedConversation = await prisma.conversation.findFirst({
+          where: {
+            userId: page.userId,
+            senderId: senderId,
+            clientId: { not: null },
+          },
+          select: { clientId: true },
+        });
+
+        let autoClientId: string | null = linkedConversation?.clientId || null;
+
+        if (!autoClientId) {
+          // Create a new client
+          const platformLabel = page.platform === 'instagram' ? 'IG' : 'FB';
+          const shortId = senderId.slice(-6);
+          const newClient = await prisma.client.create({
+            data: {
+              userId: page.userId,
+              name: `${platformLabel} User ${shortId}`,
+              source: 'ai',
+            },
+          });
+          autoClientId = newClient.id;
+        }
+
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: { clientId: autoClientId },
+        });
+        (conversation as any).clientId = autoClientId;
+      } catch (autoLinkError) {
+        console.error('Auto-link client error (non-fatal):', autoLinkError);
+      }
+    }
+
     // Save incoming message (always — regardless of type)
     await prisma.message.create({
       data: {
@@ -241,6 +287,11 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
                       where: { isActive: true },
                       select: { name: true, sellingPrice: true, quantity: true },
                     },
+                    images: {
+                      where: { isPrimary: true },
+                      take: 1,
+                      select: { filename: true },
+                    },
                   },
                 },
               },
@@ -265,6 +316,11 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
               where: { isActive: true },
               select: { name: true, sellingPrice: true, quantity: true },
             },
+            images: {
+              where: { isPrimary: true },
+              take: 1,
+              select: { filename: true },
+            },
           },
         });
         products = allProducts;
@@ -276,6 +332,7 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       }
 
       // Format products for the AI
+      const backendUrl = process.env.BACKEND_URL || 'http://localhost:6001';
       const productInfos = products.map((p: any) => ({
         id: p.id,
         name: p.name,
@@ -286,10 +343,13 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         hasVariants: p.hasVariants ?? (p.variants && p.variants.length > 0),
         variants: p.variants,
         imageUrl: p.imageUrl,
+        primaryImageUrl: p.images?.[0]?.filename
+          ? `${backendUrl}/uploads/products/${p.images[0].filename}`
+          : null,
       }));
 
       // Generate response via LangChain (pass image URLs for multimodal)
-      const aiResponse = await generateAgentResponse({
+      const rawAiResponse = await generateAgentResponse({
         agent: {
           name: agent.name,
           personality: agent.personality,
@@ -306,7 +366,42 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         conversationId: conversation.id,
       });
 
-      // Send response
+      // Parse and strip status tag from AI response
+      const statusMatch = rawAiResponse.match(STATUS_TAG_RE);
+      let aiResponse = rawAiResponse.replace(STATUS_TAG_RE, '').trim();
+      const statusType = statusMatch?.[1] || 'OK';
+      const statusDetail = statusMatch?.[2]?.trim() || null;
+
+      // Parse and strip RECOMMEND tags + track impressions
+      const recommendMatches = [...aiResponse.matchAll(RECOMMEND_TAG_RE)];
+      if (recommendMatches.length > 0) {
+        // Find matching recommendation IDs and track impressions
+        try {
+          const pairs = recommendMatches.map(m => ({
+            sourceId: m[1],
+            recommendedId: m[2],
+          }));
+          const recRecords = await prisma.productRecommendation.findMany({
+            where: {
+              userId: page.userId,
+              OR: pairs.map(p => ({
+                productId: p.sourceId,
+                recommendedId: p.recommendedId,
+              })),
+            },
+            select: { id: true },
+          });
+          if (recRecords.length > 0) {
+            await trackImpressions(recRecords.map(r => r.id));
+          }
+        } catch (recError) {
+          // Non-critical
+        }
+        // Strip RECOMMEND tags from response
+        aiResponse = aiResponse.replace(RECOMMEND_TAG_RE, '').replace(/\n{2,}/g, '\n').trim();
+      }
+
+      // Send response (clean, without status/recommend tags)
       await sendMessage({
         pageAccessToken: page.pageAccessToken,
         recipientId: senderId,
@@ -326,6 +421,49 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
           isFromPage: true,
         },
       });
+
+      // Set agentId on conversation (once)
+      if (!(conversation as any).agentId) {
+        try {
+          await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: { agentId: agent.id },
+          });
+          (conversation as any).agentId = agent.id;
+        } catch {}
+      }
+
+      // Create insight + notification if UNCLEAR or UNKNOWN
+      if (statusType === 'UNCLEAR' || statusType === 'UNKNOWN') {
+        try {
+          await prisma.agentInsight.create({
+            data: {
+              agentId: agent.id,
+              conversationId: conversation.id,
+              type: statusType === 'UNCLEAR' ? 'unclear' : 'unknown_topic',
+              customerMessage: messageText || '[image/attachment]',
+              aiResponse,
+              detail: statusDetail,
+            },
+          });
+
+          await createNotification({
+            userId: page.userId,
+            type: 'agent_insight',
+            title: statusType === 'UNCLEAR' ? 'Agent Couldn\'t Understand' : 'Unknown Question Detected',
+            message: `Agent "${agent.name}" flagged: ${statusDetail || (statusType === 'UNCLEAR' ? 'Couldn\'t understand the customer' : 'Customer asked about something unknown')}`,
+            metadata: {
+              agentId: agent.id,
+              agentName: agent.name,
+              conversationId: conversation.id,
+              type: statusType.toLowerCase(),
+              detail: statusDetail,
+            },
+          });
+        } catch (insightError) {
+          console.error('Create agent insight error (non-fatal):', insightError);
+        }
+      }
 
       return;
     }

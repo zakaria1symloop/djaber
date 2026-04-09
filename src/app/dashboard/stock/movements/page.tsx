@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Select, Pagination } from '@/components/stock';
+import { Pagination, DatePicker } from '@/components/stock';
 import { Badge } from '@/components/ui';
 import {
   HistoryIcon, ArrowUpIcon, ArrowDownIcon, RefreshIcon, BoxIcon,
+  SearchIcon, FilterIcon, CloseIcon,
 } from '@/components/ui/icons';
+import { useFilterPanel } from '@/contexts/FilterPanelContext';
 import {
   getStockMovements,
   getProducts,
@@ -23,20 +25,54 @@ export default function MovementsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
-  const [typeFilter, setTypeFilter] = useState('');
-  const [productFilter, setProductFilter] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  // Filter panel
+  const { filterPanelOpen: filtersOpen, setFilterPanelOpen: setFiltersOpen } = useFilterPanel();
+  const [draftType, setDraftType] = useState('');
+  const [draftProduct, setDraftProduct] = useState('');
+  const [draftStartDate, setDraftStartDate] = useState('');
+  const [draftEndDate, setDraftEndDate] = useState('');
+
+  // Applied
+  const [appliedType, setAppliedType] = useState('');
+  const [appliedProduct, setAppliedProduct] = useState('');
+  const [appliedStartDate, setAppliedStartDate] = useState('');
+  const [appliedEndDate, setAppliedEndDate] = useState('');
+  const [filterTrigger, setFilterTrigger] = useState(0);
+
+  const activeFilterCount = [
+    appliedType, appliedProduct, appliedStartDate, appliedEndDate,
+  ].filter(Boolean).length;
+
+  const draftDirty =
+    draftType !== appliedType || draftProduct !== appliedProduct ||
+    draftStartDate !== appliedStartDate || draftEndDate !== appliedEndDate;
+
+  const applyFilters = () => {
+    setAppliedType(draftType);
+    setAppliedProduct(draftProduct);
+    setAppliedStartDate(draftStartDate);
+    setAppliedEndDate(draftEndDate);
+    setOffset(0);
+    setFilterTrigger(t => t + 1);
+  };
+
+  const clearAllFilters = () => {
+    setDraftType(''); setDraftProduct('');
+    setDraftStartDate(''); setDraftEndDate('');
+    setAppliedType(''); setAppliedProduct('');
+    setAppliedStartDate(''); setAppliedEndDate('');
+    setOffset(0);
+    setFilterTrigger(t => t + 1);
+  };
 
   const loadMovements = useCallback(async () => {
     try {
       setLoading(true);
       const res = await getStockMovements({
-        type: typeFilter || undefined,
-        productId: productFilter || undefined,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
+        type: appliedType || undefined,
+        productId: appliedProduct || undefined,
+        startDate: appliedStartDate || undefined,
+        endDate: appliedEndDate || undefined,
         limit: LIMIT,
         offset,
       });
@@ -47,17 +83,26 @@ export default function MovementsPage() {
     } finally {
       setLoading(false);
     }
-  }, [typeFilter, productFilter, startDate, endDate, offset]);
+  }, [appliedType, appliedProduct, appliedStartDate, appliedEndDate, offset, filterTrigger]);
 
   const loadProducts = async () => {
     try {
       const res = await getProducts({ limit: 500 });
       setProducts(res.products);
-    } catch (err) {}
+    } catch {}
   };
 
   useEffect(() => { loadProducts(); }, []);
   useEffect(() => { loadMovements(); }, [loadMovements]);
+
+  useEffect(() => {
+    return () => { setFiltersOpen(false); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const toggleFilters = () => {
+    setFiltersOpen(!filtersOpen);
+  };
 
   const getTypeBadge = (type: string) => {
     switch (type) {
@@ -90,17 +135,33 @@ export default function MovementsPage() {
     }
   };
 
-  const getReasonBadge = (reason: string | null) => {
-    if (!reason) return <span className="text-zinc-500">-</span>;
-    return <span className="text-zinc-400">{reason}</span>;
-  };
-
   return (
+    <div className="relative">
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">Stock Movements</h1>
-        <p className="text-sm text-zinc-400 mt-1">Audit trail of all stock changes</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Stock Movements</h1>
+          <p className="text-sm text-zinc-400 mt-1">Audit trail of all stock changes</p>
+        </div>
+        <button
+          onClick={toggleFilters}
+          className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-all duration-200 ${
+            filtersOpen
+              ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+              : activeFilterCount > 0
+                ? 'border-blue-500/30 bg-blue-500/5 text-blue-400 hover:bg-blue-500/10'
+                : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'
+          }`}
+        >
+          <FilterIcon className="w-4 h-4" />
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {error && (
@@ -109,45 +170,10 @@ export default function MovementsPage() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-end gap-3">
-        <Select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setOffset(0); }} className="w-auto min-w-[160px]">
-          <option value="">All Types</option>
-          <option value="in">Stock In</option>
-          <option value="out">Stock Out</option>
-          <option value="adjustment">Adjustment</option>
-          <option value="return">Return</option>
-        </Select>
-        <Select value={productFilter} onChange={(e) => { setProductFilter(e.target.value); setOffset(0); }} className="w-auto min-w-[200px]">
-          <option value="">All Products</option>
-          {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </Select>
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1">Start Date</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => { setStartDate(e.target.value); setOffset(0); }}
-            className="px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1">End Date</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => { setEndDate(e.target.value); setOffset(0); }}
-            className="px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20"
-          />
-        </div>
-        {(startDate || endDate) && (
-          <button
-            onClick={() => { setStartDate(''); setEndDate(''); setOffset(0); }}
-            className="px-3 py-2 text-xs text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg border border-white/10 transition-colors"
-          >
-            Clear dates
-          </button>
-        )}
+      {/* Date filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <DatePicker value={draftStartDate} onChange={(v) => { setDraftStartDate(v); setAppliedStartDate(v); setOffset(0); setFilterTrigger(t => t + 1); }} placeholder="From date" />
+        <DatePicker value={draftEndDate} onChange={(v) => { setDraftEndDate(v); setAppliedEndDate(v); setOffset(0); setFilterTrigger(t => t + 1); }} placeholder="To date" />
       </div>
 
       {/* Table */}
@@ -191,7 +217,7 @@ export default function MovementsPage() {
                       {mv.type === 'in' || mv.type === 'return' ? '+' : mv.type === 'out' ? '-' : ''}{mv.quantity}
                     </td>
                     <td className="px-4 py-3 text-sm text-zinc-400">{mv.reference || '-'}</td>
-                    <td className="px-4 py-3 text-sm">{getReasonBadge(mv.reason)}</td>
+                    <td className="px-4 py-3 text-sm text-zinc-400">{mv.reason || <span className="text-zinc-500">-</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -207,6 +233,71 @@ export default function MovementsPage() {
       )}
 
       <Pagination total={total} limit={LIMIT} offset={offset} onPageChange={setOffset} />
+    </div>
+
+      {/* Filter Panel */}
+      {filtersOpen && (
+        <div className="fixed top-0 right-0 h-full w-[336px] bg-zinc-950 border-l border-white/10 z-[45] flex flex-col shadow-2xl">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+            <h2 className="text-sm font-semibold text-white">Filters</h2>
+            <button onClick={() => setFiltersOpen(false)} className="p-1 text-zinc-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors">
+              <CloseIcon className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+            {/* Movement Type */}
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Movement Type</label>
+              <select
+                value={draftType}
+                onChange={(e) => setDraftType(e.target.value)}
+                className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 hover:border-white/20 transition-colors"
+              >
+                <option value="">All Types</option>
+                <option value="in">Stock In</option>
+                <option value="out">Stock Out</option>
+                <option value="adjustment">Adjustment</option>
+                <option value="return">Return</option>
+              </select>
+            </div>
+
+            {/* Product */}
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Product</label>
+              <select
+                value={draftProduct}
+                onChange={(e) => setDraftProduct(e.target.value)}
+                className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 hover:border-white/20 transition-colors"
+              >
+                <option value="">All Products</option>
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+
+          </div>
+
+          <div className="px-5 py-4 border-t border-white/10 space-y-2">
+            <button
+              onClick={applyFilters}
+              disabled={!draftDirty}
+              className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              Apply Filters
+            </button>
+            {activeFilterCount > 0 && (
+              <button
+                onClick={clearAllFilters}
+                className="w-full px-4 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+              >
+                Clear All Filters
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

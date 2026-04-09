@@ -12,7 +12,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     const selectId = id || label?.toLowerCase().replace(/\s+/g, '-');
 
     return (
-      <div className="w-full">
+      <div className={label || error ? 'w-full' : ''}>
         {label && (
           <label
             htmlFor={selectId}
@@ -25,10 +25,11 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           ref={ref}
           id={selectId}
           className={`
-            w-full px-4 py-2.5 bg-black border rounded-lg text-white
+            px-3 py-2 bg-black border rounded-lg text-white text-sm
             transition-all duration-200 ease-out
             focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30
             disabled:opacity-50 disabled:cursor-not-allowed
+            ${label ? 'w-full' : ''}
             ${error ? 'border-red-500/50' : 'border-white/10 hover:border-white/20'}
             ${className}
           `}

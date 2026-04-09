@@ -126,6 +126,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         firstName: user.firstName,
         lastName: user.lastName,
         plan: user.plan,
+        isAdmin: user.isAdmin,
       },
     });
   } catch (error) {
@@ -155,6 +156,7 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
         firstName: true,
         lastName: true,
         plan: true,
+        isAdmin: true,
         createdAt: true,
       },
     });

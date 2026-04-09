@@ -29,6 +29,7 @@ export interface Supplier {
   isActive: boolean;
   createdAt: string;
   _count?: { purchases: number };
+  totalSpent?: number;
 }
 
 export interface Client {
@@ -45,6 +46,29 @@ export interface Client {
   totalSpent: number;
   lastOrderDate: string | null;
   createdAt: string;
+  _count?: { conversations: number };
+}
+
+export interface ClientMetrics {
+  conversationCount: number;
+  totalMessages: number;
+  messagesSent: number;
+  messagesReceived: number;
+  aiResponseCount: number;
+  lastMessageDate: string | null;
+}
+
+export interface ClientConversation {
+  id: string;
+  platform: string;
+  pageName: string | null;
+  status: string;
+  messageCount: number;
+  lastMessage: string | null;
+  lastMessageDate: string | null;
+  lastMessageIsFromPage: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Unit {
@@ -100,6 +124,7 @@ export interface Product {
   unitRef?: Unit | null;
   images?: ProductImage[];
   variants?: ProductVariant[];
+  expenses?: { id: string; amount: number; isPerUnit: boolean; category: string; description: string | null }[];
   _count?: { variants: number };
 }
 
@@ -203,9 +228,19 @@ export async function getStockDashboard(): Promise<StockDashboard> {
 // Categories
 // ============================================================================
 
-export async function getCategories(search?: string): Promise<{ categories: Category[] }> {
+export async function getCategories(params?: {
+  search?: string;
+  minProducts?: number;
+  maxProducts?: number;
+  hasDescription?: boolean;
+  color?: string[];
+}): Promise<{ categories: Category[] }> {
   const query = new URLSearchParams();
-  if (search) query.set('search', search);
+  if (params?.search) query.set('search', params.search);
+  if (params?.minProducts !== undefined) query.set('minProducts', params.minProducts.toString());
+  if (params?.maxProducts !== undefined) query.set('maxProducts', params.maxProducts.toString());
+  if (params?.hasDescription !== undefined) query.set('hasDescription', params.hasDescription.toString());
+  if (params?.color && params.color.length > 0) query.set('color', params.color.join(','));
   const queryStr = query.toString();
   return apiRequest(`/api/user-stock/categories${queryStr ? `?${queryStr}` : ''}`);
 }
@@ -238,7 +273,26 @@ export async function deleteCategory(categoryId: string): Promise<{ success: boo
 // ============================================================================
 
 export async function getProducts(
-  params?: { categoryId?: string; search?: string; lowStock?: boolean; limit?: number; offset?: number }
+  params?: {
+    categoryId?: string;
+    search?: string;
+    lowStock?: boolean;
+    limit?: number;
+    offset?: number;
+    minPrice?: number;
+    maxPrice?: number;
+    minCost?: number;
+    maxCost?: number;
+    minQty?: number;
+    maxQty?: number;
+    minProfit?: number;
+    maxProfit?: number;
+    minMargin?: number;
+    maxMargin?: number;
+    isActive?: boolean;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }
 ): Promise<{ products: Product[]; total: number }> {
   const query = new URLSearchParams();
   if (params?.categoryId) query.set('categoryId', params.categoryId);
@@ -246,6 +300,19 @@ export async function getProducts(
   if (params?.lowStock) query.set('lowStock', 'true');
   if (params?.limit) query.set('limit', params.limit.toString());
   if (params?.offset) query.set('offset', params.offset.toString());
+  if (params?.minPrice !== undefined) query.set('minPrice', params.minPrice.toString());
+  if (params?.maxPrice !== undefined) query.set('maxPrice', params.maxPrice.toString());
+  if (params?.minCost !== undefined) query.set('minCost', params.minCost.toString());
+  if (params?.maxCost !== undefined) query.set('maxCost', params.maxCost.toString());
+  if (params?.minQty !== undefined) query.set('minQty', params.minQty.toString());
+  if (params?.maxQty !== undefined) query.set('maxQty', params.maxQty.toString());
+  if (params?.minProfit !== undefined) query.set('minProfit', params.minProfit.toString());
+  if (params?.maxProfit !== undefined) query.set('maxProfit', params.maxProfit.toString());
+  if (params?.minMargin !== undefined) query.set('minMargin', params.minMargin.toString());
+  if (params?.maxMargin !== undefined) query.set('maxMargin', params.maxMargin.toString());
+  if (params?.isActive !== undefined) query.set('isActive', params.isActive.toString());
+  if (params?.sortBy) query.set('sortBy', params.sortBy);
+  if (params?.sortOrder) query.set('sortOrder', params.sortOrder);
 
   const queryStr = query.toString();
   return apiRequest(`/api/user-stock/products${queryStr ? `?${queryStr}` : ''}`);
@@ -268,6 +335,7 @@ export async function createProduct(
     minQuantity?: number;
     unit?: string;
     imageUrl?: string;
+    hasVariants?: boolean;
   }
 ): Promise<{ product: Product }> {
   return apiRequest('/api/user-stock/products', {
@@ -335,9 +403,25 @@ export async function getStockMovements(
 // Suppliers
 // ============================================================================
 
-export async function getSuppliers(search?: string): Promise<{ suppliers: Supplier[] }> {
+export async function getSuppliers(params?: {
+  search?: string;
+  isActive?: boolean;
+  minPurchases?: number;
+  maxPurchases?: number;
+  minTotalSpent?: number;
+  maxTotalSpent?: number;
+  startDate?: string;
+  endDate?: string;
+}): Promise<{ suppliers: Supplier[] }> {
   const query = new URLSearchParams();
-  if (search) query.set('search', search);
+  if (params?.search) query.set('search', params.search);
+  if (params?.isActive !== undefined) query.set('isActive', params.isActive.toString());
+  if (params?.minPurchases !== undefined) query.set('minPurchases', params.minPurchases.toString());
+  if (params?.maxPurchases !== undefined) query.set('maxPurchases', params.maxPurchases.toString());
+  if (params?.minTotalSpent !== undefined) query.set('minTotalSpent', params.minTotalSpent.toString());
+  if (params?.maxTotalSpent !== undefined) query.set('maxTotalSpent', params.maxTotalSpent.toString());
+  if (params?.startDate) query.set('startDate', params.startDate);
+  if (params?.endDate) query.set('endDate', params.endDate);
   const queryStr = query.toString();
   return apiRequest(`/api/user-stock/suppliers${queryStr ? `?${queryStr}` : ''}`);
 }
@@ -369,9 +453,29 @@ export async function deleteSupplier(supplierId: string): Promise<{ success: boo
 // Clients
 // ============================================================================
 
-export async function getClients(search?: string): Promise<{ clients: Client[] }> {
+export async function getClients(params?: {
+  search?: string;
+  phone?: string;
+  isActive?: boolean;
+  source?: string;
+  minOrders?: number;
+  maxOrders?: number;
+  minSpent?: number;
+  maxSpent?: number;
+  startDate?: string;
+  endDate?: string;
+}): Promise<{ clients: Client[] }> {
   const query = new URLSearchParams();
-  if (search) query.set('search', search);
+  if (params?.search) query.set('search', params.search);
+  if (params?.phone) query.set('phone', params.phone);
+  if (params?.isActive !== undefined) query.set('isActive', params.isActive.toString());
+  if (params?.source) query.set('source', params.source);
+  if (params?.minOrders !== undefined) query.set('minOrders', params.minOrders.toString());
+  if (params?.maxOrders !== undefined) query.set('maxOrders', params.maxOrders.toString());
+  if (params?.minSpent !== undefined) query.set('minSpent', params.minSpent.toString());
+  if (params?.maxSpent !== undefined) query.set('maxSpent', params.maxSpent.toString());
+  if (params?.startDate) query.set('startDate', params.startDate);
+  if (params?.endDate) query.set('endDate', params.endDate);
   const queryStr = query.toString();
   return apiRequest(`/api/user-stock/clients${queryStr ? `?${queryStr}` : ''}`);
 }
@@ -403,17 +507,28 @@ export async function deleteClientApi(clientId: string): Promise<{ success: bool
   return apiRequest(`/api/user-stock/clients/${clientId}`, { method: 'DELETE' });
 }
 
+export async function getClientMetrics(
+  clientId: string
+): Promise<{ metrics: ClientMetrics; conversations: ClientConversation[] }> {
+  return apiRequest(`/api/user-stock/clients/${clientId}/metrics`);
+}
+
 // ============================================================================
 // Sales
 // ============================================================================
 
 export async function getSales(
-  params?: { startDate?: string; endDate?: string; paymentStatus?: string; limit?: number; offset?: number }
+  params?: { startDate?: string; endDate?: string; paymentStatus?: string; paymentMethod?: string; search?: string; minTotal?: number; maxTotal?: number; hasRemaining?: boolean; limit?: number; offset?: number }
 ): Promise<{ sales: Sale[]; total: number }> {
   const query = new URLSearchParams();
   if (params?.startDate) query.set('startDate', params.startDate);
   if (params?.endDate) query.set('endDate', params.endDate);
   if (params?.paymentStatus) query.set('paymentStatus', params.paymentStatus);
+  if (params?.paymentMethod) query.set('paymentMethod', params.paymentMethod);
+  if (params?.search) query.set('search', params.search);
+  if (params?.minTotal !== undefined) query.set('minTotal', params.minTotal.toString());
+  if (params?.maxTotal !== undefined) query.set('maxTotal', params.maxTotal.toString());
+  if (params?.hasRemaining) query.set('hasRemaining', 'true');
   if (params?.limit) query.set('limit', params.limit.toString());
   if (params?.offset) query.set('offset', params.offset.toString());
 
@@ -477,13 +592,18 @@ export async function getSalesStats(
 // ============================================================================
 
 export async function getPurchases(
-  params?: { startDate?: string; endDate?: string; status?: string; supplierId?: string; limit?: number; offset?: number }
+  params?: { startDate?: string; endDate?: string; status?: string; paymentStatus?: string; supplierId?: string; search?: string; minTotal?: number; maxTotal?: number; hasRemaining?: boolean; limit?: number; offset?: number }
 ): Promise<{ purchases: Purchase[]; total: number }> {
   const query = new URLSearchParams();
   if (params?.startDate) query.set('startDate', params.startDate);
   if (params?.endDate) query.set('endDate', params.endDate);
   if (params?.status) query.set('status', params.status);
+  if (params?.paymentStatus) query.set('paymentStatus', params.paymentStatus);
   if (params?.supplierId) query.set('supplierId', params.supplierId);
+  if (params?.search) query.set('search', params.search);
+  if (params?.minTotal !== undefined) query.set('minTotal', params.minTotal.toString());
+  if (params?.maxTotal !== undefined) query.set('maxTotal', params.maxTotal.toString());
+  if (params?.hasRemaining) query.set('hasRemaining', 'true');
   if (params?.limit) query.set('limit', params.limit.toString());
   if (params?.offset) query.set('offset', params.offset.toString());
 
@@ -762,6 +882,10 @@ export async function getOrders(
     paymentStatus?: string;
     confirmationStatus?: string;
     search?: string;
+    minTotal?: number;
+    maxTotal?: number;
+    hasRemaining?: boolean;
+    clientId?: string;
     limit?: number;
     offset?: number;
   }
@@ -773,6 +897,10 @@ export async function getOrders(
   if (params?.paymentStatus) query.set('paymentStatus', params.paymentStatus);
   if (params?.confirmationStatus) query.set('confirmationStatus', params.confirmationStatus);
   if (params?.search) query.set('search', params.search);
+  if (params?.minTotal !== undefined) query.set('minTotal', params.minTotal.toString());
+  if (params?.maxTotal !== undefined) query.set('maxTotal', params.maxTotal.toString());
+  if (params?.hasRemaining) query.set('hasRemaining', 'true');
+  if (params?.clientId) query.set('clientId', params.clientId);
   if (params?.limit) query.set('limit', params.limit.toString());
   if (params?.offset) query.set('offset', params.offset.toString());
 
@@ -941,6 +1069,55 @@ export async function testAgentChat(
   });
 }
 
+// Agent Metrics & Insights
+
+export interface AgentMetrics {
+  conversationCount: number;
+  totalMessages: number;
+  messagesFromCustomers: number;
+  messagesFromAgent: number;
+  ordersCreated: number;
+  insightsPending: number;
+  insightsResolved: number;
+  lastActiveDate: string | null;
+}
+
+export interface AgentInsight {
+  id: string;
+  agentId: string;
+  conversationId: string;
+  type: 'unclear' | 'unknown_topic';
+  customerMessage: string;
+  aiResponse: string;
+  detail: string | null;
+  status: 'pending' | 'resolved' | 'dismissed';
+  resolvedAt: string | null;
+  createdAt: string;
+  conversation?: { senderId: string; platform: string };
+}
+
+export async function getAgentMetrics(agentId: string): Promise<{ metrics: AgentMetrics }> {
+  return apiRequest(`/api/user-stock/agents/${agentId}/metrics`);
+}
+
+export async function getAgentInsights(
+  agentId: string,
+  status?: string
+): Promise<{ insights: AgentInsight[] }> {
+  const query = status ? `?status=${status}` : '';
+  return apiRequest(`/api/user-stock/agents/${agentId}/insights${query}`);
+}
+
+export async function resolveAgentInsight(
+  insightId: string,
+  data: { action: 'resolve' | 'dismiss'; newInstruction?: string }
+): Promise<{ insight: AgentInsight }> {
+  return apiRequest(`/api/user-stock/agents/insights/${insightId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
 // ============================================================================
 // AI Providers
 // ============================================================================
@@ -953,4 +1130,260 @@ export interface ActiveProvider {
 
 export async function getActiveAIProviders(): Promise<{ providers: ActiveProvider[] }> {
   return apiRequest('/api/user-stock/ai-providers/active');
+}
+
+// ============================================================================
+// Cross-Sell / Up-Sell Recommendations
+// ============================================================================
+
+export interface ProductRecommendation {
+  id: string;
+  userId: string;
+  productId: string;
+  recommendedId: string;
+  type: 'cross_sell' | 'up_sell';
+  score: number;
+  reason: string | null;
+  impressions: number;
+  conversions: number;
+  revenue: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  product: { id: string; name: string; sku: string; sellingPrice: number };
+  recommended: { id: string; name: string; sku: string; sellingPrice: number };
+}
+
+export interface RecommendationStats {
+  total: number;
+  active: number;
+  totalImpressions: number;
+  totalConversions: number;
+  conversionRate: number;
+  totalRevenue: number;
+}
+
+export async function getRecommendations(params?: {
+  search?: string;
+  type?: string;
+  isActive?: string;
+}): Promise<ProductRecommendation[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.search) searchParams.set('search', params.search);
+  if (params?.type) searchParams.set('type', params.type);
+  if (params?.isActive) searchParams.set('isActive', params.isActive);
+  const qs = searchParams.toString();
+  return apiRequest(`/api/user-stock/cross-sell${qs ? `?${qs}` : ''}`);
+}
+
+export async function getRecommendationStats(): Promise<RecommendationStats> {
+  return apiRequest('/api/user-stock/cross-sell/stats');
+}
+
+export async function getProductRecommendations(productId: string): Promise<ProductRecommendation[]> {
+  return apiRequest(`/api/user-stock/cross-sell/product/${productId}`);
+}
+
+export async function generateRecommendations(): Promise<{ success: boolean; count: number; message: string }> {
+  return apiRequest('/api/user-stock/cross-sell/generate', {
+    method: 'POST',
+  });
+}
+
+export async function updateRecommendation(id: string, data: { isActive?: boolean }): Promise<ProductRecommendation> {
+  return apiRequest(`/api/user-stock/cross-sell/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteRecommendation(id: string): Promise<{ success: boolean }> {
+  return apiRequest(`/api/user-stock/cross-sell/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// ============================================================================
+// Caisse (Cash Register)
+// ============================================================================
+
+export interface CaisseTransaction {
+  id: string;
+  userId: string;
+  type: 'income' | 'expense';
+  amount: number;
+  category: string;
+  reference: string | null;
+  description: string | null;
+  date: string;
+  isAutomatic: boolean;
+  sourceId: string | null;
+  createdAt: string;
+}
+
+export interface CaisseStats {
+  balance: number;
+  totalIncome: number;
+  totalExpense: number;
+  transactionCount: number;
+}
+
+export async function getCaisseTransactions(params?: {
+  type?: string;
+  category?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ transactions: CaisseTransaction[]; total: number }> {
+  const query = new URLSearchParams();
+  if (params?.type) query.set('type', params.type);
+  if (params?.category) query.set('category', params.category);
+  if (params?.dateFrom) query.set('dateFrom', params.dateFrom);
+  if (params?.dateTo) query.set('dateTo', params.dateTo);
+  if (params?.search) query.set('search', params.search);
+  if (params?.limit) query.set('limit', params.limit.toString());
+  if (params?.offset) query.set('offset', params.offset.toString());
+  const qs = query.toString();
+  return apiRequest(`/api/user-stock/caisse${qs ? `?${qs}` : ''}`);
+}
+
+export async function getCaisseStats(
+  period?: 'today' | 'week' | 'month' | 'year'
+): Promise<{ stats: CaisseStats }> {
+  return apiRequest(`/api/user-stock/caisse/stats${period ? `?period=${period}` : ''}`);
+}
+
+export async function createCaisseTransaction(data: {
+  type: 'income' | 'expense';
+  amount: number;
+  category: string;
+  reference?: string;
+  description?: string;
+  date?: string;
+}): Promise<{ transaction: CaisseTransaction }> {
+  return apiRequest('/api/user-stock/caisse', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateCaisseTransaction(
+  id: string,
+  data: Partial<{
+    type: string;
+    amount: number;
+    category: string;
+    reference: string;
+    description: string;
+    date: string;
+  }>
+): Promise<{ transaction: CaisseTransaction }> {
+  return apiRequest(`/api/user-stock/caisse/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteCaisseTransaction(id: string): Promise<{ success: boolean }> {
+  return apiRequest(`/api/user-stock/caisse/${id}`, { method: 'DELETE' });
+}
+
+// ============================================================================
+// Product Expenses
+// ============================================================================
+
+export interface ProductExpense {
+  id: string;
+  userId: string;
+  productId: string;
+  category: string;
+  description: string | null;
+  amount: number;
+  isPerUnit: boolean;
+  date: string;
+  createdAt: string;
+}
+
+export interface ProductMargins {
+  costPrice: number;
+  sellingPrice: number;
+  totalExpenses: number;
+  expensePerUnit: number;
+  trueCost: number;
+  netMargin: number;
+  marginPercent: number;
+}
+
+export async function getProductExpenses(
+  productId: string
+): Promise<{ expenses: ProductExpense[] }> {
+  return apiRequest(`/api/user-stock/products/${productId}/expenses`);
+}
+
+export async function getProductMarginsApi(
+  productId: string
+): Promise<{ margins: ProductMargins }> {
+  return apiRequest(`/api/user-stock/products/${productId}/margins`);
+}
+
+export async function createProductExpense(
+  productId: string,
+  data: {
+    category: string;
+    amount: number;
+    isPerUnit?: boolean;
+    description?: string;
+    date?: string;
+  }
+): Promise<{ expense: ProductExpense }> {
+  return apiRequest(`/api/user-stock/products/${productId}/expenses`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateProductExpenseApi(
+  productId: string,
+  expenseId: string,
+  data: Partial<{
+    category: string;
+    amount: number;
+    isPerUnit: boolean;
+    description: string;
+    date: string;
+  }>
+): Promise<{ expense: ProductExpense }> {
+  return apiRequest(`/api/user-stock/products/${productId}/expenses/${expenseId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteProductExpenseApi(
+  productId: string,
+  expenseId: string
+): Promise<{ success: boolean }> {
+  return apiRequest(`/api/user-stock/products/${productId}/expenses/${expenseId}`, {
+    method: 'DELETE',
+  });
+}
+
+// ============================================================================
+// AI Image Analysis
+// ============================================================================
+
+export interface ProductImageAnalysis {
+  name: string;
+  description: string;
+  suggestedCategory: string;
+  suggestedUnit: string;
+}
+
+export async function analyzeProductImage(file: File): Promise<ProductImageAnalysis> {
+  const formData = new FormData();
+  formData.append('image', file);
+  return apiUpload('/api/user-stock/products/analyze-image', formData);
 }

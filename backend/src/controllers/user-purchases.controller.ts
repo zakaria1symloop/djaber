@@ -38,7 +38,12 @@ export const getPurchases = async (req: Request, res: Response): Promise<void> =
       startDate,
       endDate,
       status,
+      paymentStatus,
       supplierId,
+      search,
+      minTotal,
+      maxTotal,
+      hasRemaining,
       limit = '50',
       offset = '0'
     } = req.query;
@@ -52,7 +57,26 @@ export const getPurchases = async (req: Request, res: Response): Promise<void> =
     }
 
     if (status) where.status = status as string;
+    if (hasRemaining === 'true') {
+      where.paymentStatus = { not: 'paid' };
+    } else if (paymentStatus) {
+      where.paymentStatus = paymentStatus as string;
+    }
     if (supplierId) where.supplierId = supplierId as string;
+
+    if (search) {
+      where.OR = [
+        { purchaseNumber: { contains: search as string } },
+        { notes: { contains: search as string } },
+        { supplier: { name: { contains: search as string } } },
+      ];
+    }
+
+    if (minTotal || maxTotal) {
+      where.total = {};
+      if (minTotal) where.total.gte = parseFloat(minTotal as string);
+      if (maxTotal) where.total.lte = parseFloat(maxTotal as string);
+    }
 
     const [purchases, total] = await Promise.all([
       prisma.purchase.findMany({
@@ -173,7 +197,7 @@ export const createPurchase = async (req: Request, res: Response): Promise<void>
         purchase = await prisma.$transaction(async (tx) => {
           const purchaseNumber = await generatePurchaseNumber(tx, req.user!.userId);
 
-          return tx.purchase.create({
+          const newPurchase = await tx.purchase.create({
             data: {
               userId: req.user!.userId,
               purchaseNumber,
@@ -195,6 +219,25 @@ export const createPurchase = async (req: Request, res: Response): Promise<void>
               items: true,
             },
           });
+
+          // Auto caisse entry if paid
+          if (paymentStatus === 'paid') {
+            await tx.caisseTransaction.create({
+              data: {
+                userId: req.user!.userId,
+                type: 'expense',
+                amount: total,
+                category: 'purchase',
+                reference: purchaseNumber,
+                description: `Purchase ${purchaseNumber}`,
+                date: new Date(),
+                isAutomatic: true,
+                sourceId: newPurchase.id,
+              },
+            });
+          }
+
+          return newPurchase;
         });
         break; // Success, exit retry loop
       } catch (txError: any) {
@@ -231,17 +274,43 @@ export const updatePurchase = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const purchase = await prisma.purchase.update({
-      where: { id: purchaseId },
-      data: {
-        ...(paymentStatus && { paymentStatus }),
-        ...(status && { status }),
-        ...(expectedDate !== undefined && {
-          expectedDate: expectedDate ? new Date(expectedDate) : null,
-        }),
-        ...(notes !== undefined && { notes: notes?.trim() || null }),
-      },
-      include: { supplier: true, items: true },
+    const purchase = await prisma.$transaction(async (tx) => {
+      const updated = await tx.purchase.update({
+        where: { id: purchaseId },
+        data: {
+          ...(paymentStatus && { paymentStatus }),
+          ...(status && { status }),
+          ...(expectedDate !== undefined && {
+            expectedDate: expectedDate ? new Date(expectedDate) : null,
+          }),
+          ...(notes !== undefined && { notes: notes?.trim() || null }),
+        },
+        include: { supplier: true, items: true },
+      });
+
+      // Auto caisse when payment status changed to paid
+      if (paymentStatus === 'paid' && existing.paymentStatus !== 'paid') {
+        const existingCaisse = await tx.caisseTransaction.findFirst({
+          where: { userId: req.user!.userId, sourceId: purchaseId, category: 'purchase' },
+        });
+        if (!existingCaisse) {
+          await tx.caisseTransaction.create({
+            data: {
+              userId: req.user!.userId,
+              type: 'expense',
+              amount: Number(updated.total),
+              category: 'purchase',
+              reference: updated.purchaseNumber,
+              description: `Purchase ${updated.purchaseNumber}`,
+              date: new Date(),
+              isAutomatic: true,
+              sourceId: purchaseId,
+            },
+          });
+        }
+      }
+
+      return updated;
     });
 
     res.json({ purchase });
@@ -284,8 +353,13 @@ export const deletePurchase = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Delete purchase (cascades to items via schema)
-    await prisma.purchase.delete({ where: { id: purchaseId } });
+    // Delete related caisse transactions and purchase
+    await prisma.$transaction(async (tx) => {
+      await tx.caisseTransaction.deleteMany({
+        where: { userId: req.user!.userId, sourceId: purchaseId },
+      });
+      await tx.purchase.delete({ where: { id: purchaseId } });
+    });
 
     res.json({ success: true });
   } catch (error) {

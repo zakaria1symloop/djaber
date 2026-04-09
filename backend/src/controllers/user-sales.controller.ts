@@ -38,6 +38,11 @@ export const getSales = async (req: Request, res: Response): Promise<void> => {
       startDate,
       endDate,
       paymentStatus,
+      paymentMethod,
+      search,
+      minTotal,
+      maxTotal,
+      hasRemaining,
       limit = '50',
       offset = '0'
     } = req.query;
@@ -50,7 +55,28 @@ export const getSales = async (req: Request, res: Response): Promise<void> => {
       if (endDate) where.saleDate.lte = new Date(endDate as string);
     }
 
-    if (paymentStatus) where.paymentStatus = paymentStatus as string;
+    if (hasRemaining === 'true') {
+      where.paymentStatus = { not: 'paid' };
+    } else if (paymentStatus) {
+      where.paymentStatus = paymentStatus as string;
+    }
+
+    if (paymentMethod) where.paymentMethod = paymentMethod as string;
+
+    if (search) {
+      where.OR = [
+        { saleNumber: { contains: search as string } },
+        { customerName: { contains: search as string } },
+        { customerPhone: { contains: search as string } },
+        { notes: { contains: search as string } },
+      ];
+    }
+
+    if (minTotal || maxTotal) {
+      where.total = {};
+      if (minTotal) where.total.gte = parseFloat(minTotal as string);
+      if (maxTotal) where.total.lte = parseFloat(maxTotal as string);
+    }
 
     const [sales, total] = await Promise.all([
       prisma.sale.findMany({
@@ -220,6 +246,28 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
         });
       }
 
+      // Auto caisse entry if paid
+      if (paymentStatus === 'paid') {
+        const existingCaisse = await tx.caisseTransaction.findFirst({
+          where: { userId: req.user!.userId, sourceId: newSale.id, category: 'sale' },
+        });
+        if (!existingCaisse) {
+          await tx.caisseTransaction.create({
+            data: {
+              userId: req.user!.userId,
+              type: 'income',
+              amount: total,
+              category: 'sale',
+              reference: saleNumber,
+              description: `Sale ${saleNumber}`,
+              date: new Date(),
+              isAutomatic: true,
+              sourceId: newSale.id,
+            },
+          });
+        }
+      }
+
       return newSale;
     });
         break; // Success, exit retry loop
@@ -258,14 +306,40 @@ export const updateSalePayment = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    const sale = await prisma.sale.update({
-      where: { id: saleId },
-      data: {
-        ...(paymentStatus && { paymentStatus }),
-        ...(paymentMethod && { paymentMethod }),
-        ...(notes !== undefined && { notes: notes?.trim() || null }),
-      },
-      include: { items: true },
+    const sale = await prisma.$transaction(async (tx) => {
+      const updated = await tx.sale.update({
+        where: { id: saleId },
+        data: {
+          ...(paymentStatus && { paymentStatus }),
+          ...(paymentMethod && { paymentMethod }),
+          ...(notes !== undefined && { notes: notes?.trim() || null }),
+        },
+        include: { items: true },
+      });
+
+      // Auto caisse when payment status changed to paid
+      if (paymentStatus === 'paid' && existing.paymentStatus !== 'paid') {
+        const existingCaisse = await tx.caisseTransaction.findFirst({
+          where: { userId: req.user!.userId, sourceId: saleId, category: 'sale' },
+        });
+        if (!existingCaisse) {
+          await tx.caisseTransaction.create({
+            data: {
+              userId: req.user!.userId,
+              type: 'income',
+              amount: Number(updated.total),
+              category: 'sale',
+              reference: updated.saleNumber,
+              description: `Sale ${updated.saleNumber}`,
+              date: new Date(),
+              isAutomatic: true,
+              sourceId: saleId,
+            },
+          });
+        }
+      }
+
+      return updated;
     });
 
     res.json({ sale });
@@ -324,6 +398,11 @@ export const deleteSale = async (req: Request, res: Response): Promise<void> => 
           },
         });
       }
+
+      // Delete related caisse transactions
+      await tx.caisseTransaction.deleteMany({
+        where: { userId: req.user!.userId, sourceId: saleId },
+      });
 
       // Delete sale (cascades to items)
       await tx.sale.delete({ where: { id: saleId } });

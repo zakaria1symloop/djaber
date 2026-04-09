@@ -22,6 +22,14 @@ import {
   deleteSupplier,
   // Dashboard
   getStockDashboard,
+  // AI Image Analysis
+  analyzeProductImageEndpoint,
+  // Product Expenses
+  getProductExpenses,
+  getProductMargins,
+  createProductExpense,
+  updateProductExpense,
+  deleteProductExpense,
 } from '../controllers/user-stock.controller';
 import {
   getSales,
@@ -46,6 +54,7 @@ import {
   createClient,
   updateClient,
   deleteClient,
+  getClientMetrics,
 } from '../controllers/user-clients.controller';
 import {
   getOrders,
@@ -63,6 +72,9 @@ import {
   updateAgent,
   deleteAgent,
   testAgent,
+  getAgentMetrics,
+  getAgentInsights,
+  resolveInsight,
 } from '../controllers/user-agents.controller';
 import {
   getUnits,
@@ -103,6 +115,21 @@ import {
   getShippingLabel,
   getDeliveryRates,
 } from '../controllers/user-delivery.controller';
+import {
+  getCaisseTransactions,
+  getCaisseStats,
+  createCaisseTransaction,
+  updateCaisseTransaction,
+  deleteCaisseTransaction,
+} from '../controllers/user-caisse.controller';
+import {
+  getRecommendations,
+  getRecommendationStats,
+  getProductRecommendations,
+  generateRecommendationsEndpoint,
+  updateRecommendation,
+  deleteRecommendation,
+} from '../controllers/user-cross-sell.controller';
 import { uploadProductImages } from '../config/upload';
 
 const router = Router();
@@ -135,6 +162,7 @@ router.delete('/categories/:categoryId', deleteCategory);
 // Products
 // ============================================================================
 router.get('/products', getProducts);
+router.post('/products/analyze-image', uploadProductImages.single('image'), analyzeProductImageEndpoint);
 router.get('/products/:productId', getProduct);
 router.post('/products', createProduct);
 router.put('/products/:productId', updateProduct);
@@ -152,6 +180,15 @@ router.post('/products/:productId/images', uploadProductImages.array('images', 1
 router.delete('/products/:productId/images/:imageId', deleteImage);
 router.put('/products/:productId/images/reorder', reorderImages);
 router.put('/products/:productId/images/:imageId/primary', setPrimaryImage);
+
+// ============================================================================
+// Product Expenses
+// ============================================================================
+router.get('/products/:productId/expenses', getProductExpenses);
+router.get('/products/:productId/margins', getProductMargins);
+router.post('/products/:productId/expenses', createProductExpense);
+router.put('/products/:productId/expenses/:expenseId', updateProductExpense);
+router.delete('/products/:productId/expenses/:expenseId', deleteProductExpense);
 
 // ============================================================================
 // Product Variants
@@ -175,6 +212,7 @@ router.delete('/suppliers/:supplierId', deleteSupplier);
 // ============================================================================
 router.get('/clients', getClients);
 router.get('/clients/:clientId', getClient);
+router.get('/clients/:clientId/metrics', getClientMetrics);
 router.post('/clients', createClient);
 router.put('/clients/:clientId', updateClient);
 router.delete('/clients/:clientId', deleteClient);
@@ -216,10 +254,13 @@ router.post('/orders/:orderId/calls', addOrderCall);
 // ============================================================================
 router.get('/agents', getAgents);
 router.get('/agents/:agentId', getAgent);
+router.get('/agents/:agentId/metrics', getAgentMetrics);
+router.get('/agents/:agentId/insights', getAgentInsights);
 router.post('/agents', createAgent);
 router.put('/agents/:agentId', updateAgent);
 router.delete('/agents/:agentId', deleteAgent);
 router.post('/agents/:agentId/test', testAgent);
+router.put('/agents/insights/:insightId', resolveInsight);
 
 // ============================================================================
 // Notifications
@@ -235,6 +276,25 @@ router.put('/notifications/:id/read', markAsRead);
 import { getActiveProviders } from '../controllers/ai-providers.controller';
 
 router.get('/ai-providers/active', getActiveProviders);
+
+// ============================================================================
+// Cross-Sell / Up-Sell Recommendations
+// ============================================================================
+router.get('/cross-sell', getRecommendations);
+router.get('/cross-sell/stats', getRecommendationStats);
+router.get('/cross-sell/product/:productId', getProductRecommendations);
+router.post('/cross-sell/generate', generateRecommendationsEndpoint);
+router.put('/cross-sell/:id', updateRecommendation);
+router.delete('/cross-sell/:id', deleteRecommendation);
+
+// ============================================================================
+// Caisse (Cash Register)
+// ============================================================================
+router.get('/caisse', getCaisseTransactions);
+router.get('/caisse/stats', getCaisseStats);
+router.post('/caisse', createCaisseTransaction);
+router.put('/caisse/:id', updateCaisseTransaction);
+router.delete('/caisse/:id', deleteCaisseTransaction);
 
 // ============================================================================
 // Delivery (CourierDZ integration)

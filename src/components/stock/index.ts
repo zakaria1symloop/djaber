@@ -8,3 +8,5 @@ export { ImageUploader } from './ImageUploader';
 export { VariantEditor } from './VariantEditor';
 export type { VariantRow } from './VariantEditor';
 export { WilayaSelector } from './WilayaSelector';
+export { RangeSlider } from './RangeSlider';
+export { DatePicker } from './DatePicker';

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
+import { analyzeProductImage } from '../services/ai.service';
 import fs from 'fs';
 import path from 'path';
 
@@ -34,18 +35,43 @@ export const getCategories = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const { search } = req.query;
+    const { search, minProducts, maxProducts, hasDescription, color } = req.query;
     const where: any = { userId: req.user.userId };
 
     if (search) {
       where.name = { contains: search as string };
     }
 
-    const categories = await prisma.category.findMany({
+    // Has description filter
+    if (hasDescription === 'true') {
+      where.description = { not: null };
+    } else if (hasDescription === 'false') {
+      where.OR = [{ description: null }, { description: '' }];
+    }
+
+    // Color filter (comma-separated hex values)
+    if (color) {
+      const colors = (color as string).split(',').map(c => c.trim()).filter(Boolean);
+      if (colors.length > 0) {
+        where.color = { in: colors };
+      }
+    }
+
+    let categories = await prisma.category.findMany({
       where,
       include: { _count: { select: { products: true } } },
       orderBy: { name: 'asc' },
     });
+
+    // Post-filter by product count (_count is computed, can't filter in where)
+    const parsedMinProducts = minProducts ? parseInt(minProducts as string, 10) : NaN;
+    const parsedMaxProducts = maxProducts ? parseInt(maxProducts as string, 10) : NaN;
+    if (!isNaN(parsedMinProducts) && parsedMinProducts > 0) {
+      categories = categories.filter(c => ((c as any)._count?.products || 0) >= parsedMinProducts);
+    }
+    if (!isNaN(parsedMaxProducts) && parsedMaxProducts > 0) {
+      categories = categories.filter(c => ((c as any)._count?.products || 0) <= parsedMaxProducts);
+    }
 
     res.json({ categories });
   } catch (error) {
@@ -167,9 +193,21 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const { categoryId, search, lowStock, limit = '50', offset = '0' } = req.query;
+    const {
+      categoryId, search, lowStock, limit = '50', offset = '0',
+      minPrice, maxPrice, minCost, maxCost, minQty, maxQty, isActive,
+      minProfit, maxProfit, minMargin, maxMargin,
+      sortBy = 'createdAt', sortOrder = 'desc',
+    } = req.query;
 
     const where: any = { userId: req.user.userId, isActive: true };
+
+    // Active/Inactive filter
+    if (isActive === 'true') {
+      where.isActive = true;
+    } else if (isActive === 'false') {
+      where.isActive = false;
+    }
 
     if (categoryId) {
       where.categoryId = categoryId as string;
@@ -183,6 +221,36 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       ];
     }
 
+    // Price range filters
+    const parsedMinPrice = minPrice ? parseFloat(minPrice as string) : NaN;
+    const parsedMaxPrice = maxPrice ? parseFloat(maxPrice as string) : NaN;
+    if (!isNaN(parsedMinPrice) && parsedMinPrice > 0) {
+      where.sellingPrice = { ...(where.sellingPrice || {}), gte: parsedMinPrice };
+    }
+    if (!isNaN(parsedMaxPrice) && parsedMaxPrice > 0) {
+      where.sellingPrice = { ...(where.sellingPrice || {}), lte: parsedMaxPrice };
+    }
+
+    // Cost range filters
+    const parsedMinCost = minCost ? parseFloat(minCost as string) : NaN;
+    const parsedMaxCost = maxCost ? parseFloat(maxCost as string) : NaN;
+    if (!isNaN(parsedMinCost) && parsedMinCost > 0) {
+      where.costPrice = { ...(where.costPrice || {}), gte: parsedMinCost };
+    }
+    if (!isNaN(parsedMaxCost) && parsedMaxCost > 0) {
+      where.costPrice = { ...(where.costPrice || {}), lte: parsedMaxCost };
+    }
+
+    // Quantity range filters
+    const parsedMinQty = minQty ? parseInt(minQty as string, 10) : NaN;
+    const parsedMaxQty = maxQty ? parseInt(maxQty as string, 10) : NaN;
+    if (!isNaN(parsedMinQty) && parsedMinQty > 0) {
+      where.quantity = { ...(where.quantity || {}), gte: parsedMinQty };
+    }
+    if (!isNaN(parsedMaxQty) && parsedMaxQty > 0) {
+      where.quantity = { ...(where.quantity || {}), lte: parsedMaxQty };
+    }
+
     // Move lowStock filter into the DB query so pagination works correctly
     if (lowStock === 'true') {
       // Get IDs of low-stock products at the DB level
@@ -193,23 +261,69 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       where.id = { in: lowStockIds.map(r => r.id) };
     }
 
-    const [products, total] = await Promise.all([
-      prisma.product.findMany({
-        where,
-        include: {
-          category: { select: { id: true, name: true, color: true } },
-          unitRef: { select: { id: true, name: true, abbreviation: true } },
-          images: { orderBy: { sortOrder: 'asc' }, take: 1, where: { isPrimary: true } },
-          _count: { select: { variants: true } },
-        },
-        orderBy: { name: 'asc' },
-        skip: parseInt(offset as string, 10),
-        take: parseInt(limit as string, 10),
-      }),
-      prisma.product.count({ where }),
-    ]);
+    const hasMarginFilter = minProfit || maxProfit || minMargin || maxMargin;
+    const parsedMinProfit = minProfit ? parseFloat(minProfit as string) : -Infinity;
+    const parsedMaxProfit = maxProfit ? parseFloat(maxProfit as string) : Infinity;
+    const parsedMinMargin = minMargin ? parseFloat(minMargin as string) : -Infinity;
+    const parsedMaxMargin = maxMargin ? parseFloat(maxMargin as string) : Infinity;
 
-    res.json({ products, total });
+    const includeClause = {
+      category: { select: { id: true, name: true, color: true } },
+      unitRef: { select: { id: true, name: true, abbreviation: true } },
+      images: { orderBy: { sortOrder: 'asc' as const }, take: 1, where: { isPrimary: true } },
+      expenses: { select: { id: true, amount: true, isPerUnit: true, category: true, description: true } },
+      _count: { select: { variants: true } },
+    };
+
+    // Build sort order
+    const allowedSortFields = ['name', 'sku', 'costPrice', 'sellingPrice', 'quantity', 'createdAt'];
+    const sortField = allowedSortFields.includes(sortBy as string) ? (sortBy as string) : 'createdAt';
+    const sortDir = sortOrder === 'asc' ? 'asc' : 'desc';
+    const orderByClause = sortField === 'name'
+      ? [{ name: sortDir as 'asc' | 'desc' }]
+      : [{ [sortField]: sortDir }, { name: 'asc' as const }];
+
+    if (hasMarginFilter) {
+      // Fetch all matching products, compute margins, filter, then paginate in-memory
+      const allProducts = await prisma.product.findMany({
+        where,
+        include: includeClause,
+        orderBy: orderByClause,
+      });
+
+      const filtered = allProducts.filter((p: any) => {
+        const exps = p.expenses || [];
+        const fixedTotal = exps.filter((e: any) => !e.isPerUnit).reduce((s: number, e: any) => s + Number(e.amount), 0);
+        const perUnitTotal = exps.filter((e: any) => e.isPerUnit).reduce((s: number, e: any) => s + Number(e.amount), 0);
+        const qty = p.quantity || 1;
+        const expPerUnit = (fixedTotal / qty) + perUnitTotal;
+        const trueCost = Number(p.costPrice) + expPerUnit;
+        const sellingPrice = Number(p.sellingPrice);
+        const netProfit = sellingPrice - trueCost;
+        const marginPercent = sellingPrice > 0 ? (netProfit / sellingPrice) * 100 : 0;
+
+        if (netProfit < parsedMinProfit || netProfit > parsedMaxProfit) return false;
+        if (marginPercent < parsedMinMargin || marginPercent > parsedMaxMargin) return false;
+        return true;
+      });
+
+      const skip = parseInt(offset as string, 10);
+      const take = parseInt(limit as string, 10);
+      res.json({ products: filtered.slice(skip, skip + take), total: filtered.length });
+    } else {
+      const [products, total] = await Promise.all([
+        prisma.product.findMany({
+          where,
+          include: includeClause,
+          orderBy: orderByClause,
+          skip: parseInt(offset as string, 10),
+          take: parseInt(limit as string, 10),
+        }),
+        prisma.product.count({ where }),
+      ]);
+
+      res.json({ products, total });
+    }
   } catch (error) {
     console.error('Get products error:', error);
     res.status(500).json({ error: 'Failed to fetch products' });
@@ -285,6 +399,26 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       var validMinQuantity = validateNonNegativeNumber(minQuantity, 'minQuantity') ?? 0;
     } catch (validationErr: any) {
       res.status(400).json({ error: validationErr.message });
+      return;
+    }
+
+    // Cost price, selling price, and quantity are required for new products
+    if (validCostPrice <= 0) {
+      res.status(400).json({ error: 'Cost price is required and must be greater than 0' });
+      return;
+    }
+    if (validSellingPrice <= 0) {
+      res.status(400).json({ error: 'Selling price is required and must be greater than 0' });
+      return;
+    }
+    if (validSellingPrice < validCostPrice) {
+      res.status(400).json({ error: 'Selling price must be greater than or equal to cost price' });
+      return;
+    }
+    // Quantity required unless product has variants (variants handle their own qty)
+    const hasVariants = req.body.hasVariants || false;
+    if (!hasVariants && validQuantity <= 0) {
+      res.status(400).json({ error: 'Initial quantity is required and must be greater than 0' });
       return;
     }
 
@@ -579,8 +713,15 @@ export const getSuppliers = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const { search } = req.query;
-    const where: any = { userId: req.user.userId, isActive: true };
+    const { search, isActive, minPurchases, maxPurchases, minTotalSpent, maxTotalSpent, startDate, endDate } = req.query;
+    const where: any = { userId: req.user.userId };
+
+    // Status filter (no longer hardcoded to active)
+    if (isActive === 'true') {
+      where.isActive = true;
+    } else if (isActive === 'false') {
+      where.isActive = false;
+    }
 
     if (search) {
       where.OR = [
@@ -590,13 +731,54 @@ export const getSuppliers = async (req: Request, res: Response): Promise<void> =
       ];
     }
 
+    // Date filter on supplier createdAt
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate as string);
+      if (endDate) {
+        const end = new Date(endDate as string);
+        end.setHours(23, 59, 59, 999);
+        where.createdAt.lte = end;
+      }
+    }
+
     const suppliers = await prisma.supplier.findMany({
       where,
-      include: { _count: { select: { purchases: true } } },
+      include: {
+        _count: { select: { purchases: true } },
+        purchases: { select: { total: true } },
+      },
       orderBy: { name: 'asc' },
     });
 
-    res.json({ suppliers });
+    // Compute totalSpent for each supplier
+    let result = suppliers.map(s => {
+      const totalSpent = s.purchases.reduce((sum, p) => sum + Number(p.total), 0);
+      const { purchases, ...rest } = s;
+      return { ...rest, totalSpent };
+    });
+
+    // Post-filter by purchase count
+    const parsedMinPurchases = minPurchases ? parseInt(minPurchases as string, 10) : NaN;
+    const parsedMaxPurchases = maxPurchases ? parseInt(maxPurchases as string, 10) : NaN;
+    if (!isNaN(parsedMinPurchases) && parsedMinPurchases > 0) {
+      result = result.filter(s => ((s as any)._count?.purchases || 0) >= parsedMinPurchases);
+    }
+    if (!isNaN(parsedMaxPurchases) && parsedMaxPurchases > 0) {
+      result = result.filter(s => ((s as any)._count?.purchases || 0) <= parsedMaxPurchases);
+    }
+
+    // Post-filter by total spent
+    const parsedMinSpent = minTotalSpent ? parseFloat(minTotalSpent as string) : NaN;
+    const parsedMaxSpent = maxTotalSpent ? parseFloat(maxTotalSpent as string) : NaN;
+    if (!isNaN(parsedMinSpent) && parsedMinSpent > 0) {
+      result = result.filter(s => s.totalSpent >= parsedMinSpent);
+    }
+    if (!isNaN(parsedMaxSpent)) {
+      result = result.filter(s => s.totalSpent <= parsedMaxSpent);
+    }
+
+    res.json({ suppliers: result });
   } catch (error) {
     console.error('Get suppliers error:', error);
     res.status(500).json({ error: 'Failed to fetch suppliers' });
@@ -777,5 +959,255 @@ export const getStockDashboard = async (req: Request, res: Response): Promise<vo
   } catch (error) {
     console.error('Get stock dashboard error:', error);
     res.status(500).json({ error: 'Failed to fetch dashboard data' });
+  }
+};
+
+// ============================================================================
+// Product Expenses
+// ============================================================================
+
+const VALID_EXPENSE_CATEGORIES = ['marketing', 'shipping', 'packaging', 'customs', 'storage', 'other'];
+
+export const getProductExpenses = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const productId = req.params.productId as string;
+
+    // Verify ownership
+    const product = await prisma.product.findFirst({
+      where: { id: productId, userId: req.user.userId },
+    });
+    if (!product) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+
+    const expenses = await prisma.productExpense.findMany({
+      where: { productId, userId: req.user.userId },
+      orderBy: { date: 'desc' },
+    });
+
+    res.json({ expenses });
+  } catch (error) {
+    console.error('Get product expenses error:', error);
+    res.status(500).json({ error: 'Failed to fetch expenses' });
+  }
+};
+
+export const getProductMargins = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const productId = req.params.productId as string;
+
+    const product = await prisma.product.findFirst({
+      where: { id: productId, userId: req.user.userId },
+    });
+    if (!product) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+
+    const expenses = await prisma.productExpense.findMany({
+      where: { productId, userId: req.user.userId },
+    });
+
+    const costPrice = Number(product.costPrice);
+    const sellingPrice = Number(product.sellingPrice);
+    const quantity = product.quantity || 1; // avoid division by zero
+
+    let fixedTotal = 0;
+    let perUnitTotal = 0;
+    for (const exp of expenses) {
+      if (exp.isPerUnit) {
+        perUnitTotal += Number(exp.amount);
+      } else {
+        fixedTotal += Number(exp.amount);
+      }
+    }
+
+    const expensePerUnit = (fixedTotal / quantity) + perUnitTotal;
+    const trueCost = costPrice + expensePerUnit;
+    const netMargin = sellingPrice - trueCost;
+    const marginPercent = sellingPrice > 0 ? (netMargin / sellingPrice) * 100 : 0;
+
+    res.json({
+      margins: {
+        costPrice,
+        sellingPrice,
+        totalExpenses: fixedTotal + (perUnitTotal * quantity),
+        expensePerUnit,
+        trueCost,
+        netMargin,
+        marginPercent,
+      },
+    });
+  } catch (error) {
+    console.error('Get product margins error:', error);
+    res.status(500).json({ error: 'Failed to calculate margins' });
+  }
+};
+
+export const createProductExpense = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const productId = req.params.productId as string;
+    const { category, description, amount, isPerUnit, date } = req.body;
+
+    const product = await prisma.product.findFirst({
+      where: { id: productId, userId: req.user.userId },
+    });
+    if (!product) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+
+    if (!category || !VALID_EXPENSE_CATEGORIES.includes(category)) {
+      res.status(400).json({ error: `Category must be one of: ${VALID_EXPENSE_CATEGORIES.join(', ')}` });
+      return;
+    }
+    if (!amount || Number(amount) <= 0) {
+      res.status(400).json({ error: 'Amount must be a positive number' });
+      return;
+    }
+
+    const expense = await prisma.productExpense.create({
+      data: {
+        userId: req.user.userId,
+        productId,
+        category,
+        description: description?.trim() || null,
+        amount: Number(amount),
+        isPerUnit: !!isPerUnit,
+        date: date ? new Date(date) : new Date(),
+      },
+    });
+
+    res.status(201).json({ expense });
+  } catch (error) {
+    console.error('Create product expense error:', error);
+    res.status(500).json({ error: 'Failed to create expense' });
+  }
+};
+
+export const updateProductExpense = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const productId = req.params.productId as string;
+    const expenseId = req.params.expenseId as string;
+    const { category, description, amount, isPerUnit, date } = req.body;
+
+    const existing = await prisma.productExpense.findFirst({
+      where: { id: expenseId, productId, userId: req.user.userId },
+    });
+    if (!existing) {
+      res.status(404).json({ error: 'Expense not found' });
+      return;
+    }
+
+    const expense = await prisma.productExpense.update({
+      where: { id: expenseId },
+      data: {
+        ...(category && VALID_EXPENSE_CATEGORIES.includes(category) && { category }),
+        ...(description !== undefined && { description: description?.trim() || null }),
+        ...(amount !== undefined && { amount: Number(amount) }),
+        ...(isPerUnit !== undefined && { isPerUnit: !!isPerUnit }),
+        ...(date !== undefined && { date: new Date(date) }),
+      },
+    });
+
+    res.json({ expense });
+  } catch (error) {
+    console.error('Update product expense error:', error);
+    res.status(500).json({ error: 'Failed to update expense' });
+  }
+};
+
+export const deleteProductExpense = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const productId = req.params.productId as string;
+    const expenseId = req.params.expenseId as string;
+
+    const existing = await prisma.productExpense.findFirst({
+      where: { id: expenseId, productId, userId: req.user.userId },
+    });
+    if (!existing) {
+      res.status(404).json({ error: 'Expense not found' });
+      return;
+    }
+
+    await prisma.productExpense.delete({ where: { id: expenseId } });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete product expense error:', error);
+    res.status(500).json({ error: 'Failed to delete expense' });
+  }
+};
+
+// ============================================================================
+// Analyze product image with AI — extract name, description, category, unit
+// ============================================================================
+
+export const analyzeProductImageEndpoint = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user.userId;
+    const file = (req as any).file;
+
+    if (!file) {
+      res.status(400).json({ error: 'No image file provided' });
+      return;
+    }
+
+    // Read file as base64
+    const filePath = file.path;
+    const imageBuffer = fs.readFileSync(filePath);
+    const imageBase64 = imageBuffer.toString('base64');
+    const mimeType = file.mimetype || 'image/jpeg';
+
+    // Clean up the temp file
+    try { fs.unlinkSync(filePath); } catch {}
+
+    // Fetch user's existing categories and units
+    const [categories, units] = await Promise.all([
+      prisma.category.findMany({
+        where: { userId },
+        select: { name: true },
+      }),
+      prisma.unit.findMany({
+        where: { OR: [{ userId }, { userId: null }] },
+        select: { name: true },
+      }),
+    ]);
+
+    const categoryNames = categories.map(c => c.name);
+    const unitNames = units.map(u => u.name);
+
+    const result = await analyzeProductImage(imageBase64, mimeType, categoryNames, unitNames);
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('Analyze product image error:', error);
+    res.status(500).json({ error: error.message || 'Failed to analyze image' });
   }
 };

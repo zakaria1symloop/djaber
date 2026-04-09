@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Modal, StatsCard } from '@/components/stock';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { Modal, StatsCard, RangeSlider, DatePicker } from '@/components/stock';
 import { Button, Input, Badge } from '@/components/ui';
 import {
   PlusIcon, UsersIcon, EditIcon, TrashIcon, SearchIcon, EyeIcon,
   CheckCircleIcon, TruckIcon, DollarIcon, PhoneIcon, MailIcon,
-  MapPinIcon, UserIcon,
+  MapPinIcon, UserIcon, FilterIcon, CloseIcon,
 } from '@/components/ui/icons';
 import {
   getSuppliers,
@@ -15,14 +16,36 @@ import {
   deleteSupplier,
   type Supplier,
 } from '@/lib/user-stock-api';
+import { useFilterPanel } from '@/contexts/FilterPanelContext';
+
+const DEFAULT_PURCHASES_MAX = 1000;
+const DEFAULT_SPENT_MAX = 10000000;
 
 export default function SuppliersPage() {
+  const router = useRouter();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+
+  // Filter panel state — shared with layout via context
+  const { filterPanelOpen: filtersOpen, setFilterPanelOpen: setFiltersOpen } = useFilterPanel();
+  const [draftActiveFilter, setDraftActiveFilter] = useState<'' | 'true' | 'false'>('');
+  const [draftPurchasesRange, setDraftPurchasesRange] = useState<[number, number]>([0, DEFAULT_PURCHASES_MAX]);
+  const [draftSpentRange, setDraftSpentRange] = useState<[number, number]>([0, DEFAULT_SPENT_MAX]);
+  const [draftStartDate, setDraftStartDate] = useState('');
+  const [draftEndDate, setDraftEndDate] = useState('');
+
+  // Applied filters ref + trigger
+  const appliedFiltersRef = useRef({
+    activeFilter: '' as '' | 'true' | 'false',
+    purchasesRange: [0, DEFAULT_PURCHASES_MAX] as [number, number],
+    spentRange: [0, DEFAULT_SPENT_MAX] as [number, number],
+    startDate: '',
+    endDate: '',
+  });
+  const [filterTrigger, setFilterTrigger] = useState(0);
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
@@ -35,6 +58,33 @@ export default function SuppliersPage() {
   // Form state
   const [form, setForm] = useState({ name: '', email: '', phone: '', address: '', notes: '', isActive: true });
 
+  // Active filter count
+  const activeFilterCount = useMemo(() => {
+    const f = appliedFiltersRef.current;
+    let count = 0;
+    if (f.activeFilter !== '') count++;
+    if (f.purchasesRange[0] > 0 || f.purchasesRange[1] < DEFAULT_PURCHASES_MAX) count++;
+    if (f.spentRange[0] > 0 || f.spentRange[1] < DEFAULT_SPENT_MAX) count++;
+    if (f.startDate || f.endDate) count++;
+    return count;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterTrigger]);
+
+  // Draft dirty check
+  const draftDirty = useMemo(() => {
+    const f = appliedFiltersRef.current;
+    return (
+      draftActiveFilter !== f.activeFilter ||
+      draftPurchasesRange[0] !== f.purchasesRange[0] || draftPurchasesRange[1] !== f.purchasesRange[1] ||
+      draftSpentRange[0] !== f.spentRange[0] || draftSpentRange[1] !== f.spentRange[1] ||
+      draftStartDate !== f.startDate || draftEndDate !== f.endDate
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftActiveFilter, draftPurchasesRange, draftSpentRange, draftStartDate, draftEndDate, filterTrigger]);
+
+  // Cleanup on unmount
+  useEffect(() => () => setFiltersOpen(false), [setFiltersOpen]);
+
   // 300ms debounce on search
   useEffect(() => {
     const timer = setTimeout(() => setSearchDebounced(search), 300);
@@ -44,14 +94,28 @@ export default function SuppliersPage() {
   const loadSuppliers = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await getSuppliers(searchDebounced || undefined);
+      const f = appliedFiltersRef.current;
+      const params: Record<string, any> = {
+        search: searchDebounced || undefined,
+      };
+      if (f.activeFilter === 'true') params.isActive = true;
+      else if (f.activeFilter === 'false') params.isActive = false;
+      if (f.purchasesRange[0] > 0) params.minPurchases = f.purchasesRange[0];
+      if (f.purchasesRange[1] < DEFAULT_PURCHASES_MAX) params.maxPurchases = f.purchasesRange[1];
+      if (f.spentRange[0] > 0) params.minTotalSpent = f.spentRange[0];
+      if (f.spentRange[1] < DEFAULT_SPENT_MAX) params.maxTotalSpent = f.spentRange[1];
+      if (f.startDate) params.startDate = f.startDate;
+      if (f.endDate) params.endDate = f.endDate;
+
+      const res = await getSuppliers(params);
       setSuppliers(res.suppliers);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load suppliers');
     } finally {
       setLoading(false);
     }
-  }, [searchDebounced]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchDebounced, filterTrigger]);
 
   useEffect(() => { loadSuppliers(); }, [loadSuppliers]);
 
@@ -60,26 +124,54 @@ export default function SuppliersPage() {
     const total = suppliers.length;
     const active = suppliers.filter(s => s.isActive !== false).length;
     const withPurchases = suppliers.filter(s => (s._count?.purchases || 0) > 0).length;
-    // We don't have purchase totals on supplier objects, so show count-based stat
     return { total, active, withPurchases };
   }, [suppliers]);
 
-  // Filtered suppliers
-  const filteredSuppliers = useMemo(() => {
-    return suppliers.filter(s => {
-      if (statusFilter === 'active' && s.isActive === false) return false;
-      if (statusFilter === 'inactive' && s.isActive !== false) return false;
-      return true;
-    });
-  }, [suppliers, statusFilter]);
+  const applyFilters = () => {
+    appliedFiltersRef.current = {
+      activeFilter: draftActiveFilter,
+      purchasesRange: [...draftPurchasesRange],
+      spentRange: [...draftSpentRange],
+      startDate: draftStartDate,
+      endDate: draftEndDate,
+    };
+    setFilterTrigger((t) => t + 1);
+  };
+
+  const clearAllFilters = () => {
+    setDraftActiveFilter('');
+    setDraftPurchasesRange([0, DEFAULT_PURCHASES_MAX]);
+    setDraftSpentRange([0, DEFAULT_SPENT_MAX]);
+    setDraftStartDate('');
+    setDraftEndDate('');
+    appliedFiltersRef.current = {
+      activeFilter: '',
+      purchasesRange: [0, DEFAULT_PURCHASES_MAX],
+      spentRange: [0, DEFAULT_SPENT_MAX],
+      startDate: '',
+      endDate: '',
+    };
+    setFilterTrigger((t) => t + 1);
+  };
+
+  const toggleFilters = () => {
+    if (!filtersOpen) {
+      setShowModal(false);
+      setViewing(null);
+      setDeleteConfirm(null);
+    }
+    setFiltersOpen(!filtersOpen);
+  };
 
   const openAdd = () => {
+    setFiltersOpen(false);
     setEditing(null);
     setForm({ name: '', email: '', phone: '', address: '', notes: '', isActive: true });
     setShowModal(true);
   };
 
   const openEdit = (supplier: Supplier) => {
+    setFiltersOpen(false);
     setEditing(supplier);
     setForm({
       name: supplier.name,
@@ -146,14 +238,12 @@ export default function SuppliersPage() {
 
   if (loading && suppliers.length === 0) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-zinc-800 rounded w-48" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-zinc-800 rounded-xl" />)}
-          </div>
-          <div className="h-64 bg-zinc-800 rounded-xl" />
+      <div className="animate-pulse space-y-6">
+        <div className="h-8 bg-zinc-800 rounded w-48" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-zinc-800 rounded-xl" />)}
         </div>
+        <div className="h-64 bg-zinc-800 rounded-xl" />
       </div>
     );
   }
@@ -166,9 +256,29 @@ export default function SuppliersPage() {
           <h1 className="text-2xl font-bold text-white">Suppliers</h1>
           <p className="text-sm text-zinc-400 mt-1">{suppliers.length} suppliers</p>
         </div>
-        <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>
-          Add Supplier
-        </Button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleFilters}
+            className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-all duration-200 ${
+              filtersOpen
+                ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                : activeFilterCount > 0
+                  ? 'border-blue-500/30 bg-blue-500/5 text-blue-400 hover:bg-blue-500/10'
+                  : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'
+            }`}
+          >
+            <FilterIcon className="w-4 h-4" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+          <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>
+            Add Supplier
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -184,7 +294,7 @@ export default function SuppliersPage() {
         <StatsCard title="With Purchases" value={stats.withPurchases} icon={<TruckIcon className="w-5 h-5" />} iconColor="text-amber-400" />
       </div>
 
-      {/* Filters */}
+      {/* Search + Date filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 max-w-sm">
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
@@ -196,19 +306,12 @@ export default function SuppliersPage() {
             className="w-full pl-10 pr-4 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
           />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as any)}
-          className="px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20"
-        >
-          <option value="all">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
+        <DatePicker value={draftStartDate} onChange={(v) => { setDraftStartDate(v); appliedFiltersRef.current.startDate = v; setFilterTrigger(t => t + 1); }} placeholder="From date" />
+        <DatePicker value={draftEndDate} onChange={(v) => { setDraftEndDate(v); appliedFiltersRef.current.endDate = v; setFilterTrigger(t => t + 1); }} placeholder="To date" />
       </div>
 
       {/* Table */}
-      {filteredSuppliers.length > 0 ? (
+      {suppliers.length > 0 ? (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -218,14 +321,14 @@ export default function SuppliersPage() {
                   <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Contact</th>
                   <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Address</th>
                   <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Purchases</th>
+                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Total Spent</th>
                   <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Status</th>
                   <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredSuppliers.map((supplier) => (
+                {suppliers.map((supplier) => (
                   <tr key={supplier.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                    {/* Supplier: Avatar + Name */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-violet-500/20 text-violet-400 flex items-center justify-center text-sm font-bold flex-shrink-0">
@@ -234,7 +337,6 @@ export default function SuppliersPage() {
                         <span className="text-sm text-white font-medium">{supplier.name}</span>
                       </div>
                     </td>
-                    {/* Contact: Phone + Email stacked */}
                     <td className="px-4 py-3">
                       <div className="space-y-0.5">
                         {supplier.phone ? (
@@ -254,7 +356,6 @@ export default function SuppliersPage() {
                         )}
                       </div>
                     </td>
-                    {/* Address */}
                     <td className="px-4 py-3">
                       {supplier.address ? (
                         <div className="flex items-center gap-1.5 text-sm text-zinc-400 max-w-[200px]">
@@ -265,21 +366,30 @@ export default function SuppliersPage() {
                         <span className="text-sm text-zinc-600">-</span>
                       )}
                     </td>
-                    {/* Purchases count */}
                     <td className="px-4 py-3 text-center">
                       <Badge variant="default">{supplier._count?.purchases || 0}</Badge>
                     </td>
-                    {/* Status */}
+                    <td className="px-4 py-3 text-right">
+                      <span className="text-sm text-white font-medium">
+                        {(supplier.totalSpent || 0).toLocaleString()} DA
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <Badge variant={supplier.isActive !== false ? 'success' : 'error'}>
                         {supplier.isActive !== false ? 'Active' : 'Inactive'}
                       </Badge>
                     </td>
-                    {/* Actions */}
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => setViewing(supplier)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="View">
+                        <button onClick={() => { setFiltersOpen(false); setViewing(supplier); }} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="View">
                           <EyeIcon className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => router.push(`/dashboard/stock/purchases?supplierId=${supplier.id}`)}
+                          className="p-1.5 text-zinc-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                          title="View Purchases"
+                        >
+                          <TruckIcon className="w-4 h-4" />
                         </button>
                         <button onClick={() => openEdit(supplier)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Edit">
                           <EditIcon className="w-4 h-4" />
@@ -302,19 +412,134 @@ export default function SuppliersPage() {
           </div>
           <h3 className="text-lg font-medium text-zinc-300 mb-1">No Suppliers</h3>
           <p className="text-sm text-zinc-500 max-w-sm mx-auto mb-4">
-            {searchDebounced || statusFilter !== 'all' ? 'No suppliers match your filters' : 'Add suppliers to manage your purchases'}
+            {searchDebounced || activeFilterCount > 0 ? 'No suppliers match your filters' : 'Add suppliers to manage your purchases'}
           </p>
-          {!searchDebounced && statusFilter === 'all' && (
+          {!searchDebounced && activeFilterCount === 0 && (
             <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>Add Supplier</Button>
           )}
         </div>
       )}
 
+      {/* Filter Panel — Right Side */}
+      <div
+        className={`fixed top-0 right-0 h-full w-[336px] bg-zinc-900 border-l border-white/10 z-[45] transition-transform duration-300 ease-in-out flex flex-col ${
+          filtersOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        {/* Panel header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
+          <div className="flex items-center gap-2">
+            <FilterIcon className="w-4 h-4 text-blue-400" />
+            <h2 className="text-sm font-semibold text-white">Filters</h2>
+            {activeFilterCount > 0 && (
+              <span className="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-full font-medium">
+                {activeFilterCount} active
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setFiltersOpen(false)}
+            className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <CloseIcon className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Panel body — scrollable */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
+          {/* Status Toggle */}
+          <div>
+            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">Status</label>
+            <div className="flex gap-1.5">
+              {[
+                { value: '' as const, label: 'All' },
+                { value: 'true' as const, label: 'Active' },
+                { value: 'false' as const, label: 'Inactive' },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setDraftActiveFilter(opt.value)}
+                  className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 ${
+                    draftActiveFilter === opt.value
+                      ? opt.value === 'true'
+                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                        : opt.value === 'false'
+                          ? 'bg-red-500/15 text-red-400 border border-red-500/30'
+                          : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                      : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-700'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Purchase Count Range */}
+          <div>
+            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
+              Purchase Count
+              {(draftPurchasesRange[0] > 0 || draftPurchasesRange[1] < DEFAULT_PURCHASES_MAX) && (
+                <span className="ml-1.5 text-blue-400 font-normal normal-case">
+                  {draftPurchasesRange[0].toLocaleString()} - {draftPurchasesRange[1].toLocaleString()}
+                </span>
+              )}
+            </label>
+            <RangeSlider
+              min={0}
+              max={DEFAULT_PURCHASES_MAX}
+              value={draftPurchasesRange}
+              onChange={setDraftPurchasesRange}
+              step={1}
+              formatLabel={(v) => v.toLocaleString()}
+            />
+          </div>
+
+          {/* Total Spent Range */}
+          <div>
+            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
+              Total Spent (DA)
+              {(draftSpentRange[0] > 0 || draftSpentRange[1] < DEFAULT_SPENT_MAX) && (
+                <span className="ml-1.5 text-blue-400 font-normal normal-case">
+                  {draftSpentRange[0].toLocaleString()} - {draftSpentRange[1].toLocaleString()}
+                </span>
+              )}
+            </label>
+            <RangeSlider
+              min={0}
+              max={DEFAULT_SPENT_MAX}
+              value={draftSpentRange}
+              onChange={setDraftSpentRange}
+              step={10000}
+              formatLabel={(v) => `${v.toLocaleString()} DA`}
+            />
+          </div>
+
+        </div>
+
+        {/* Panel footer */}
+        <div className="px-5 py-4 border-t border-white/10 shrink-0 space-y-2">
+          <button
+            onClick={applyFilters}
+            disabled={!draftDirty}
+            className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-500 text-white"
+          >
+            Apply Filters
+          </button>
+          <button
+            onClick={clearAllFilters}
+            disabled={activeFilterCount === 0 && !draftDirty}
+            className="w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700"
+          >
+            Clear All{activeFilterCount > 0 && ` (${activeFilterCount})`}
+          </button>
+        </div>
+      </div>
+
       {/* Details Modal */}
       <Modal isOpen={!!viewing} onClose={() => setViewing(null)} title="Supplier Details" size="lg">
         {viewing && (
           <div className="space-y-5">
-            {/* Header */}
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-full bg-violet-500/20 text-violet-400 flex items-center justify-center text-xl font-bold">
                 {getInitials(viewing.name)}
@@ -327,7 +552,6 @@ export default function SuppliersPage() {
               </div>
             </div>
 
-            {/* Info Grid */}
             <div className="grid grid-cols-2 gap-4 bg-zinc-800/50 rounded-lg p-4">
               <div>
                 <div className="flex items-center gap-1.5 text-xs text-zinc-500 mb-1">
@@ -355,11 +579,14 @@ export default function SuppliersPage() {
               )}
             </div>
 
-            {/* Stats Row */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="bg-zinc-800/50 rounded-lg p-4 text-center">
-                <p className="text-xs text-zinc-500 mb-1">Total Purchases</p>
+                <p className="text-xs text-zinc-500 mb-1">Purchases</p>
                 <p className="text-2xl font-bold text-white">{viewing._count?.purchases || 0}</p>
+              </div>
+              <div className="bg-zinc-800/50 rounded-lg p-4 text-center">
+                <p className="text-xs text-zinc-500 mb-1">Total Spent</p>
+                <p className="text-2xl font-bold text-emerald-400">{(viewing.totalSpent || 0).toLocaleString()} <span className="text-sm text-zinc-400">DA</span></p>
               </div>
               <div className="bg-zinc-800/50 rounded-lg p-4 text-center">
                 <p className="text-xs text-zinc-500 mb-1">Member Since</p>
@@ -367,13 +594,17 @@ export default function SuppliersPage() {
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => router.push(`/dashboard/stock/purchases?supplierId=${viewing.id}`)}
+                icon={<TruckIcon className="w-4 h-4" />}
+              >
+                View Purchases
+              </Button>
               <Button variant="outline" className="flex-1" onClick={() => { setViewing(null); openEdit(viewing); }}>
                 Edit Supplier
-              </Button>
-              <Button variant="outline" className="flex-1" onClick={() => setViewing(null)}>
-                Close
               </Button>
             </div>
           </div>
@@ -388,7 +619,6 @@ export default function SuppliersPage() {
         size="md"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Name with icon */}
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">Name *</label>
             <div className="relative">
@@ -404,7 +634,6 @@ export default function SuppliersPage() {
             </div>
           </div>
 
-          {/* Email + Phone 2-col */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1.5">Email</label>
@@ -434,7 +663,6 @@ export default function SuppliersPage() {
             </div>
           </div>
 
-          {/* Address with icon */}
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">Address</label>
             <div className="relative">
@@ -449,7 +677,6 @@ export default function SuppliersPage() {
             </div>
           </div>
 
-          {/* Notes */}
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">Notes</label>
             <textarea
@@ -461,7 +688,6 @@ export default function SuppliersPage() {
             />
           </div>
 
-          {/* Active toggle (only when editing) */}
           {editing && (
             <label className="flex items-center gap-3 cursor-pointer">
               <div className="relative">

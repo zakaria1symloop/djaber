@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui';
+import { DatePicker } from '@/components/stock';
 import {
   ChevronLeftIcon, TrashIcon, PlusIcon, SearchIcon, TruckIcon,
-  CalendarIcon, DollarIcon,
+  DollarIcon,
 } from '@/components/ui/icons';
 import { getProducts, getSuppliers, createPurchase, type Product, type Supplier } from '@/lib/user-stock-api';
 
@@ -338,7 +339,7 @@ export default function NewPurchasePage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div>
         <button
@@ -367,15 +368,10 @@ export default function NewPurchasePage() {
                 <h2 className="text-sm font-semibold text-white flex items-center gap-2">
                   <TruckIcon className="w-4 h-4 text-zinc-400" /> Supplier
                 </h2>
-                <div className="flex items-center gap-2">
-                  <CalendarIcon className="w-4 h-4 text-zinc-500" />
-                  <input
-                    type="date"
-                    value={purchaseDate}
-                    onChange={(e) => setPurchaseDate(e.target.value)}
-                    className="bg-black border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white/20"
-                  />
-                </div>
+                <DatePicker
+                  value={purchaseDate}
+                  onChange={setPurchaseDate}
+                />
               </div>
 
               <SupplierAutocomplete

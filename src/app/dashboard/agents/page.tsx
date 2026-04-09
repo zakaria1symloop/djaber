@@ -1,11 +1,19 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Badge } from '@/components/ui';
-import { PlusIcon, BotIcon, TrashIcon, EditIcon, MessageIcon } from '@/components/ui/icons';
+import {
+  PlusIcon, BotIcon, TrashIcon, EditIcon, MessageIcon,
+  AlertIcon, CheckCircleIcon, CloseIcon, BanIcon,
+  FacebookIcon, InstagramIcon, ChevronDownIcon,
+} from '@/components/ui/icons';
 import { Modal } from '@/components/stock';
-import { getAgents, deleteAgentApi, testAgentChat, type Agent } from '@/lib/user-stock-api';
+import {
+  getAgents, deleteAgentApi, testAgentChat,
+  getAgentInsights, getAgentMetrics, resolveAgentInsight,
+  type Agent, type AgentInsight, type AgentMetrics,
+} from '@/lib/user-stock-api';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -27,11 +35,30 @@ export default function AgentsPage() {
   const [chatSending, setChatSending] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Accordion insights state — only one agent open at a time
+  const [expandedAgentId, setExpandedAgentId] = useState<string | null>(null);
+  const [agentInsights, setAgentInsights] = useState<AgentInsight[]>([]);
+  const [agentMetricsMap, setAgentMetricsMap] = useState<Record<string, AgentMetrics>>({});
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [newInstruction, setNewInstruction] = useState('');
+  const [saving, setSaving] = useState(false);
+
   const loadAgents = async () => {
     try {
       setLoading(true);
       const res = await getAgents();
       setAgents(res.agents);
+      // Load metrics for all agents (for pending counts)
+      const metricsPromises = res.agents.map(a =>
+        getAgentMetrics(a.id).then(r => ({ id: a.id, metrics: r.metrics })).catch(() => null)
+      );
+      const results = await Promise.all(metricsPromises);
+      const map: Record<string, AgentMetrics> = {};
+      for (const r of results) {
+        if (r) map[r.id] = r.metrics;
+      }
+      setAgentMetricsMap(map);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load agents');
     } finally {
@@ -41,6 +68,49 @@ export default function AgentsPage() {
 
   useEffect(() => { loadAgents(); }, []);
 
+  const toggleInsights = useCallback(async (agentId: string) => {
+    if (expandedAgentId === agentId) {
+      setExpandedAgentId(null);
+      setAgentInsights([]);
+      return;
+    }
+    setExpandedAgentId(agentId);
+    setInsightsLoading(true);
+    setResolvingId(null);
+    setNewInstruction('');
+    try {
+      const res = await getAgentInsights(agentId, 'pending');
+      setAgentInsights(res.insights);
+    } catch {
+      setAgentInsights([]);
+    } finally {
+      setInsightsLoading(false);
+    }
+  }, [expandedAgentId]);
+
+  const handleResolve = async (insightId: string, action: 'resolve' | 'dismiss') => {
+    if (!expandedAgentId) return;
+    setSaving(true);
+    try {
+      await resolveAgentInsight(insightId, {
+        action,
+        newInstruction: action === 'resolve' ? newInstruction.trim() || undefined : undefined,
+      });
+      setResolvingId(null);
+      setNewInstruction('');
+      // Reload insights for this agent
+      const res = await getAgentInsights(expandedAgentId, 'pending');
+      setAgentInsights(res.insights);
+      // Update metrics count
+      const metricsRes = await getAgentMetrics(expandedAgentId);
+      setAgentMetricsMap(prev => ({ ...prev, [expandedAgentId]: metricsRes.metrics }));
+    } catch {
+      // handled
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteConfirm) return;
     try {
@@ -48,6 +118,7 @@ export default function AgentsPage() {
       await deleteAgentApi(deleteConfirm.id);
       setAgents(agents.filter((a) => a.id !== deleteConfirm.id));
       setDeleteConfirm(null);
+      if (expandedAgentId === deleteConfirm.id) setExpandedAgentId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete agent');
     } finally {
@@ -107,7 +178,7 @@ export default function AgentsPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -137,89 +208,225 @@ export default function AgentsPage() {
         </div>
       ) : agents.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {agents.map((agent) => (
-            <div
-              key={agent.id}
-              className="bg-zinc-900/50 border border-white/10 rounded-xl p-5 hover:border-white/20 transition-colors group"
-            >
-              {/* Agent Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                    agent.isActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-500/20 text-zinc-400'
-                  }`}>
-                    <BotIcon className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-white font-semibold">{agent.name}</h3>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPersonalityColor(agent.personality)}`}>
-                        {agent.personality}
-                      </span>
-                      <Badge variant={agent.isActive ? 'success' : 'default'} size="sm">
-                        {agent.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
+          {agents.map((agent) => {
+            const pendingCount = agentMetricsMap[agent.id]?.insightsPending || 0;
+            const isExpanded = expandedAgentId === agent.id;
+
+            return (
+              <div
+                key={agent.id}
+                className="bg-zinc-900/50 border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-colors group"
+              >
+                <div className="p-5">
+                  {/* Agent Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                        agent.isActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-500/20 text-zinc-400'
+                      }`}>
+                        <BotIcon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-white font-semibold">{agent.name}</h3>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPersonalityColor(agent.personality)}`}>
+                            {agent.personality}
+                          </span>
+                          <Badge variant={agent.isActive ? 'success' : 'default'} size="sm">
+                            {agent.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {/* Insights button — always visible if pending */}
+                      <button
+                        onClick={() => toggleInsights(agent.id)}
+                        className={`relative p-1.5 rounded-lg transition-colors ${
+                          isExpanded
+                            ? 'text-amber-400 bg-amber-500/10'
+                            : pendingCount > 0
+                              ? 'text-amber-400 hover:bg-amber-500/10'
+                              : 'text-zinc-400 hover:text-zinc-300 hover:bg-white/5 opacity-0 group-hover:opacity-100'
+                        }`}
+                        title="Agent insights"
+                      >
+                        <AlertIcon className="w-4 h-4" />
+                        {pendingCount > 0 && (
+                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                            {pendingCount > 9 ? '9+' : pendingCount}
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => openTestChat(agent)}
+                        className="p-1.5 text-zinc-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Test chat"
+                      >
+                        <MessageIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => router.push(`/dashboard/agents/${agent.id}`)}
+                        className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Agent details & KPIs"
+                      >
+                        <EditIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(agent)}
+                        className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
+
+                  {/* Description */}
+                  {agent.description && (
+                    <p className="text-sm text-zinc-400 mb-4 line-clamp-2">{agent.description}</p>
+                  )}
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-black/30 rounded-lg p-2.5 text-center">
+                      <p className="text-xs text-zinc-500">Pages</p>
+                      <p className="text-lg font-bold text-white">{agent._count?.pages || 0}</p>
+                    </div>
+                    <div className="bg-black/30 rounded-lg p-2.5 text-center">
+                      <p className="text-xs text-zinc-500">Products</p>
+                      <p className="text-lg font-bold text-white">
+                        {agent.sellAllProducts ? 'All' : (agent._count?.products || 0)}
+                      </p>
+                    </div>
+                    <div className="bg-black/30 rounded-lg p-2.5 text-center">
+                      <p className="text-xs text-zinc-500">Model</p>
+                      <p className="text-xs font-medium text-zinc-300 mt-1">{agent.aiModel}</p>
+                    </div>
+                  </div>
+
+                  {/* Connected Pages */}
+                  {agent.pages.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {agent.pages.map((ap) => (
+                        <span key={ap.id} className="px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded text-xs">
+                          {ap.page.pageName}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => openTestChat(agent)}
-                    className="p-1.5 text-zinc-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
-                    title="Test chat"
-                  >
-                    <MessageIcon className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => router.push(`/dashboard/agents/${agent.id}`)}
-                    className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                  >
-                    <EditIcon className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setDeleteConfirm(agent)}
-                    className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                  </button>
-                </div>
+
+                {/* Collapsible Insights Section */}
+                {isExpanded && (
+                  <div className="border-t border-white/5 bg-zinc-950/50">
+                    {/* Collapse header */}
+                    <button
+                      onClick={() => setExpandedAgentId(null)}
+                      className="w-full px-4 py-2 flex items-center justify-between text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <AlertIcon className="w-3.5 h-3.5 text-amber-400" />
+                        Pending Issues ({agentInsights.length})
+                      </span>
+                      <ChevronDownIcon className="w-3.5 h-3.5 rotate-180" />
+                    </button>
+
+                    {insightsLoading ? (
+                      <div className="px-4 pb-4">
+                        <div className="animate-pulse space-y-2">
+                          <div className="h-16 bg-zinc-800 rounded-lg" />
+                          <div className="h-16 bg-zinc-800 rounded-lg" />
+                        </div>
+                      </div>
+                    ) : agentInsights.length === 0 ? (
+                      <div className="px-4 pb-4 text-center">
+                        <div className="flex items-center justify-center gap-2 py-4 text-zinc-600">
+                          <CheckCircleIcon className="w-4 h-4 text-emerald-500" />
+                          <span className="text-sm">No pending issues</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="px-4 pb-4 space-y-2 max-h-[400px] overflow-y-auto">
+                        {agentInsights.map(insight => (
+                          <div key={insight.id} className="bg-zinc-900 border border-white/5 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant={insight.type === 'unclear' ? 'warning' : 'error'} size="sm">
+                                {insight.type === 'unclear' ? 'Unclear' : 'Unknown'}
+                              </Badge>
+                              {insight.conversation?.platform === 'instagram' ? (
+                                <InstagramIcon className="w-3 h-3 text-pink-400" />
+                              ) : insight.conversation?.platform === 'facebook' ? (
+                                <FacebookIcon className="w-3 h-3 text-blue-400" />
+                              ) : null}
+                              {insight.detail && (
+                                <span className="text-[10px] text-amber-400/70 italic truncate">{insight.detail}</span>
+                              )}
+                              <span className="text-[10px] text-zinc-600 ml-auto flex-shrink-0">
+                                {new Date(insight.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+
+                            {/* Customer message */}
+                            <div className="bg-zinc-800/60 rounded px-2.5 py-1.5 mb-1.5">
+                              <p className="text-[10px] text-zinc-500 mb-0.5">Customer</p>
+                              <p className="text-xs text-zinc-300 line-clamp-2">{insight.customerMessage}</p>
+                            </div>
+
+                            {/* AI response */}
+                            <div className="bg-blue-500/5 border border-blue-500/10 rounded px-2.5 py-1.5 mb-2">
+                              <p className="text-[10px] text-zinc-500 mb-0.5">AI Response</p>
+                              <p className="text-xs text-zinc-400 line-clamp-2">{insight.aiResponse}</p>
+                            </div>
+
+                            {/* Actions */}
+                            {resolvingId === insight.id ? (
+                              <div className="space-y-2">
+                                <textarea
+                                  value={newInstruction}
+                                  onChange={(e) => setNewInstruction(e.target.value)}
+                                  placeholder="Add instruction so the agent handles this better..."
+                                  className="w-full bg-zinc-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                                  rows={2}
+                                  autoFocus
+                                />
+                                <div className="flex gap-2">
+                                  <Button size="sm" onClick={() => handleResolve(insight.id, 'resolve')} disabled={saving}>
+                                    <CheckCircleIcon className="w-3 h-3 mr-1" />
+                                    {newInstruction.trim() ? 'Add & Resolve' : 'Resolve'}
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={() => { setResolvingId(null); setNewInstruction(''); }}>
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => setResolvingId(insight.id)}
+                                  className="flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 transition-colors"
+                                >
+                                  <CheckCircleIcon className="w-3 h-3" />
+                                  Resolve
+                                </button>
+                                <button
+                                  onClick={() => handleResolve(insight.id, 'dismiss')}
+                                  disabled={saving}
+                                  className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                                >
+                                  <CloseIcon className="w-3 h-3" />
+                                  Dismiss
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-
-              {/* Description */}
-              {agent.description && (
-                <p className="text-sm text-zinc-400 mb-4 line-clamp-2">{agent.description}</p>
-              )}
-
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-black/30 rounded-lg p-2.5 text-center">
-                  <p className="text-xs text-zinc-500">Pages</p>
-                  <p className="text-lg font-bold text-white">{agent._count?.pages || 0}</p>
-                </div>
-                <div className="bg-black/30 rounded-lg p-2.5 text-center">
-                  <p className="text-xs text-zinc-500">Products</p>
-                  <p className="text-lg font-bold text-white">
-                    {agent.sellAllProducts ? 'All' : (agent._count?.products || 0)}
-                  </p>
-                </div>
-                <div className="bg-black/30 rounded-lg p-2.5 text-center">
-                  <p className="text-xs text-zinc-500">Model</p>
-                  <p className="text-xs font-medium text-zinc-300 mt-1">{agent.aiModel}</p>
-                </div>
-              </div>
-
-              {/* Connected Pages */}
-              {agent.pages.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {agent.pages.map((ap) => (
-                    <span key={ap.id} className="px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded text-xs">
-                      {ap.page.pageName}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-12 text-center">

@@ -17,6 +17,7 @@ model User {
   firstName String
   lastName  String
   plan      String   @default("individual") // individual, teams
+  isAdmin   Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -53,18 +54,22 @@ model Conversation {
   platform   String   // facebook, instagram
   userId     String
   clientId   String?  // Link conversation to a Client
+  agentId    String?  // Which AI agent handled this conversation
   status     String   @default("active") // active, resolved, archived
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  page     Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client   Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  page     Page           @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client   Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  agent    Agent?         @relation(fields: [agentId], references: [id], onDelete: SetNull)
   messages Message[]
+  insights AgentInsight[]
 
   @@unique([platform, pageId, senderId])
   @@index([pageId, status, updatedAt])
   @@index([userId, status])
+  @@index([agentId])
 }
 
 model Message {
@@ -133,9 +138,11 @@ model Agent {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  pages    AgentPage[]
-  products AgentProduct[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pages         AgentPage[]
+  products      AgentProduct[]
+  conversations Conversation[]
+  insights      AgentInsight[]
 
   @@index([userId, isActive])
 }
@@ -166,6 +173,29 @@ model AgentProduct {
   @@unique([agentId, productId])
   @@index([agentId])
   @@index([productId])
+}
+
+// ============================================================================
+// Agent Insights (auto-detected unclear/unknown messages)
+// ============================================================================
+
+model AgentInsight {
+  id              String    @id @default(uuid())
+  agentId         String
+  conversationId  String
+  type            String    // unclear, unknown_topic
+  customerMessage String    @db.Text
+  aiResponse      String    @db.Text
+  detail          String?   @db.Text // reason/topic from status tag
+  status          String    @default("pending") // pending, resolved, dismissed
+  resolvedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  agent        Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([agentId, status])
+  @@index([conversationId])
 }
 
 // ============================================================================
@@ -281,6 +311,9 @@ model Product {
   orderItems     OrderItem[]
   stockMovements StockMovement[]
   agentProducts  AgentProduct[]
+  recommendations     ProductRecommendation[] @relation("RecommendationSource")
+  recommendedBy       ProductRecommendation[] @relation("RecommendationTarget")
+  expenses            ProductExpense[]
 
   @@unique([pageId, sku])
   @@unique([userId, sku])
@@ -516,6 +549,52 @@ model StockMovement {
 }
 
 // ============================================================================
+// Caisse (Cash Register / Treasury)
+// ============================================================================
+
+model CaisseTransaction {
+  id          String   @id @default(uuid())
+  userId      String
+  type        String   // income, expense
+  amount      Decimal  @db.Decimal(10, 2)
+  category    String   // sale, order, purchase, rent, salary, utilities, marketing, shipping, other
+  reference   String?  // e.g. sale number, order number
+  description String?  @db.Text
+  date        DateTime @default(now())
+  isAutomatic Boolean  @default(false) // true if auto-created from sale/order/purchase
+  sourceId    String?  // ID of the source record (sale, order, purchase)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([userId, type])
+  @@index([userId, category])
+  @@index([userId, sourceId])
+}
+
+// ============================================================================
+// Product Expenses (marketing, shipping, packaging, etc.)
+// ============================================================================
+
+model ProductExpense {
+  id          String   @id @default(uuid())
+  userId      String
+  productId   String
+  category    String   // marketing, shipping, packaging, customs, storage, other
+  description String?
+  amount      Decimal  @db.Decimal(10, 2)
+  isPerUnit   Boolean  @default(false) // true = per unit, false = fixed total
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([userId, productId])
+  @@index([productId])
+}
+
+// ============================================================================
 // AI Providers (super admin managed)
 // ============================================================================
 
@@ -572,4 +651,31 @@ model DeliveryProvider {
 
   @@unique([userId, provider])
   @@index([userId, isActive])
+}
+
+// ============================================================================
+// Cross-Sell / Up-Sell Recommendations
+// ============================================================================
+
+model ProductRecommendation {
+  id            String   @id @default(uuid())
+  userId        String
+  productId     String   // Source product
+  recommendedId String   // Recommended product
+  type          String   // cross_sell, up_sell
+  score         Float    @default(0) // Confidence score (0-1)
+  reason        String?  // Why this recommendation exists
+  impressions   Int      @default(0) // Times shown to customers
+  conversions   Int      @default(0) // Times customer bought the recommended product
+  revenue       Decimal  @default(0) @db.Decimal(10, 2) // Revenue from conversions
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  product     Product @relation("RecommendationSource", fields: [productId], references: [id], onDelete: Cascade)
+  recommended Product @relation("RecommendationTarget", fields: [recommendedId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId, recommendedId, type])
+  @@index([userId, productId, isActive])
+  @@index([userId, isActive, score])
 }

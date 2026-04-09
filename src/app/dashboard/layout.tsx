@@ -27,8 +27,11 @@ import {
   MegaphoneIcon,
   ClipboardIcon,
   BellIcon,
+  BoltIcon,
+  DollarIcon,
 } from '@/components/ui';
 import { getUnreadCount } from '@/lib/notifications-api';
+import { FilterPanelProvider, useFilterPanel } from '@/contexts/FilterPanelContext';
 
 const navigationItems = [
   { id: 'overview', name: 'Overview', icon: HomeIcon, href: '/dashboard' },
@@ -47,23 +50,27 @@ const serviceSubItems = [
 ];
 
 const stockNavItems = [
-  { href: '/dashboard/stock', label: 'Overview', icon: HomeIcon },
-  { href: '/dashboard/stock/products', label: 'Products', icon: BoxIcon },
-  { href: '/dashboard/stock/categories', label: 'Categories', icon: TagIcon },
-  { href: '/dashboard/stock/suppliers', label: 'Suppliers', icon: UsersIcon },
-  { href: '/dashboard/stock/clients', label: 'Clients', icon: UsersIcon },
-  { href: '/dashboard/stock/orders', label: 'Orders', icon: ClipboardIcon },
-  { href: '/dashboard/stock/delivery', label: 'Delivery', icon: TruckIcon },
-  { href: '/dashboard/stock/sales', label: 'Sales', icon: ShoppingCartIcon },
-  { href: '/dashboard/stock/purchases', label: 'Purchases', icon: TruckIcon },
-  { href: '/dashboard/stock/movements', label: 'Movements', icon: HistoryIcon },
+  { href: '/dashboard/stock', label: 'Overview', icon: HomeIcon, simple: true },
+  { href: '/dashboard/stock/products', label: 'Products', icon: BoxIcon, simple: true },
+  { href: '/dashboard/stock/categories', label: 'Categories', icon: TagIcon, simple: true },
+  { href: '/dashboard/stock/suppliers', label: 'Suppliers', icon: UsersIcon, simple: false },
+  { href: '/dashboard/stock/clients', label: 'Clients', icon: UsersIcon, simple: false },
+  { href: '/dashboard/stock/recommendations', label: 'Cross-Sell', icon: BoltIcon, simple: false },
+  { href: '/dashboard/stock/caisse', label: 'Caisse', icon: DollarIcon, simple: false },
+  { href: '/dashboard/stock/orders', label: 'Orders', icon: ClipboardIcon, simple: true },
+  { href: '/dashboard/stock/delivery', label: 'Delivery', icon: TruckIcon, simple: false },
+  { href: '/dashboard/stock/sales', label: 'Sales', icon: ShoppingCartIcon, simple: false },
+  { href: '/dashboard/stock/purchases', label: 'Purchases', icon: TruckIcon, simple: false },
+  { href: '/dashboard/stock/movements', label: 'Movements', icon: HistoryIcon, simple: false },
 ];
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black"><div className="text-white">Loading...</div></div>}>
-      <DashboardLayoutInner>{children}</DashboardLayoutInner>
-    </Suspense>
+    <FilterPanelProvider>
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black"><div className="text-white">Loading...</div></div>}>
+        <DashboardLayoutInner>{children}</DashboardLayoutInner>
+      </Suspense>
+    </FilterPanelProvider>
   );
 }
 
@@ -73,11 +80,13 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const { pages } = usePages();
+  const { filterPanelOpen, setFilterPanelOpen } = useFilterPanel();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [servicesExpanded, setServicesExpanded] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [stockMode, setStockMode] = useState<'simple' | 'advanced'>('simple');
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -109,6 +118,34 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showUserMenu]);
 
+  // Stock mode from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('stockMode');
+    if (saved === 'simple' || saved === 'advanced') setStockMode(saved);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'stockMode' && (e.newValue === 'simple' || e.newValue === 'advanced')) {
+        setStockMode(e.newValue);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  // Route guard: redirect to stock overview if on advanced-only route in simple mode
+  const isStockRoute = pathname?.startsWith('/dashboard/stock');
+  const filteredStockNavItems = stockMode === 'simple'
+    ? stockNavItems.filter(item => item.simple)
+    : stockNavItems;
+
+  useEffect(() => {
+    if (stockMode === 'simple' && isStockRoute && pathname !== '/dashboard/stock') {
+      const isAllowed = filteredStockNavItems.some(
+        item => pathname === item.href || pathname?.startsWith(item.href + '/')
+      );
+      if (!isAllowed) router.replace('/dashboard/stock');
+    }
+  }, [stockMode, pathname, isStockRoute, filteredStockNavItems, router]);
+
   if (authLoading || !isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
@@ -117,7 +154,6 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
     );
   }
 
-  const isStockRoute = pathname?.startsWith('/dashboard/stock');
   const isAgentsRoute = pathname?.startsWith('/dashboard/agents');
   const isServicesRoute = pathname === '/dashboard/services';
   const isNotificationsRoute = pathname?.startsWith('/dashboard/notifications');
@@ -177,8 +213,8 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
         onMouseEnter={() => sidebarCollapsed && setSidebarHovered(true)}
         onMouseLeave={() => setSidebarHovered(false)}
         className={`fixed top-0 left-0 h-full bg-black border-r border-white/10 z-50 transition-all duration-300 ease-in-out ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0 ${isCollapsedMode ? 'w-16' : 'w-64'}`}
+          filterPanelOpen ? '-translate-x-full' : sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } ${filterPanelOpen ? '' : 'lg:translate-x-0'} ${isCollapsedMode ? 'w-16' : 'w-64'}`}
       >
         <div className={`p-6 border-b border-white/10 ${isCollapsedMode ? 'px-3 py-4' : ''}`}>
           <div className="flex items-center gap-3">
@@ -307,9 +343,9 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
       {/* Stock Sub-Sidebar: pushed by main sidebar */}
       <aside
         className={`hidden lg:flex fixed top-0 h-full w-56 bg-zinc-950 border-r border-white/10 z-40 flex-col transition-all duration-300 ease-in-out ${
-          isStockRoute ? 'translate-x-0' : '-translate-x-full'
+          filterPanelOpen ? '-translate-x-full' : isStockRoute ? 'translate-x-0' : '-translate-x-full'
         }`}
-        style={{ left: isCollapsedMode ? '64px' : '256px' }}
+        style={{ left: filterPanelOpen ? '0px' : isCollapsedMode ? '64px' : '256px' }}
       >
         <div className="p-4 border-b border-white/10">
           <button
@@ -322,7 +358,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
           <h2 className="text-sm font-semibold text-white">Products</h2>
         </div>
         <nav className="p-2 space-y-0.5 flex-1">
-          {stockNavItems.map((item) => {
+          {filteredStockNavItems.map((item) => {
             const isActiveStock = pathname === item.href || (item.href !== '/dashboard/stock' && pathname?.startsWith(item.href));
             const Icon = item.icon;
             return (
@@ -345,10 +381,12 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
 
       {/* Header */}
       <header
-        className={`fixed top-0 left-0 right-0 z-30 bg-black/80 backdrop-blur-sm border-b border-white/10 transition-[padding] duration-300 ease-in-out ${
-          isStockRoute
-            ? (isCollapsedMode ? 'lg:pl-[288px]' : 'lg:pl-[480px]')
-            : 'lg:pl-64'
+        className={`fixed top-0 left-0 z-30 bg-black/80 backdrop-blur-sm border-b border-white/10 transition-all duration-300 ease-in-out ${
+          filterPanelOpen
+            ? 'lg:pl-0 right-[336px]'
+            : isStockRoute
+              ? (isCollapsedMode ? 'lg:pl-[288px] right-0' : 'lg:pl-[480px] right-0')
+              : 'lg:pl-64 right-0'
         }`}
       >
         <div className="px-4 sm:px-6 lg:px-8">
@@ -436,11 +474,22 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
         </div>
       </header>
 
+      {/* Click-outside overlay to close filter panel */}
+      {filterPanelOpen && (
+        <div
+          className="fixed inset-0 cursor-pointer"
+          style={{ right: '336px', zIndex: 36 }}
+          onClick={() => setFilterPanelOpen(false)}
+        />
+      )}
+
       {/* Main Content */}
-      <main className={`min-h-screen pt-20 pb-20 px-4 sm:px-6 lg:px-8 bg-black transition-[margin] duration-300 ease-in-out ${
-        isStockRoute
-          ? (isCollapsedMode ? 'lg:ml-[288px]' : 'lg:ml-[480px]')
-          : 'lg:ml-64'
+      <main className={`min-h-screen pt-20 pb-20 px-4 sm:px-6 lg:px-8 bg-black transition-all duration-300 ease-in-out ${
+        filterPanelOpen
+          ? 'lg:ml-0 mr-[336px]'
+          : isStockRoute
+            ? (isCollapsedMode ? 'lg:ml-[288px]' : 'lg:ml-[480px]')
+            : 'lg:ml-64'
       }`}>
         <div className="max-w-7xl mx-auto">
           {children}

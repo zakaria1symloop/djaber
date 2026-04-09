@@ -53,3 +53,15 @@ nul
 # deployment keys (NEVER commit these)
 .github-deploy-key
 .github-deploy-key.pub
+
+# local debug / one-off scripts (not part of source)
+/check-*.js
+/fix-*.js
+/setup-*.js
+/diagnose-*.js
+/test-facebook-*.js
+/subscribe-webhook*
+/.1code/
+
+# backend uploads (user-generated content)
+/backend/uploads/

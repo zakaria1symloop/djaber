@@ -20,6 +20,7 @@ interface User {
   firstName: string;
   lastName: string;
   plan: string;
+  isAdmin?: boolean;
 }
 
 interface AuthContextType {

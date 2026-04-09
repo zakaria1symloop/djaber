@@ -11,7 +11,7 @@ export default function NewAgentPage() {
   }, [router]);
 
   return (
-    <div className="max-w-5xl mx-auto flex items-center justify-center min-h-[50vh]">
+    <div className="flex items-center justify-center min-h-[50vh]">
       <div className="text-center">
         <h2 className="text-xl font-bold text-white mb-2">Coming Soon</h2>
         <p className="text-zinc-400">New agent creation is not available yet.</p>

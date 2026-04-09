@@ -10,6 +10,7 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import prisma from '../config/database';
 import { createNotification } from './notification.service';
+import { getRecommendationsMap, trackConversion } from './recommendation.service';
 
 // ============================================================================
 // Types
@@ -25,6 +26,7 @@ interface ProductInfo {
   hasVariants: boolean;
   variants?: { name: string; sellingPrice: number; quantity: number }[];
   imageUrl: string | null;
+  primaryImageUrl?: string | null;
 }
 
 interface AgentConfig {
@@ -123,6 +125,126 @@ async function createLLM(modelName: string, temperature: number, maxTokens: numb
 }
 
 // ============================================================================
+// Vision model selection — find the best available vision-capable model
+// ============================================================================
+
+const VISION_MODEL_PRIORITY = [
+  { model: 'gpt-4o', provider: 'openai' },
+  { model: 'gpt-4o-mini', provider: 'openai' },
+  { model: 'gpt-4-turbo', provider: 'openai' },
+  { model: 'claude-3-5-sonnet-20241022', provider: 'anthropic' },
+  { model: 'claude-3-5-sonnet-latest', provider: 'anthropic' },
+  { model: 'claude-sonnet-4-6', provider: 'anthropic' },
+  { model: 'claude-3-opus-20240229', provider: 'anthropic' },
+  { model: 'gemini-1.5-pro', provider: 'google' },
+  { model: 'gemini-1.5-flash', provider: 'google' },
+  { model: 'gemini-2.0-flash', provider: 'google' },
+];
+
+async function findBestVisionModel(): Promise<{ model: string; provider: string }> {
+  const activeProviders = await prisma.aIProvider.findMany({
+    where: { isActive: true },
+    select: { provider: true, models: true },
+  });
+
+  const activeProviderMap = new Map<string, string[]>();
+  for (const p of activeProviders) {
+    try {
+      activeProviderMap.set(p.provider, JSON.parse(p.models));
+    } catch {
+      activeProviderMap.set(p.provider, []);
+    }
+  }
+
+  // Try priority list first
+  for (const candidate of VISION_MODEL_PRIORITY) {
+    const providerModels = activeProviderMap.get(candidate.provider);
+    if (providerModels && providerModels.includes(candidate.model)) {
+      return candidate;
+    }
+  }
+
+  // Fallback: any active provider with a vision-capable model
+  for (const candidate of VISION_MODEL_PRIORITY) {
+    if (activeProviderMap.has(candidate.provider)) {
+      return candidate;
+    }
+  }
+
+  throw new Error('No vision-capable AI model is available. Please configure OpenAI (GPT-4o), Anthropic (Claude), or Google (Gemini) in AI Providers.');
+}
+
+// ============================================================================
+// Analyze product image — extract name, description, category, unit
+// ============================================================================
+
+export async function analyzeProductImage(
+  imageBase64: string,
+  mimeType: string,
+  existingCategories: string[],
+  existingUnits: string[]
+): Promise<{
+  name: string;
+  description: string;
+  suggestedCategory: string;
+  suggestedUnit: string;
+}> {
+  const { model } = await findBestVisionModel();
+  const llm = await createLLM(model, 0.3, 1000);
+
+  const categoryList = existingCategories.length > 0
+    ? `Existing categories: ${existingCategories.join(', ')}`
+    : 'No existing categories yet.';
+  const unitList = existingUnits.length > 0
+    ? `Existing units: ${existingUnits.join(', ')}`
+    : 'Default units: piece, kg, liter, meter, box, pack, dozen';
+
+  const prompt = `You are a product catalog assistant. Analyze this product image and extract the following information.
+
+${categoryList}
+${unitList}
+
+IMPORTANT:
+- For "suggestedCategory", prefer matching an existing category if the product fits. Otherwise suggest a new category name.
+- For "suggestedUnit", prefer matching an existing unit. Use the unit name (e.g., "piece", "kg").
+- Keep the product name concise and commercial (as it would appear in a store).
+- Write the description in 1-3 sentences focusing on key features, material, use case.
+- Respond ONLY with valid JSON, no extra text.
+
+Respond in this exact JSON format:
+{
+  "name": "Product Name",
+  "description": "Brief product description",
+  "suggestedCategory": "Category Name",
+  "suggestedUnit": "unit name"
+}`;
+
+  const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+    { type: 'text', text: prompt },
+    { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+  ];
+
+  const response = await llm.invoke([new HumanMessage({ content })]);
+  const responseText = typeof response.content === 'string'
+    ? response.content
+    : (response.content as any[]).map((c: any) => c.text || '').join('');
+
+  // Extract JSON from response
+  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('AI did not return valid JSON. Please try again.');
+  }
+
+  const parsed = JSON.parse(jsonMatch[0]);
+  return {
+    name: parsed.name || '',
+    description: parsed.description || '',
+    suggestedCategory: parsed.suggestedCategory || '',
+    suggestedUnit: parsed.suggestedUnit || '',
+  };
+}
+
+// ============================================================================
 // Personality prompts
 // ============================================================================
 
@@ -148,7 +270,10 @@ You're precise and thorough in your explanations.`,
 // Build product catalog context (now includes IDs for tool calling)
 // ============================================================================
 
-function buildProductCatalog(products: ProductInfo[]): string {
+function buildProductCatalog(
+  products: ProductInfo[],
+  recommendations?: Map<string, Array<{ type: string; recommended: { id: string; name: string; sellingPrice: any; quantity: number }; reason: string | null }>>
+): string {
   if (products.length === 0) {
     return 'No products are currently available in the catalog.';
   }
@@ -158,11 +283,22 @@ function buildProductCatalog(products: ProductInfo[]): string {
     entry += `\n   Price: ${p.sellingPrice.toLocaleString()} DA`;
     entry += `\n   Stock: ${p.quantity > 0 ? `${p.quantity} available` : 'Out of stock'}`;
     if (p.description) entry += `\n   Description: ${p.description}`;
+    if (p.primaryImageUrl) entry += `\n   Image: ${p.primaryImageUrl}`;
     if (p.hasVariants && p.variants && p.variants.length > 0) {
       entry += '\n   Variants:';
       p.variants.forEach((v) => {
         entry += `\n     - ${v.name}: ${v.sellingPrice.toLocaleString()} DA (${v.quantity > 0 ? `${v.quantity} in stock` : 'out of stock'})`;
       });
+    }
+    // Append cross-sell/up-sell recommendations
+    const recs = recommendations?.get(p.id);
+    if (recs && recs.length > 0) {
+      for (const rec of recs) {
+        const label = rec.type === 'up_sell' ? 'Up-sell' : 'Cross-sell';
+        const price = Number(rec.recommended.sellingPrice).toLocaleString();
+        const reason = rec.reason ? ` — ${rec.reason}` : '';
+        entry += `\n   → ${label}: ${rec.recommended.name} [ID: ${rec.recommended.id}] (${price} DA)${reason}`;
+      }
     }
     return entry;
   });
@@ -219,14 +355,42 @@ function makeCreateOrderTool(userId: string, products: ProductInfo[], agentName?
         const orderNumber = `ORD-${dateStr}-${rand}`;
 
         // ================================================================
-        // Auto-create/link Client
+        // Auto-create/link Client (reuse auto-linked client if exists)
         // ================================================================
         let clientId: string | null = null;
         try {
           const clientPhone = input.clientPhone?.trim() || null;
           const clientName = input.clientName.trim();
 
-          if (clientPhone) {
+          // Check if the conversation already has an auto-linked client
+          let autoLinkedClient: any = null;
+          if (conversationId) {
+            const conv = await prisma.conversation.findUnique({
+              where: { id: conversationId },
+              select: { clientId: true },
+            });
+            if (conv?.clientId) {
+              autoLinkedClient = await prisma.client.findUnique({
+                where: { id: conv.clientId },
+              });
+            }
+          }
+
+          if (autoLinkedClient) {
+            // Update the auto-linked client with real order details
+            await prisma.client.update({
+              where: { id: autoLinkedClient.id },
+              data: {
+                name: clientName,
+                phone: clientPhone || autoLinkedClient.phone,
+                address: input.clientAddress || autoLinkedClient.address,
+                totalOrders: { increment: 1 },
+                totalSpent: { increment: total },
+                lastOrderDate: today,
+              },
+            });
+            clientId = autoLinkedClient.id;
+          } else if (clientPhone) {
             // Try to find existing client by phone
             const existing = await prisma.client.findFirst({
               where: { userId, phone: clientPhone },
@@ -240,7 +404,7 @@ function makeCreateOrderTool(userId: string, products: ProductInfo[], agentName?
                   totalOrders: { increment: 1 },
                   totalSpent: { increment: total },
                   lastOrderDate: today,
-                  name: clientName, // Update name in case it changed
+                  name: clientName,
                   address: input.clientAddress || existing.address,
                 },
               });
@@ -367,6 +531,25 @@ function makeCreateOrderTool(userId: string, products: ProductInfo[], agentName?
           },
         });
 
+        // Track cross-sell conversions: check if any ordered items were recommended
+        try {
+          const orderedProductIds = orderItems.map(i => i.productId);
+          for (let i = 0; i < orderedProductIds.length; i++) {
+            for (let j = 0; j < orderedProductIds.length; j++) {
+              if (i === j) continue;
+              // Check if product j was recommended for product i
+              await trackConversion(
+                userId,
+                orderedProductIds[i],
+                orderedProductIds[j],
+                orderItems[j].unitPrice * orderItems[j].quantity
+              );
+            }
+          }
+        } catch (convError) {
+          // Non-critical — don't fail the order
+        }
+
         return JSON.stringify({
           success: true,
           orderNumber: order.orderNumber,
@@ -426,7 +609,17 @@ export const generateAgentResponse = async ({
     const llm = await createLLM(agent.aiModel, agent.temperature, agent.maxTokens);
 
     const personalityPrompt = personalityPrompts[agent.personality] || personalityPrompts.professional;
-    const productCatalog = buildProductCatalog(products);
+
+    // Fetch cross-sell/up-sell recommendations for the agent's products
+    let recsMap: Map<string, any[]> | undefined;
+    try {
+      const productIds = products.map(p => p.id);
+      recsMap = await getRecommendationsMap(userId, productIds);
+    } catch (e) {
+      // Non-critical — continue without recommendations
+    }
+
+    const productCatalog = buildProductCatalog(products, recsMap);
 
     const systemPrompt = `${personalityPrompt}
 
@@ -448,7 +641,14 @@ RULES:
 - Keep responses concise — this is a chat conversation, not an email.
 - If asked about something not in the catalog, politely say you don't have that product.
 - Never make up products or prices that aren't in the catalog.
-- Respond in the same language the customer uses.`;
+- Respond in the same language the customer uses.
+- IMAGE RECOGNITION: If the customer sends a photo/image, compare it visually with the product catalog images to identify which product they're showing or asking about. If you recognize a match, respond with the product details and offer to help them purchase it.
+- CROSS-SELL: When a customer shows interest in or orders a product that has "→ Cross-sell" or "→ Up-sell" suggestions, naturally recommend those products. Keep it brief and natural (e.g., "Many customers also get X with this — would you like to add one?"). Don't be pushy — mention once and accept the customer's decision.
+- When you suggest a cross-sell/up-sell product, add a [RECOMMEND:sourceProductId:recommendedProductId] tag on its own line at the end (before the STATUS tag). This is for internal tracking.
+- IMPORTANT: At the very end of your response, on a NEW line, you MUST add exactly one status tag (this is for internal tracking and will be removed before delivery):
+  [STATUS:OK] — if you understood the customer and answered properly
+  [STATUS:UNCLEAR:brief reason] — if you couldn't understand the customer's message or couldn't properly answer
+  [STATUS:UNKNOWN:what they asked about] — if the customer asked about something not in your catalog or knowledge`;
 
     // Build messages
     const messages: any[] = [
@@ -461,6 +661,18 @@ RULES:
     // Build the current user message — multimodal if images are present
     if (imageUrls && imageUrls.length > 0) {
       const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
+
+      // When customer sends an image, also inject product images for visual comparison
+      const productsWithImages = products.filter(p => p.primaryImageUrl);
+      if (productsWithImages.length > 0 && productsWithImages.length <= 20) {
+        content.push({ type: 'text', text: 'PRODUCT CATALOG IMAGES (for visual comparison with customer image):' });
+        for (const p of productsWithImages) {
+          content.push({ type: 'text', text: `Product: ${p.name} [ID: ${p.id}]` });
+          content.push({ type: 'image_url', image_url: { url: p.primaryImageUrl! } });
+        }
+        content.push({ type: 'text', text: '\nCUSTOMER IMAGE(S) — Compare with catalog images above to identify the product:' });
+      }
+
       if (userMessage) {
         content.push({ type: 'text', text: userMessage });
       }
