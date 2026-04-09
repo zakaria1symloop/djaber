@@ -94,6 +94,16 @@ export const createAgent = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
+    // Enforce one agent per user
+    const existingCount = await prisma.agent.count({ where: { userId: req.user.userId } });
+    if (existingCount >= 1) {
+      res.status(400).json({
+        error: 'Agent limit reached',
+        message: 'You already have an agent. Edit it instead of creating a new one.',
+      });
+      return;
+    }
+
     const agent = await prisma.agent.create({
       data: {
         userId: req.user.userId,

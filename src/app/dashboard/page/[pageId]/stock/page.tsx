@@ -336,41 +336,52 @@ export default function StockManagementPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="text-white">Loading...</div>
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <div className="text-zinc-400 text-sm">Loading…</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black">
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-black/80 backdrop-blur-sm border-b border-white/10">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between py-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push(`/dashboard/page/${pageId}`)}
-                className="text-zinc-400 hover:text-white transition-colors"
-              >
-                <HomeIcon className="w-5 h-5" />
-              </button>
-              <div>
-                <h1 className="text-xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-                  Stock Management
-                </h1>
-                <p className="text-sm text-zinc-400">{currentPage?.pageName}</p>
-              </div>
-            </div>
-            <Button onClick={() => setShowAddProduct(true)} icon={<PlusIcon className="w-4 h-4" />}>
-              Add Product
-            </Button>
-          </div>
-        </div>
-      </header>
+    <div className="space-y-6">
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-1.5 text-xs text-zinc-500">
+        <button
+          onClick={() => router.push('/dashboard?section=pages')}
+          className="hover:text-white transition-colors"
+        >
+          Pages
+        </button>
+        <span>/</span>
+        <button
+          onClick={() => router.push(`/dashboard/page/${pageId}`)}
+          className="hover:text-white transition-colors truncate max-w-[200px]"
+        >
+          {currentPage?.pageName}
+        </button>
+        <span>/</span>
+        <span className="text-white">Stock</span>
+      </nav>
 
-      <main className="px-4 sm:px-6 lg:px-8 py-8">
-        <div className="max-w-7xl mx-auto">
+      {/* Page header card */}
+      <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
+              Stock Management
+            </h1>
+            <p className="text-sm text-zinc-400 mt-1">
+              Manage products, sales and purchases for <span className="text-white">{currentPage?.pageName}</span>
+            </p>
+          </div>
+          <Button onClick={() => setShowAddProduct(true)} icon={<PlusIcon className="w-4 h-4" />}>
+            Add Product
+          </Button>
+        </div>
+      </div>
+
+      <div>
+        <div>
           {error && (
             <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
               {error}
@@ -788,7 +799,7 @@ export default function StockManagementPage() {
             </TabsContent>
           </Tabs>
         </div>
-      </main>
+      </div>
 
       {/* Add Product Modal */}
       {showAddProduct && (

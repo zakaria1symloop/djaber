@@ -5,8 +5,19 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePages } from '@/contexts/PagesContext';
 import { PageConfigProvider } from '@/contexts/PageConfigContext';
+import { Button, Badge } from '@/components/ui';
+import {
+  HomeIcon,
+  ChatIcon,
+  SettingsIcon,
+  ClockIcon,
+  BoxIcon,
+  FacebookIcon,
+  InstagramIcon,
+  WhatsAppIcon,
+  ChevronRightIcon,
+} from '@/components/ui/icons';
 
-// Import section components (we'll create these next)
 import OverviewSection from '@/components/page-config/OverviewSection';
 import MessagesSection from '@/components/page-config/MessagesSection';
 import AISettingsSection from '@/components/page-config/AISettingsSection';
@@ -14,218 +25,123 @@ import MessageHistorySection from '@/components/page-config/MessageHistorySectio
 
 type Section = 'overview' | 'messages' | 'ai-settings' | 'history';
 
+const sections: Array<{ id: Section; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+  { id: 'overview', label: 'Overview', icon: HomeIcon },
+  { id: 'messages', label: 'Messages', icon: ChatIcon },
+  { id: 'ai-settings', label: 'AI Settings', icon: SettingsIcon },
+  { id: 'history', label: 'History', icon: ClockIcon },
+];
+
 function PageConfigContent() {
   const router = useRouter();
   const params = useParams();
   const { isAuthenticated, loading: authLoading } = useAuth();
   const { pages, loading: pagesLoading } = usePages();
   const [activeSection, setActiveSection] = useState<Section>('overview');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const pageId = params?.pageId as string;
-  const currentPage = pages.find(p => p.id === pageId);
+  const currentPage = pages.find((p) => p.id === pageId);
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push('/login');
-    }
+    if (!authLoading && !isAuthenticated) router.push('/login');
   }, [isAuthenticated, authLoading, router]);
 
   useEffect(() => {
-    if (!pagesLoading && !currentPage) {
-      router.push('/dashboard');
-    }
+    if (!pagesLoading && !currentPage) router.push('/dashboard');
   }, [pagesLoading, currentPage, router]);
 
   if (authLoading || pagesLoading || !currentPage) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="text-white">Loading...</div>
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <div className="text-zinc-400 text-sm">Loading…</div>
       </div>
     );
   }
 
-  const sections = [
-    {
-      id: 'overview' as Section,
-      name: 'Overview',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'messages' as Section,
-      name: 'Messages',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'ai-settings' as Section,
-      name: 'AI Settings',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'history' as Section,
-      name: 'Message History',
-      icon: (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-    },
-  ];
+  const PlatformIcon =
+    currentPage.platform === 'facebook' ? FacebookIcon :
+    currentPage.platform === 'instagram' ? InstagramIcon :
+    WhatsAppIcon;
+  const platformColor =
+    currentPage.platform === 'facebook' ? '#1877F2' :
+    currentPage.platform === 'instagram' ? '#E4405F' : '#25D366';
 
   return (
-    <div className="min-h-screen bg-black">
-      {/* ChatGPT-style Header - No background, minimal */}
-      <header className="fixed top-0 left-0 right-0 z-40 lg:pl-64">
-        <div className="flex items-center justify-between px-4 py-3">
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="lg:hidden text-zinc-400 hover:text-white transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+    <div className="space-y-6">
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-1.5 text-xs text-zinc-500">
+        <button
+          onClick={() => router.push('/dashboard?section=pages')}
+          className="hover:text-white transition-colors"
+        >
+          Pages
+        </button>
+        <ChevronRightIcon className="w-3 h-3" />
+        <span className="text-white">{currentPage.pageName}</span>
+      </nav>
 
-          {/* Page Title - Center on mobile, left on desktop */}
-          <div className="flex-1 lg:flex-none text-center lg:text-left">
-            <h1 className="text-base font-medium text-white">
-              {currentPage.pageName}
-            </h1>
-          </div>
-
-          {/* Desktop Back Button */}
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="hidden lg:flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Back
-          </button>
-        </div>
-      </header>
-
-      {/* Sidebar - Higher z-index */}
-      <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-black border-r border-white/10 z-50 transition-transform duration-300 lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        {/* Logo Section */}
-        <div className="p-6 border-b border-white/10">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-              <span className="text-white font-bold text-xl" style={{ fontFamily: 'Syne, sans-serif' }}>D</span>
-            </div>
-            <div>
-              <h1 className="text-white font-bold text-lg" style={{ fontFamily: 'Syne, sans-serif' }}>Djaber.ai</h1>
-              <p className="text-xs text-zinc-500">AI Social Agent</p>
-            </div>
-          </div>
-
-          {/* Current Page Info */}
-          <div className="flex items-center justify-between pt-3 border-t border-white/10">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-white truncate">
-                {currentPage.pageName}
-              </p>
-              <p className="text-xs text-zinc-500 capitalize">{currentPage.platform}</p>
-            </div>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden text-zinc-400 hover:text-white transition-colors ml-2"
+      {/* Page header card */}
+      <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div
+              className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0"
+              style={{ color: platformColor }}
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+              <PlatformIcon className="w-7 h-7" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h1 className="text-xl sm:text-2xl font-bold text-white truncate" style={{ fontFamily: 'Syne, sans-serif' }}>
+                  {currentPage.pageName}
+                </h1>
+                <Badge variant="success">Active</Badge>
+              </div>
+              <p className="text-xs text-zinc-500 capitalize">
+                {currentPage.platform} · Connected {new Date(currentPage.createdAt).toLocaleDateString()}
+              </p>
+            </div>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<BoxIcon className="w-4 h-4" />}
+            onClick={() => router.push(`/dashboard/page/${pageId}/stock`)}
+          >
+            Open Stock
+          </Button>
         </div>
+      </div>
 
-        {/* Sidebar Navigation */}
-        <nav className="p-3 space-y-1">
-          {sections.map((section) => (
+      {/* Section tabs */}
+      <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-1 inline-flex flex-wrap gap-1">
+        {sections.map((s) => {
+          const Icon = s.icon;
+          const active = activeSection === s.id;
+          return (
             <button
-              key={section.id}
-              onClick={() => {
-                setActiveSection(section.id);
-                setSidebarOpen(false);
-              }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
-                activeSection === section.id
-                  ? 'bg-white/10 text-white'
+              key={s.id}
+              onClick={() => setActiveSection(s.id)}
+              className={`inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+                active
+                  ? 'bg-white text-black'
                   : 'text-zinc-400 hover:text-white hover:bg-white/5'
               }`}
             >
-              {section.icon}
-              <span className="font-medium">{section.name}</span>
+              <Icon className="w-4 h-4" />
+              {s.label}
             </button>
-          ))}
+          );
+        })}
+      </div>
 
-          {/* Divider */}
-          <div className="my-3 border-t border-white/10" />
-
-          {/* Stock Management Link */}
-          <button
-            onClick={() => {
-              router.push(`/dashboard/page/${pageId}/stock`);
-              setSidebarOpen(false);
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all text-zinc-400 hover:text-white hover:bg-white/5"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-            </svg>
-            <span className="font-medium">Stock Management</span>
-          </button>
-        </nav>
-
-        {/* Sidebar Footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-white transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Back to Dashboard
-          </button>
-        </div>
-      </aside>
-
-      {/* Overlay for mobile sidebar */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/70 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Main Content */}
-      <main className="lg:ml-64 pt-16 px-4 sm:px-6 lg:px-8 pb-8">
-        <div className="max-w-7xl mx-auto">
-          {activeSection === 'overview' && <OverviewSection pageId={pageId} page={currentPage} />}
-          {activeSection === 'messages' && <MessagesSection pageId={pageId} page={currentPage} />}
-          {activeSection === 'ai-settings' && <AISettingsSection pageId={pageId} page={currentPage} />}
-          {activeSection === 'history' && <MessageHistorySection pageId={pageId} page={currentPage} />}
-        </div>
-      </main>
+      {/* Content */}
+      <div>
+        {activeSection === 'overview' && <OverviewSection pageId={pageId} page={currentPage} />}
+        {activeSection === 'messages' && <MessagesSection pageId={pageId} page={currentPage} />}
+        {activeSection === 'ai-settings' && <AISettingsSection pageId={pageId} page={currentPage} />}
+        {activeSection === 'history' && <MessageHistorySection pageId={pageId} page={currentPage} />}
+      </div>
     </div>
   );
 }

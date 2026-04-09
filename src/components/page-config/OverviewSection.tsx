@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { usePageConfig } from '@/contexts/PageConfigContext';
+import { BoxIcon, PackageIcon, ChevronRightIcon } from '@/components/ui/icons';
+import { getStockDashboard } from '@/lib/user-stock-api';
 
 interface Page {
   id: string;
@@ -15,8 +18,16 @@ interface OverviewSectionProps {
 }
 
 export default function OverviewSection({ pageId }: OverviewSectionProps) {
+  const router = useRouter();
   const { insights, loading, error, fetchInsights, clearError } = usePageConfig();
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [mainStock, setMainStock] = useState<{ totalProducts: number; totalStockValue: number } | null>(null);
+
+  useEffect(() => {
+    getStockDashboard()
+      .then((d) => setMainStock({ totalProducts: d.stats.totalProducts, totalStockValue: d.stats.totalStockValue }))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     loadInsights();
@@ -152,6 +163,56 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
             </p>
           </div>
         ))}
+      </div>
+
+      {/* Stock & Inventory link card */}
+      <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center">
+            <BoxIcon className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-white">Stock & Inventory</h3>
+            <p className="text-[11px] text-zinc-500">Choose where this page reads its product catalog from</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Main stock (user-level) */}
+          <button
+            onClick={() => router.push('/dashboard/stock/products')}
+            className="group text-left bg-white/[0.02] border border-white/10 hover:border-white/20 hover:bg-white/[0.04] rounded-xl p-4 transition-all"
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <PackageIcon className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-medium text-white">Main Stock</span>
+              </div>
+              <ChevronRightIcon className="w-4 h-4 text-zinc-600 group-hover:text-white transition-colors" />
+            </div>
+            <p className="text-[11px] text-zinc-500 mb-2">Shared catalog across all your pages</p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-bold text-white">{mainStock?.totalProducts ?? '—'}</span>
+              <span className="text-[11px] text-zinc-500">products</span>
+            </div>
+          </button>
+
+          {/* Page-specific stock */}
+          <button
+            onClick={() => router.push(`/dashboard/page/${pageId}/stock`)}
+            className="group text-left bg-white/[0.02] border border-white/10 hover:border-white/20 hover:bg-white/[0.04] rounded-xl p-4 transition-all"
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <BoxIcon className="w-4 h-4 text-blue-400" />
+                <span className="text-xs font-medium text-white">Page Stock</span>
+              </div>
+              <ChevronRightIcon className="w-4 h-4 text-zinc-600 group-hover:text-white transition-colors" />
+            </div>
+            <p className="text-[11px] text-zinc-500 mb-2">Catalog dedicated to this page only</p>
+            <div className="text-[11px] text-zinc-400">Open dedicated stock →</div>
+          </button>
+        </div>
       </div>
 
       {/* Info Box - Show when insights are not available (expected behavior) */}
