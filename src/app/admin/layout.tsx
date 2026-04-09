@@ -14,12 +14,16 @@ import {
   MenuIcon,
   LogoutIcon,
   HomeIcon,
+  StarIcon,
+  DollarIcon,
 } from '@/components/ui/icons';
 
 const adminNavItems = [
   { href: '/admin/analytics', label: 'Analytics', icon: ChartIcon },
-  { href: '/admin/ai-providers', label: 'AI Providers', icon: BoltIcon },
   { href: '/admin/users', label: 'Users', icon: UsersIcon },
+  { href: '/admin/plans', label: 'Plans', icon: StarIcon },
+  { href: '/admin/subscriptions', label: 'Subscriptions', icon: DollarIcon },
+  { href: '/admin/ai-providers', label: 'AI Providers', icon: BoltIcon },
   { href: '/admin/products', label: 'Products', icon: BoxIcon },
   { href: '/admin/conversations', label: 'Conversations', icon: ChatIcon },
   { href: '/admin/settings', label: 'Settings', icon: SettingsIcon },
@@ -211,8 +215,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </header>
 
       {/* Main */}
-      <main className="min-h-screen pt-20 pb-20 px-4 sm:px-6 lg:px-8 bg-black lg:ml-64">
-        <div className="max-w-7xl mx-auto">{children}</div>
+      <main className="min-h-screen pt-28 pb-20 px-4 sm:px-6 lg:px-8 bg-black lg:ml-64">
+        {children}
       </main>
     </>
   );

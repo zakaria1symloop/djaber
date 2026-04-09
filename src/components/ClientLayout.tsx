@@ -10,15 +10,17 @@ import { ToastProvider } from '@/components/ui/Toast';
 
 export default function ClientLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const isAuthPage = pathname === '/login' || pathname === '/signup';
+  const isAuthPage = pathname === '/login' || pathname === '/signup' || pathname === '/forgot-password';
   const isDashboard = pathname?.startsWith('/dashboard');
+  const isAdmin = pathname?.startsWith('/admin');
+  const isAppArea = isAuthPage || isDashboard || isAdmin;
 
   return (
     <AuthProvider>
       <PagesProvider>
         <ToastProvider>
-          {/* Background effects - only on non-auth and non-dashboard pages */}
-          {!isAuthPage && !isDashboard && (
+          {/* Marketing background effects — only on public marketing pages */}
+          {!isAppArea && (
             <>
               <div className="gradient-bg" />
               <div className="grid-pattern" />
@@ -26,8 +28,8 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
             </>
           )}
 
-          {/* Show header only on non-auth and non-dashboard pages */}
-          {!isAuthPage && !isDashboard && <Header />}
+          {/* Marketing header — only on public marketing pages */}
+          {!isAppArea && <Header />}
 
           <PageTransition>
             {children}

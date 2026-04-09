@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function TermsPage() {
   return (
-    <main className="min-h-screen pt-20 overflow-x-hidden">
+    <main className="min-h-screen pt-28 overflow-x-hidden">
       <section className="relative py-16 sm:py-32 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12 sm:mb-20">

@@ -46,12 +46,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-black flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Subtle background glow */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-white/[0.03] rounded-full blur-3xl" />
-      </div>
-
+    <main className="min-h-screen bg-black flex items-center justify-center p-4 relative">
       {/* Back link */}
       <Link
         href="/"

@@ -5,32 +5,28 @@ import { getAdminAIProviders, updateAdminAIProvider, type AdminAIProvider } from
 import { useToast } from '@/components/ui/Toast';
 import { RefreshIcon, CheckCircleIcon, AlertIcon } from '@/components/ui/icons';
 
-const PROVIDER_BRANDING: Record<string, { color: string; bg: string; gradient: string; description: string; getKeyUrl: string }> = {
+const PROVIDER_BRANDING: Record<string, { color: string; bg: string; description: string; getKeyUrl: string }> = {
   openai: {
     color: 'text-emerald-400',
     bg: 'bg-emerald-500/10',
-    gradient: 'from-emerald-500/20 to-emerald-500/0',
     description: 'GPT-4o, GPT-4 Turbo. Industry standard. Pay per token.',
     getKeyUrl: 'https://platform.openai.com/api-keys',
   },
   anthropic: {
     color: 'text-orange-400',
     bg: 'bg-orange-500/10',
-    gradient: 'from-orange-500/20 to-orange-500/0',
     description: 'Claude 3.5 Sonnet, Haiku, Opus. Best for nuanced reasoning.',
     getKeyUrl: 'https://console.anthropic.com/settings/keys',
   },
   google: {
     color: 'text-blue-400',
     bg: 'bg-blue-500/10',
-    gradient: 'from-blue-500/20 to-blue-500/0',
     description: 'Gemini 2.0 Flash, 1.5 Pro. Generous free tier.',
     getKeyUrl: 'https://aistudio.google.com/app/apikey',
   },
   groq: {
     color: 'text-cyan-400',
     bg: 'bg-cyan-500/10',
-    gradient: 'from-cyan-500/20 to-cyan-500/0',
     description: 'Llama 3.3, Mixtral, DeepSeek. Free tier, ultra-fast inference.',
     getKeyUrl: 'https://console.groq.com/keys',
   },
@@ -181,7 +177,6 @@ export default function AdminAIProvidersPage() {
             const branding = PROVIDER_BRANDING[provider.provider] || {
               color: 'text-zinc-400',
               bg: 'bg-white/5',
-              gradient: 'from-white/[0.04] to-white/0',
               description: '',
               getKeyUrl: '',
             };
@@ -191,9 +186,7 @@ export default function AdminAIProvidersPage() {
             return (
               <div
                 key={provider.id}
-                className={`relative bg-gradient-to-br ${branding.gradient} bg-zinc-900/50 border ${
-                  provider.isActive ? 'border-emerald-500/30' : 'border-white/10'
-                } rounded-xl p-5 transition-colors`}
+                className="bg-zinc-900/50 border border-white/10 hover:border-white/20 rounded-xl p-5 transition-colors"
               >
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div className="flex items-start gap-3 min-w-0 flex-1">

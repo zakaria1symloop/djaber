@@ -203,7 +203,7 @@ export default function AdminAnalyticsPage() {
                         </div>
                         <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-gradient-to-r from-violet-500 to-pink-500 rounded-full transition-all duration-500"
+                            className="h-full bg-white rounded-full transition-all duration-500"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -227,7 +227,7 @@ export default function AdminAnalyticsPage() {
               <div className="space-y-2">
                 {data.recentSignups.map((u) => (
                   <div key={u.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-xs font-semibold text-zinc-300 flex-shrink-0">
                       {u.firstName?.[0]?.toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">

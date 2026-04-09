@@ -490,16 +490,14 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
       )}
 
       {/* Main Content */}
-      <main className={`min-h-screen pt-20 pb-20 px-4 sm:px-6 lg:px-8 bg-black transition-all duration-300 ease-in-out ${
+      <main className={`min-h-screen pt-28 pb-20 px-4 sm:px-6 lg:px-8 bg-black transition-all duration-300 ease-in-out ${
         filterPanelOpen
           ? 'lg:ml-0 mr-[336px]'
           : isStockRoute
             ? (isCollapsedMode ? 'lg:ml-[288px]' : 'lg:ml-[480px]')
             : 'lg:ml-64'
       }`}>
-        <div className="max-w-7xl mx-auto">
-          {children}
-        </div>
+        {children}
       </main>
     </>
   );

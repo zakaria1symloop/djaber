@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function FeaturesPage() {
   return (
-    <main className="min-h-screen pt-20">
+    <main className="min-h-screen pt-28">
       <section className="relative py-32 px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">

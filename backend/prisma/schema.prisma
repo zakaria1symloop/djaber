@@ -610,6 +610,67 @@ model AIProvider {
 }
 
 // ============================================================================
+// Subscription Plans (super admin managed)
+// ============================================================================
+
+model Plan {
+  id              String   @id @default(uuid())
+  slug            String   @unique // individual, teams, custom-...
+  name            String           // Display name
+  description     String?  @db.Text
+  priceMonthly    Decimal  @default(0) @db.Decimal(10, 2)
+  priceYearly     Decimal  @default(0) @db.Decimal(10, 2)
+  currency        String   @default("DA")
+  // Limits
+  maxPages        Int      @default(1)   // Max connected social media pages (-1 = unlimited)
+  maxAgents       Int      @default(1)   // Max AI agents
+  maxProducts     Int      @default(50)  // Max products
+  maxConversations Int     @default(100) // Max conversations / month
+  maxTeamMembers  Int      @default(1)   // Max users in workspace
+  // Features
+  features        String   @db.Text     // JSON array of feature strings
+  // Chargily Pay (Algerian payment processor) integration
+  chargilyProductId      String?  // Chargily product ID
+  chargilyPriceMonthlyId String?  // Chargily price ID for monthly billing
+  chargilyPriceYearlyId  String?  // Chargily price ID for yearly billing
+  // State
+  isActive        Boolean  @default(true)
+  isFeatured      Boolean  @default(false)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([slug])
+  @@index([isActive, sortOrder])
+}
+
+// ============================================================================
+// Subscriptions (admin-managed user subscriptions to plans)
+// ============================================================================
+
+model Subscription {
+  id          String    @id @default(uuid())
+  userId      String
+  planSlug    String    // matches Plan.slug (we don't FK so admin can rename plans freely)
+  status      String    @default("active") // active, cancelled, expired, trial
+  billingCycle String   @default("monthly") // monthly, yearly
+  startDate   DateTime  @default(now())
+  endDate     DateTime  // when the current period ends
+  cancelledAt DateTime?
+  // Chargily Pay tracking
+  chargilySubscriptionId String?
+  chargilyCustomerId     String?
+  // Internal notes
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([planSlug])
+  @@index([status, endDate])
+}
+
+// ============================================================================
 // Notifications
 // ============================================================================
 
