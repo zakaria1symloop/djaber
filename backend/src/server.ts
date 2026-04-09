@@ -19,13 +19,27 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware - CORS supports multiple origins from env (comma-separated)
+// In addition to the explicit allowlist, any *.vercel.app subdomain is allowed
+// so that Vercel preview deploys work without manual whitelisting.
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
   .split(',')
   .map(o => o.trim());
 
+const isAllowedOrigin = (origin: string): boolean => {
+  if (allowedOrigins.includes(origin)) return true;
+  try {
+    const host = new URL(origin).hostname;
+    if (host.endsWith('.vercel.app')) return true;
+    if (host === 'localhost' || host === '127.0.0.1') return true;
+  } catch {
+    return false;
+  }
+  return false;
+};
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
       callback(null, false);
