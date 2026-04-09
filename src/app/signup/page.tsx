@@ -44,7 +44,7 @@ export default function SignupPage() {
     if (!validate()) return;
 
     try {
-      await register({
+      const newUser = await register({
         email: formData.email,
         password: formData.password,
         firstName: formData.firstName,
@@ -52,7 +52,7 @@ export default function SignupPage() {
         plan: 'individual',
       });
       toast.success(t('auth.success.signedUp'));
-      router.push('/dashboard');
+      router.push(newUser.isAdmin ? '/admin' : '/dashboard');
     } catch (err) {
       const message = err instanceof Error ? err.message : '';
       toast.error(translateBackendError(message));

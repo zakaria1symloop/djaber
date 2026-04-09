@@ -35,9 +35,10 @@ export default function LoginPage() {
     if (!validate()) return;
 
     try {
-      await login(formData);
+      const loggedInUser = await login(formData);
       toast.success(t('auth.success.loggedIn'));
-      router.push('/dashboard');
+      // Admins go to the admin panel; everyone else to the dashboard.
+      router.push(loggedInUser.isAdmin ? '/admin' : '/dashboard');
     } catch (err) {
       const message = err instanceof Error ? err.message : '';
       toast.error(translateBackendError(message));

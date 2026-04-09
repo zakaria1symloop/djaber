@@ -28,8 +28,8 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   isAuthenticated: boolean;
-  login: (credentials: LoginRequest) => Promise<void>;
-  register: (data: RegisterRequest) => Promise<void>;
+  login: (credentials: LoginRequest) => Promise<User>;
+  register: (data: RegisterRequest) => Promise<User>;
   logout: () => void;
   clearError: () => void;
   refreshProfile: () => Promise<void>;
@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth();
   }, []);
 
-  const login = async (credentials: LoginRequest) => {
+  const login = async (credentials: LoginRequest): Promise<User> => {
     try {
       setLoading(true);
       setError(null);
@@ -74,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(response.user);
       setIsAuthenticated(true);
+      return response.user;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Login failed';
       setError(errorMessage);
@@ -83,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (data: RegisterRequest) => {
+  const register = async (data: RegisterRequest): Promise<User> => {
     try {
       setLoading(true);
       setError(null);
@@ -93,6 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(response.user);
       setIsAuthenticated(true);
+      return response.user;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Registration failed';
       setError(errorMessage);

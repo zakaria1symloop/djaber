@@ -104,20 +104,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <p className="text-[10px] text-zinc-500 truncate">{user.email}</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="flex-1 px-2 py-1.5 text-[11px] text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-md transition-colors"
-            >
-              Exit admin
-            </button>
-            <button
-              onClick={() => { logout(); router.push('/login'); }}
-              className="flex-1 px-2 py-1.5 text-[11px] text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded-md transition-colors"
-            >
-              Sign out
-            </button>
-          </div>
+          <button
+            onClick={() => { logout(); router.push('/login'); }}
+            className="w-full px-2 py-1.5 text-[11px] text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 rounded-md transition-colors"
+          >
+            Sign out
+          </button>
         </div>
       </aside>
 

@@ -89,10 +89,16 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const [stockMode, setStockMode] = useState<'simple' | 'advanced'>('simple');
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (authLoading) return;
+    if (!isAuthenticated) {
       router.push('/login');
+      return;
     }
-  }, [isAuthenticated, authLoading, router]);
+    // Admins live in /admin only — keep them out of the user dashboard.
+    if (user?.isAdmin) {
+      router.replace('/admin');
+    }
+  }, [isAuthenticated, authLoading, user, router]);
 
   // Poll for unread notifications count
   useEffect(() => {
