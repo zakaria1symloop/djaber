@@ -166,7 +166,9 @@ export default function AdminAnalyticsPage() {
                     <div key={platform}>
                       <div className="flex items-center justify-between text-xs mb-1.5">
                         <div className="flex items-center gap-2">
-                          <Icon className="w-4 h-4" style={{ color }} />
+                          <span style={{ color }}>
+                            <Icon className="w-4 h-4" />
+                          </span>
                           <span className="text-zinc-300 capitalize">{platform}</span>
                         </div>
                         <span className="text-white font-medium">{count}</span>

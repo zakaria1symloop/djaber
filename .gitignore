@@ -65,3 +65,4 @@ nul
 
 # backend uploads (user-generated content)
 /backend/uploads/
+/.deploy-secrets

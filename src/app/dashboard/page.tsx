@@ -795,7 +795,9 @@ function DashboardPageInner() {
                       const color = platform === 'facebook' ? '#1877F2' : platform === 'instagram' ? '#E4405F' : '#25D366';
                       return (
                         <div key={platform} className="bg-white/[0.02] border border-white/5 rounded-lg p-4 flex items-center gap-3">
-                          <Icon className="w-6 h-6" style={{ color }} />
+                          <span style={{ color }}>
+                            <Icon className="w-6 h-6" />
+                          </span>
                           <div>
                             <p className="text-[10px] text-zinc-500 uppercase tracking-wider">{platform}</p>
                             <p className="text-lg font-bold text-white">{count}</p>
