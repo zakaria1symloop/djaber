@@ -108,13 +108,10 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="mb-1.5">
                 <label className="block text-xs font-medium text-zinc-400 uppercase tracking-wider">
                   {t('auth.login.password')}
                 </label>
-                <Link href="/forgot-password" className="text-xs text-zinc-500 hover:text-white transition-colors">
-                  {t('auth.login.forgot')}
-                </Link>
               </div>
               <input
                 type="password"

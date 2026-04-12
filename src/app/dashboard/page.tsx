@@ -338,16 +338,20 @@ function DashboardPageInner() {
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold bg-white/5 text-zinc-500">3</div>
+                  <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${pages.length > 0 && (dashboard?.stats.totalProducts ?? 0) > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-zinc-500'}`}>
+                    {pages.length > 0 && (dashboard?.stats.totalProducts ?? 0) > 0 ? '✓' : '3'}
+                  </div>
                   <div>
-                    <p className="text-white">Configure your AI agent</p>
+                    <p className={pages.length > 0 && (dashboard?.stats.totalProducts ?? 0) > 0 ? 'text-zinc-500 line-through' : 'text-white'}>Configure your AI agent</p>
                     <p className="text-[11px] text-zinc-600">Personalize tone and behavior</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold bg-white/5 text-zinc-500">4</div>
+                  <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${(salesStats?.stats.totalSales ?? 0) > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-zinc-500'}`}>
+                    {(salesStats?.stats.totalSales ?? 0) > 0 ? '✓' : '4'}
+                  </div>
                   <div>
-                    <p className="text-white">Make your first sale</p>
+                    <p className={(salesStats?.stats.totalSales ?? 0) > 0 ? 'text-zinc-500 line-through' : 'text-white'}>Make your first sale</p>
                     <p className="text-[11px] text-zinc-600">Watch the AI handle inquiries</p>
                   </div>
                 </li>
