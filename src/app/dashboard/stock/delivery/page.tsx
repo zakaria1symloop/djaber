@@ -229,7 +229,7 @@ export default function DeliveryDashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Delivery</h1>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Delivery</h1>
           <p className="text-zinc-400 text-sm mt-1">Send orders to delivery companies and track shipments</p>
         </div>
         <div className="flex gap-2">

@@ -349,7 +349,7 @@ export default function NewPurchasePage() {
           <ChevronLeftIcon className="w-4 h-4" />
           Back to Purchases
         </button>
-        <h1 className="text-2xl font-bold text-white">New Purchase Order</h1>
+        <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>New Purchase Order</h1>
       </div>
 
       {error && (

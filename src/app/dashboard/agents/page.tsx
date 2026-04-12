@@ -182,7 +182,7 @@ export default function AgentsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">AI Agents</h1>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>AI Agents</h1>
           <p className="text-sm text-zinc-400 mt-1">
             Create and manage AI agents that sell your products on connected pages
           </p>

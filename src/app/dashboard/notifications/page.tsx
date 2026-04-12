@@ -112,7 +112,7 @@ export default function NotificationsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Notifications</h1>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Notifications</h1>
           <p className="text-sm text-zinc-400 mt-1">Stay updated with your AI agent activity</p>
         </div>
         <button

@@ -128,7 +128,7 @@ export default function AdminUserDetailPage() {
           <Avatar initials={`${data.user.firstName?.[0] || ''}${data.user.lastName?.[0] || ''}`} size="lg" />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-2xl font-bold text-white truncate" style={{ fontFamily: 'Syne, sans-serif' }}>
+              <h1 className="text-2xl font-bold text-white truncate mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
                 {data.user.firstName} {data.user.lastName}
               </h1>
               {data.user.isAdmin && (

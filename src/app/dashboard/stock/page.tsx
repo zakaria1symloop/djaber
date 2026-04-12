@@ -92,7 +92,7 @@ export default function StockOverviewPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Stock Overview</h1>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Stock Overview</h1>
           <p className="text-sm text-zinc-400 mt-1">Inventory, sales, and purchase summary</p>
         </div>
         <Button variant="outline" onClick={loadData} icon={<RefreshIcon className="w-4 h-4" />}>

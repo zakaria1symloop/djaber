@@ -346,7 +346,7 @@ export default function DeliverySettingsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Delivery Providers</h1>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Delivery Providers</h1>
           <p className="text-zinc-400 text-sm mt-1">Configure delivery companies for shipping orders</p>
         </div>
         <Button onClick={handleAdd}>

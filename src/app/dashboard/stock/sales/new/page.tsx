@@ -377,7 +377,7 @@ export default function NewSalePage() {
           <ChevronLeftIcon className="w-4 h-4" />
           Back to Sales
         </button>
-        <h1 className="text-2xl font-bold text-white">New Sale</h1>
+        <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>New Sale</h1>
       </div>
 
       {error && (

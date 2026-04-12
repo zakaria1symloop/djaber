@@ -163,7 +163,7 @@ export default function AdminConversationsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>
+          <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
             Conversations
           </h1>
           <p className="text-sm text-zinc-400">All AI-handled conversations across the platform</p>

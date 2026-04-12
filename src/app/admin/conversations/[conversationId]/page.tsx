@@ -91,7 +91,7 @@ export default function AdminConversationDetailPage() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-xl font-bold text-white truncate" style={{ fontFamily: 'Syne, sans-serif' }}>
+                <h1 className="text-2xl font-bold text-white truncate mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
                   {data.senderName || 'Unknown'}
                 </h1>
                 <PlatformIcon platform={data.platform} />

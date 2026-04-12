@@ -396,7 +396,7 @@ export default function NewOrderPage() {
           <ChevronLeftIcon className="w-4 h-4" />
           Back to Orders
         </button>
-        <h1 className="text-2xl font-bold text-white">New Order</h1>
+        <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>New Order</h1>
       </div>
 
       {error && (

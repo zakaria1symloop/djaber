@@ -65,13 +65,13 @@ export default function AdminSettingsPage() {
   return (
     <>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>
+        <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
           Settings
         </h1>
         <p className="text-sm text-zinc-400">Manage your admin profile and security</p>
       </div>
 
-      <div className="space-y-6 max-w-2xl">
+      <div className="space-y-6">
         {/* Profile section */}
         <section className="bg-zinc-900/50 border border-white/10 rounded-xl p-6">
           <h2 className="text-base font-semibold text-white mb-1">Profile</h2>

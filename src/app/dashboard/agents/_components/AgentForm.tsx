@@ -212,7 +212,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
           <ChevronLeftIcon className="w-5 h-5" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-white">
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
             {isEdit ? 'Edit Agent' : 'Create Agent'}
           </h1>
           <p className="text-sm text-zinc-400 mt-0.5">

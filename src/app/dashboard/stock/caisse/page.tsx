@@ -251,7 +251,7 @@ export default function CaissePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Caisse</h1>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Caisse</h1>
           <p className="text-sm text-zinc-400 mt-1">Cash register &amp; treasury management</p>
         </div>
         <div className="flex items-center gap-2">

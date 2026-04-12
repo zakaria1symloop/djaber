@@ -263,7 +263,7 @@ function PurchasesPageInner() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Purchases</h1>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Purchases</h1>
           <p className="text-sm text-zinc-400 mt-1">{total} purchase orders</p>
         </div>
         <div className="flex items-center gap-2">
