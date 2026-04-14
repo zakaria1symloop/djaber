@@ -82,47 +82,41 @@ export const sendProductCards = async ({
 }: SendProductCardsParams): Promise<void> => {
   if (cards.length === 0) return;
 
-  // Instagram doesn't support templates — fall back to text
-  if (platform === 'instagram') {
-    const text = cards.map((c) => `🛍 ${c.title}\n${c.subtitle}`).join('\n\n');
-    await sendMessage({ pageAccessToken, recipientId, message: text, platform });
-    return;
-  }
-
-  // Facebook Generic Template — max 10 elements
-  const elements = cards.slice(0, 10).map((card) => {
-    const elem: Record<string, unknown> = {
-      title: card.title.slice(0, 80),
-      subtitle: card.subtitle.slice(0, 80),
-    };
-    if (card.imageUrl) {
-      elem.image_url = card.imageUrl;
-    }
-    return elem;
-  });
-
-  try {
-    await axios.post(
-      `${META_GRAPH_API_URL}/me/messages`,
-      {
-        recipient: { id: recipientId },
-        message: {
-          attachment: {
-            type: 'template',
-            payload: {
-              template_type: 'generic',
-              elements,
+  // Send each product as: image attachment (full-size, expandable) + text with name/price
+  // This way the customer can tap the image to see it big — unlike Generic Templates
+  // which embed a tiny thumbnail.
+  for (const card of cards.slice(0, 5)) {
+    try {
+      // 1. Send image as a standalone attachment (clickable/expandable)
+      if (card.imageUrl) {
+        const imagePayload = {
+          recipient: { id: recipientId },
+          message: {
+            attachment: {
+              type: 'image',
+              payload: { url: card.imageUrl, is_reusable: true },
             },
           },
-        },
-      },
-      {
-        params: { access_token: pageAccessToken },
+        };
+
+        if (platform === 'instagram') {
+          await axios.post(`${INSTAGRAM_GRAPH_API_URL}/me/messages`, imagePayload, {
+            headers: { Authorization: `Bearer ${pageAccessToken}`, 'Content-Type': 'application/json' },
+          });
+        } else {
+          await axios.post(`${META_GRAPH_API_URL}/me/messages`, imagePayload, {
+            params: { access_token: pageAccessToken },
+          });
+        }
       }
-    );
-  } catch (error: any) {
-    console.error('Send product cards error:', error.response?.data || error.message);
-    // Non-fatal — the text message was already sent
+
+      // 2. Send product info as a short text message
+      const infoText = `🛍 ${card.title}\n💰 ${card.subtitle}`;
+      await sendMessage({ pageAccessToken, recipientId, message: infoText, platform });
+    } catch (error: any) {
+      console.error('Send product card error:', error.response?.data || error.message);
+      // Non-fatal — try next card
+    }
   }
 };
 

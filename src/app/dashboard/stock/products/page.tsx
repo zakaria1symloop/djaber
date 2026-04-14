@@ -843,10 +843,10 @@ export default function ProductsPage() {
                       <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
                         <td className="px-4 py-3">
                           {imgUrl ? (
-                            <img src={imgUrl} alt="" className="w-8 h-8 rounded object-cover" />
+                            <img src={imgUrl} alt="" className="w-14 h-14 rounded-lg object-cover border border-white/10" />
                           ) : (
-                            <div className="w-8 h-8 rounded bg-zinc-800 flex items-center justify-center">
-                              <ImageIcon className="w-4 h-4 text-zinc-600" />
+                            <div className="w-14 h-14 rounded-lg bg-zinc-800 flex items-center justify-center border border-white/10">
+                              <ImageIcon className="w-5 h-5 text-zinc-600" />
                             </div>
                           )}
                         </td>
