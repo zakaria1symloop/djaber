@@ -368,6 +368,48 @@ export const updatePageAISettingsController = async (req: Request, res: Response
 /**
  * Send a manual reply to a conversation
  */
+export const getConversationMessagesController = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const conversationId = req.params.conversationId as string;
+
+    // Verify ownership through conversation → page → user
+    const conversation = await prisma.conversation.findFirst({
+      where: { id: conversationId, userId: req.user.userId },
+      select: { id: true, senderName: true, senderId: true, status: true, platform: true },
+    });
+
+    if (!conversation) {
+      res.status(404).json({ error: 'Conversation not found' });
+      return;
+    }
+
+    const messages = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { timestamp: 'asc' },
+      take: 200,
+    });
+
+    res.json({
+      conversation,
+      messages: messages.map((m) => ({
+        id: m.id,
+        text: m.text,
+        timestamp: m.timestamp,
+        isFromPage: m.isFromPage,
+        senderId: m.senderId,
+      })),
+    });
+  } catch (error) {
+    console.error('Get conversation messages error:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+};
+
 export const sendReplyController = async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.user) {

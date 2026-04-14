@@ -156,6 +156,18 @@ export async function updatePageAISettings(
 }
 
 /**
+ * Get all messages for a specific conversation
+ */
+export async function getConversationMessages(
+  conversationId: string
+): Promise<{
+  conversation: { id: string; senderName: string | null; senderId: string; status: string; platform: string };
+  messages: Array<{ id: string; text: string | null; timestamp: string; isFromPage: boolean; senderId: string }>;
+}> {
+  return apiRequest(`/api/pages/conversations/${conversationId}/messages`);
+}
+
+/**
  * Send a manual reply to a conversation
  */
 export async function sendReply(

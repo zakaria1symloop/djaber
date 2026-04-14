@@ -5,6 +5,7 @@ import {
   getPageMessagesController,
   getPageAISettingsController,
   updatePageAISettingsController,
+  getConversationMessagesController,
   sendReplyController,
 } from '../controllers/page-config.controller';
 import { authenticate } from '../middleware/auth';
@@ -25,6 +26,9 @@ router.get('/:pageId/ai-settings', authenticate, getPageAISettingsController);
 
 // Update AI settings for a page
 router.put('/:pageId/ai-settings', authenticate, updatePageAISettingsController);
+
+// Get messages for a specific conversation
+router.get('/conversations/:conversationId/messages', authenticate, getConversationMessagesController);
 
 // Send reply to conversation
 router.post('/conversations/:conversationId/reply', authenticate, sendReplyController);
