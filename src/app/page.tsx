@@ -12,7 +12,7 @@ export default function Home() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00fff0] opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00fff0]"></span>
               </span>
-              <span className="text-sm text-zinc-400">Now supporting Facebook and Instagram</span>
+              <span className="text-sm text-zinc-400">Now supporting Facebook</span>
             </div>
 
             <h1
@@ -25,7 +25,7 @@ export default function Home() {
             </h1>
 
             <p className="animate-fade-in-delay-2 text-lg sm:text-xl text-zinc-400 max-w-2xl mx-auto mb-12 leading-relaxed">
-              Connect your Facebook and Instagram pages. Let our AI handle customer
+              Connect your Facebook pages. Let our AI handle customer
               conversations 24/7. Never miss a message again.
             </p>
 
@@ -124,7 +124,7 @@ export default function Home() {
                   </svg>
                 ),
                 title: 'Multi-Platform',
-                description: 'Manage Facebook, Instagram, and Messenger from one dashboard'
+                description: 'Manage Facebook and Messenger from one dashboard'
               },
               {
                 icon: (
@@ -199,7 +199,7 @@ export default function Home() {
               {
                 step: '01',
                 title: 'Connect Your Pages',
-                description: 'Link your Facebook and Instagram business pages with one click using OAuth',
+                description: 'Link your Facebook business pages with one click using OAuth',
                 color: 'from-[#00fff0] to-[#3b82f6]'
               },
               {

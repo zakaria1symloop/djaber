@@ -8,7 +8,7 @@ const faqs = [
     category: 'Getting Started',
     questions: [
       {
-        q: 'How do I connect my Facebook and Instagram pages?',
+        q: 'How do I connect my Facebook pages?',
         a: 'Go to Settings > Connected Pages, click "Connect New Page", and follow the OAuth authorization flow. You\'ll need admin access to the pages you want to connect.'
       },
       {

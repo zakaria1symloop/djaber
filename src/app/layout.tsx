@@ -4,7 +4,7 @@ import ClientLayout from "@/components/ClientLayout";
 
 export const metadata: Metadata = {
   title: "Djaber.ai - AI-Powered Social Media Agent",
-  description: "Let AI handle your customer conversations on Facebook & Instagram. Connect your pages and let our intelligent agent respond to your clients 24/7.",
+  description: "Let AI handle your customer conversations on Facebook. Connect your pages and let our intelligent agent respond to your clients 24/7.",
 };
 
 export default function RootLayout({

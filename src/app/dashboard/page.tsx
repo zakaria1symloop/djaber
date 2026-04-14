@@ -15,8 +15,6 @@ import {
   Input,
   EmptyState,
   FacebookIcon,
-  InstagramIcon,
-  WhatsAppIcon,
   PlusIcon,
   SettingsIcon,
   CloseIcon,

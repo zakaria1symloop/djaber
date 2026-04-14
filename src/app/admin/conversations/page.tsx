@@ -31,7 +31,7 @@ export default function AdminConversationsPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
-  const [platformFilter, setPlatformFilter] = useState<'all' | 'facebook' | 'instagram' | 'whatsapp'>('all');
+  const [platformFilter, setPlatformFilter] = useState<'all' | 'facebook'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'resolved' | 'archived'>('all');
   const [pageId, setPageId] = useState<string>('');
   const [agentId, setAgentId] = useState<string>('');

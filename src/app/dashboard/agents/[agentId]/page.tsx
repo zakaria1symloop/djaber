@@ -6,7 +6,7 @@ import { Button, Badge } from '@/components/ui';
 import {
   BotIcon, ChevronLeftIcon, ChatIcon, EditIcon, AlertIcon,
   CheckCircleIcon, ClockIcon, ShoppingCartIcon, MessageIcon,
-  FacebookIcon, InstagramIcon, CloseIcon, BanIcon,
+  FacebookIcon, CloseIcon, BanIcon,
 } from '@/components/ui/icons';
 import {
   getAgentApi, getAgentMetrics, getAgentInsights, resolveAgentInsight, updateAgentApi,
@@ -239,13 +239,7 @@ export default function AgentDetailPage() {
                       <Badge variant={insight.type === 'unclear' ? 'warning' : 'error'}>
                         {insight.type === 'unclear' ? 'Unclear' : 'Unknown Topic'}
                       </Badge>
-                      {insight.conversation?.platform && (
-                        insight.conversation.platform === 'instagram' ? (
-                          <InstagramIcon className="w-3.5 h-3.5 text-pink-400" />
-                        ) : (
-                          <FacebookIcon className="w-3.5 h-3.5 text-blue-400" />
-                        )
-                      )}
+                      <FacebookIcon className="w-3.5 h-3.5 text-blue-400" />
                       <span className="text-[10px] text-zinc-600 ml-auto">
                         {new Date(insight.createdAt).toLocaleDateString()} {new Date(insight.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>

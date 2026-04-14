@@ -64,7 +64,7 @@ export default function DocsPage() {
                         <span className="flex-shrink-0 w-8 h-8 rounded-full bg-[#00fff0]/20 text-[#00fff0] flex items-center justify-center text-sm font-semibold">2</span>
                         <div>
                           <strong className="text-white">Connect your pages</strong>
-                          <p className="text-sm mt-1">Link Facebook and Instagram via OAuth</p>
+                          <p className="text-sm mt-1">Link your Facebook page via OAuth</p>
                         </div>
                       </li>
                       <li className="flex gap-4">
@@ -87,7 +87,7 @@ export default function DocsPage() {
                   Connecting your social media pages is simple and secure using OAuth authentication.
                 </p>
                 <div className="bg-[#0a0a0a] border border-white/10 rounded-xl p-6">
-                  <h4 className="text-lg font-semibold text-white mb-4">Facebook & Instagram</h4>
+                  <h4 className="text-lg font-semibold text-white mb-4">Facebook</h4>
                   <ul className="space-y-3 text-zinc-400">
                     <li className="flex items-start gap-3">
                       <svg className="w-5 h-5 text-[#00fff0] flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

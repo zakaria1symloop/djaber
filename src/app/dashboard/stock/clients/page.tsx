@@ -7,7 +7,7 @@ import { Button, Badge } from '@/components/ui';
 import {
   UsersIcon, SearchIcon, EyeIcon, EditIcon, TrashIcon, PlusIcon,
   CheckCircleIcon, ClipboardIcon, DollarIcon, PhoneIcon, MailIcon,
-  MapPinIcon, UserIcon, ChatIcon, FacebookIcon, InstagramIcon, BotIcon,
+  MapPinIcon, UserIcon, ChatIcon, FacebookIcon, BotIcon,
   ClockIcon, MessageIcon, FilterIcon, CloseIcon,
 } from '@/components/ui/icons';
 import {
@@ -744,11 +744,7 @@ export default function ClientsPage() {
                       {metricsConversations.map((conv) => (
                         <div key={conv.id} className="flex items-start gap-3 p-2.5 bg-zinc-900/50 rounded-lg">
                           <div className="flex-shrink-0 mt-0.5">
-                            {conv.platform === 'instagram' ? (
-                              <InstagramIcon className="w-4 h-4 text-pink-400" />
-                            ) : (
-                              <FacebookIcon className="w-4 h-4 text-blue-400" />
-                            )}
+                            <FacebookIcon className="w-4 h-4 text-blue-400" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-0.5">

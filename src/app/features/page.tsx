@@ -30,9 +30,9 @@ export default function FeaturesPage() {
                 features: ['Full history', 'Intent recognition', 'Contextual replies']
               },
               {
-                title: 'Multi-Platform',
-                description: 'Facebook, Instagram, and Messenger in one dashboard',
-                features: ['Facebook Pages', 'Instagram Business', 'Messenger']
+                title: 'Facebook Integration',
+                description: 'Facebook Pages and Messenger in one dashboard',
+                features: ['Facebook Pages', 'Messenger', 'Auto-replies']
               },
               {
                 title: 'Custom Training',

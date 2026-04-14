@@ -6,7 +6,7 @@ import { Button, Badge } from '@/components/ui';
 import {
   PlusIcon, BotIcon, TrashIcon, EditIcon, MessageIcon,
   AlertIcon, CheckCircleIcon, CloseIcon, BanIcon,
-  FacebookIcon, InstagramIcon, ChevronDownIcon, BoxIcon,
+  FacebookIcon, ChevronDownIcon, BoxIcon,
 } from '@/components/ui/icons';
 import { Modal } from '@/components/stock';
 import {
@@ -355,11 +355,7 @@ export default function AgentsPage() {
                               <Badge variant={insight.type === 'unclear' ? 'warning' : 'error'} size="sm">
                                 {insight.type === 'unclear' ? 'Unclear' : 'Unknown'}
                               </Badge>
-                              {insight.conversation?.platform === 'instagram' ? (
-                                <InstagramIcon className="w-3 h-3 text-pink-400" />
-                              ) : insight.conversation?.platform === 'facebook' ? (
-                                <FacebookIcon className="w-3 h-3 text-blue-400" />
-                              ) : null}
+                              <FacebookIcon className="w-3 h-3 text-blue-400" />
                               {insight.detail && (
                                 <span className="text-[10px] text-amber-400/70 italic truncate">{insight.detail}</span>
                               )}
