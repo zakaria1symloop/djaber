@@ -34,6 +34,7 @@ interface AgentConfig {
   personality: string;
   customInstructions: string | null;
   productTemplate: string | null;
+  closingInstructions: string | null;
   aiModel: string;
   temperature: number;
   maxTokens: number;
@@ -667,6 +668,11 @@ CROSS-SELL:
 - When a customer shows interest in or orders a product that has "→ Cross-sell" or "→ Up-sell" suggestions, naturally recommend those products. Keep it brief and natural.
 - When you suggest a cross-sell/up-sell product, add a [RECOMMEND:sourceProductId:recommendedProductId] tag on its own line at the end (before the STATUS tag).
 
+${agent.closingInstructions ? `CONVERSATION CLOSING:\n${agent.closingInstructions}\n` : `CONVERSATION CLOSING:
+- After a successful order, thank the customer warmly and confirm the order details.
+- If the customer says goodbye, thanks, or indicates they're done, respond with a brief friendly closing message.
+- If the conversation seems finished (customer got their answer, order placed), close naturally — don't keep pushing.
+`}
 HUMAN INTERVENTION:
 - If you cannot help the customer (complaint, refund request, technical issue, angry customer, repeated misunderstanding), tell them politely that a human team member will follow up shortly.
 - Use [STATUS:UNCLEAR] or [STATUS:UNKNOWN] tags (below) so the system notifies the business owner immediately.

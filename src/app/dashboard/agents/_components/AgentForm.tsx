@@ -70,6 +70,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
   const [personality, setPersonality] = useState('professional');
   const [customInstructions, setCustomInstructions] = useState('');
   const [productTemplate, setProductTemplate] = useState('');
+  const [closingInstructions, setClosingInstructions] = useState('');
   const templateRef = useRef<HTMLTextAreaElement>(null);
   const [aiModel, setAiModel] = useState('gpt-4o-mini');
   const [temperature, setTemperature] = useState(0.7);
@@ -103,6 +104,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         setPersonality(agent.personality);
         setCustomInstructions(agent.customInstructions || '');
         setProductTemplate(agent.productTemplate || '');
+        setClosingInstructions(agent.closingInstructions || '');
         setAiModel(agent.aiModel);
         setTemperature(agent.temperature);
         setMaxTokens(agent.maxTokens);
@@ -170,6 +172,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         personality,
         customInstructions: customInstructions.trim() || undefined,
         productTemplate: productTemplate.trim() || undefined,
+        closingInstructions: closingInstructions.trim() || undefined,
         aiModel,
         temperature,
         maxTokens,
@@ -324,6 +327,21 @@ export default function AgentForm({ agentId }: AgentFormProps) {
             />
             <p className="text-xs text-zinc-500 mt-1">
               These instructions will guide the agent&apos;s behavior in conversations.
+            </p>
+          </div>
+
+          {/* Closing Instructions */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Conversation Closing</label>
+            <textarea
+              value={closingInstructions}
+              onChange={(e) => setClosingInstructions(e.target.value)}
+              placeholder={`Examples:\n• After order is confirmed: "Thank you! Order #{number} is on its way. Have a great day! 🎉"\n• When customer says bye: "Thanks for chatting! Come back anytime 😊"\n• After 3 unanswered questions: "I'll connect you with our team for more help."\n• If customer is angry: "I'm sorry for the inconvenience. Let me get a human to help you right away."`}
+              rows={5}
+              className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:border-white/30 focus:outline-none transition-colors resize-none"
+            />
+            <p className="text-xs text-zinc-500 mt-1">
+              Tell the AI when and how to close conversations. If empty, it uses sensible defaults (thank after order, respond to goodbye, etc).
             </p>
           </div>
         </section>

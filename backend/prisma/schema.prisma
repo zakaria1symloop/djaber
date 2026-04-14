@@ -135,6 +135,7 @@ model Agent {
   maxTokens          Int      @default(1000)
   sellAllProducts    Boolean  @default(true) // if true, agent knows entire catalog
   productTemplate    String?  @db.Text // How the AI should present products in chat
+  closingInstructions String? @db.Text // When/how to close conversations
   isActive           Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
