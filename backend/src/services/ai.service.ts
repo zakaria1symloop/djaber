@@ -279,11 +279,11 @@ function buildProductCatalog(
   }
 
   const lines = products.map((p, i) => {
-    let entry = `${i + 1}. ${p.name} [ID: ${p.id}] (SKU: ${p.sku})`;
+    let entry = `${i + 1}. ${p.name} [ID: ${p.id}]`;
     entry += `\n   Price: ${p.sellingPrice.toLocaleString()} DA`;
     entry += `\n   Stock: ${p.quantity > 0 ? `${p.quantity} available` : 'Out of stock'}`;
-    if (p.description) entry += `\n   Description: ${p.description}`;
-    if (p.primaryImageUrl) entry += `\n   Image: ${p.primaryImageUrl}`;
+    if (p.description) entry += `\n   About: ${p.description}`;
+    entry += `\n   HasImage: ${p.primaryImageUrl ? 'yes' : 'no'}`;
     if (p.hasVariants && p.variants && p.variants.length > 0) {
       entry += '\n   Variants:';
       p.variants.forEach((v) => {
@@ -642,9 +642,28 @@ RULES:
 - If asked about something not in the catalog, politely say you don't have that product.
 - Never make up products or prices that aren't in the catalog.
 - Respond in the same language the customer uses.
-- IMAGE RECOGNITION: If the customer sends a photo/image, compare it visually with the product catalog images to identify which product they're showing or asking about. If you recognize a match, respond with the product details and offer to help them purchase it.
-- CROSS-SELL: When a customer shows interest in or orders a product that has "→ Cross-sell" or "→ Up-sell" suggestions, naturally recommend those products. Keep it brief and natural (e.g., "Many customers also get X with this — would you like to add one?"). Don't be pushy — mention once and accept the customer's decision.
-- When you suggest a cross-sell/up-sell product, add a [RECOMMEND:sourceProductId:recommendedProductId] tag on its own line at the end (before the STATUS tag). This is for internal tracking.
+
+PRODUCT PRESENTATION:
+- NEVER output raw image URLs or links to images. The system handles images automatically.
+- When you mention or recommend a specific product, add a [PRODUCT_CARD:productId] tag on its own line. The system will automatically display a rich product card with the image, name, and price to the customer. You can place multiple product cards.
+- Write a brief natural description BEFORE the card tag. Example:
+  "Here's our best seller! 🔥
+  [PRODUCT_CARD:abc123]"
+- Keep your text conversational and short. The card does the visual work.
+- When listing multiple products, show each with a brief intro + card tag:
+  "We have a few options for you:
+  [PRODUCT_CARD:id1]
+  [PRODUCT_CARD:id2]
+  Which one interests you?"
+
+IMAGE RECOGNITION:
+- If the customer sends a photo/image, compare it visually with the product catalog images to identify which product they're showing or asking about. If you recognize a match, respond with the product details and a [PRODUCT_CARD:id] tag.
+
+CROSS-SELL:
+- When a customer shows interest in or orders a product that has "→ Cross-sell" or "→ Up-sell" suggestions, naturally recommend those products. Keep it brief and natural.
+- When you suggest a cross-sell/up-sell product, add a [RECOMMEND:sourceProductId:recommendedProductId] tag on its own line at the end (before the STATUS tag).
+
+STATUS (REQUIRED):
 - IMPORTANT: At the very end of your response, on a NEW line, you MUST add exactly one status tag (this is for internal tracking and will be removed before delivery):
   [STATUS:OK] — if you understood the customer and answered properly
   [STATUS:UNCLEAR:brief reason] — if you couldn't understand the customer's message or couldn't properly answer

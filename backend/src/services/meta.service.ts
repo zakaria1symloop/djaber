@@ -56,6 +56,76 @@ export const sendMessage = async ({
   }
 };
 
+// ============================================================================
+// Send product cards as Facebook Generic Template (rich cards with images)
+// ============================================================================
+
+interface ProductCard {
+  title: string;
+  subtitle: string;
+  imageUrl?: string;
+  productId: string;
+}
+
+interface SendProductCardsParams {
+  pageAccessToken: string;
+  recipientId: string;
+  cards: ProductCard[];
+  platform: 'facebook' | 'instagram';
+}
+
+export const sendProductCards = async ({
+  pageAccessToken,
+  recipientId,
+  cards,
+  platform,
+}: SendProductCardsParams): Promise<void> => {
+  if (cards.length === 0) return;
+
+  // Instagram doesn't support templates — fall back to text
+  if (platform === 'instagram') {
+    const text = cards.map((c) => `🛍 ${c.title}\n${c.subtitle}`).join('\n\n');
+    await sendMessage({ pageAccessToken, recipientId, message: text, platform });
+    return;
+  }
+
+  // Facebook Generic Template — max 10 elements
+  const elements = cards.slice(0, 10).map((card) => {
+    const elem: Record<string, unknown> = {
+      title: card.title.slice(0, 80),
+      subtitle: card.subtitle.slice(0, 80),
+    };
+    if (card.imageUrl) {
+      elem.image_url = card.imageUrl;
+    }
+    return elem;
+  });
+
+  try {
+    await axios.post(
+      `${META_GRAPH_API_URL}/me/messages`,
+      {
+        recipient: { id: recipientId },
+        message: {
+          attachment: {
+            type: 'template',
+            payload: {
+              template_type: 'generic',
+              elements,
+            },
+          },
+        },
+      },
+      {
+        params: { access_token: pageAccessToken },
+      }
+    );
+  } catch (error: any) {
+    console.error('Send product cards error:', error.response?.data || error.message);
+    // Non-fatal — the text message was already sent
+  }
+};
+
 interface GetPageInfoParams {
   pageId: string;
   accessToken: string;

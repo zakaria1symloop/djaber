@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { verifyWebhook } from '../services/meta.service';
 import { generateAIResponse, generateAgentResponse } from '../services/ai.service';
-import { sendMessage } from '../services/meta.service';
+import { sendMessage, sendProductCards } from '../services/meta.service';
 import { createNotification } from '../services/notification.service';
 import { trackImpressions } from '../services/recommendation.service';
 import prisma from '../config/database';
@@ -401,22 +401,55 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         aiResponse = aiResponse.replace(RECOMMEND_TAG_RE, '').replace(/\n{2,}/g, '\n').trim();
       }
 
-      // Send response (clean, without status/recommend tags)
+      // Extract [PRODUCT_CARD:id] tags from AI response
+      const PRODUCT_CARD_RE = /\[PRODUCT_CARD:([^\]]+)\]/g;
+      const cardMatches = [...aiResponse.matchAll(PRODUCT_CARD_RE)];
+      const cardProductIds = cardMatches.map((m) => m[1]);
+
+      // Strip card tags from text response
+      let textResponse = aiResponse.replace(PRODUCT_CARD_RE, '').replace(/\n{3,}/g, '\n\n').trim();
+
+      // Send text response first (clean, without status/recommend/card tags)
       await sendMessage({
         pageAccessToken: page.pageAccessToken,
         recipientId: senderId,
-        message: aiResponse,
+        message: textResponse,
         platform: page.platform as 'facebook' | 'instagram',
       });
 
-      // Save AI response
+      // Then send product cards as a Facebook Generic Template
+      if (cardProductIds.length > 0) {
+        const cards = cardProductIds
+          .map((pid) => {
+            const product = productInfos.find((p: any) => p.id === pid);
+            if (!product) return null;
+            return {
+              title: product.name,
+              subtitle: `${Number(product.sellingPrice).toLocaleString()} DA`,
+              imageUrl: product.primaryImageUrl || product.imageUrl || undefined,
+              productId: product.id,
+            };
+          })
+          .filter(Boolean) as Array<{ title: string; subtitle: string; imageUrl?: string; productId: string }>;
+
+        if (cards.length > 0) {
+          await sendProductCards({
+            pageAccessToken: page.pageAccessToken,
+            recipientId: senderId,
+            cards,
+            platform: page.platform as 'facebook' | 'instagram',
+          });
+        }
+      }
+
+      // Save AI response (clean text, no tags)
       await prisma.message.create({
         data: {
           conversationId: conversation.id,
           messageId: `agent_${Date.now()}`,
           senderId: recipientId,
           recipientId: senderId,
-          text: aiResponse,
+          text: textResponse,
           timestamp: new Date(),
           isFromPage: true,
         },
@@ -442,7 +475,7 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
               conversationId: conversation.id,
               type: statusType === 'UNCLEAR' ? 'unclear' : 'unknown_topic',
               customerMessage: messageText || '[image/attachment]',
-              aiResponse,
+              aiResponse: textResponse,
               detail: statusDetail,
             },
           });
