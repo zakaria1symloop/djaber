@@ -573,6 +573,97 @@ export default function AgentForm({ agentId }: AgentFormProps) {
           )}
         </section>
 
+        {/* Live Preview */}
+        <section>
+          <h2 className="text-sm font-semibold text-white mb-1">Preview</h2>
+          <p className="text-xs text-zinc-500 mb-3">How your agent will respond on Messenger</p>
+
+          <div className="bg-black/40 border border-white/10 rounded-2xl p-4 space-y-3">
+            {/* Customer message */}
+            <div className="flex gap-2">
+              <div className="w-7 h-7 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-[10px] font-semibold text-zinc-300 flex-shrink-0">
+                C
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[75%]">
+                <p className="text-sm text-zinc-200">What products do you have?</p>
+              </div>
+            </div>
+
+            {/* Agent text response */}
+            <div className="flex gap-2 flex-row-reverse">
+              <div className="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                <BotIcon className="w-3.5 h-3.5 text-emerald-400" />
+              </div>
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[75%]">
+                <p className="text-sm text-zinc-100">
+                  {personality === 'friendly' && `Hey there! 😊 Here's what we've got for you:`}
+                  {personality === 'professional' && `Thank you for your interest. Here are our available products:`}
+                  {personality === 'casual' && `Sure thing! Check these out 👇`}
+                  {personality === 'technical' && `Here is our current product catalog:`}
+                </p>
+              </div>
+            </div>
+
+            {/* Product card preview */}
+            {(() => {
+              const sampleProduct = products.find((p) =>
+                sellAllProducts || selectedProductIds.includes(p.id)
+              );
+              const previewProduct = sampleProduct || { name: 'Sample Product', sellingPrice: 1500, imageUrl: null };
+              return (
+                <div className="flex gap-2 flex-row-reverse">
+                  <div className="w-7 flex-shrink-0" /> {/* spacer to match bot avatar */}
+                  <div className="w-56 bg-zinc-900/80 border border-white/10 rounded-xl overflow-hidden">
+                    {/* Image area */}
+                    <div className="w-full h-28 bg-zinc-800 flex items-center justify-center">
+                      {(previewProduct as Product).imageUrl ? (
+                        <img
+                          src={(previewProduct as Product).imageUrl!}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <BoxIcon className="w-8 h-8 text-zinc-600" />
+                      )}
+                    </div>
+                    {/* Card body */}
+                    <div className="p-3">
+                      <p className="text-sm font-medium text-white truncate">
+                        {(previewProduct as any).name}
+                      </p>
+                      <p className="text-xs text-emerald-400 mt-0.5">
+                        {Number((previewProduct as any).sellingPrice || 0).toLocaleString()} DA
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Agent follow-up */}
+            <div className="flex gap-2 flex-row-reverse">
+              <div className="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                <BotIcon className="w-3.5 h-3.5 text-emerald-400" />
+              </div>
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[75%]">
+                <p className="text-sm text-zinc-100">
+                  {personality === 'friendly' && `Would you like to order one? I can help! 🛒`}
+                  {personality === 'professional' && `Shall I proceed with an order for you?`}
+                  {personality === 'casual' && `Want one? Just say the word 😉`}
+                  {personality === 'technical' && `Would you like to place an order? I'll need your delivery details.`}
+                </p>
+              </div>
+            </div>
+
+            {/* Preview label */}
+            <div className="flex items-center justify-center pt-2">
+              <span className="text-[10px] uppercase tracking-wider text-zinc-600 bg-black/60 px-3 py-1 rounded-full border border-white/5">
+                {name || 'Your Agent'} · {personalities.find((p) => p.value === personality)?.label || personality} · Preview
+              </span>
+            </div>
+          </div>
+        </section>
+
         {/* Actions */}
         <div className="flex items-center justify-between pt-2 pb-4">
           <Button

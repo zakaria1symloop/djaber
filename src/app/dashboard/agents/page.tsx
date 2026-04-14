@@ -6,7 +6,7 @@ import { Button, Badge } from '@/components/ui';
 import {
   PlusIcon, BotIcon, TrashIcon, EditIcon, MessageIcon,
   AlertIcon, CheckCircleIcon, CloseIcon, BanIcon,
-  FacebookIcon, InstagramIcon, ChevronDownIcon,
+  FacebookIcon, InstagramIcon, ChevronDownIcon, BoxIcon,
 } from '@/components/ui/icons';
 import { Modal } from '@/components/stock';
 import {
@@ -475,19 +475,53 @@ export default function AgentsPage() {
                 </p>
               </div>
             )}
-            {chatMessages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm whitespace-pre-wrap ${
-                    msg.role === 'user'
-                      ? 'bg-blue-600 text-white rounded-br-sm'
-                      : 'bg-zinc-800 text-zinc-200 border border-white/5 rounded-bl-sm'
-                  }`}
-                >
-                  {msg.content}
+            {chatMessages.map((msg, i) => {
+              // Parse [PRODUCT_CARD:id] tags in assistant messages
+              if (msg.role === 'assistant') {
+                const CARD_RE = /\[PRODUCT_CARD:([^\]]+)\]/g;
+                const parts = msg.content.split(CARD_RE);
+                // parts = [text, id, text, id, text, ...]
+                return (
+                  <div key={i} className="space-y-2">
+                    {parts.map((part, j) => {
+                      if (j % 2 === 1) {
+                        // This is a product ID — render as a card
+                        return (
+                          <div key={j} className="flex justify-start">
+                            <div className="w-52 bg-zinc-800 border border-white/10 rounded-xl overflow-hidden">
+                              <div className="w-full h-24 bg-zinc-700 flex items-center justify-center">
+                                <BoxIcon className="w-6 h-6 text-zinc-500" />
+                              </div>
+                              <div className="p-2.5">
+                                <p className="text-xs font-medium text-white truncate">Product</p>
+                                <p className="text-[11px] text-emerald-400">ID: {part.slice(0, 8)}…</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      // This is text
+                      const text = part.trim();
+                      if (!text) return null;
+                      return (
+                        <div key={j} className="flex justify-start">
+                          <div className="max-w-[80%] rounded-xl px-4 py-2.5 text-sm whitespace-pre-wrap bg-zinc-800 text-zinc-200 border border-white/5 rounded-bl-sm">
+                            {text}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              }
+              return (
+                <div key={i} className="flex justify-end">
+                  <div className="max-w-[80%] rounded-xl px-4 py-2.5 text-sm whitespace-pre-wrap bg-blue-600 text-white rounded-br-sm">
+                    {msg.content}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {chatSending && (
               <div className="flex justify-start">
                 <div className="bg-zinc-800 border border-white/5 rounded-xl rounded-bl-sm px-4 py-2.5">
