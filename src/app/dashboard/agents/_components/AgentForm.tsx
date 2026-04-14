@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Badge } from '@/components/ui';
 import {
@@ -70,6 +70,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
   const [personality, setPersonality] = useState('professional');
   const [customInstructions, setCustomInstructions] = useState('');
   const [productTemplate, setProductTemplate] = useState('');
+  const templateRef = useRef<HTMLTextAreaElement>(null);
   const [aiModel, setAiModel] = useState('gpt-4o-mini');
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(1024);
@@ -337,30 +338,56 @@ export default function AgentForm({ agentId }: AgentFormProps) {
           </div>
 
           <div>
+            <p className="text-[11px] text-zinc-500 mb-2">
+              Click a tag to insert it. Type your own text around them. The AI fills in real product data automatically.
+            </p>
+
+            {/* Clickable tag chips */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {[
+                { tag: '[PRODUCT_CARD]', label: '🖼 Product Image Card', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' },
+                { tag: '{name}', label: 'Product Name', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20' },
+                { tag: '{price}', label: 'Price (DA)', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20' },
+                { tag: '{description}', label: 'Description', color: 'bg-violet-500/10 text-violet-400 border-violet-500/20 hover:bg-violet-500/20' },
+                { tag: '{stock}', label: 'Stock Qty', color: 'bg-white/5 text-zinc-400 border-white/10 hover:bg-white/10' },
+                { tag: '\\n', label: '↵ New Line', color: 'bg-white/5 text-zinc-500 border-white/10 hover:bg-white/10' },
+              ].map((chip) => (
+                <button
+                  key={chip.tag}
+                  type="button"
+                  onClick={() => {
+                    const ta = templateRef.current;
+                    if (!ta) return;
+                    const start = ta.selectionStart;
+                    const end = ta.selectionEnd;
+                    const insert = chip.tag === '\\n' ? '\n' : chip.tag;
+                    const before = productTemplate.slice(0, start);
+                    const after = productTemplate.slice(end);
+                    const newVal = before + insert + after;
+                    setProductTemplate(newVal);
+                    // Restore cursor after the inserted tag
+                    setTimeout(() => {
+                      ta.focus();
+                      const pos = start + insert.length;
+                      ta.setSelectionRange(pos, pos);
+                    }, 0);
+                  }}
+                  className={`text-[11px] px-2.5 py-1 rounded-lg border cursor-pointer transition-colors ${chip.color}`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Template textarea */}
             <textarea
+              ref={templateRef}
               value={productTemplate}
               onChange={(e) => setProductTemplate(e.target.value)}
-              placeholder={`Example:\nHere's what I found for you! 😊\n[PRODUCT_CARD]\nOnly {price} DA — want to order?`}
+              placeholder={`Click the tags above or type here...\n\nExample:\nHere's what I found! 😊\n[PRODUCT_CARD]\nOnly {price} DA — want to order?`}
               rows={6}
-              className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:border-white/30 focus:outline-none transition-colors resize-none font-mono"
+              className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:border-white/30 focus:outline-none transition-colors resize-none"
             />
-            <p className="text-[11px] text-zinc-500 mt-2 mb-2">
-              Write how you want the AI to present products. Use these tags — the AI fills in the real values automatically:
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                [PRODUCT_CARD] → shows the product image card
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-zinc-400 border border-white/5">
-                {'{name}'} → product name
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-zinc-400 border border-white/5">
-                {'{price}'} → price in DA
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-zinc-400 border border-white/5">
-                {'{description}'} → description
-              </span>
-            </div>
           </div>
 
           {/* Live preview */}
