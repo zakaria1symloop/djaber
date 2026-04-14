@@ -467,7 +467,7 @@ model Order {
   amountPaid        Decimal  @default(0) @db.Decimal(10, 2)
   paymentMethod     String   @default("cash") // cash, card, transfer, ccp
   paymentStatus     String   @default("pending") // paid, pending, partial
-  status            String   @default("pending") // pending, confirmed, dispatched, delivered, cancelled
+  status            String   @default("pending") // pending, confirmed, preparing, shipped, delivered, cancelled, returned
   deliveryStatus    String   @default("not_sent") // not_sent, sent, in_transit, delivered
   confirmationStatus String  @default("not_called") // not_called, no_answer, confirmed, rejected
   callAttempts      Int      @default(0)

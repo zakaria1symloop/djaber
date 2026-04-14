@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/icons';
 import { useFilterPanel } from '@/contexts/FilterPanelContext';
 import {
-  getOrders, deleteOrder, addOrderCall,
+  getOrders, deleteOrder, addOrderCall, updateOrder,
   type Order, type OrderCall,
 } from '@/lib/user-stock-api';
 
@@ -59,6 +59,7 @@ function OrdersPageInner() {
   const [appliedHasRemaining, setAppliedHasRemaining] = useState(false);
   const [appliedClientId, setAppliedClientId] = useState(initialClientId);
   const [filterTrigger, setFilterTrigger] = useState(0);
+  const [statusTab, setStatusTab] = useState('pending');
 
   // Modal state
   const [viewing, setViewing] = useState<Order | null>(null);
@@ -121,7 +122,7 @@ function OrdersPageInner() {
     try {
       setLoading(true);
       const res = await getOrders({
-        status: appliedStatus || undefined,
+        status: statusTab || appliedStatus || undefined,
         confirmationStatus: appliedConfirm || undefined,
         paymentStatus: appliedPayment || undefined,
         startDate: appliedStartDate || undefined,
@@ -141,7 +142,7 @@ function OrdersPageInner() {
     } finally {
       setLoading(false);
     }
-  }, [appliedStatus, appliedConfirm, appliedPayment, appliedStartDate, appliedEndDate, appliedTotalRange, appliedHasRemaining, appliedClientId, searchDebounced, offset, filterTrigger]);
+  }, [statusTab, appliedStatus, appliedConfirm, appliedPayment, appliedStartDate, appliedEndDate, appliedTotalRange, appliedHasRemaining, appliedClientId, searchDebounced, offset, filterTrigger]);
 
   useEffect(() => { loadOrders(); }, [loadOrders]);
 
@@ -164,14 +165,46 @@ function OrdersPageInner() {
     setFiltersOpen(!filtersOpen);
   };
 
+  const ORDER_STATUSES = [
+    { value: '', label: 'All', color: 'text-zinc-400' },
+    { value: 'pending', label: 'New', color: 'text-amber-400' },
+    { value: 'confirmed', label: 'Confirmed', color: 'text-blue-400' },
+    { value: 'preparing', label: 'Preparing', color: 'text-violet-400' },
+    { value: 'shipped', label: 'Shipped', color: 'text-cyan-400' },
+    { value: 'delivered', label: 'Delivered', color: 'text-emerald-400' },
+    { value: 'cancelled', label: 'Cancelled', color: 'text-red-400' },
+    { value: 'returned', label: 'Returned', color: 'text-orange-400' },
+  ];
+
+  // statusTab moved to top of component (before loadOrders callback)
+
   const getStatusVariant = (status: string): 'success' | 'warning' | 'info' | 'error' | 'default' => {
     switch (status) {
       case 'confirmed': return 'info';
-      case 'dispatched': return 'info';
+      case 'preparing': return 'info';
+      case 'shipped': case 'dispatched': return 'info';
       case 'delivered': return 'success';
       case 'cancelled': return 'error';
+      case 'returned': return 'error';
       default: return 'warning';
     }
+  };
+
+  const getNextStatus = (current: string): { label: string; next: string } | null => {
+    switch (current) {
+      case 'pending': return { label: 'Confirm', next: 'confirmed' };
+      case 'confirmed': return { label: 'Start Preparing', next: 'preparing' };
+      case 'preparing': return { label: 'Ship', next: 'shipped' };
+      case 'shipped': return { label: 'Mark Delivered', next: 'delivered' };
+      default: return null;
+    }
+  };
+
+  const handleQuickStatus = async (orderId: string, newStatus: string) => {
+    try {
+      await updateOrder(orderId, { status: newStatus });
+      loadOrders();
+    } catch {}
   };
 
   const getConfirmVariant = (status: string): 'success' | 'warning' | 'info' | 'error' | 'default' => {
@@ -318,6 +351,29 @@ function OrdersPageInner() {
         </div>
       </div>
 
+      {/* Status tabs */}
+      <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-1 inline-flex flex-wrap gap-1">
+        {ORDER_STATUSES.map((s) => {
+          const count = s.value ? orders.filter((o) => o.status === s.value).length : total;
+          return (
+            <button
+              key={s.value}
+              onClick={() => { setStatusTab(s.value); setOffset(0); }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                statusTab === s.value
+                  ? 'bg-white text-black'
+                  : `${s.color} hover:bg-white/5`
+              }`}
+            >
+              {s.label}
+              {s.value === statusTab && statusTab && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-black/10 text-[10px]">{orders.length}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Search bar + Date filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -391,6 +447,20 @@ function OrdersPageInner() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-1">
+                          {/* Quick status advance button */}
+                          {(() => {
+                            const next = getNextStatus(order.status);
+                            if (!next) return null;
+                            return (
+                              <button
+                                onClick={() => handleQuickStatus(order.id, next.next)}
+                                className="px-2 py-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors whitespace-nowrap"
+                                title={next.label}
+                              >
+                                {next.label}
+                              </button>
+                            );
+                          })()}
                           <button
                             onClick={() => setCallingOrder(order)}
                             className="p-1.5 text-zinc-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
@@ -405,7 +475,16 @@ function OrdersPageInner() {
                           >
                             <EyeIcon className="w-4 h-4" />
                           </button>
-                          {order.status !== 'delivered' && (
+                          {order.status !== 'delivered' && order.status !== 'cancelled' && (
+                            <button
+                              onClick={() => handleQuickStatus(order.id, 'cancelled')}
+                              className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                              title="Cancel order"
+                            >
+                              <CloseIcon className="w-4 h-4" />
+                            </button>
+                          )}
+                          {order.status !== 'delivered' && order.status !== 'cancelled' && (
                             <button
                               onClick={() => setDeleteConfirm(order)}
                               className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
@@ -689,11 +768,13 @@ function OrdersPageInner() {
                 className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 hover:border-white/20 transition-colors"
               >
                 <option value="">All Statuses</option>
-                <option value="pending">Pending</option>
+                <option value="pending">New / Pending</option>
                 <option value="confirmed">Confirmed</option>
-                <option value="dispatched">Dispatched</option>
+                <option value="preparing">Preparing</option>
+                <option value="shipped">Shipped</option>
                 <option value="delivered">Delivered</option>
                 <option value="cancelled">Cancelled</option>
+                <option value="returned">Returned</option>
               </select>
             </div>
 
