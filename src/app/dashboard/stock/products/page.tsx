@@ -632,9 +632,13 @@ export default function ProductsPage() {
 
   const getPrimaryImageUrl = (product: Product): string | null => {
     if (product.images && product.images.length > 0) {
-      return `${API_BASE_URL}${product.images[0].url}`;
+      const url = product.images[0].url;
+      // If already a full URL (GCS/external), use as-is. Otherwise prepend backend URL.
+      return url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
     }
-    if (product.imageUrl) return product.imageUrl;
+    if (product.imageUrl) {
+      return product.imageUrl.startsWith('http') ? product.imageUrl : `${API_BASE_URL}${product.imageUrl}`;
+    }
     return null;
   };
 
@@ -1661,8 +1665,8 @@ export default function ProductsPage() {
           </div>
         )}
         {viewing && !viewLoading && (() => {
-          const allImages = (viewing.images || []).map((img) => `${API_BASE_URL}${img.url}`);
-          if (!allImages.length && viewing.imageUrl) allImages.push(viewing.imageUrl);
+          const allImages = (viewing.images || []).map((img) => img.url.startsWith('http') ? img.url : `${API_BASE_URL}${img.url}`);
+          if (!allImages.length && viewing.imageUrl) allImages.push(viewing.imageUrl.startsWith('http') ? viewing.imageUrl : `${API_BASE_URL}${viewing.imageUrl}`);
           const profit = Number(viewing.sellingPrice) - Number(viewing.costPrice);
           const margin = Number(viewing.sellingPrice) > 0
             ? ((profit / Number(viewing.sellingPrice)) * 100).toFixed(1)
