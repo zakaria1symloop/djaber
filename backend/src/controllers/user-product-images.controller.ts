@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/database';
 import fs from 'fs';
 import path from 'path';
-import { uploadToCloud, getImageUrl } from '../config/upload';
+import { uploadToCloud } from '../config/upload';
 
 // Upload images to a product
 export const uploadImages = async (req: Request, res: Response): Promise<void> => {
