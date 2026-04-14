@@ -377,14 +377,20 @@ export const getConversationMessagesController = async (req: Request, res: Respo
 
     const conversationId = req.params.conversationId as string;
 
-    // Verify ownership through conversation → page → user
+    // Verify ownership: conversation → page → user
     const conversation = await prisma.conversation.findFirst({
-      where: { id: conversationId, userId: req.user.userId },
+      where: {
+        id: conversationId,
+        OR: [
+          { userId: req.user.userId },
+          { page: { userId: req.user.userId } },
+        ],
+      },
       select: { id: true, senderName: true, senderId: true, status: true, platform: true },
     });
 
     if (!conversation) {
-      res.status(404).json({ error: 'Conversation not found' });
+      res.status(404).json({ error: 'Conversation not found or access denied' });
       return;
     }
 
