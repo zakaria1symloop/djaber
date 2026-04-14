@@ -78,7 +78,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { user, isAuthenticated, loading: authLoading, logout } = useAuth();
   const { pages } = usePages();
   const { filterPanelOpen, setFilterPanelOpen } = useFilterPanel();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -511,7 +511,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                   <div className="p-2 border-t border-white/10">
                     <button
                       onClick={() => {
-                        localStorage.removeItem('token');
+                        logout();
                         router.push('/login');
                       }}
                       className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all"
