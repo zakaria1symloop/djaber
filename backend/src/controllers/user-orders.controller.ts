@@ -367,12 +367,15 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
     }
 
     const updateData: any = {};
+    let autoPayAmount: number | null = null;
+
     if (status !== undefined) {
       updateData.status = status;
       // Auto-mark as paid when delivered (COD flow)
       if (status === 'delivered' && existing.paymentStatus !== 'paid') {
         updateData.paymentStatus = 'paid';
         updateData.amountPaid = existing.total;
+        autoPayAmount = Number(existing.total) - Number(existing.amountPaid);
       }
     }
     if (paymentStatus !== undefined) updateData.paymentStatus = paymentStatus;
@@ -391,26 +394,25 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
         },
       });
 
-      // Auto caisse entry if amountPaid increased
-      if (amountPaid !== undefined) {
-        const oldPaid = Number(existing.amountPaid);
-        const newPaid = Number(amountPaid);
-        const delta = newPaid - oldPaid;
-        if (delta > 0) {
-          await tx.caisseTransaction.create({
-            data: {
-              userId: req.user!.userId,
-              type: 'income',
-              amount: delta,
-              category: 'order',
-              reference: existing.orderNumber,
-              description: `Order ${existing.orderNumber} payment`,
-              date: new Date(),
-              isAutomatic: true,
-              sourceId: orderId,
-            },
-          });
-        }
+      // Auto caisse entry if amountPaid increased (manual or auto via delivery)
+      const effectiveDelta = amountPaid !== undefined
+        ? Number(amountPaid) - Number(existing.amountPaid)
+        : (autoPayAmount && autoPayAmount > 0 ? autoPayAmount : 0);
+
+      if (effectiveDelta > 0) {
+        await tx.caisseTransaction.create({
+          data: {
+            userId: req.user!.userId,
+            type: 'income',
+            amount: effectiveDelta,
+            category: 'order',
+            reference: existing.orderNumber,
+            description: `Order ${existing.orderNumber} payment${autoPayAmount ? ' (COD - delivered)' : ''}`,
+            date: new Date(),
+            isAutomatic: true,
+            sourceId: orderId,
+          },
+        });
       }
 
       return updated;
