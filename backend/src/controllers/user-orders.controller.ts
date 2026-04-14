@@ -367,7 +367,14 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
     }
 
     const updateData: any = {};
-    if (status !== undefined) updateData.status = status;
+    if (status !== undefined) {
+      updateData.status = status;
+      // Auto-mark as paid when delivered (COD flow)
+      if (status === 'delivered' && existing.paymentStatus !== 'paid') {
+        updateData.paymentStatus = 'paid';
+        updateData.amountPaid = existing.total;
+      }
+    }
     if (paymentStatus !== undefined) updateData.paymentStatus = paymentStatus;
     if (paymentMethod !== undefined) updateData.paymentMethod = paymentMethod;
     if (deliveryStatus !== undefined) updateData.deliveryStatus = deliveryStatus;
