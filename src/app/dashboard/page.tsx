@@ -588,7 +588,7 @@ function DashboardPageInner() {
                   <span className="text-xs text-zinc-500">{analyticsPeriod === 'today' ? 'Today' : analyticsPeriod === 'week' ? 'Last 7 days' : analyticsPeriod === 'month' ? 'Last 30 days' : 'Last year'}</span>
                 </div>
                 {(() => {
-                  const revenue = Number(salesStats?.stats.totalRevenue || 0);
+                  const revenue = Number(salesStats?.stats.totalRevenue || 0) + Number(orderStats?.stats.totalRevenue || 0);
                   const spent = Number(purchaseStats?.stats.totalSpent || 0);
                   const max = Math.max(revenue, spent, 1);
                   return (
@@ -736,12 +736,12 @@ function DashboardPageInner() {
               {/* Order status breakdown */}
               <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 mb-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold text-white">Sales Status</h3>
-                  <span className="text-xs text-zinc-500">{salesStats?.stats.totalSales || 0} total</span>
+                  <h3 className="text-sm font-semibold text-white">Orders Status</h3>
+                  <span className="text-xs text-zinc-500">{(salesStats?.stats.totalSales || 0) + (orderStats?.stats.totalOrders || 0)} total</span>
                 </div>
                 {(() => {
-                  const paid = salesStats?.stats.paidSales || 0;
-                  const pending = salesStats?.stats.pendingSales || 0;
+                  const paid = (salesStats?.stats.paidSales || 0) + (orderStats?.stats.delivered || 0);
+                  const pending = (salesStats?.stats.pendingSales || 0) + (orderStats?.stats.pending || 0) + (orderStats?.stats.confirmed || 0) + (orderStats?.stats.preparing || 0) + (orderStats?.stats.shipped || 0);
                   const total = paid + pending || 1;
                   const paidPct = (paid / total) * 100;
                   const pendingPct = (pending / total) * 100;
