@@ -64,6 +64,7 @@ import {
   deleteOrder,
   addOrderCall,
   getOrderCalls,
+  getOrderStats,
 } from '../controllers/user-orders.controller';
 import {
   getAgents,
@@ -241,6 +242,7 @@ router.post('/purchases/:purchaseId/receive', receivePurchaseItems);
 // ============================================================================
 // Orders
 // ============================================================================
+router.get('/orders/stats', getOrderStats);
 router.get('/orders', getOrders);
 router.get('/orders/:orderId', getOrder);
 router.post('/orders', createOrder);

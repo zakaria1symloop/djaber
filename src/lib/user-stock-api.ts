@@ -874,6 +874,27 @@ export interface Order {
   client?: Client | null;
 }
 
+export async function getOrderStats(
+  period?: 'today' | 'week' | 'month' | 'year'
+): Promise<{
+  stats: {
+    totalOrders: number;
+    totalRevenue: number;
+    paidOrders: number;
+    paidAmount: number;
+    pending: number;
+    confirmed: number;
+    preparing: number;
+    shipped: number;
+    delivered: number;
+    cancelled: number;
+    averageOrderValue: number;
+  };
+  topProducts: any[];
+}> {
+  return apiRequest(`/api/user-stock/orders/stats${period ? `?period=${period}` : ''}`);
+}
+
 export async function getOrders(
   params?: {
     startDate?: string;

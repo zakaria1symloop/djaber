@@ -614,3 +614,93 @@ export const getOrderCalls = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ error: 'Failed to fetch call records' });
   }
 };
+
+// ============================================================================
+// Order Stats (for dashboard analytics)
+// ============================================================================
+
+export const getOrderStats = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { period = 'month' } = req.query;
+    const now = new Date();
+    let startDate: Date;
+
+    switch (period) {
+      case 'today':
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      case 'week':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case 'month':
+        startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+        break;
+      case 'year':
+        startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+        break;
+      default:
+        startDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    }
+
+    const where = {
+      userId: req.user.userId,
+      orderDate: { gte: startDate },
+    };
+
+    const [totalOrders, totalRevenue, byStatus, topProducts] = await Promise.all([
+      prisma.order.count({ where }),
+      prisma.order.aggregate({
+        where,
+        _sum: { total: true },
+      }),
+      prisma.order.groupBy({
+        by: ['status'],
+        where,
+        _count: { _all: true },
+      }),
+      prisma.orderItem.groupBy({
+        by: ['productId', 'productName'],
+        where: { order: where },
+        _sum: { quantity: true, total: true },
+        orderBy: { _sum: { total: 'desc' } },
+        take: 5,
+      }),
+    ]);
+
+    const statusMap: Record<string, number> = {};
+    for (const s of byStatus) {
+      statusMap[s.status] = s._count._all;
+    }
+
+    const paidOrders = await prisma.order.aggregate({
+      where: { ...where, paymentStatus: 'paid' },
+      _sum: { amountPaid: true },
+      _count: { _all: true },
+    });
+
+    res.json({
+      stats: {
+        totalOrders,
+        totalRevenue: Number(totalRevenue._sum.total || 0),
+        paidOrders: paidOrders._count._all,
+        paidAmount: Number(paidOrders._sum.amountPaid || 0),
+        pending: statusMap['pending'] || 0,
+        confirmed: statusMap['confirmed'] || 0,
+        preparing: statusMap['preparing'] || 0,
+        shipped: statusMap['shipped'] || 0,
+        delivered: statusMap['delivered'] || 0,
+        cancelled: statusMap['cancelled'] || 0,
+        averageOrderValue: totalOrders > 0 ? Number(totalRevenue._sum.total || 0) / totalOrders : 0,
+      },
+      topProducts,
+    });
+  } catch (error) {
+    console.error('Get order stats error:', error);
+    res.status(500).json({ error: 'Failed to fetch order stats' });
+  }
+};

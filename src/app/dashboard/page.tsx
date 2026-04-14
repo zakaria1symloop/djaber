@@ -45,6 +45,7 @@ import {
   getStockDashboard,
   getSalesStats,
   getPurchaseStats,
+  getOrderStats,
   type StockDashboard,
 } from '@/lib/user-stock-api';
 import { KpiCard, PeriodSelector } from '@/components/analytics/KpiCard';
@@ -80,6 +81,10 @@ function DashboardPageInner() {
     stats: { totalPurchases: number; totalSpent: number; pendingPurchases: number; receivedPurchases: number };
     topSuppliers: Array<{ supplierId: string; _sum: { total: number } }>;
   } | null>(null);
+  const [orderStats, setOrderStats] = useState<{
+    stats: { totalOrders: number; totalRevenue: number; paidAmount: number; pending: number; confirmed: number; preparing: number; shipped: number; delivered: number; cancelled: number; averageOrderValue: number };
+    topProducts: any[];
+  } | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('stockMode');
@@ -92,14 +97,16 @@ function DashboardPageInner() {
       setAnalyticsError(null);
       const period = analyticsPeriod === 'today' ? 'today' : analyticsPeriod;
       const purchasePeriod = analyticsPeriod === 'today' ? 'week' : analyticsPeriod;
-      const [dashRes, salesRes, purchRes] = await Promise.all([
+      const [dashRes, salesRes, purchRes, orderRes] = await Promise.all([
         getStockDashboard(),
         getSalesStats(period as 'today' | 'week' | 'month' | 'year'),
         getPurchaseStats(purchasePeriod as 'week' | 'month' | 'year'),
+        getOrderStats(period as 'today' | 'week' | 'month' | 'year'),
       ]);
       setDashboard(dashRes);
       setSalesStats(salesRes as any);
       setPurchaseStats(purchRes as any);
+      setOrderStats(orderRes as any);
     } catch (err) {
       setAnalyticsError(err instanceof Error ? err.message : 'Failed to load analytics');
     } finally {
@@ -206,9 +213,13 @@ function DashboardPageInner() {
               color="violet"
             />
             <KpiCard
-              label="Sales (30d)"
-              value={salesStats ? `${Number(salesStats.stats.totalRevenue).toLocaleString(undefined, { maximumFractionDigits: 0 })} DA` : '—'}
-              hint={`${salesStats?.stats.totalSales ?? 0} orders`}
+              label="Revenue (30d)"
+              value={(() => {
+                const s = Number(salesStats?.stats.totalRevenue || 0);
+                const o = Number(orderStats?.stats.totalRevenue || 0);
+                return `${(s + o).toLocaleString(undefined, { maximumFractionDigits: 0 })} DA`;
+              })()}
+              hint={`${(salesStats?.stats.totalSales ?? 0) + (orderStats?.stats.totalOrders ?? 0)} orders`}
               icon={<DollarIcon className="w-4 h-4" />}
               color="emerald"
             />
@@ -543,19 +554,24 @@ function DashboardPageInner() {
             <>
               {/* KPI cards */}
               {(() => {
-                const revenue = Number(salesStats?.stats.totalRevenue || 0);
+                // Combine Sales + Orders revenue
+                const salesRevenue = Number(salesStats?.stats.totalRevenue || 0);
+                const ordersRevenue = Number(orderStats?.stats.totalRevenue || 0);
+                const revenue = salesRevenue + ordersRevenue;
                 const spent = Number(purchaseStats?.stats.totalSpent || 0);
                 const profit = revenue - spent;
                 const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
-                const aov = Number(salesStats?.stats.averageOrderValue || 0);
-                const orders = salesStats?.stats.totalSales || 0;
+                const salesCount = (salesStats?.stats.totalSales || 0);
+                const ordersCount = (orderStats?.stats.totalOrders || 0);
+                const totalCount = salesCount + ordersCount;
+                const aov = totalCount > 0 ? revenue / totalCount : 0;
                 const fmt = (n: number) => `${n.toLocaleString(undefined, { maximumFractionDigits: 0 })} DA`;
                 return (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                     <KpiCard
                       label="Revenue"
                       value={fmt(revenue)}
-                      hint={`${orders} ${orders === 1 ? 'sale' : 'sales'}`}
+                      hint={`${totalCount} ${totalCount === 1 ? 'order' : 'orders'}`}
                       icon={<DollarIcon className="w-4 h-4 text-emerald-400" />}
                       color="emerald"
                     />
@@ -633,10 +649,14 @@ function DashboardPageInner() {
                     <h3 className="text-sm font-semibold text-white">Top Selling Products</h3>
                     <PackageIcon className="w-4 h-4 text-zinc-500" />
                   </div>
-                  {salesStats?.topProducts && salesStats.topProducts.length > 0 ? (
+                  {(() => {
+                    const topProds = (salesStats?.topProducts?.length ? salesStats.topProducts : orderStats?.topProducts) || [];
+                    return topProds.length > 0 ? true : false;
+                  })() ? (
                     <div className="space-y-3">
-                      {salesStats.topProducts.slice(0, 5).map((p, i) => {
-                        const max = Number(salesStats.topProducts[0]._sum.total) || 1;
+                      {((salesStats?.topProducts?.length ? salesStats.topProducts : orderStats?.topProducts) || []).slice(0, 5).map((p: any, i: number) => {
+                        const allProds = (salesStats?.topProducts?.length ? salesStats.topProducts : orderStats?.topProducts) || [];
+                        const max = Number(allProds[0]?._sum?.total) || 1;
                         const value = Number(p._sum.total) || 0;
                         const pct = (value / max) * 100;
                         return (
