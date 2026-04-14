@@ -18,8 +18,6 @@ import {
   UsersIcon,
   DollarIcon,
   FacebookIcon,
-  InstagramIcon,
-  WhatsAppIcon,
   EditIcon,
   TrashIcon,
   CloseIcon,
@@ -178,7 +176,7 @@ export default function AdminUserDetailPage() {
               {data.pages.map((page) => (
                 <div key={page.id} className="p-3 flex items-center gap-3 hover:bg-white/[0.02]">
                   <div className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
-                    <PlatformIcon platform={page.platform} />
+                    <PlatformIcon />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-white truncate">{page.pageName}</p>
@@ -247,7 +245,7 @@ export default function AdminUserDetailPage() {
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl divide-y divide-white/5 overflow-hidden">
             {data.recentConversations.map((conv) => (
               <div key={conv.id} className="p-3 flex items-center gap-3 hover:bg-white/[0.02]">
-                <PlatformIcon platform={conv.platform} />
+                <PlatformIcon />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white truncate">{conv.senderName || 'Unknown'}</p>
                   <p className="text-[11px] text-zinc-500 truncate">
@@ -308,15 +306,8 @@ function StatTile({ icon, label, value }: { icon: React.ReactNode; label: string
   );
 }
 
-function PlatformIcon({ platform }: { platform: string }) {
-  const Icon =
-    platform === 'facebook' ? FacebookIcon :
-    platform === 'instagram' ? InstagramIcon :
-    WhatsAppIcon;
-  const color =
-    platform === 'facebook' ? '#1877F2' :
-    platform === 'instagram' ? '#E4405F' : '#25D366';
-  return <span style={{ color }}><Icon className="w-4 h-4" /></span>;
+function PlatformIcon() {
+  return <span style={{ color: '#1877F2' }}><FacebookIcon className="w-4 h-4" /></span>;
 }
 
 function EditUserModal({

@@ -18,8 +18,6 @@ import {
   RefreshIcon,
   ChatIcon,
   FacebookIcon,
-  InstagramIcon,
-  WhatsAppIcon,
 } from '@/components/ui/icons';
 import { FilterPanel, FilterPanelTrigger, FilterSection, FilterChip } from '@/components/admin/FilterPanel';
 
@@ -237,7 +235,7 @@ export default function AdminConversationsPage() {
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="text-sm text-white truncate">{c.senderName || 'Unknown'}</p>
-                            <PlatformIcon platform={c.platform} />
+                            <PlatformIcon />
                           </div>
                           <p className="text-[11px] text-zinc-500 truncate">{c.senderId}</p>
                         </div>
@@ -312,8 +310,6 @@ export default function AdminConversationsPage() {
           <div className="flex flex-wrap gap-2">
             <FilterChip label="All" active={platformFilter === 'all'} onClick={() => setPlatformFilter('all')} />
             <FilterChip label="Facebook" active={platformFilter === 'facebook'} onClick={() => setPlatformFilter('facebook')} />
-            <FilterChip label="Instagram" active={platformFilter === 'instagram'} onClick={() => setPlatformFilter('instagram')} />
-            <FilterChip label="WhatsApp" active={platformFilter === 'whatsapp'} onClick={() => setPlatformFilter('whatsapp')} />
           </div>
         </FilterSection>
 
@@ -418,13 +414,6 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function PlatformIcon({ platform }: { platform: string }) {
-  const Icon =
-    platform === 'facebook' ? FacebookIcon :
-    platform === 'instagram' ? InstagramIcon :
-    WhatsAppIcon;
-  const color =
-    platform === 'facebook' ? '#1877F2' :
-    platform === 'instagram' ? '#E4405F' : '#25D366';
-  return <span style={{ color }}><Icon className="w-3.5 h-3.5" /></span>;
+function PlatformIcon() {
+  return <span style={{ color: '#1877F2' }}><FacebookIcon className="w-3.5 h-3.5" /></span>;
 }

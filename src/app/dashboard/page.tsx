@@ -156,17 +156,8 @@ function DashboardPageInner() {
     ? pages
     : pages.filter(page => page.platform === activePlatformTab);
 
-  const getPlatformIcon = (platform: string) => {
-    switch (platform) {
-      case 'facebook':
-        return <FacebookIcon className="w-6 h-6 text-[#1877F2]" />;
-      case 'instagram':
-        return <InstagramIcon className="w-6 h-6 text-[#E4405F]" />;
-      case 'whatsapp':
-        return <WhatsAppIcon className="w-6 h-6 text-[#25D366]" />;
-      default:
-        return <ChatIcon className="w-6 h-6" />;
-    }
+  const getPlatformIcon = () => {
+    return <FacebookIcon className="w-6 h-6 text-[#1877F2]" />;
   };
 
   return (
@@ -247,7 +238,7 @@ function DashboardPageInner() {
                   <span className="text-zinc-600 group-hover:text-white transition-colors">→</span>
                 </div>
                 <h3 className="text-sm font-semibold text-white mb-1">Connect a Page</h3>
-                <p className="text-xs text-zinc-500">Link Facebook, Instagram or WhatsApp</p>
+                <p className="text-xs text-zinc-500">Link your Facebook page</p>
               </button>
 
               <button
@@ -313,7 +304,7 @@ function DashboardPageInner() {
                       onClick={() => router.push(`/dashboard/page/${page.id}`)}
                     >
                       <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
-                        {getPlatformIcon(page.platform)}
+                        {getPlatformIcon()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-white truncate">{page.pageName}</p>
@@ -391,14 +382,6 @@ function DashboardPageInner() {
                 >
                   Connect Facebook
                 </Button>
-                <Button
-                  disabled
-                  className="opacity-50 cursor-not-allowed"
-                  variant="outline"
-                  icon={<InstagramIcon className="w-4 h-4" />}
-                >
-                  Instagram (Coming Soon)
-                </Button>
               </div>
             </div>
           </div>
@@ -407,8 +390,6 @@ function DashboardPageInner() {
             <TabsList className="mb-6">
               <TabsTrigger value="all">All Platforms</TabsTrigger>
               <TabsTrigger value="facebook" icon={<FacebookIcon className="w-4 h-4" />}>Facebook</TabsTrigger>
-              <TabsTrigger value="instagram" icon={<InstagramIcon className="w-4 h-4" />} disabled className="opacity-50 cursor-not-allowed">Instagram (Soon)</TabsTrigger>
-              <TabsTrigger value="whatsapp" icon={<WhatsAppIcon className="w-4 h-4" />} disabled className="opacity-50 cursor-not-allowed">WhatsApp (Soon)</TabsTrigger>
             </TabsList>
 
             <TabsContent value={activePlatformTab}>
@@ -419,7 +400,7 @@ function DashboardPageInner() {
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
                           <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
-                            {getPlatformIcon(page.platform)}
+                            {getPlatformIcon()}
                           </div>
                           <div>
                             <h3 className="text-white font-semibold">{page.pageName}</h3>
@@ -813,10 +794,10 @@ function DashboardPageInner() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {(['facebook', 'instagram', 'whatsapp'] as const).map((platform) => {
+                    {(['facebook'] as const).map((platform) => {
                       const count = pages.filter(p => p.platform === platform).length;
-                      const Icon = platform === 'facebook' ? FacebookIcon : platform === 'instagram' ? InstagramIcon : WhatsAppIcon;
-                      const color = platform === 'facebook' ? '#1877F2' : platform === 'instagram' ? '#E4405F' : '#25D366';
+                      const Icon = FacebookIcon;
+                      const color = '#1877F2';
                       return (
                         <div key={platform} className="bg-white/[0.02] border border-white/5 rounded-lg p-4 flex items-center gap-3">
                           <span style={{ color }}>

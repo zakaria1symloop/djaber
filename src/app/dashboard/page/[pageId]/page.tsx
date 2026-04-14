@@ -13,8 +13,6 @@ import {
   ClockIcon,
   BoxIcon,
   FacebookIcon,
-  InstagramIcon,
-  WhatsAppIcon,
   ChevronRightIcon,
 } from '@/components/ui/icons';
 
@@ -58,13 +56,8 @@ function PageConfigContent() {
     );
   }
 
-  const PlatformIcon =
-    currentPage.platform === 'facebook' ? FacebookIcon :
-    currentPage.platform === 'instagram' ? InstagramIcon :
-    WhatsAppIcon;
-  const platformColor =
-    currentPage.platform === 'facebook' ? '#1877F2' :
-    currentPage.platform === 'instagram' ? '#E4405F' : '#25D366';
+  const PlatformIcon = FacebookIcon;
+  const platformColor = '#1877F2';
 
   return (
     <div className="space-y-6">

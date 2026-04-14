@@ -11,8 +11,6 @@ import { Badge } from '@/components/ui';
 import {
   RefreshIcon,
   FacebookIcon,
-  InstagramIcon,
-  WhatsAppIcon,
   BotIcon,
 } from '@/components/ui/icons';
 
@@ -94,7 +92,7 @@ export default function AdminConversationDetailPage() {
                 <h1 className="text-2xl font-bold text-white truncate mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
                   {data.senderName || 'Unknown'}
                 </h1>
-                <PlatformIcon platform={data.platform} />
+                <PlatformIcon />
               </div>
               <p className="text-xs text-zinc-500 truncate font-mono">{data.senderId}</p>
             </div>
@@ -160,13 +158,6 @@ function Meta({ label, value }: { label: string; value: string }) {
   );
 }
 
-function PlatformIcon({ platform }: { platform: string }) {
-  const Icon =
-    platform === 'facebook' ? FacebookIcon :
-    platform === 'instagram' ? InstagramIcon :
-    WhatsAppIcon;
-  const color =
-    platform === 'facebook' ? '#1877F2' :
-    platform === 'instagram' ? '#E4405F' : '#25D366';
-  return <span style={{ color }}><Icon className="w-4 h-4" /></span>;
+function PlatformIcon() {
+  return <span style={{ color: '#1877F2' }}><FacebookIcon className="w-4 h-4" /></span>;
 }

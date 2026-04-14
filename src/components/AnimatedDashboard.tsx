@@ -78,7 +78,7 @@ export default function AnimatedDashboard() {
                 <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg bg-gradient-to-br from-pink-500 to-rose-500">F</div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-white truncate">Fashion Store</div>
-                  <div className="text-xs text-zinc-500">Instagram</div>
+                  <div className="text-xs text-zinc-500">Facebook</div>
                 </div>
                 <div className="w-2 h-2 rounded-full bg-[#00fff0] animate-pulse" />
               </div>
@@ -93,7 +93,7 @@ export default function AnimatedDashboard() {
                 <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg bg-gradient-to-br from-amber-500 to-orange-500">C</div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-white truncate">Coffee Shop</div>
-                  <div className="text-xs text-zinc-500">Instagram</div>
+                  <div className="text-xs text-zinc-500">Facebook</div>
                 </div>
               </div>
             </div>

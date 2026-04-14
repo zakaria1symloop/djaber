@@ -12,8 +12,6 @@ import {
   ArrowUpIcon,
   ArrowDownIcon,
   FacebookIcon,
-  InstagramIcon,
-  WhatsAppIcon,
 } from '@/components/ui/icons';
 import { getAdminAnalytics, type AdminAnalytics } from '@/lib/admin-api';
 import { KpiCard, PeriodSelector } from '@/components/analytics/KpiCard';
@@ -155,13 +153,13 @@ export default function AdminAnalyticsPage() {
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6">
               <h3 className="text-sm font-semibold text-white mb-4">Pages by Platform</h3>
               <div className="space-y-3">
-                {(['facebook', 'instagram', 'whatsapp'] as const).map((platform) => {
+                {(['facebook'] as const).map((platform) => {
                   const found = data.pagesByPlatform.find(p => p.platform === platform);
                   const count = found?.count || 0;
                   const total = data.pagesByPlatform.reduce((s, p) => s + p.count, 0) || 1;
                   const pct = (count / total) * 100;
-                  const Icon = platform === 'facebook' ? FacebookIcon : platform === 'instagram' ? InstagramIcon : WhatsAppIcon;
-                  const color = platform === 'facebook' ? '#1877F2' : platform === 'instagram' ? '#E4405F' : '#25D366';
+                  const Icon = FacebookIcon;
+                  const color = '#1877F2';
                   return (
                     <div key={platform}>
                       <div className="flex items-center justify-between text-xs mb-1.5">
