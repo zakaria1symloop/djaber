@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, Suspense, useEffect, useState } from 'react';
+import { ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePages } from '@/contexts/PagesContext';
@@ -86,6 +86,8 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const [servicesExpanded, setServicesExpanded] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [urgentAlert, setUrgentAlert] = useState(false);
+  const prevUnreadRef = useRef(0);
   const [stockMode, setStockMode] = useState<'simple' | 'advanced'>('simple');
 
   useEffect(() => {
@@ -100,18 +102,53 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, authLoading, user, router]);
 
-  // Poll for unread notifications count
+  // Poll for unread notifications count + trigger urgent alerts
+  const playAlertSound = useCallback(() => {
+    try {
+      const ctx = new AudioContext();
+      // Two-tone alert beep
+      [520, 680].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.15, ctx.currentTime + i * 0.15);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.15 + 0.3);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(ctx.currentTime + i * 0.15);
+        osc.stop(ctx.currentTime + i * 0.15 + 0.3);
+      });
+    } catch {}
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated) return;
     const fetchCount = () => {
       getUnreadCount()
-        .then((data) => setUnreadCount(data.count))
+        .then((data) => {
+          const newCount = data.count;
+          // If count increased, trigger urgent alert
+          if (newCount > prevUnreadRef.current && prevUnreadRef.current >= 0) {
+            setUrgentAlert(true);
+            playAlertSound();
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => setUrgentAlert(false), 5000);
+          }
+          prevUnreadRef.current = newCount;
+          setUnreadCount(newCount);
+        })
         .catch(() => {});
     };
-    fetchCount();
-    const interval = setInterval(fetchCount, 30000);
+    // First fetch — set baseline without alerting
+    getUnreadCount()
+      .then((data) => {
+        prevUnreadRef.current = data.count;
+        setUnreadCount(data.count);
+      })
+      .catch(() => {});
+    const interval = setInterval(fetchCount, 10000); // Poll every 10s for faster alerts
     return () => clearInterval(interval);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, playAlertSound]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -409,14 +446,25 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
             </h1>
 
             <div className="flex items-center gap-2">
-              {/* Bell icon */}
+              {/* Bell icon with urgent alert orbs */}
               <button
-                onClick={() => router.push('/dashboard/notifications')}
+                onClick={() => {
+                  setUrgentAlert(false);
+                  router.push('/dashboard/notifications');
+                }}
                 className="relative p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
               >
-                <BellIcon className="w-5 h-5" />
+                <BellIcon className={`w-5 h-5 ${urgentAlert ? 'text-red-400' : ''}`} />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500" />
+                  <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ${urgentAlert ? 'animate-ping' : ''}`} />
+                )}
+                {/* Urgent red orbs */}
+                {urgentAlert && (
+                  <>
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500/40 blur-sm animate-ping" />
+                    <span className="absolute -top-0.5 -left-0.5 w-3 h-3 rounded-full bg-red-500/30 blur-sm animate-ping" style={{ animationDelay: '0.3s' }} />
+                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-500/20 blur-sm animate-ping" style={{ animationDelay: '0.6s' }} />
+                  </>
                 )}
               </button>
 

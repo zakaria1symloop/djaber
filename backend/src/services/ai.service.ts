@@ -663,11 +663,15 @@ CROSS-SELL:
 - When a customer shows interest in or orders a product that has "→ Cross-sell" or "→ Up-sell" suggestions, naturally recommend those products. Keep it brief and natural.
 - When you suggest a cross-sell/up-sell product, add a [RECOMMEND:sourceProductId:recommendedProductId] tag on its own line at the end (before the STATUS tag).
 
+HUMAN INTERVENTION:
+- If you cannot help the customer (complaint, refund request, technical issue, angry customer, repeated misunderstanding), tell them politely that a human team member will follow up shortly.
+- Use [STATUS:UNCLEAR] or [STATUS:UNKNOWN] tags (below) so the system notifies the business owner immediately.
+
 STATUS (REQUIRED):
 - IMPORTANT: At the very end of your response, on a NEW line, you MUST add exactly one status tag (this is for internal tracking and will be removed before delivery):
   [STATUS:OK] — if you understood the customer and answered properly
-  [STATUS:UNCLEAR:brief reason] — if you couldn't understand the customer's message or couldn't properly answer
-  [STATUS:UNKNOWN:what they asked about] — if the customer asked about something not in your catalog or knowledge`;
+  [STATUS:UNCLEAR:brief reason] — if you couldn't understand the customer's message or couldn't properly answer. This triggers an URGENT notification to the business owner.
+  [STATUS:UNKNOWN:what they asked about] — if the customer asked about something not in your catalog or knowledge. This triggers an URGENT notification to the business owner.`;
 
     // Build messages
     const messages: any[] = [
