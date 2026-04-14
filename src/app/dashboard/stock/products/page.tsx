@@ -786,7 +786,7 @@ export default function ProductsPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-white/10">
-                    <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3 w-10"></th>
+                    <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3 w-20"></th>
                     {[
                       { key: 'name', label: 'Product', cls: 'text-left' },
                       { key: 'sku', label: 'SKU', cls: 'text-left' },
@@ -845,14 +845,16 @@ export default function ProductsPage() {
                     return (
                       <React.Fragment key={product.id}>
                       <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                        <td className="px-4 py-3">
-                          {imgUrl ? (
-                            <img src={imgUrl} alt="" className="w-14 h-14 rounded-lg object-cover border border-white/10" />
-                          ) : (
-                            <div className="w-14 h-14 rounded-lg bg-zinc-800 flex items-center justify-center border border-white/10">
-                              <ImageIcon className="w-5 h-5 text-zinc-600" />
-                            </div>
-                          )}
+                        <td className="px-4 py-3 w-20">
+                          <div className="w-14 h-14 flex-shrink-0">
+                            {imgUrl ? (
+                              <img src={imgUrl} alt="" className="w-14 h-14 rounded-lg object-cover border border-white/10 aspect-square" />
+                            ) : (
+                              <div className="w-14 h-14 rounded-lg bg-zinc-800 flex items-center justify-center border border-white/10">
+                                <ImageIcon className="w-5 h-5 text-zinc-600" />
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
