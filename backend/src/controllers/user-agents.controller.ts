@@ -346,6 +346,7 @@ export const testAgent = async (req: Request, res: Response): Promise<void> => {
         name: agent.name,
         personality: agent.personality,
         customInstructions: agent.customInstructions,
+        productTemplate: agent.productTemplate || null,
         aiModel: agent.aiModel,
         temperature: agent.temperature,
         maxTokens: agent.maxTokens,

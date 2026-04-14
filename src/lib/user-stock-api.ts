@@ -999,6 +999,7 @@ export interface Agent {
   temperature: number;
   maxTokens: number;
   sellAllProducts: boolean;
+  productTemplate: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -1020,6 +1021,7 @@ export async function createAgent(data: {
   description?: string;
   personality?: string;
   customInstructions?: string;
+  productTemplate?: string;
   aiModel?: string;
   temperature?: number;
   maxTokens?: number;
@@ -1040,6 +1042,7 @@ export async function updateAgentApi(
     description?: string;
     personality?: string;
     customInstructions?: string;
+    productTemplate?: string;
     aiModel?: string;
     temperature?: number;
     maxTokens?: number;

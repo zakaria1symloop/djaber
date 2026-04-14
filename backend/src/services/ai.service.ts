@@ -33,6 +33,7 @@ interface AgentConfig {
   name: string;
   personality: string;
   customInstructions: string | null;
+  productTemplate: string | null;
   aiModel: string;
   temperature: number;
   maxTokens: number;
@@ -645,8 +646,10 @@ RULES:
 
 PRODUCT PRESENTATION:
 - NEVER output raw image URLs or links to images. The system handles images automatically.
-- When you mention or recommend a specific product, add a [PRODUCT_CARD:productId] tag on its own line. The system will automatically display a rich product card with the image, name, and price to the customer. You can place multiple product cards.
-- Write a brief natural description BEFORE the card tag. Example:
+- When you mention or recommend a specific product, add a [PRODUCT_CARD:productId] tag on its own line. The system will automatically display a rich product card with the image, name, and price to the customer.
+${agent.productTemplate
+  ? `- IMPORTANT: Follow this EXACT format when presenting products to customers:\n${agent.productTemplate}`
+  : `- Write a brief natural description BEFORE the card tag. Example:
   "Here's our best seller! 🔥
   [PRODUCT_CARD:abc123]"
 - Keep your text conversational and short. The card does the visual work.
@@ -654,7 +657,7 @@ PRODUCT PRESENTATION:
   "We have a few options for you:
   [PRODUCT_CARD:id1]
   [PRODUCT_CARD:id2]
-  Which one interests you?"
+  Which one interests you?"`}
 
 IMAGE RECOGNITION:
 - If the customer sends a photo/image, compare it visually with the product catalog images to identify which product they're showing or asking about. If you recognize a match, respond with the product details and a [PRODUCT_CARD:id] tag.

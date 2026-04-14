@@ -354,6 +354,7 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
           name: agent.name,
           personality: agent.personality,
           customInstructions: agent.customInstructions,
+          productTemplate: (agent as any).productTemplate || null,
           aiModel: agent.aiModel,
           temperature: agent.temperature,
           maxTokens: agent.maxTokens,

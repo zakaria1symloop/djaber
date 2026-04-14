@@ -69,6 +69,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
   const [description, setDescription] = useState('');
   const [personality, setPersonality] = useState('professional');
   const [customInstructions, setCustomInstructions] = useState('');
+  const [productTemplate, setProductTemplate] = useState('');
   const [aiModel, setAiModel] = useState('gpt-4o-mini');
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(1024);
@@ -100,6 +101,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         setDescription(agent.description || '');
         setPersonality(agent.personality);
         setCustomInstructions(agent.customInstructions || '');
+        setProductTemplate(agent.productTemplate || '');
         setAiModel(agent.aiModel);
         setTemperature(agent.temperature);
         setMaxTokens(agent.maxTokens);
@@ -166,6 +168,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         description: description.trim() || undefined,
         personality,
         customInstructions: customInstructions.trim() || undefined,
+        productTemplate: productTemplate.trim() || undefined,
         aiModel,
         temperature,
         maxTokens,
@@ -321,6 +324,116 @@ export default function AgentForm({ agentId }: AgentFormProps) {
             <p className="text-xs text-zinc-500 mt-1">
               These instructions will guide the agent&apos;s behavior in conversations.
             </p>
+          </div>
+        </section>
+
+        {/* Product Display Template */}
+        <section className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 space-y-5">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider mb-1">Product Display Template</h2>
+            <p className="text-xs text-zinc-500">
+              Define how the AI presents products. Leave empty for the default style. The AI will follow this format exactly.
+            </p>
+          </div>
+
+          <div>
+            <textarea
+              value={productTemplate}
+              onChange={(e) => setProductTemplate(e.target.value)}
+              placeholder={`Example:\nHere's what I found for you:\n[PRODUCT_CARD:id]\nPrice: {price} DA\n\nWant to order? Just let me know! 😊`}
+              rows={6}
+              className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:border-white/30 focus:outline-none transition-colors resize-none font-mono"
+            />
+            <div className="flex flex-wrap gap-2 mt-2">
+              <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-zinc-400 border border-white/5">
+                [PRODUCT_CARD:id] = shows image card
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-zinc-400 border border-white/5">
+                {'{name}'} = product name
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-zinc-400 border border-white/5">
+                {'{price}'} = price in DA
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-zinc-400 border border-white/5">
+                {'{description}'} = product description
+              </span>
+            </div>
+          </div>
+
+          {/* Live preview */}
+          <div>
+            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Preview</p>
+            <div className="bg-black/40 border border-white/10 rounded-2xl p-4 space-y-3">
+              {/* Customer */}
+              <div className="flex gap-2">
+                <div className="w-7 h-7 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-[10px] font-semibold text-zinc-300 flex-shrink-0">C</div>
+                <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[75%]">
+                  <p className="text-sm text-zinc-200">Show me your products</p>
+                </div>
+              </div>
+
+              {/* Agent response based on template */}
+              <div className="flex gap-2 flex-row-reverse">
+                <div className="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                  <BotIcon className="w-3.5 h-3.5 text-emerald-400" />
+                </div>
+                <div className="max-w-[80%] space-y-2">
+                  {(() => {
+                    const sampleProduct = products.find((p) => sellAllProducts || selectedProductIds.includes(p.id));
+                    const sampleName = sampleProduct?.name || 'Sample Product';
+                    const samplePrice = sampleProduct ? Number(sampleProduct.sellingPrice).toLocaleString() : '1,500';
+                    const sampleDesc = sampleProduct?.description || 'A great product';
+
+                    const template = productTemplate.trim() || `Here's what we have! 😊\n[PRODUCT_CARD:id]\nWould you like to order?`;
+
+                    // Replace variables for preview
+                    const previewText = template
+                      .replace(/\{name\}/g, sampleName)
+                      .replace(/\{price\}/g, samplePrice)
+                      .replace(/\{description\}/g, sampleDesc);
+
+                    // Split on [PRODUCT_CARD:...] tags
+                    const parts = previewText.split(/\[PRODUCT_CARD:[^\]]*\]/);
+                    const hasCard = /\[PRODUCT_CARD:/.test(previewText);
+
+                    return (
+                      <>
+                        {parts.map((part, i) => (
+                          <div key={i}>
+                            {part.trim() && (
+                              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl rounded-tr-sm px-3 py-2">
+                                <p className="text-sm text-zinc-100 whitespace-pre-wrap">{part.trim()}</p>
+                              </div>
+                            )}
+                            {hasCard && i < parts.length - 1 && (
+                              <div className="w-52 bg-zinc-900/80 border border-white/10 rounded-xl overflow-hidden mt-2">
+                                <div className="w-full h-24 bg-zinc-800 flex items-center justify-center">
+                                  {sampleProduct?.imageUrl ? (
+                                    <img src={sampleProduct.imageUrl} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <BoxIcon className="w-8 h-8 text-zinc-600" />
+                                  )}
+                                </div>
+                                <div className="p-3">
+                                  <p className="text-sm font-medium text-white truncate">{sampleName}</p>
+                                  <p className="text-xs text-emerald-400 mt-0.5">{samplePrice} DA</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center pt-1">
+                <span className="text-[10px] uppercase tracking-wider text-zinc-600 bg-black/60 px-3 py-1 rounded-full border border-white/5">
+                  Live preview
+                </span>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -571,97 +684,6 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               </div>
             </div>
           )}
-        </section>
-
-        {/* Live Preview */}
-        <section>
-          <h2 className="text-sm font-semibold text-white mb-1">Preview</h2>
-          <p className="text-xs text-zinc-500 mb-3">How your agent will respond on Messenger</p>
-
-          <div className="bg-black/40 border border-white/10 rounded-2xl p-4 space-y-3">
-            {/* Customer message */}
-            <div className="flex gap-2">
-              <div className="w-7 h-7 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-[10px] font-semibold text-zinc-300 flex-shrink-0">
-                C
-              </div>
-              <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[75%]">
-                <p className="text-sm text-zinc-200">What products do you have?</p>
-              </div>
-            </div>
-
-            {/* Agent text response */}
-            <div className="flex gap-2 flex-row-reverse">
-              <div className="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                <BotIcon className="w-3.5 h-3.5 text-emerald-400" />
-              </div>
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[75%]">
-                <p className="text-sm text-zinc-100">
-                  {personality === 'friendly' && `Hey there! 😊 Here's what we've got for you:`}
-                  {personality === 'professional' && `Thank you for your interest. Here are our available products:`}
-                  {personality === 'casual' && `Sure thing! Check these out 👇`}
-                  {personality === 'technical' && `Here is our current product catalog:`}
-                </p>
-              </div>
-            </div>
-
-            {/* Product card preview */}
-            {(() => {
-              const sampleProduct = products.find((p) =>
-                sellAllProducts || selectedProductIds.includes(p.id)
-              );
-              const previewProduct = sampleProduct || { name: 'Sample Product', sellingPrice: 1500, imageUrl: null };
-              return (
-                <div className="flex gap-2 flex-row-reverse">
-                  <div className="w-7 flex-shrink-0" /> {/* spacer to match bot avatar */}
-                  <div className="w-56 bg-zinc-900/80 border border-white/10 rounded-xl overflow-hidden">
-                    {/* Image area */}
-                    <div className="w-full h-28 bg-zinc-800 flex items-center justify-center">
-                      {(previewProduct as Product).imageUrl ? (
-                        <img
-                          src={(previewProduct as Product).imageUrl!}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <BoxIcon className="w-8 h-8 text-zinc-600" />
-                      )}
-                    </div>
-                    {/* Card body */}
-                    <div className="p-3">
-                      <p className="text-sm font-medium text-white truncate">
-                        {(previewProduct as any).name}
-                      </p>
-                      <p className="text-xs text-emerald-400 mt-0.5">
-                        {Number((previewProduct as any).sellingPrice || 0).toLocaleString()} DA
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Agent follow-up */}
-            <div className="flex gap-2 flex-row-reverse">
-              <div className="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                <BotIcon className="w-3.5 h-3.5 text-emerald-400" />
-              </div>
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl rounded-tr-sm px-3 py-2 max-w-[75%]">
-                <p className="text-sm text-zinc-100">
-                  {personality === 'friendly' && `Would you like to order one? I can help! 🛒`}
-                  {personality === 'professional' && `Shall I proceed with an order for you?`}
-                  {personality === 'casual' && `Want one? Just say the word 😉`}
-                  {personality === 'technical' && `Would you like to place an order? I'll need your delivery details.`}
-                </p>
-              </div>
-            </div>
-
-            {/* Preview label */}
-            <div className="flex items-center justify-center pt-2">
-              <span className="text-[10px] uppercase tracking-wider text-zinc-600 bg-black/60 px-3 py-1 rounded-full border border-white/5">
-                {name || 'Your Agent'} · {personalities.find((p) => p.value === personality)?.label || personality} · Preview
-              </span>
-            </div>
-          </div>
         </section>
 
         {/* Actions */}

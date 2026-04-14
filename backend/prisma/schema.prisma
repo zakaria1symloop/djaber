@@ -134,6 +134,7 @@ model Agent {
   temperature        Float    @default(0.7)
   maxTokens          Int      @default(1000)
   sellAllProducts    Boolean  @default(true) // if true, agent knows entire catalog
+  productTemplate    String?  @db.Text // How the AI should present products in chat
   isActive           Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
