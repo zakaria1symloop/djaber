@@ -332,7 +332,7 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       }
 
       // Format products for the AI
-      const backendUrl = process.env.BACKEND_URL || 'http://localhost:6001';
+      const { getImageUrl } = require('../config/upload');
       const productInfos = products.map((p: any) => ({
         id: p.id,
         name: p.name,
@@ -344,7 +344,7 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         variants: p.variants,
         imageUrl: p.imageUrl,
         primaryImageUrl: p.images?.[0]?.filename
-          ? `${backendUrl}/uploads/products/${p.images[0].filename}`
+          ? (p.images[0].url?.startsWith('http') ? p.images[0].url : getImageUrl(p.images[0].filename))
           : null,
       }));
 

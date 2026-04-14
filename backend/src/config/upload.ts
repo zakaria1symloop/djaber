@@ -3,9 +3,12 @@ import path from 'path';
 import crypto from 'crypto';
 import fs from 'fs';
 
+const IS_PROD = process.env.NODE_ENV === 'production';
+const GCS_BUCKET = process.env.GCS_BUCKET || 'djaber-prod-uploads';
+
 const uploadDir = path.join(__dirname, '../../uploads/products');
 
-// Ensure directory exists
+// Ensure local directory exists (used in dev, and as temp in prod)
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -39,3 +42,47 @@ export const uploadProductImages = multer({
     files: 10,
   },
 });
+
+/**
+ * Upload a local file to GCS and return the public URL.
+ * In dev mode, returns a local URL.
+ */
+export async function uploadToCloud(localPath: string, filename: string): Promise<string> {
+  if (!IS_PROD) {
+    // Dev: return local URL
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:6001';
+    return `${backendUrl}/uploads/products/${filename}`;
+  }
+
+  // Production: upload to GCS
+  const { Storage } = require('@google-cloud/storage');
+  const gcs = new Storage();
+  const bucket = gcs.bucket(GCS_BUCKET);
+
+  const destination = `products/${filename}`;
+  await bucket.upload(localPath, {
+    destination,
+    metadata: {
+      cacheControl: 'public, max-age=31536000',
+    },
+  });
+
+  // Clean up local temp file
+  try {
+    fs.unlinkSync(localPath);
+  } catch {}
+
+  return `https://storage.googleapis.com/${GCS_BUCKET}/${destination}`;
+}
+
+/**
+ * Get the public URL for a product image filename.
+ * In dev mode, returns local URL. In prod, returns GCS URL.
+ */
+export function getImageUrl(filename: string): string {
+  if (!IS_PROD) {
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:6001';
+    return `${backendUrl}/uploads/products/${filename}`;
+  }
+  return `https://storage.googleapis.com/${GCS_BUCKET}/products/${filename}`;
+}

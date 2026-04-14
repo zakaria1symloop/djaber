@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/database';
 import fs from 'fs';
 import path from 'path';
+import { uploadToCloud, getImageUrl } from '../config/upload';
 
 // Upload images to a product
 export const uploadImages = async (req: Request, res: Response): Promise<void> => {
@@ -33,6 +34,20 @@ export const uploadImages = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // Upload files to cloud (GCS in prod, local in dev)
+    const uploadedUrls: string[] = [];
+    for (const file of files) {
+      try {
+        const url = await uploadToCloud(file.path, file.filename);
+        uploadedUrls.push(url);
+      } catch (err) {
+        console.error('Cloud upload failed for', file.filename, err);
+        // Fallback to local URL
+        const backendUrl = process.env.BACKEND_URL || 'http://localhost:6001';
+        uploadedUrls.push(`${backendUrl}/uploads/products/${file.filename}`);
+      }
+    }
+
     // Get current max sortOrder
     const maxSort = await prisma.productImage.findFirst({
       where: { productId },
@@ -50,10 +65,10 @@ export const uploadImages = async (req: Request, res: Response): Promise<void> =
         prisma.productImage.create({
           data: {
             productId,
-            url: `/uploads/products/${file.filename}`,
+            url: uploadedUrls[i],
             filename: file.filename,
             sortOrder: sortOrder + i,
-            isPrimary: existingCount === 0 && i === 0, // First image of product is primary
+            isPrimary: existingCount === 0 && i === 0,
           },
         })
       )

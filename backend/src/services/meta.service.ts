@@ -88,7 +88,8 @@ export const sendProductCards = async ({
   for (const card of cards.slice(0, 5)) {
     try {
       // 1. Send image as a standalone attachment (clickable/expandable)
-      if (card.imageUrl) {
+      // Only if we have a publicly accessible URL (GCS or external)
+      if (card.imageUrl && card.imageUrl.startsWith('http')) {
         const imagePayload = {
           recipient: { id: recipientId },
           message: {
