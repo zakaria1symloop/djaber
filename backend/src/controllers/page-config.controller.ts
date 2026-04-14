@@ -431,11 +431,14 @@ export const sendReplyController = async (req: Request, res: Response): Promise<
       return;
     }
 
-    // Get conversation
+    // Get conversation — check ownership via userId OR page.userId
     const conversation = await prisma.conversation.findFirst({
       where: {
         id: conversationId,
-        userId: req.user.userId,
+        OR: [
+          { userId: req.user.userId },
+          { page: { userId: req.user.userId } },
+        ],
       },
     });
 
