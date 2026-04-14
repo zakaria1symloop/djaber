@@ -29,7 +29,7 @@ export default function MessagesSection({ pageId }: MessagesSectionProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchConversations(pageId).catch(() => {});
+    fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {});
   }, [pageId]);
 
   // Load full thread when conversation is selected
@@ -70,7 +70,7 @@ export default function MessagesSection({ pageId }: MessagesSectionProps) {
       setReplyText('');
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       // Refresh conversation list in background
-      fetchConversations(pageId).catch(() => {});
+      fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {});
     } catch {
       // Error via context
     } finally {
@@ -97,7 +97,7 @@ export default function MessagesSection({ pageId }: MessagesSectionProps) {
           <p className="text-xs text-zinc-500 mt-0.5">{conversations?.total || 0} conversations</p>
         </div>
         <button
-          onClick={() => fetchConversations(pageId).catch(() => {})}
+          onClick={() => fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {})}
           disabled={loading}
           className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors disabled:opacity-50"
         >
@@ -108,7 +108,7 @@ export default function MessagesSection({ pageId }: MessagesSectionProps) {
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-400 flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => { clearError(); fetchConversations(pageId).catch(() => {}); }} className="underline text-xs">Retry</button>
+          <button onClick={() => { clearError(); fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {}); }} className="underline text-xs">Retry</button>
         </div>
       )}
 
