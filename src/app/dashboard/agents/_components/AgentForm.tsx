@@ -340,22 +340,25 @@ export default function AgentForm({ agentId }: AgentFormProps) {
             <textarea
               value={productTemplate}
               onChange={(e) => setProductTemplate(e.target.value)}
-              placeholder={`Example:\nHere's what I found for you:\n[PRODUCT_CARD:id]\nPrice: {price} DA\n\nWant to order? Just let me know! 😊`}
+              placeholder={`Example:\nHere's what I found for you! 😊\n[PRODUCT_CARD]\nOnly {price} DA — want to order?`}
               rows={6}
               className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:border-white/30 focus:outline-none transition-colors resize-none font-mono"
             />
-            <div className="flex flex-wrap gap-2 mt-2">
-              <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-zinc-400 border border-white/5">
-                [PRODUCT_CARD:id] = shows image card
+            <p className="text-[11px] text-zinc-500 mt-2 mb-2">
+              Write how you want the AI to present products. Use these tags — the AI fills in the real values automatically:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                [PRODUCT_CARD] → shows the product image card
               </span>
               <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-zinc-400 border border-white/5">
-                {'{name}'} = product name
+                {'{name}'} → product name
               </span>
               <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-zinc-400 border border-white/5">
-                {'{price}'} = price in DA
+                {'{price}'} → price in DA
               </span>
               <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-zinc-400 border border-white/5">
-                {'{description}'} = product description
+                {'{description}'} → description
               </span>
             </div>
           </div>

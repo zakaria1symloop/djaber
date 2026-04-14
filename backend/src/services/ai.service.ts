@@ -646,15 +646,16 @@ RULES:
 
 PRODUCT PRESENTATION:
 - NEVER output raw image URLs or links to images. The system handles images automatically.
-- When you mention or recommend a specific product, add a [PRODUCT_CARD:productId] tag on its own line. The system will automatically display a rich product card with the image, name, and price to the customer.
+- When you mention a product, add a [PRODUCT_CARD:productId] tag (replace productId with the actual ID from the catalog) on its own line. The system will display a rich card with the product image, name, and price.
+- In the user's template below, [PRODUCT_CARD] means "put a product card here" — you MUST replace it with [PRODUCT_CARD:actualId] using the real product ID from the catalog.
 ${agent.productTemplate
-  ? `- IMPORTANT: Follow this EXACT format when presenting products to customers:\n${agent.productTemplate}`
-  : `- Write a brief natural description BEFORE the card tag. Example:
+  ? `- IMPORTANT: Follow this EXACT format when presenting products to customers. Replace {name}, {price}, {description} with real product data, and [PRODUCT_CARD] with [PRODUCT_CARD:realProductId]:\n${agent.productTemplate}`
+  : `- Write a brief natural intro BEFORE the card tag. Example:
   "Here's our best seller! 🔥
   [PRODUCT_CARD:abc123]"
 - Keep your text conversational and short. The card does the visual work.
-- When listing multiple products, show each with a brief intro + card tag:
-  "We have a few options for you:
+- When listing multiple products, show each with a brief intro + card:
+  "We have a few options:
   [PRODUCT_CARD:id1]
   [PRODUCT_CARD:id2]
   Which one interests you?"`}
