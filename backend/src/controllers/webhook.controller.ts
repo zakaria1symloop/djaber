@@ -4,7 +4,7 @@ import { generateAIResponse, generateAgentResponse } from '../services/ai.servic
 import { sendMessage, sendProductCards } from '../services/meta.service';
 import { createNotification } from '../services/notification.service';
 import { trackImpressions } from '../services/recommendation.service';
-import { queueMessage, hasPendingBatch } from '../services/message-batcher';
+import { queueMessage } from '../services/message-batcher';
 import prisma from '../config/database';
 
 // Regex to extract [STATUS:OK|UNCLEAR|UNKNOWN:detail] from end of AI response
@@ -406,7 +406,7 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         messageText,
         imageUrls,
         responseDelay,
-        async (combinedText: string, combinedImages: string[]) => {
+        async (_combinedText: string, _combinedImages: string[]) => {
           // Re-fetch conversation to get latest messages (user may have sent more)
           const freshConvo = await prisma.conversation.findUnique({
             where: { id: conversation.id },
