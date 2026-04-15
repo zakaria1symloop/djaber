@@ -587,13 +587,14 @@ export default function ProductsPage() {
         description: expenseForm.description || undefined,
       });
       setExpenseForm({ category: 'marketing', amount: '', isPerUnit: false, description: '' });
-      // Reload expenses & margins
+      // Reload expenses, margins, AND product list so table updates instantly
       const [expRes, marginRes] = await Promise.all([
         getProductExpenses(expenseProduct.id),
         getProductMarginsApi(expenseProduct.id),
       ]);
       setExpenses(expRes.expenses);
       setMargins(marginRes.margins);
+      loadProducts(); // refresh table with new expense data
     } catch {
       // error handled silently
     } finally {
@@ -611,6 +612,7 @@ export default function ProductsPage() {
       ]);
       setExpenses(expRes.expenses);
       setMargins(marginRes.margins);
+      loadProducts(); // refresh table with updated expense data
     } catch {
       // error handled silently
     }
