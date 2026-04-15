@@ -912,6 +912,80 @@ export const deleteSubscription = async (req: Request, res: Response): Promise<v
 };
 
 // ============================================================================
+// CMS Pages (company + legal)
+// ============================================================================
+
+export const listCmsPages = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const category = String(req.query.category || '').trim();
+    const where: Record<string, unknown> = {};
+    if (category) where.category = category;
+
+    const pages = await prisma.cmsPage.findMany({
+      where,
+      orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }],
+    });
+    res.json({ pages });
+  } catch (error) {
+    console.error('List CMS pages error:', error);
+    res.status(500).json({ error: 'Failed to list pages' });
+  }
+};
+
+export const getCmsPage = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const slug = String(req.params.slug);
+    const page = await prisma.cmsPage.findUnique({ where: { slug } });
+    if (!page) {
+      res.status(404).json({ error: 'Page not found' });
+      return;
+    }
+    res.json({ page });
+  } catch (error) {
+    console.error('Get CMS page error:', error);
+    res.status(500).json({ error: 'Failed to fetch page' });
+  }
+};
+
+export const upsertCmsPage = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { slug, title, category, content, isPublished = true, sortOrder = 0 } = req.body;
+    if (!slug || !title || !category) {
+      res.status(400).json({ error: 'slug, title, and category are required' });
+      return;
+    }
+
+    const page = await prisma.cmsPage.upsert({
+      where: { slug: String(slug).toLowerCase() },
+      update: { title, category, content: content || '', isPublished, sortOrder },
+      create: {
+        slug: String(slug).toLowerCase(),
+        title,
+        category,
+        content: content || '',
+        isPublished,
+        sortOrder,
+      },
+    });
+    res.json({ page });
+  } catch (error) {
+    console.error('Upsert CMS page error:', error);
+    res.status(500).json({ error: 'Failed to save page' });
+  }
+};
+
+export const deleteCmsPage = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const slug = String(req.params.slug);
+    await prisma.cmsPage.delete({ where: { slug } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete CMS page error:', error);
+    res.status(500).json({ error: 'Failed to delete page' });
+  }
+};
+
+// ============================================================================
 // Plans (subscription tiers)
 // ============================================================================
 

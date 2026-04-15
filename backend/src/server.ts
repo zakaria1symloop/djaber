@@ -103,6 +103,22 @@ app.use('/api/stock', stockRoutes);
 app.use('/api/user-stock', userStockRoutes);
 app.use('/api/admin', adminRoutes);
 
+// Public CMS endpoint (no auth)
+app.get('/api/cms/:slug', async (req: Request, res: Response) => {
+  try {
+    const page = await prisma.cmsPage.findFirst({
+      where: { slug: String(req.params.slug), isPublished: true },
+    });
+    if (!page) {
+      res.status(404).json({ error: 'Page not found' });
+      return;
+    }
+    res.json({ page });
+  } catch {
+    res.status(500).json({ error: 'Failed to fetch page' });
+  }
+});
+
 // 404 handler
 app.use((req: Request, res: Response) => {
   res.status(404).json({

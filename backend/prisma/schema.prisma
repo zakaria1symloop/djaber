@@ -647,6 +647,24 @@ model Plan {
 }
 
 // ============================================================================
+// CMS Pages (admin-managed static content for About, Blog, Legal, etc.)
+// ============================================================================
+
+model CmsPage {
+  id          String   @id @default(uuid())
+  slug        String   @unique // about, blog, careers, contact, privacy, terms, cookies
+  title       String
+  category    String   // company, legal
+  content     String   @db.LongText // HTML content
+  isPublished Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category, sortOrder])
+}
+
+// ============================================================================
 // Subscriptions (admin-managed user subscriptions to plans)
 // ============================================================================
 

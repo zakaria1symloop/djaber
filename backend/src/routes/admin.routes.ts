@@ -18,6 +18,10 @@ import {
   createSubscription,
   updateSubscription,
   deleteSubscription,
+  listCmsPages,
+  getCmsPage,
+  upsertCmsPage,
+  deleteCmsPage,
   listConversations,
   getConversationDetails,
   listAdminProducts,
@@ -79,6 +83,14 @@ router.get('/products', listAdminProducts);
 router.get('/lookups/categories', listAllCategories);
 router.get('/lookups/pages', listAllPages);
 router.get('/lookups/agents', listAllAgents);
+
+// ============================================================================
+// CMS Pages (company + legal)
+// ============================================================================
+router.get('/cms', listCmsPages);
+router.get('/cms/:slug', getCmsPage);
+router.post('/cms', upsertCmsPage);
+router.delete('/cms/:slug', deleteCmsPage);
 
 // ============================================================================
 // Admin profile / settings

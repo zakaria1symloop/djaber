@@ -16,6 +16,8 @@ import {
   HomeIcon,
   StarIcon,
   DollarIcon,
+  GlobeIcon,
+  FileTextIcon,
 } from '@/components/ui/icons';
 
 const adminNavItems = [
@@ -26,6 +28,8 @@ const adminNavItems = [
   { href: '/admin/ai-providers', label: 'AI Providers', icon: BoltIcon },
   { href: '/admin/products', label: 'Products', icon: BoxIcon },
   { href: '/admin/conversations', label: 'Conversations', icon: ChatIcon },
+  { href: '/admin/company', label: 'Company', icon: GlobeIcon },
+  { href: '/admin/legal', label: 'Legal', icon: FileTextIcon },
   { href: '/admin/settings', label: 'Settings', icon: SettingsIcon },
 ];
 

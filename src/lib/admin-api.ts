@@ -506,6 +506,53 @@ export async function listAdminLookupAgents(): Promise<{ agents: AdminLookupAgen
 // Admin profile
 // ============================================================================
 
+// ============================================================================
+// CMS Pages
+// ============================================================================
+
+export interface CmsPage {
+  id: string;
+  slug: string;
+  title: string;
+  category: 'company' | 'legal';
+  content: string;
+  isPublished: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function listCmsPages(category?: string): Promise<{ pages: CmsPage[] }> {
+  const qs = category ? `?category=${category}` : '';
+  return apiRequest<{ pages: CmsPage[] }>(`/api/admin/cms${qs}`);
+}
+
+export async function getCmsPage(slug: string): Promise<{ page: CmsPage }> {
+  return apiRequest<{ page: CmsPage }>(`/api/admin/cms/${slug}`);
+}
+
+export async function upsertCmsPage(data: {
+  slug: string;
+  title: string;
+  category: string;
+  content: string;
+  isPublished?: boolean;
+  sortOrder?: number;
+}): Promise<{ page: CmsPage }> {
+  return apiRequest<{ page: CmsPage }>('/api/admin/cms', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteCmsPage(slug: string): Promise<{ success: boolean }> {
+  return apiRequest(`/api/admin/cms/${slug}`, { method: 'DELETE' });
+}
+
+// ============================================================================
+// Admin profile
+// ============================================================================
+
 export async function updateAdminProfile(data: {
   firstName?: string;
   lastName?: string;
