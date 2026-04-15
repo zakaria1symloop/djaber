@@ -106,7 +106,7 @@ app.use('/api/admin', adminRoutes);
 // ============================================================================
 // Chargily Pay endpoints
 // ============================================================================
-import { createPlanCheckout, validateWebhookSignature, activateSubscriptionFromPayment, verifyCheckout, isConfigured as chargilyConfigured } from './services/chargily.service';
+import { createPlanCheckout, activateSubscriptionFromPayment, verifyCheckout, isConfigured as chargilyConfigured } from './services/chargily.service';
 import { authenticate } from './middleware/auth';
 
 // Create checkout session for a plan (authenticated user)
