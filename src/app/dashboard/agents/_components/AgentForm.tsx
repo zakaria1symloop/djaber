@@ -71,6 +71,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
   const [customInstructions, setCustomInstructions] = useState('');
   const [productTemplate, setProductTemplate] = useState('');
   const [closingInstructions, setClosingInstructions] = useState('');
+  const [humanHandoffRules, setHumanHandoffRules] = useState('');
   const [responseDelay, setResponseDelay] = useState(3);
   const templateRef = useRef<HTMLTextAreaElement>(null);
   const [aiModel, setAiModel] = useState('gpt-4o-mini');
@@ -106,6 +107,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         setCustomInstructions(agent.customInstructions || '');
         setProductTemplate(agent.productTemplate || '');
         setClosingInstructions(agent.closingInstructions || '');
+        setHumanHandoffRules(agent.humanHandoffRules || '');
         setResponseDelay(agent.responseDelay ?? 3);
         setAiModel(agent.aiModel);
         setTemperature(agent.temperature);
@@ -176,6 +178,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         customInstructions: customInstructions.trim() || undefined,
         productTemplate: productTemplate.trim() || undefined,
         closingInstructions: closingInstructions.trim() || undefined,
+        humanHandoffRules: humanHandoffRules.trim() || undefined,
         responseDelay,
         aiModel,
         temperature,
@@ -347,6 +350,21 @@ export default function AgentForm({ agentId }: AgentFormProps) {
             />
             <p className="text-xs text-zinc-500 mt-1">
               Tell the AI when and how to close conversations. If empty, it uses sensible defaults (thank after order, respond to goodbye, etc).
+            </p>
+          </div>
+
+          {/* Human Handoff Rules */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Human Intervention Rules</label>
+            <textarea
+              value={humanHandoffRules}
+              onChange={(e) => setHumanHandoffRules(e.target.value)}
+              placeholder={`Examples:\n• Customer asks about refund or return → stop AI, notify human\n• Customer asks for a discount or special offer → let human handle\n• Customer mentions a complaint or problem → transfer to human\n• Customer sends the same message 3 times → human needed\n• Customer asks about delivery tracking → human needed`}
+              rows={5}
+              className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:border-white/30 focus:outline-none transition-colors resize-none"
+            />
+            <p className="text-xs text-zinc-500 mt-1">
+              Define when the AI should stop and let a human take over. Normal greetings (slm, cava, hi) are always handled by the AI.
             </p>
           </div>
         </section>

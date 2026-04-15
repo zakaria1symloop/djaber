@@ -81,6 +81,10 @@ export const createAgent = async (req: Request, res: Response): Promise<void> =>
       description,
       personality = 'professional',
       customInstructions,
+      productTemplate,
+      closingInstructions,
+      humanHandoffRules,
+      responseDelay = 3,
       aiModel = 'gpt-4',
       temperature = 0.7,
       maxTokens = 1000,
@@ -111,6 +115,10 @@ export const createAgent = async (req: Request, res: Response): Promise<void> =>
         description: description?.trim() || null,
         personality,
         customInstructions: customInstructions?.trim() || null,
+        productTemplate: productTemplate?.trim() || null,
+        closingInstructions: closingInstructions?.trim() || null,
+        humanHandoffRules: humanHandoffRules?.trim() || null,
+        responseDelay: Number(responseDelay) || 3,
         aiModel,
         temperature,
         maxTokens,
@@ -163,6 +171,10 @@ export const updateAgent = async (req: Request, res: Response): Promise<void> =>
       description,
       personality,
       customInstructions,
+      productTemplate,
+      closingInstructions,
+      humanHandoffRules,
+      responseDelay,
       aiModel,
       temperature,
       maxTokens,
@@ -184,6 +196,10 @@ export const updateAgent = async (req: Request, res: Response): Promise<void> =>
     if (description !== undefined) updateData.description = description?.trim() || null;
     if (personality !== undefined) updateData.personality = personality;
     if (customInstructions !== undefined) updateData.customInstructions = customInstructions?.trim() || null;
+    if (productTemplate !== undefined) updateData.productTemplate = productTemplate?.trim() || null;
+    if (closingInstructions !== undefined) updateData.closingInstructions = closingInstructions?.trim() || null;
+    if (humanHandoffRules !== undefined) updateData.humanHandoffRules = humanHandoffRules?.trim() || null;
+    if (responseDelay !== undefined) updateData.responseDelay = Number(responseDelay);
     if (aiModel !== undefined) updateData.aiModel = aiModel;
     if (temperature !== undefined) updateData.temperature = temperature;
     if (maxTokens !== undefined) updateData.maxTokens = maxTokens;
@@ -352,6 +368,7 @@ export const testAgent = async (req: Request, res: Response): Promise<void> => {
         customInstructions: agent.customInstructions,
         productTemplate: agent.productTemplate || null,
         closingInstructions: agent.closingInstructions || null,
+        humanHandoffRules: agent.humanHandoffRules || null,
         aiModel: agent.aiModel,
         temperature: agent.temperature,
         maxTokens: agent.maxTokens,

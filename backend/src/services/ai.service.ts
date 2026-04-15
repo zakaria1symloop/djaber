@@ -35,6 +35,7 @@ interface AgentConfig {
   customInstructions: string | null;
   productTemplate: string | null;
   closingInstructions: string | null;
+  humanHandoffRules: string | null;
   aiModel: string;
   temperature: number;
   maxTokens: number;
@@ -673,11 +674,12 @@ ${agent.closingInstructions ? `CONVERSATION CLOSING:\n${agent.closingInstruction
 - If the customer says goodbye, thanks, or indicates they're done, respond with a brief friendly closing message.
 - If the conversation seems finished (customer got their answer, order placed), close naturally — don't keep pushing.
 `}
-HUMAN INTERVENTION:
-- If you cannot help the customer (complaint, refund request, technical issue, angry customer, repeated misunderstanding), tell them politely that a human team member will follow up shortly.
-- Use [STATUS:UNCLEAR] or [STATUS:UNKNOWN] tags (below) so the system notifies the business owner immediately.
-- CRITICAL: If the customer sends gibberish, random letters, or messages that make no sense (like "dfgdfg", "asdkjh", "????", single letters), you MUST use [STATUS:UNCLEAR] — do NOT try to interpret nonsense as a real question.
-- If the customer asks the SAME question repeatedly or seems frustrated, use [STATUS:UNCLEAR] to flag for human help.
+${agent.humanHandoffRules ? `HUMAN INTERVENTION (CUSTOM RULES):\n${agent.humanHandoffRules}` : `HUMAN INTERVENTION:
+- If you cannot help the customer (complaint, refund request, technical issue, angry customer), tell them a human team member will follow up shortly.
+- If the customer asks about something completely outside your scope (not products, not ordering), use [STATUS:UNKNOWN].
+- If the customer seems frustrated or repeats the same question 3+ times, use [STATUS:UNCLEAR].`}
+- Use [STATUS:UNCLEAR] or [STATUS:UNKNOWN] tags so the system notifies the business owner.
+- Do NOT flag normal greetings (slm, cava, hi, bonjour, wsh, cv) as unclear — those are normal conversation starters. Respond naturally.
 
 STATUS (REQUIRED — YOU MUST ALWAYS ADD THIS):
 - At the VERY END of your response, on a NEW line by itself, add exactly one status tag:

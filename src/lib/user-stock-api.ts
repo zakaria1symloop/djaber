@@ -1048,6 +1048,7 @@ export interface Agent {
   sellAllProducts: boolean;
   productTemplate: string | null;
   closingInstructions: string | null;
+  humanHandoffRules: string | null;
   responseDelay: number;
   isActive: boolean;
   createdAt: string;
@@ -1072,6 +1073,7 @@ export async function createAgent(data: {
   customInstructions?: string;
   productTemplate?: string;
   closingInstructions?: string;
+  humanHandoffRules?: string;
   responseDelay?: number;
   aiModel?: string;
   temperature?: number;
@@ -1095,6 +1097,7 @@ export async function updateAgentApi(
     customInstructions?: string;
     productTemplate?: string;
     closingInstructions?: string;
+  humanHandoffRules?: string;
     responseDelay?: number;
     aiModel?: string;
     temperature?: number;

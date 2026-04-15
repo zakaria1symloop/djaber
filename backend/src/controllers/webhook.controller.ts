@@ -341,14 +341,14 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       const agent = agentPage.agent;
       console.log(`Agent "${agent.name}" handling message on page ${pageId}`);
 
-      // Gibberish detector — flag obvious nonsense before AI wastes tokens
-      const isGibberish = messageText && (
-        // Very short random chars (less than 3 chars, no real word)
-        (messageText.length <= 3 && !/^(hi|ok|no|da|oui|non|slm|cv|wsh)$/i.test(messageText.trim())) ||
-        // Repeated same char
-        /^(.)\1{3,}$/i.test(messageText.trim()) ||
-        // Random consonants with no vowels (4+ chars)
-        (messageText.length >= 4 && !/[aeiouyéèêëàâùûôîïaeiou]/i.test(messageText))
+      // Gibberish detector — ONLY catch truly obvious nonsense like "dfghjk" or "aaaaaaa"
+      // Must be very conservative — "slm cava", "wsh", "cv" are all valid Algerian messages
+      const trimmed = (messageText || '').trim();
+      const isGibberish = trimmed.length > 0 && (
+        // Repeated same char 5+ times (like "aaaaaaa" or "xxxxxxx")
+        /^(.)\1{4,}$/i.test(trimmed) ||
+        // Single char that's not a common response (?, !, .)
+        (trimmed.length === 1 && !/^[?!.\d]$/.test(trimmed))
       );
 
       if (isGibberish) {
@@ -470,6 +470,7 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
           customInstructions: agent.customInstructions,
           productTemplate: (agent as any).productTemplate || null,
           closingInstructions: (agent as any).closingInstructions || null,
+          humanHandoffRules: (agent as any).humanHandoffRules || null,
           aiModel: agent.aiModel,
           temperature: agent.temperature,
           maxTokens: agent.maxTokens,
