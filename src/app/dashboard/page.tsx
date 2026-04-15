@@ -46,6 +46,7 @@ import {
   getOrderStats,
   getPublicPlans,
   createCheckout,
+  verifyPayment,
   type StockDashboard,
 } from '@/lib/user-stock-api';
 import { KpiCard, PeriodSelector } from '@/components/analytics/KpiCard';
@@ -98,15 +99,37 @@ function DashboardPageInner() {
     if (saved === 'simple' || saved === 'advanced') setStockMode(saved);
   }, []);
 
-  // Handle payment redirect
+  // Handle payment redirect — show toast ONCE, verify payment, then clean URL
   useEffect(() => {
     const payment = searchParams.get('payment');
     if (payment === 'success') {
-      toast.success('Payment successful! Your plan has been upgraded.');
+      // Get checkout ID from URL or localStorage
+      const checkoutId = searchParams.get('checkout_id') || localStorage.getItem('pending_checkout_id');
+      localStorage.removeItem('pending_checkout_id');
+
+      if (checkoutId) {
+        toast.success('Payment received! Activating your plan...');
+        verifyPayment(checkoutId)
+          .then(() => {
+            toast.success('Plan upgraded successfully!');
+            // Hard refresh to reload user profile with new plan
+            setTimeout(() => { window.location.href = '/dashboard?section=settings'; }, 1500);
+          })
+          .catch(() => {
+            toast.info('Payment received. Plan will activate shortly.');
+            window.history.replaceState({}, '', '/dashboard?section=settings');
+          });
+      } else {
+        toast.success('Payment successful!');
+        window.history.replaceState({}, '', '/dashboard?section=settings');
+      }
     } else if (payment === 'failed') {
+      localStorage.removeItem('pending_checkout_id');
       toast.error('Payment was cancelled or failed. Please try again.');
+      window.history.replaceState({}, '', '/dashboard?section=settings');
     }
-  }, [searchParams, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadAnalytics = async () => {
     try {
@@ -1009,6 +1032,10 @@ function DashboardPageInner() {
                               setSubscribing(plan.slug);
                               const res = await createCheckout(plan.slug, billingCycle);
                               if (res.checkoutUrl) {
+                                // Store checkout ID for verification after payment
+                                if (res.checkoutId) {
+                                  localStorage.setItem('pending_checkout_id', res.checkoutId);
+                                }
                                 window.location.href = res.checkoutUrl;
                               }
                             } catch (e) {

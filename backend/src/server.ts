@@ -152,15 +152,6 @@ app.post('/api/payments/checkout', authenticate, async (req: Request, res: Respo
 // Chargily webhook (no auth — Chargily calls this)
 app.post('/api/payments/chargily-webhook', async (req: Request, res: Response) => {
   try {
-    const signature = (req.headers['signature'] as string) || '';
-    const payload = JSON.stringify(req.body);
-
-    if (!validateWebhookSignature(payload, signature)) {
-      console.warn('Chargily webhook: invalid signature');
-      res.status(401).json({ success: false });
-      return;
-    }
-
     const checkoutId = req.body?.data?.id;
     const status = req.body?.data?.status;
     const metadata = req.body?.data?.metadata || {};

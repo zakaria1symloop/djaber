@@ -54,7 +54,7 @@ export async function createPlanCheckout({
 
   const isLocal = backendUrl.includes('localhost') || backendUrl.includes('127.0.0.1') || backendUrl.includes('192.168.');
 
-  const successUrl = `${frontendUrl}/dashboard?section=settings&payment=success`;
+  let successUrl = `${frontendUrl}/dashboard?section=settings&payment=success`;
   const failureUrl = `${frontendUrl}/dashboard?section=settings&payment=failed`;
   const webhookUrl = isLocal ? undefined : `${backendUrl}/api/payments/chargily-webhook`;
 
@@ -94,10 +94,12 @@ export async function createPlanCheckout({
     checkoutUrl = checkoutUrl.replace('http://', 'https://');
   }
 
+  const checkoutId = result.data.id;
+
   return {
     success: true,
     checkoutUrl,
-    checkoutId: result.data.id,
+    checkoutId,
     data: result.data,
   };
 }
