@@ -136,6 +136,7 @@ model Agent {
   sellAllProducts    Boolean  @default(true) // if true, agent knows entire catalog
   productTemplate    String?  @db.Text // How the AI should present products in chat
   closingInstructions String? @db.Text // When/how to close conversations
+  responseDelay      Int      @default(3) // Seconds to wait before responding (message batching)
   isActive           Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt

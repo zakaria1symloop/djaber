@@ -71,6 +71,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
   const [customInstructions, setCustomInstructions] = useState('');
   const [productTemplate, setProductTemplate] = useState('');
   const [closingInstructions, setClosingInstructions] = useState('');
+  const [responseDelay, setResponseDelay] = useState(3);
   const templateRef = useRef<HTMLTextAreaElement>(null);
   const [aiModel, setAiModel] = useState('gpt-4o-mini');
   const [temperature, setTemperature] = useState(0.7);
@@ -105,6 +106,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         setCustomInstructions(agent.customInstructions || '');
         setProductTemplate(agent.productTemplate || '');
         setClosingInstructions(agent.closingInstructions || '');
+        setResponseDelay(agent.responseDelay ?? 3);
         setAiModel(agent.aiModel);
         setTemperature(agent.temperature);
         setMaxTokens(agent.maxTokens);
@@ -173,6 +175,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         customInstructions: customInstructions.trim() || undefined,
         productTemplate: productTemplate.trim() || undefined,
         closingInstructions: closingInstructions.trim() || undefined,
+        responseDelay,
         aiModel,
         temperature,
         maxTokens,
@@ -563,6 +566,29 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:border-white/30 focus:outline-none transition-colors"
             />
             <p className="text-xs text-zinc-500 mt-1">Maximum response length (100-4096)</p>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-sm font-medium text-zinc-300">Response Delay</label>
+              <span className="text-sm font-mono text-zinc-400">{responseDelay}s</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={10}
+              step={1}
+              value={responseDelay}
+              onChange={(e) => setResponseDelay(parseInt(e.target.value))}
+              className="w-full accent-white h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-zinc-600 mt-1">
+              <span>Instant</span>
+              <span>Wait 10s</span>
+            </div>
+            <p className="text-xs text-zinc-500 mt-1">
+              Wait for more messages before responding. People often send multiple short messages — this combines them into one.
+            </p>
           </div>
         </section>
 

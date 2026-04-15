@@ -4,6 +4,7 @@ import { generateAIResponse, generateAgentResponse } from '../services/ai.servic
 import { sendMessage, sendProductCards } from '../services/meta.service';
 import { createNotification } from '../services/notification.service';
 import { trackImpressions } from '../services/recommendation.service';
+import { queueMessage, hasPendingBatch } from '../services/message-batcher';
 import prisma from '../config/database';
 
 // Regex to extract [STATUS:OK|UNCLEAR|UNKNOWN:detail] from end of AI response
@@ -397,6 +398,27 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         return;
       }
 
+      // Message batching — queue and wait for more messages before responding
+      const responseDelay = ((agent as any).responseDelay ?? 3) * 1000;
+
+      queueMessage(
+        conversation.id,
+        messageText,
+        imageUrls,
+        responseDelay,
+        async (combinedText: string, combinedImages: string[]) => {
+          // Re-fetch conversation to get latest messages (user may have sent more)
+          const freshConvo = await prisma.conversation.findUnique({
+            where: { id: conversation.id },
+            include: { messages: { orderBy: { timestamp: 'desc' }, take: 30 } },
+          });
+          if (!freshConvo || freshConvo.status !== 'active') return;
+
+          const conversationHistory = freshConvo.messages.reverse().map((msg: any) => ({
+            role: msg.isFromPage ? 'assistant' as const : 'user' as const,
+            content: msg.text || '(attachment)',
+          }));
+
       // Get products for the agent
       let products: any[];
       if (agent.sellAllProducts) {
@@ -601,7 +623,9 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         }
       }
 
-      return;
+        } // end of queueMessage callback
+      ); // end of queueMessage call
+      return; // webhook handler returns immediately, AI processes after delay
     }
 
     // ========================================================================
