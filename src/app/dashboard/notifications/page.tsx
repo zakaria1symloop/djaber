@@ -22,6 +22,7 @@ const NOTIFICATION_TYPES: Record<string, {
   label: string;
 }> = {
   ai_order: { icon: BotIcon, color: 'text-blue-400 bg-blue-500/10', label: 'AI Order' },
+  agent_insight: { icon: AlertIcon, color: 'text-red-400 bg-red-500/10', label: 'Human Needed' },
   stock_alert: { icon: AlertIcon, color: 'text-amber-400 bg-amber-500/10', label: 'Stock Alert' },
 };
 
@@ -83,9 +84,27 @@ export default function NotificationsPage() {
         console.error('Failed to mark as read:', error);
       }
     }
-    // Navigate based on type
-    if (notification.type === 'ai_order') {
-      router.push('/dashboard/stock/orders');
+    // Navigate based on type + metadata
+    const meta = notification.metadata || {};
+    switch (notification.type) {
+      case 'ai_order':
+        router.push('/dashboard/stock/orders');
+        break;
+      case 'agent_insight':
+        // Navigate to the page's messages tab to handle the conversation
+        if (meta.conversationId) {
+          // Find which page this conversation belongs to — go to messages
+          router.push('/dashboard/notifications'); // stay here but mark as read
+        }
+        if (meta.agentId) {
+          router.push(`/dashboard/agents/${meta.agentId}`);
+        }
+        break;
+      case 'stock_alert':
+        router.push('/dashboard/stock/products');
+        break;
+      default:
+        break;
     }
   };
 
@@ -101,6 +120,7 @@ export default function NotificationsPage() {
   // Stats
   const unreadCount = notifications.filter((n) => !n.isRead).length;
   const aiOrderCount = notifications.filter((n) => n.type === 'ai_order').length;
+  const humanNeededCount = notifications.filter((n) => n.type === 'agent_insight').length;
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
   const thisWeekCount = notifications.filter((n) => new Date(n.createdAt) >= weekAgo).length;
@@ -129,7 +149,7 @@ export default function NotificationsPage() {
           { label: 'Total', value: total, color: 'text-white' },
           { label: 'Unread', value: unreadCount, color: 'text-blue-400' },
           { label: 'AI Orders', value: aiOrderCount, color: 'text-emerald-400' },
-          { label: 'This Week', value: thisWeekCount, color: 'text-purple-400' },
+          { label: 'Human Needed', value: humanNeededCount, color: 'text-red-400' },
         ].map((stat) => (
           <div key={stat.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <p className="text-xs text-zinc-500 uppercase tracking-wider">{stat.label}</p>
