@@ -676,12 +676,15 @@ ${agent.closingInstructions ? `CONVERSATION CLOSING:\n${agent.closingInstruction
 HUMAN INTERVENTION:
 - If you cannot help the customer (complaint, refund request, technical issue, angry customer, repeated misunderstanding), tell them politely that a human team member will follow up shortly.
 - Use [STATUS:UNCLEAR] or [STATUS:UNKNOWN] tags (below) so the system notifies the business owner immediately.
+- CRITICAL: If the customer sends gibberish, random letters, or messages that make no sense (like "dfgdfg", "asdkjh", "????", single letters), you MUST use [STATUS:UNCLEAR] — do NOT try to interpret nonsense as a real question.
+- If the customer asks the SAME question repeatedly or seems frustrated, use [STATUS:UNCLEAR] to flag for human help.
 
-STATUS (REQUIRED):
-- IMPORTANT: At the very end of your response, on a NEW line, you MUST add exactly one status tag (this is for internal tracking and will be removed before delivery):
-  [STATUS:OK] — if you understood the customer and answered properly
-  [STATUS:UNCLEAR:brief reason] — if you couldn't understand the customer's message or couldn't properly answer. This triggers an URGENT notification to the business owner.
-  [STATUS:UNKNOWN:what they asked about] — if the customer asked about something not in your catalog or knowledge. This triggers an URGENT notification to the business owner.`;
+STATUS (REQUIRED — YOU MUST ALWAYS ADD THIS):
+- At the VERY END of your response, on a NEW line by itself, add exactly one status tag:
+  [STATUS:OK] — ONLY if you clearly understood the customer AND gave a helpful answer about products/ordering
+  [STATUS:UNCLEAR:reason] — if the message is gibberish, unclear, or you're not confident you understood. This pauses the AI and alerts the owner. Use this MORE often — when in doubt, flag it.
+  [STATUS:UNKNOWN:topic] — if the customer asked about something NOT in your catalog or outside your scope. This also alerts the owner.
+- When in doubt between OK and UNCLEAR, choose UNCLEAR. It's better to ask for human help than give a wrong answer.`;
 
     // Build messages
     const messages: any[] = [

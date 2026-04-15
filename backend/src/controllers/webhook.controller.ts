@@ -322,6 +322,52 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       const agent = agentPage.agent;
       console.log(`Agent "${agent.name}" handling message on page ${pageId}`);
 
+      // Gibberish detector — flag obvious nonsense before AI wastes tokens
+      const isGibberish = messageText && (
+        // Very short random chars (less than 3 chars, no real word)
+        (messageText.length <= 3 && !/^(hi|ok|no|da|oui|non|slm|cv|wsh)$/i.test(messageText.trim())) ||
+        // Repeated same char
+        /^(.)\1{3,}$/i.test(messageText.trim()) ||
+        // Random consonants with no vowels (4+ chars)
+        (messageText.length >= 4 && !/[aeiouyéèêëàâùûôîïaeiou]/i.test(messageText))
+      );
+
+      if (isGibberish) {
+        console.log(`Gibberish detected: "${messageText}" — flagging for human`);
+        const politeReply = 'Désolé, je n\'ai pas compris votre message. Un membre de notre équipe va vous répondre bientôt. 😊';
+        await sendMessage({
+          pageAccessToken: page.pageAccessToken,
+          recipientId: senderId,
+          message: politeReply,
+          platform: page.platform as 'facebook' | 'instagram',
+        });
+        await prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            messageId: `agent_${Date.now()}`,
+            senderId: recipientId,
+            recipientId: senderId,
+            text: politeReply,
+            timestamp: new Date(),
+            isFromPage: true,
+          },
+        });
+        // Pause conversation for human takeover
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: { status: 'resolved' },
+        });
+        // Create notification
+        await createNotification({
+          userId: page.userId,
+          type: 'agent_insight',
+          title: 'Human Intervention Needed',
+          message: `Customer sent unclear message: "${messageText}". AI paused — waiting for human response.`,
+          metadata: { conversationId: conversation.id, agentId: agent.id, customerMessage: messageText },
+        });
+        return;
+      }
+
       // Get products for the agent
       let products: any[];
       if (agent.sellAllProducts) {
