@@ -258,7 +258,11 @@ export const deleteAgent = async (req: Request, res: Response): Promise<void> =>
 
     if (!existing) { res.status(404).json({ error: 'Agent not found' }); return; }
 
-    await prisma.agent.delete({ where: { id: agentId } }); // Cascades to AgentPage, AgentProduct
+    // Explicitly clean up related records before deleting (belt + suspenders with cascade)
+    await prisma.agentPage.deleteMany({ where: { agentId } });
+    await prisma.agentProduct.deleteMany({ where: { agentId } });
+    await prisma.agentInsight.deleteMany({ where: { agentId } });
+    await prisma.agent.delete({ where: { id: agentId } });
 
     res.json({ success: true });
   } catch (error) {
