@@ -874,6 +874,32 @@ export interface Order {
   client?: Client | null;
 }
 
+// ============================================================================
+// Payments (Chargily)
+// ============================================================================
+
+export async function getPublicPlans(): Promise<{ plans: Array<{ id: string; slug: string; name: string; description: string | null; priceMonthly: string; priceYearly: string; currency: string; maxPages: number; maxAgents: number; maxProducts: number; maxConversations: number; maxTeamMembers: number; features: string[]; isFeatured: boolean }> }> {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:6001';
+  const res = await fetch(`${API_URL}/api/plans`);
+  if (!res.ok) throw new Error('Failed to fetch plans');
+  return res.json();
+}
+
+export async function createCheckout(planSlug: string, billingCycle: 'monthly' | 'yearly' = 'monthly'): Promise<{ checkoutUrl: string; checkoutId: string }> {
+  return apiRequest('/api/payments/checkout', {
+    method: 'POST',
+    body: JSON.stringify({ planSlug, billingCycle }),
+  });
+}
+
+export async function verifyPayment(checkoutId: string): Promise<{ status: string; data: any }> {
+  return apiRequest(`/api/payments/verify/${checkoutId}`);
+}
+
+// ============================================================================
+// Orders
+// ============================================================================
+
 export async function getOrderStats(
   period?: 'today' | 'week' | 'month' | 'year'
 ): Promise<{

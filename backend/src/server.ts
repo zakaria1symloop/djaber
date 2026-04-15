@@ -103,6 +103,132 @@ app.use('/api/stock', stockRoutes);
 app.use('/api/user-stock', userStockRoutes);
 app.use('/api/admin', adminRoutes);
 
+// ============================================================================
+// Chargily Pay endpoints
+// ============================================================================
+import { createPlanCheckout, validateWebhookSignature, activateSubscriptionFromPayment, verifyCheckout, isConfigured as chargilyConfigured } from './services/chargily.service';
+import { authenticate } from './middleware/auth';
+
+// Create checkout session for a plan (authenticated user)
+app.post('/api/payments/checkout', authenticate, async (req: Request, res: Response) => {
+  try {
+    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!chargilyConfigured()) { res.status(503).json({ error: 'Payment gateway not configured' }); return; }
+
+    const { planSlug, billingCycle = 'monthly' } = req.body;
+    if (!planSlug) { res.status(400).json({ error: 'planSlug is required' }); return; }
+
+    const plan = await prisma.plan.findUnique({ where: { slug: planSlug } });
+    if (!plan || !plan.isActive) { res.status(404).json({ error: 'Plan not found or inactive' }); return; }
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+
+    const amount = billingCycle === 'yearly' ? Number(plan.priceYearly) : Number(plan.priceMonthly);
+    if (amount <= 0) { res.status(400).json({ error: 'This plan is free — no payment needed' }); return; }
+
+    const result = await createPlanCheckout({
+      userId: user.id,
+      userEmail: user.email,
+      userName: `${user.firstName} ${user.lastName}`,
+      planSlug: plan.slug,
+      planName: plan.name,
+      amount,
+      billingCycle,
+    });
+
+    if (!result.success) {
+      res.status(502).json({ error: result.error || 'Failed to create checkout' });
+      return;
+    }
+
+    res.json({ checkoutUrl: result.checkoutUrl, checkoutId: result.checkoutId });
+  } catch (error) {
+    console.error('Checkout error:', error);
+    res.status(500).json({ error: 'Failed to create checkout' });
+  }
+});
+
+// Chargily webhook (no auth — Chargily calls this)
+app.post('/api/payments/chargily-webhook', async (req: Request, res: Response) => {
+  try {
+    const signature = (req.headers['signature'] as string) || '';
+    const payload = JSON.stringify(req.body);
+
+    if (!validateWebhookSignature(payload, signature)) {
+      console.warn('Chargily webhook: invalid signature');
+      res.status(401).json({ success: false });
+      return;
+    }
+
+    const checkoutId = req.body?.data?.id;
+    const status = req.body?.data?.status;
+    const metadata = req.body?.data?.metadata || {};
+
+    console.log('Chargily webhook:', { checkoutId, status, metadata });
+
+    if (status === 'paid' && metadata.user_id && metadata.plan_slug) {
+      await activateSubscriptionFromPayment({
+        userId: metadata.user_id,
+        planSlug: metadata.plan_slug,
+        billingCycle: metadata.billing_cycle || 'monthly',
+        checkoutId: checkoutId || '',
+      });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Chargily webhook error:', error);
+    res.json({ success: true }); // Always 200 so Chargily doesn't retry
+  }
+});
+
+// Verify payment status (authenticated user)
+app.get('/api/payments/verify/:checkoutId', authenticate, async (req: Request, res: Response) => {
+  try {
+    const result = await verifyCheckout(String(req.params.checkoutId));
+    if (result.success && result.data?.status === 'paid') {
+      const metadata = result.data.metadata || {};
+      if (metadata.user_id && metadata.plan_slug) {
+        await activateSubscriptionFromPayment({
+          userId: metadata.user_id,
+          planSlug: metadata.plan_slug,
+          billingCycle: metadata.billing_cycle || 'monthly',
+          checkoutId: result.data.id || '',
+        });
+      }
+    }
+    res.json({ status: result.data?.status || 'unknown', data: result.data });
+  } catch (error) {
+    console.error('Verify payment error:', error);
+    res.status(500).json({ error: 'Failed to verify payment' });
+  }
+});
+
+// Public plans endpoint (no auth — for pricing page)
+app.get('/api/plans', async (req: Request, res: Response) => {
+  try {
+    const plans = await prisma.plan.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      select: {
+        id: true, slug: true, name: true, description: true,
+        priceMonthly: true, priceYearly: true, currency: true,
+        maxPages: true, maxAgents: true, maxProducts: true,
+        maxConversations: true, maxTeamMembers: true,
+        features: true, isFeatured: true,
+      },
+    });
+    const parsed = plans.map((p) => ({
+      ...p,
+      features: (() => { try { return JSON.parse(p.features); } catch { return []; } })(),
+    }));
+    res.json({ plans: parsed });
+  } catch {
+    res.status(500).json({ error: 'Failed to fetch plans' });
+  }
+});
+
 // Public CMS endpoint (no auth)
 app.get('/api/cms/:slug', async (req: Request, res: Response) => {
   try {
