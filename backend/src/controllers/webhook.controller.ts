@@ -316,7 +316,17 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       // Skip AI if conversation is paused for human intervention
       if (conversation.status !== 'active') {
         console.log(`Conversation ${conversation.id} is "${conversation.status}" — skipping AI, human takeover`);
-        // Still notify the owner that customer is waiting
+        // Create insight + notify the owner that customer is waiting
+        await prisma.agentInsight.create({
+          data: {
+            agentId: agentPage.agent.id,
+            conversationId: conversation.id,
+            type: 'unclear',
+            customerMessage: messageText || '(attachment)',
+            aiResponse: '(AI paused — human takeover)',
+            detail: 'Customer still waiting while AI is paused',
+          },
+        });
         await createNotification({
           userId: page.userId,
           type: 'agent_insight',
@@ -364,6 +374,17 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         await prisma.conversation.update({
           where: { id: conversation.id },
           data: { status: 'resolved' },
+        });
+        // Create insight record (shows in Agent Insights)
+        await prisma.agentInsight.create({
+          data: {
+            agentId: agent.id,
+            conversationId: conversation.id,
+            type: 'unclear',
+            customerMessage: messageText || '[gibberish]',
+            aiResponse: politeReply,
+            detail: 'Gibberish detected — auto-flagged for human',
+          },
         });
         // Create notification
         await createNotification({
