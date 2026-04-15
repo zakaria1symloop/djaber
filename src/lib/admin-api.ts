@@ -389,9 +389,12 @@ export interface AdminConversation {
 export interface AdminConversationDetails extends AdminConversation {
   messages: Array<{
     id: string;
-    content: string;
-    sender: string;
-    senderType: string;
+    text: string | null;
+    isFromPage: boolean;
+    timestamp: string;
+    senderId: string;
+    attachmentType?: string | null;
+    attachmentUrl?: string | null;
     createdAt: string;
   }>;
 }

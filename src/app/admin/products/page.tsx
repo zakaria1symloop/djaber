@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   listAdminProducts,
   listAdminLookupCategories,
+  listAdminUsers,
   type AdminProduct,
   type AdminLookupCategory,
+  type AdminUser,
 } from '@/lib/admin-api';
 import { useToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui';
@@ -41,12 +43,14 @@ export default function AdminProductsPage() {
   const [sortBy, setSortBy] = useState<'createdAt' | 'name' | 'sellingPrice' | 'quantity'>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [categories, setCategories] = useState<AdminLookupCategory[]>([]);
+  const [allUsers, setAllUsers] = useState<AdminUser[]>([]);
+  const [userFilterId, setUserFilterId] = useState('');
+  const [userFilterSearch, setUserFilterSearch] = useState('');
 
-  // Load categories for the dropdown
+  // Load categories + users for filter dropdowns
   useEffect(() => {
-    listAdminLookupCategories()
-      .then((res) => setCategories(res.categories))
-      .catch(() => {});
+    listAdminLookupCategories().then((res) => setCategories(res.categories)).catch(() => {});
+    listAdminUsers({ limit: 500 }).then((res) => setAllUsers(res.users)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -67,6 +71,7 @@ export default function AdminProductsPage() {
         minStock: minStock ? Number(minStock) : undefined,
         maxStock: maxStock ? Number(maxStock) : undefined,
         hasImage: hasImageFilter === 'all' ? undefined : hasImageFilter === 'with',
+        userId: userFilterId || undefined,
         limit: 100,
       });
       setProducts(res.products);
@@ -81,7 +86,7 @@ export default function AdminProductsPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, stockFilter, statusFilter, categoryId, minPrice, maxPrice, minStock, maxStock, hasImageFilter]);
+  }, [debouncedSearch, stockFilter, statusFilter, categoryId, minPrice, maxPrice, minStock, maxStock, hasImageFilter, userFilterId]);
 
   const filtered = useMemo(() => {
     const owner = ownerSearch.trim().toLowerCase();
@@ -132,6 +137,7 @@ export default function AdminProductsPage() {
     (minStock ? 1 : 0) +
     (maxStock ? 1 : 0) +
     (minMargin ? 1 : 0) +
+    (userFilterId ? 1 : 0) +
     (sortBy !== 'createdAt' || sortOrder !== 'desc' ? 1 : 0);
 
   const stats = useMemo(() => {
@@ -152,6 +158,8 @@ export default function AdminProductsPage() {
     setMinStock('');
     setMaxStock('');
     setMinMargin('');
+    setUserFilterId('');
+    setUserFilterSearch('');
     setSortBy('createdAt');
     setSortOrder('desc');
   };
@@ -337,11 +345,42 @@ export default function AdminProductsPage() {
         <FilterSection label="Owner">
           <input
             type="text"
-            value={ownerSearch}
-            onChange={(e) => setOwnerSearch(e.target.value)}
-            placeholder="Search owner email or name"
-            className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
+            value={userFilterSearch}
+            onChange={(e) => { setUserFilterSearch(e.target.value); if (!e.target.value) setUserFilterId(''); }}
+            placeholder="Search user by email or name…"
+            className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none mb-2"
           />
+          {userFilterSearch.trim() && (
+            <div className="max-h-40 overflow-y-auto bg-black/40 border border-white/5 rounded-lg divide-y divide-white/5">
+              {allUsers
+                .filter((u) => {
+                  const q = userFilterSearch.toLowerCase();
+                  return u.email.toLowerCase().includes(q) || u.firstName.toLowerCase().includes(q) || u.lastName.toLowerCase().includes(q);
+                })
+                .slice(0, 10)
+                .map((u) => (
+                  <button
+                    key={u.id}
+                    onClick={() => { setUserFilterId(u.id); setUserFilterSearch(`${u.firstName} ${u.lastName}`); }}
+                    className={`w-full text-left px-3 py-2 hover:bg-white/5 transition-colors ${userFilterId === u.id ? 'bg-white/10' : ''}`}
+                  >
+                    <p className="text-xs text-white">{u.firstName} {u.lastName}</p>
+                    <p className="text-[10px] text-zinc-500">{u.email}</p>
+                  </button>
+                ))}
+              {allUsers.filter((u) => {
+                const q = userFilterSearch.toLowerCase();
+                return u.email.toLowerCase().includes(q) || u.firstName.toLowerCase().includes(q) || u.lastName.toLowerCase().includes(q);
+              }).length === 0 && (
+                <p className="px-3 py-2 text-xs text-zinc-600">No users found</p>
+              )}
+            </div>
+          )}
+          {userFilterId && (
+            <button onClick={() => { setUserFilterId(''); setUserFilterSearch(''); }} className="text-[11px] text-zinc-500 hover:text-white mt-1 underline">
+              Clear user filter
+            </button>
+          )}
         </FilterSection>
 
         <FilterSection label="Image">

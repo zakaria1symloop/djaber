@@ -120,8 +120,10 @@ export default function AdminConversationDetailPage() {
           <div className="p-12 text-center text-sm text-zinc-500">No messages in this conversation</div>
         ) : (
           <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
-            {data.messages.map((msg) => {
-              const isAi = msg.senderType === 'ai' || msg.senderType === 'agent' || msg.senderType === 'bot' || msg.senderType === 'page';
+            {data.messages.map((msg: any) => {
+              const isAi = msg.isFromPage === true;
+              const text = msg.text || msg.content || '(attachment)';
+              const time = msg.timestamp || msg.createdAt;
               return (
                 <div key={msg.id} className={`flex gap-3 ${isAi ? 'flex-row-reverse' : ''}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
@@ -129,14 +131,14 @@ export default function AdminConversationDetailPage() {
                   }`}>
                     {isAi ? <BotIcon className="w-4 h-4" /> : (data.senderName || '?').charAt(0).toUpperCase()}
                   </div>
-                  <div className={`max-w-[70%] ${isAi ? 'items-end' : ''}`}>
-                    <div className={`px-4 py-2.5 rounded-2xl text-sm ${
+                  <div className={`max-w-[70%]`}>
+                    <div className={`px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${
                       isAi ? 'bg-emerald-500/10 border border-emerald-500/20 text-zinc-100' : 'bg-white/5 border border-white/10 text-zinc-100'
                     }`}>
-                      {msg.content}
+                      {text}
                     </div>
                     <p className={`text-[10px] text-zinc-600 mt-1 ${isAi ? 'text-right' : ''}`}>
-                      {new Date(msg.createdAt).toLocaleString()} · {msg.senderType}
+                      {new Date(time).toLocaleString()} · {isAi ? 'AI' : 'Customer'}
                     </p>
                   </div>
                 </div>
