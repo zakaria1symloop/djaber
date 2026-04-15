@@ -408,11 +408,47 @@ export const getConversationMessagesController = async (req: Request, res: Respo
         timestamp: m.timestamp,
         isFromPage: m.isFromPage,
         senderId: m.senderId,
+        attachmentType: m.attachmentType,
+        attachmentUrl: m.attachmentUrl,
       })),
     });
   } catch (error) {
     console.error('Get conversation messages error:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+};
+
+export const updateConversationController = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+
+    const conversationId = req.params.conversationId as string;
+    const { status } = req.body; // active, resolved, archived
+
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        OR: [
+          { userId: req.user.userId },
+          { page: { userId: req.user.userId } },
+        ],
+      },
+    });
+
+    if (!conversation) {
+      res.status(404).json({ error: 'Conversation not found' });
+      return;
+    }
+
+    const updated = await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { status },
+    });
+
+    res.json({ conversation: updated });
+  } catch (error) {
+    console.error('Update conversation error:', error);
+    res.status(500).json({ error: 'Failed to update conversation' });
   }
 };
 

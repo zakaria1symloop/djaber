@@ -6,6 +6,7 @@ import {
   getPageAISettingsController,
   updatePageAISettingsController,
   getConversationMessagesController,
+  updateConversationController,
   sendReplyController,
 } from '../controllers/page-config.controller';
 import { authenticate } from '../middleware/auth';
@@ -16,6 +17,9 @@ const router = Router();
 
 // Get messages for a specific conversation
 router.get('/conversations/:conversationId/messages', authenticate, getConversationMessagesController);
+
+// Update conversation status (close, resolve, archive)
+router.patch('/conversations/:conversationId', authenticate, updateConversationController);
 
 // Send reply to conversation
 router.post('/conversations/:conversationId/reply', authenticate, sendReplyController);

@@ -156,6 +156,19 @@ export async function updatePageAISettings(
 }
 
 /**
+ * Update conversation status (close/resolve/archive)
+ */
+export async function updateConversationStatus(
+  conversationId: string,
+  status: 'active' | 'resolved' | 'archived'
+): Promise<{ conversation: any }> {
+  return apiRequest(`/api/pages/conversations/${conversationId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
+/**
  * Get all messages for a specific conversation
  */
 export async function getConversationMessages(
