@@ -78,8 +78,10 @@ export async function createPlanCheckout({
     checkoutData.webhook_endpoint = webhookUrl;
   }
 
-  if (userName) checkoutData.customer_name = userName;
-  if (userEmail) checkoutData.customer_email = userEmail;
+  // Chargily V2 doesn't accept customer_name/customer_email as top-level params
+  // Pass them in metadata instead
+  if (userName) (metadata as any).customer_name = userName;
+  if (userEmail) (metadata as any).customer_email = userEmail;
 
   const result = await chargilyRequest('post', '/checkouts', checkoutData);
 
