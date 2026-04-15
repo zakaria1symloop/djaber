@@ -122,8 +122,10 @@ export default function AdminConversationDetailPage() {
           <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
             {data.messages.map((msg: any) => {
               const isAi = msg.isFromPage === true;
-              const text = msg.text || msg.content || '(attachment)';
+              const text = msg.text;
               const time = msg.timestamp || msg.createdAt;
+              const hasImage = msg.attachmentUrl && (msg.attachmentType === 'image' || msg.attachmentUrl?.match(/\.(jpg|jpeg|png|gif|webp)/i));
+              const hasAttachment = msg.attachmentUrl && !hasImage;
               return (
                 <div key={msg.id} className={`flex gap-3 ${isAi ? 'flex-row-reverse' : ''}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
@@ -131,12 +133,29 @@ export default function AdminConversationDetailPage() {
                   }`}>
                     {isAi ? <BotIcon className="w-4 h-4" /> : (data.senderName || '?').charAt(0).toUpperCase()}
                   </div>
-                  <div className={`max-w-[70%]`}>
-                    <div className={`px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${
-                      isAi ? 'bg-emerald-500/10 border border-emerald-500/20 text-zinc-100' : 'bg-white/5 border border-white/10 text-zinc-100'
-                    }`}>
-                      {text}
-                    </div>
+                  <div className="max-w-[70%] space-y-1">
+                    {hasImage && (
+                      <a href={msg.attachmentUrl} target="_blank" rel="noopener noreferrer">
+                        <img src={msg.attachmentUrl} alt="" className="max-w-full max-h-48 rounded-xl border border-white/10 object-cover hover:opacity-90 transition-opacity" />
+                      </a>
+                    )}
+                    {hasAttachment && (
+                      <a href={msg.attachmentUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-blue-400 hover:text-blue-300">
+                        📎 {msg.attachmentType || 'file'}
+                      </a>
+                    )}
+                    {text && (
+                      <div className={`px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${
+                        isAi ? 'bg-emerald-500/10 border border-emerald-500/20 text-zinc-100' : 'bg-white/5 border border-white/10 text-zinc-100'
+                      }`}>
+                        {text}
+                      </div>
+                    )}
+                    {!text && !msg.attachmentUrl && (
+                      <div className="px-4 py-2.5 rounded-2xl text-sm bg-white/5 border border-white/10 text-zinc-500 italic">
+                        (empty message)
+                      </div>
+                    )}
                     <p className={`text-[10px] text-zinc-600 mt-1 ${isAi ? 'text-right' : ''}`}>
                       {new Date(time).toLocaleString()} · {isAi ? 'AI' : 'Customer'}
                     </p>
