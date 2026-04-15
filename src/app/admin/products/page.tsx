@@ -141,10 +141,10 @@ export default function AdminProductsPage() {
     (sortBy !== 'createdAt' || sortOrder !== 'desc' ? 1 : 0);
 
   const stats = useMemo(() => {
-    const totalValue = products.reduce((s, p) => s + Number(p.costPrice) * p.quantity, 0);
     const lowStock = products.filter((p) => p.isLowStock).length;
     const owners = new Set(products.map((p) => p.owner?.id).filter(Boolean)).size;
-    return { total, lowStock, totalValue, owners };
+    const active = products.filter((p) => p.isActive).length;
+    return { total, lowStock, owners, active };
   }, [products, total]);
 
   const clearFilters = () => {
@@ -189,12 +189,9 @@ export default function AdminProductsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <StatCard label="Total Products" value={stats.total.toString()} />
+        <StatCard label="Active" value={stats.active.toString()} />
         <StatCard label="Low Stock" value={stats.lowStock.toString()} />
-        <StatCard label="Stock Owners" value={stats.owners.toString()} />
-        <StatCard
-          label="Stock Value"
-          value={`${stats.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })} DA`}
-        />
+        <StatCard label="Users" value={stats.owners.toString()} />
       </div>
 
       <div className="relative mb-4">
@@ -223,10 +220,8 @@ export default function AdminProductsPage() {
                   <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Product</th>
                   <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider hidden md:table-cell">Owner</th>
                   <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider hidden lg:table-cell">Category</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-right">Cost</th>
                   <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-right">Price</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-center">Stock</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-center">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -264,21 +259,18 @@ export default function AdminProductsPage() {
                         <span className="text-xs text-zinc-700">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right text-xs text-zinc-300">
-                      {Number(p.costPrice).toLocaleString()} DA
-                    </td>
-                    <td className="px-4 py-3 text-right text-xs text-emerald-400">
+                    <td className="px-4 py-3 text-right text-xs text-white">
                       {Number(p.sellingPrice).toLocaleString()} DA
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <Badge variant={p.isLowStock ? 'warning' : 'success'} size="sm">
-                        {p.quantity}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={p.isActive ? 'success' : 'default'} size="sm">
-                        {p.isActive ? 'Active' : 'Inactive'}
-                      </Badge>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <Badge variant={p.isActive ? 'success' : 'default'} size="sm">
+                          {p.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                        {p.isLowStock && (
+                          <Badge variant="warning" size="sm">Low</Badge>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
