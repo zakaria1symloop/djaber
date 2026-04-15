@@ -161,6 +161,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
     e.preventDefault();
     if (!name.trim()) {
       setError('Agent name is required');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
@@ -194,6 +195,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
       router.push('/dashboard/agents');
     } catch (err: any) {
       setError(err?.message || 'Failed to save agent');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSaving(false);
     }
