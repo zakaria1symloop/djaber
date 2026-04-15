@@ -147,12 +147,13 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
         </button>
       </div>
 
-      {/* Metrics Grid */}
+      {/* Metrics Grid — only show if we have real data */}
+      {metrics.some((m) => m.value > 0) && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {metrics.map((metric) => (
           <div
             key={metric.name}
-            className="bg-[#0a0a0a] border border-white/10 rounded-xl p-6 hover:border-white/20 transition-all"
+            className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 hover:border-white/20 transition-all"
           >
             <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${colorClasses[metric.color as keyof typeof colorClasses]} flex items-center justify-center mb-4`}>
               <div className="text-white">{metric.icon}</div>
@@ -164,6 +165,7 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
           </div>
         ))}
       </div>
+      )}
 
       {/* Stock & Inventory link card */}
       <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">

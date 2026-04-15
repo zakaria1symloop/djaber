@@ -316,6 +316,14 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       // Skip AI if conversation is paused for human intervention
       if (conversation.status !== 'active') {
         console.log(`Conversation ${conversation.id} is "${conversation.status}" — skipping AI, human takeover`);
+        // Still notify the owner that customer is waiting
+        await createNotification({
+          userId: page.userId,
+          type: 'agent_insight',
+          title: 'Customer Still Waiting',
+          message: `Customer sent: "${(messageText || '(attachment)').substring(0, 100)}". AI is paused — please respond manually.`,
+          metadata: { conversationId: conversation.id, agentId: agentPage.agent.id, customerMessage: messageText || '(attachment)' },
+        });
         return;
       }
 

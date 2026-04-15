@@ -127,13 +127,12 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
       getUnreadCount()
         .then((data) => {
           const newCount = data.count;
-          // If count increased, trigger urgent alert
+          // If count increased, trigger alert sound
           if (newCount > prevUnreadRef.current && prevUnreadRef.current >= 0) {
-            setUrgentAlert(true);
             playAlertSound();
-            // Auto-dismiss after 5 seconds
-            setTimeout(() => setUrgentAlert(false), 5000);
           }
+          // Keep pulsing as long as there are unread notifications
+          setUrgentAlert(newCount > 0);
           prevUnreadRef.current = newCount;
           setUnreadCount(newCount);
         })
