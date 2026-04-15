@@ -44,9 +44,12 @@ import {
   getSalesStats,
   getPurchaseStats,
   getOrderStats,
+  getPublicPlans,
+  createCheckout,
   type StockDashboard,
 } from '@/lib/user-stock-api';
 import { KpiCard, PeriodSelector } from '@/components/analytics/KpiCard';
+import { useToast } from '@/components/ui/Toast';
 
 export default function DashboardPage() {
   return (
@@ -61,10 +64,16 @@ function DashboardPageInner() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const { pages, loading: pagesLoading, connectFacebookPage, connectInstagramPage, disconnectPage } = usePages();
+  const toast = useToast();
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState<string | null>(null);
   const [activePlatformTab, setActivePlatformTab] = useState('all');
   const [stockMode, setStockMode] = useState<'simple' | 'advanced'>('simple');
   const activeSection = searchParams.get('section') || 'overview';
+
+  // Plans + billing
+  const [availablePlans, setAvailablePlans] = useState<Array<{ id: string; slug: string; name: string; description: string | null; priceMonthly: string; priceYearly: string; currency: string; maxPages: number; maxProducts: number; maxConversations: number; features: string[]; isFeatured: boolean }>>([]);
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [subscribing, setSubscribing] = useState<string | null>(null);
 
   // Analytics state
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'today' | 'week' | 'month' | 'year'>('month');
@@ -115,6 +124,9 @@ function DashboardPageInner() {
   useEffect(() => {
     if (activeSection === 'analytics' || activeSection === 'overview') {
       loadAnalytics();
+    }
+    if (activeSection === 'settings') {
+      getPublicPlans().then((res) => setAvailablePlans(res.plans)).catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection, analyticsPeriod]);
@@ -896,26 +908,121 @@ function DashboardPageInner() {
             </div>
 
             <div>
-              <h2 className="text-xl font-bold text-white mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>Plan & Billing</h2>
-              <Card>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-white font-semibold mb-1">Current Plan</p>
-                    <p className="text-zinc-400 text-sm">You are on the <span className="text-white capitalize">{user?.plan || 'Free'}</span> plan</p>
-                  </div>
-                  <Badge variant="info" size="md">{user?.plan || 'Free'}</Badge>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Plan & Billing</h2>
+                <div className="inline-flex items-center bg-zinc-900/60 border border-white/10 rounded-lg p-1">
+                  <button
+                    onClick={() => setBillingCycle('monthly')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${billingCycle === 'monthly' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'}`}
+                  >
+                    Monthly
+                  </button>
+                  <button
+                    onClick={() => setBillingCycle('yearly')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${billingCycle === 'yearly' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'}`}
+                  >
+                    Yearly
+                  </button>
                 </div>
-                <div className="pt-4 border-t border-white/10">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-zinc-400 text-sm">Pages Limit</span>
-                    <span className="text-white text-sm">{pages.length} / 10</span>
-                  </div>
-                  <div className="w-full bg-zinc-800 rounded-full h-2 mb-4">
-                    <div className="bg-white h-2 rounded-full transition-all" style={{ width: `${(pages.length / 10) * 100}%` }} />
-                  </div>
-                  <Button className="w-full">Upgrade Plan</Button>
+              </div>
+
+              {/* Current plan badge */}
+              <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4 mb-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-zinc-500 uppercase tracking-wider mb-0.5">Current plan</p>
+                  <p className="text-white font-semibold capitalize">{user?.plan || 'Free'}</p>
                 </div>
-              </Card>
+                <Badge variant="info" size="md">{user?.plan || 'Free'}</Badge>
+              </div>
+
+              {/* Plan cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {availablePlans.map((plan) => {
+                  const price = billingCycle === 'yearly' ? Number(plan.priceYearly) : Number(plan.priceMonthly);
+                  const isCurrent = user?.plan === plan.slug;
+                  const isFree = price === 0;
+
+                  return (
+                    <div
+                      key={plan.id}
+                      className={`bg-zinc-900/50 border rounded-xl p-5 flex flex-col transition-colors ${
+                        plan.isFeatured ? 'border-white/30' : 'border-white/10'
+                      } ${isCurrent ? 'ring-1 ring-emerald-500/30' : ''}`}
+                    >
+                      {/* Header */}
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-base font-semibold text-white">{plan.name}</h3>
+                        {isCurrent && <Badge variant="success" size="sm">Current</Badge>}
+                        {plan.isFeatured && !isCurrent && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white font-medium uppercase tracking-wider">Popular</span>
+                        )}
+                      </div>
+
+                      {/* Price */}
+                      <div className="mb-3">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-3xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
+                            {isFree ? 'Free' : price.toLocaleString()}
+                          </span>
+                          {!isFree && (
+                            <span className="text-sm text-zinc-500">{plan.currency}/{billingCycle === 'yearly' ? 'yr' : 'mo'}</span>
+                          )}
+                        </div>
+                        {plan.description && <p className="text-xs text-zinc-500 mt-1">{plan.description}</p>}
+                      </div>
+
+                      {/* Features */}
+                      <ul className="space-y-1.5 mb-5 flex-1">
+                        {(plan.features || []).slice(0, 6).map((f, i) => (
+                          <li key={i} className="flex items-start gap-2 text-xs text-zinc-300">
+                            <svg className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+
+                      {/* Action */}
+                      {isCurrent ? (
+                        <div className="px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-center text-xs font-medium text-emerald-400">
+                          Your current plan
+                        </div>
+                      ) : isFree ? (
+                        <div className="px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-center text-xs font-medium text-zinc-400">
+                          Free — no payment needed
+                        </div>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            try {
+                              setSubscribing(plan.slug);
+                              const res = await createCheckout(plan.slug, billingCycle);
+                              if (res.checkoutUrl) {
+                                window.location.href = res.checkoutUrl;
+                              }
+                            } catch (e) {
+                              toast.error(e instanceof Error ? e.message : 'Failed to start checkout');
+                            } finally {
+                              setSubscribing(null);
+                            }
+                          }}
+                          disabled={subscribing === plan.slug}
+                          className="w-full px-4 py-2.5 bg-white text-black rounded-lg text-sm font-semibold hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {subscribing === plan.slug ? 'Redirecting…' : `Subscribe — ${price.toLocaleString()} ${plan.currency}`}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {availablePlans.length === 0 && (
+                <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-8 text-center text-sm text-zinc-500">
+                  No plans available yet. Ask your admin to create plans.
+                </div>
+              )}
             </div>
 
             <div>
