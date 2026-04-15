@@ -90,9 +90,20 @@ function extractAttachments(message: any): {
     for (const att of message.attachments) {
       if (att.type === 'image' && att.payload?.url) {
         imageUrls.push(att.payload.url);
+      } else if (att.type === 'sticker' && att.payload?.url) {
+        // Treat stickers as images
+        imageUrls.push(att.payload.url);
       } else if (UNSUPPORTED_ATTACHMENT_TYPES.has(att.type)) {
         unsupportedType = att.type;
       }
+    }
+  }
+
+  // Facebook sometimes sends sticker_id directly on the message
+  if (message.sticker_id && imageUrls.length === 0) {
+    // Sticker without URL — treat as a thumbs-up or similar reaction, ignore gracefully
+    if (!message.text) {
+      unsupportedType = 'sticker';
     }
   }
 
@@ -302,6 +313,12 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
     });
 
     if (agentPage && agentPage.agent.isActive) {
+      // Skip AI if conversation is paused for human intervention
+      if (conversation.status !== 'active') {
+        console.log(`Conversation ${conversation.id} is "${conversation.status}" — skipping AI, human takeover`);
+        return;
+      }
+
       const agent = agentPage.agent;
       console.log(`Agent "${agent.name}" handling message on page ${pageId}`);
 
@@ -468,7 +485,16 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         } catch {}
       }
 
-      // Create insight + notification if UNCLEAR or UNKNOWN
+      // UNCLEAR/UNKNOWN → pause AI on this conversation so human takes over
+      if (statusType === 'UNCLEAR' || statusType === 'UNKNOWN') {
+        // Mark conversation as needing human attention — AI won't auto-reply anymore
+        try {
+          await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: { status: 'resolved' }, // 'resolved' pauses AI auto-reply
+          });
+        } catch {}
+      }
       if (statusType === 'UNCLEAR' || statusType === 'UNKNOWN') {
         try {
           await prisma.agentInsight.create({
