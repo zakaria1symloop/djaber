@@ -206,7 +206,7 @@ app.get('/api/payments/verify/:checkoutId', authenticate, async (req: Request, r
 });
 
 // Public plans endpoint (no auth — for pricing page)
-app.get('/api/plans', async (req: Request, res: Response) => {
+app.get('/api/plans', async (_req: Request, res: Response) => {
   try {
     const plans = await prisma.plan.findMany({
       where: { isActive: true },
