@@ -98,6 +98,16 @@ function DashboardPageInner() {
     if (saved === 'simple' || saved === 'advanced') setStockMode(saved);
   }, []);
 
+  // Handle payment redirect
+  useEffect(() => {
+    const payment = searchParams.get('payment');
+    if (payment === 'success') {
+      toast.success('Payment successful! Your plan has been upgraded.');
+    } else if (payment === 'failed') {
+      toast.error('Payment was cancelled or failed. Please try again.');
+    }
+  }, [searchParams, toast]);
+
   const loadAnalytics = async () => {
     try {
       setAnalyticsLoading(true);
