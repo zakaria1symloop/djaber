@@ -177,9 +177,12 @@ app.post('/api/payments/chargily-webhook', async (req: Request, res: Response) =
 // Verify payment status (authenticated user)
 app.get('/api/payments/verify/:checkoutId', authenticate, async (req: Request, res: Response) => {
   try {
+    console.log('Verifying payment:', req.params.checkoutId);
     const result = await verifyCheckout(String(req.params.checkoutId));
+    console.log('Chargily verify result:', result.success, result.data?.status);
     if (result.success && result.data?.status === 'paid') {
       const metadata = result.data.metadata || {};
+      console.log('Payment paid! Activating subscription:', metadata);
       if (metadata.user_id && metadata.plan_slug) {
         await activateSubscriptionFromPayment({
           userId: metadata.user_id,
@@ -187,6 +190,7 @@ app.get('/api/payments/verify/:checkoutId', authenticate, async (req: Request, r
           billingCycle: metadata.billing_cycle || 'monthly',
           checkoutId: result.data.id || '',
         });
+        console.log('Subscription activated for user:', metadata.user_id);
       }
     }
     res.json({ status: result.data?.status || 'unknown', data: result.data });

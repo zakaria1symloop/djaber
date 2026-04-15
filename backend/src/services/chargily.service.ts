@@ -54,6 +54,7 @@ export async function createPlanCheckout({
 
   const isLocal = backendUrl.includes('localhost') || backendUrl.includes('127.0.0.1') || backendUrl.includes('192.168.');
 
+  // Will append checkout_id after we get it from Chargily
   let successUrl = `${frontendUrl}/dashboard?section=settings&payment=success`;
   const failureUrl = `${frontendUrl}/dashboard?section=settings&payment=failed`;
   const webhookUrl = isLocal ? undefined : `${backendUrl}/api/payments/chargily-webhook`;

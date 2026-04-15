@@ -63,7 +63,7 @@ export default function DashboardPage() {
 function DashboardPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const { pages, loading: pagesLoading, connectFacebookPage, connectInstagramPage, disconnectPage } = usePages();
   const toast = useToast();
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState<string | null>(null);
@@ -110,17 +110,19 @@ function DashboardPageInner() {
       if (checkoutId) {
         toast.success('Payment received! Activating your plan...');
         verifyPayment(checkoutId)
-          .then(() => {
+          .then(async () => {
             toast.success('Plan upgraded successfully!');
-            // Hard refresh to reload user profile with new plan
-            setTimeout(() => { window.location.href = '/dashboard?section=settings'; }, 1500);
+            await refreshProfile();
+            window.history.replaceState({}, '', '/dashboard?section=settings');
           })
-          .catch(() => {
+          .catch(async () => {
             toast.info('Payment received. Plan will activate shortly.');
+            await refreshProfile();
             window.history.replaceState({}, '', '/dashboard?section=settings');
           });
       } else {
         toast.success('Payment successful!');
+        refreshProfile().catch(() => {});
         window.history.replaceState({}, '', '/dashboard?section=settings');
       }
     } else if (payment === 'failed') {
