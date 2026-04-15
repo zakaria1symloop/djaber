@@ -61,6 +61,10 @@ function OrdersPageInner() {
   const [filterTrigger, setFilterTrigger] = useState(0);
   const [statusTab, setStatusTab] = useState('pending');
 
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+
   // Modal state
   const [viewing, setViewing] = useState<Order | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Order | null>(null);
@@ -205,6 +209,37 @@ function OrdersPageInner() {
       await updateOrder(orderId, { status: newStatus });
       loadOrders();
     } catch {}
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === orders.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(orders.map((o) => o.id)));
+    }
+  };
+
+  const handleBulkStatus = async (newStatus: string) => {
+    if (selectedIds.size === 0) return;
+    try {
+      setBulkProcessing(true);
+      await Promise.all(
+        Array.from(selectedIds).map((id) => updateOrder(id, { status: newStatus }))
+      );
+      setSelectedIds(new Set());
+      loadOrders();
+    } catch {} finally {
+      setBulkProcessing(false);
+    }
   };
 
   const getConfirmVariant = (status: string): 'success' | 'warning' | 'info' | 'error' | 'default' => {
@@ -358,7 +393,7 @@ function OrdersPageInner() {
           return (
             <button
               key={s.value}
-              onClick={() => { setStatusTab(s.value); setOffset(0); }}
+              onClick={() => { setStatusTab(s.value); setOffset(0); setSelectedIds(new Set()); }}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                 statusTab === s.value
                   ? 'bg-white text-black'
@@ -394,11 +429,80 @@ function OrdersPageInner() {
       {loading ? (
         <div className="animate-pulse"><div className="h-64 bg-zinc-800 rounded-xl" /></div>
       ) : orders.length > 0 ? (
+        <>
+        {/* Bulk action bar */}
+        {selectedIds.size > 0 && (
+          <div className="sticky top-20 z-10 bg-zinc-900/95 backdrop-blur-sm border border-white/10 rounded-xl p-3 mb-3 flex items-center justify-between shadow-2xl">
+            <span className="text-sm text-white font-medium">
+              {selectedIds.size} order{selectedIds.size !== 1 ? 's' : ''} selected
+            </span>
+            <div className="flex items-center gap-2">
+              {statusTab === 'pending' && (
+                <button
+                  onClick={() => handleBulkStatus('confirmed')}
+                  disabled={bulkProcessing}
+                  className="px-3 py-1.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {bulkProcessing ? 'Processing…' : 'Confirm all'}
+                </button>
+              )}
+              {statusTab === 'confirmed' && (
+                <button
+                  onClick={() => handleBulkStatus('preparing')}
+                  disabled={bulkProcessing}
+                  className="px-3 py-1.5 text-xs font-medium text-violet-400 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {bulkProcessing ? 'Processing…' : 'Start preparing all'}
+                </button>
+              )}
+              {statusTab === 'preparing' && (
+                <button
+                  onClick={() => handleBulkStatus('shipped')}
+                  disabled={bulkProcessing}
+                  className="px-3 py-1.5 text-xs font-medium text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {bulkProcessing ? 'Processing…' : 'Ship all'}
+                </button>
+              )}
+              {statusTab === 'shipped' && (
+                <button
+                  onClick={() => handleBulkStatus('delivered')}
+                  disabled={bulkProcessing}
+                  className="px-3 py-1.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {bulkProcessing ? 'Processing…' : 'Mark all delivered'}
+                </button>
+              )}
+              <button
+                onClick={() => handleBulkStatus('cancelled')}
+                disabled={bulkProcessing}
+                className="px-3 py-1.5 text-xs font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg transition-colors disabled:opacity-50"
+              >
+                Cancel all
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/10">
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === orders.length && orders.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-white/20 bg-black/60 text-white focus:ring-1 focus:ring-white/30"
+                    />
+                  </th>
                   <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Order #</th>
                   <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Client</th>
                   <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Items</th>
@@ -415,7 +519,15 @@ function OrdersPageInner() {
                 {orders.map((order) => {
                   const remaining = Math.max(0, Number(order.total) - Number(order.amountPaid));
                   return (
-                    <tr key={order.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                    <tr key={order.id} className={`border-b border-white/5 hover:bg-white/5 transition-colors ${selectedIds.has(order.id) ? 'bg-white/[0.03]' : ''}`}>
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(order.id)}
+                          onChange={() => toggleSelect(order.id)}
+                          className="w-4 h-4 rounded border-white/20 bg-black/60 text-white focus:ring-1 focus:ring-white/30"
+                        />
+                      </td>
                       <td className="px-4 py-3 text-sm text-white font-medium">{order.orderNumber}</td>
                       <td className="px-4 py-3">
                         <div>
@@ -502,6 +614,7 @@ function OrdersPageInner() {
             </table>
           </div>
         </div>
+        </>
       ) : (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-12 text-center">
           <div className="text-zinc-600 mb-4 flex justify-center">
