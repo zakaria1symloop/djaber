@@ -4,10 +4,13 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from '@/contexts/LanguageContext';
+import LanguageSwitcher from './LanguageSwitcher';
 
 export default function Header() {
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
+  const { t } = useTranslation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
@@ -68,12 +71,12 @@ export default function Header() {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1">
             {[
-              { name: 'Features', href: '/features' },
-              { name: 'Pricing', href: '/pricing' },
-              { name: 'Docs', href: '/docs' },
+              { name: t('header.features'), href: '/features' },
+              { name: t('header.pricing'), href: '/pricing' },
+              { name: t('header.docs'), href: '/docs' },
             ].map((item) => (
               <Link
-                key={item.name}
+                key={item.href}
                 href={item.href}
                 className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-white transition-colors duration-200 relative group"
               >
@@ -85,6 +88,7 @@ export default function Header() {
 
           {/* CTA Buttons or User Profile */}
           <div className="hidden md:flex items-center gap-4">
+            <LanguageSwitcher />
             {isAuthenticated && user ? (
               <div className="relative">
                 <button
@@ -134,13 +138,13 @@ export default function Header() {
                   href="/login"
                   className="px-4 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors duration-200"
                 >
-                  Sign in
+                  {t('header.login')}
                 </Link>
                 <Link
                   href="/signup"
                   className="btn-primary px-5 py-2.5 rounded-full text-sm font-semibold"
                 >
-                  <span>Get Started</span>
+                  <span>{t('header.signup')}</span>
                 </Link>
               </>
             )}
@@ -181,12 +185,12 @@ export default function Header() {
           <div className="md:hidden py-4 border-t border-white/5">
             <div className="flex flex-col gap-2">
               {[
-                { name: 'Features', href: '/features' },
-                { name: 'Pricing', href: '/pricing' },
-                { name: 'Docs', href: '/docs' },
+                { name: t('header.features'), href: '/features' },
+                { name: t('header.pricing'), href: '/pricing' },
+                { name: t('header.docs'), href: '/docs' },
               ].map((item) => (
                 <Link
-                  key={item.name}
+                  key={item.href}
                   href={item.href}
                   className="px-4 py-3 text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-all duration-200"
                   onClick={() => setIsMobileMenuOpen(false)}
@@ -194,18 +198,21 @@ export default function Header() {
                   {item.name}
                 </Link>
               ))}
+              <div className="px-4 py-2">
+                <LanguageSwitcher />
+              </div>
               <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-white/5">
                 <Link
                   href="/login"
                   className="px-4 py-3 text-sm font-medium text-zinc-300 hover:text-white text-center rounded-lg border border-white/10 hover:border-white/20 transition-all duration-200"
                 >
-                  Sign in
+                  {t('header.login')}
                 </Link>
                 <Link
                   href="/signup"
                   className="btn-primary px-4 py-3 rounded-full text-sm font-semibold text-center"
                 >
-                  <span>Get Started</span>
+                  <span>{t('header.signup')}</span>
                 </Link>
               </div>
             </div>

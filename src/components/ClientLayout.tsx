@@ -6,6 +6,7 @@ import Header from './Header';
 import { usePathname } from 'next/navigation';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { PagesProvider } from '@/contexts/PagesContext';
+import { LanguageProvider } from '@/contexts/LanguageContext';
 import { ToastProvider } from '@/components/ui/Toast';
 
 export default function ClientLayout({ children }: { children: ReactNode }) {
@@ -16,6 +17,7 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
   const isAppArea = isAuthPage || isDashboard || isAdmin;
 
   return (
+    <LanguageProvider>
     <AuthProvider>
       <PagesProvider>
         <ToastProvider>
@@ -37,5 +39,6 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
         </ToastProvider>
       </PagesProvider>
     </AuthProvider>
+    </LanguageProvider>
   );
 }
