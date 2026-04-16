@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
+import { computeDeliveryFee } from './user-delivery-fees.controller';
 
 // Generate order number inside a transaction to avoid race conditions
 const generateOrderNumber = async (
@@ -181,6 +182,10 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       status = 'pending',
       source = 'manual',
       notes,
+      wilayaId,
+      communeName,
+      isStopdesk = false,
+      deliveryFee: providedDeliveryFee,
     } = req.body;
 
     if (!clientName || !clientName.trim()) {
@@ -236,7 +241,20 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       };
     });
 
-    const total = subtotal - discount + tax;
+    // Compute delivery fee: explicit override > auto-compute from wilaya
+    let deliveryFee = 0;
+    if (providedDeliveryFee !== undefined && providedDeliveryFee !== null && providedDeliveryFee !== '') {
+      deliveryFee = Number(providedDeliveryFee) || 0;
+    } else if (wilayaId) {
+      try {
+        const quote = await computeDeliveryFee(req.user.userId, Number(wilayaId), Boolean(isStopdesk));
+        deliveryFee = quote.fee;
+      } catch {
+        deliveryFee = 0;
+      }
+    }
+
+    const total = subtotal - discount + tax + deliveryFee;
     const actualPaid = Math.min(Number(amountPaid), total);
     const computedPaymentStatus =
       actualPaid >= total ? 'paid' : actualPaid > 0 ? 'partial' : 'pending';
@@ -267,6 +285,10 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
               status,
               source,
               notes: notes?.trim() || null,
+              wilayaId: wilayaId ? Number(wilayaId) : null,
+              communeName: communeName?.trim() || null,
+              isStopdesk: Boolean(isStopdesk),
+              deliveryFee,
               items: {
                 create: orderItems,
               },

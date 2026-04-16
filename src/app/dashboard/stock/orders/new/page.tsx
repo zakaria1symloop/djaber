@@ -8,7 +8,8 @@ import {
   ChevronLeftIcon, TrashIcon, PlusIcon, SearchIcon, UserIcon,
   PhoneIcon, DollarIcon, MapPinIcon,
 } from '@/components/ui/icons';
-import { getProducts, getClients, createOrder, type Product, type Client } from '@/lib/user-stock-api';
+import { getProducts, getClients, createOrder, quoteDeliveryFee, type Product, type Client } from '@/lib/user-stock-api';
+import { getWilayas, type Wilaya } from '@/lib/delivery-api';
 
 // ── Keyboard-navigable Client Autocomplete ──
 function ClientAutocomplete({
@@ -278,6 +279,13 @@ export default function NewOrderPage() {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [notes, setNotes] = useState('');
   const [amountPaid, setAmountPaid] = useState('');
+  const [wilayas, setWilayas] = useState<Wilaya[]>([]);
+  const [wilayaId, setWilayaId] = useState<number | ''>('');
+  const [communeName, setCommuneName] = useState('');
+  const [isStopdesk, setIsStopdesk] = useState(false);
+  const [deliveryFee, setDeliveryFee] = useState(0);
+  const [feeSource, setFeeSource] = useState<string>('');
+  const [quoting, setQuoting] = useState(false);
 
   const [orderItems, setOrderItems] = useState<{
     productId: string; productName: string; variantId?: string; variantName?: string;
@@ -287,16 +295,44 @@ export default function NewOrderPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [prodRes, clientRes] = await Promise.all([
+        const [prodRes, clientRes, wilayaRes] = await Promise.all([
           getProducts({ limit: 500 }),
           getClients(),
+          getWilayas(),
         ]);
         setProducts(prodRes.products);
         setClients(clientRes.clients);
+        setWilayas(wilayaRes.wilayas);
       } catch {}
     };
     load();
   }, []);
+
+  // Auto-quote delivery fee when wilaya or stopdesk changes
+  useEffect(() => {
+    if (!wilayaId) {
+      setDeliveryFee(0);
+      setFeeSource('');
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      try {
+        setQuoting(true);
+        const q = await quoteDeliveryFee(Number(wilayaId), isStopdesk);
+        if (!cancelled) {
+          setDeliveryFee(q.fee);
+          setFeeSource(q.source);
+        }
+      } catch {
+        if (!cancelled) { setDeliveryFee(0); setFeeSource(''); }
+      } finally {
+        if (!cancelled) setQuoting(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [wilayaId, isStopdesk]);
 
   // Pre-fill address when client is selected
   useEffect(() => {
@@ -345,7 +381,8 @@ export default function NewOrderPage() {
     setOrderItems(orderItems.filter((_, i) => i !== idx));
   };
 
-  const orderTotal = orderItems.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
+  const subtotal = orderItems.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
+  const orderTotal = subtotal + deliveryFee;
   const paid = amountPaid === '' ? orderTotal : parseFloat(amountPaid) || 0;
   const remaining = Math.max(0, orderTotal - paid);
   const paymentStatus = remaining <= 0 ? 'paid' : paid > 0 ? 'partial' : 'pending';
@@ -377,6 +414,10 @@ export default function NewOrderPage() {
         paymentMethod,
         paymentStatus,
         notes: notes || undefined,
+        wilayaId: wilayaId ? Number(wilayaId) : undefined,
+        communeName: communeName || undefined,
+        isStopdesk,
+        deliveryFee,
       });
       router.push('/dashboard/stock/orders');
     } catch (err) {
@@ -465,6 +506,36 @@ export default function NewOrderPage() {
                   className="w-full pl-10 pr-3 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/20"
                 />
               </div>
+
+              {/* Wilaya + Commune + Stopdesk */}
+              <div className="grid grid-cols-2 gap-3">
+                <select
+                  value={wilayaId}
+                  onChange={(e) => setWilayaId(e.target.value ? Number(e.target.value) : '')}
+                  className="w-full px-3 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20"
+                >
+                  <option value="">Select Wilaya…</option>
+                  {wilayas.map((w) => (
+                    <option key={w.id} value={w.id}>{w.code} — {w.nameFr}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={communeName}
+                  onChange={(e) => setCommuneName(e.target.value)}
+                  placeholder="Commune (optional)"
+                  className="w-full px-3 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/20"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={isStopdesk}
+                  onChange={(e) => setIsStopdesk(e.target.checked)}
+                  className="w-4 h-4 bg-black border-white/20 rounded"
+                />
+                Stopdesk (agency pickup — cheaper)
+              </label>
             </div>
 
             {/* Products */}
@@ -558,11 +629,29 @@ export default function NewOrderPage() {
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5 space-y-5 lg:sticky lg:top-24">
               <h2 className="text-sm font-semibold text-white">Order Summary</h2>
 
-              {/* Total */}
-              <div className="bg-black/50 rounded-lg p-4 text-center">
-                <p className="text-xs text-zinc-500 mb-1">Total</p>
-                <p className="text-3xl font-bold text-white">{orderTotal.toLocaleString()} <span className="text-lg text-zinc-400">DA</span></p>
-                <p className="text-xs text-zinc-500 mt-1">{orderItems.length} item{orderItems.length !== 1 ? 's' : ''}</p>
+              {/* Breakdown */}
+              <div className="bg-black/50 rounded-lg p-4 space-y-1.5">
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-400">Subtotal</span>
+                  <span className="text-white">{subtotal.toLocaleString()} DA</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-zinc-400 flex items-center gap-1.5">
+                    Delivery
+                    {quoting && <span className="text-[10px] text-zinc-500">…</span>}
+                    {feeSource && !quoting && (
+                      <span className="text-[10px] text-zinc-600 uppercase">{feeSource}</span>
+                    )}
+                  </span>
+                  <span className="text-white">{deliveryFee.toLocaleString()} DA</span>
+                </div>
+                <div className="border-t border-white/10 pt-2 mt-1 flex justify-between items-baseline">
+                  <span className="text-xs text-zinc-500 uppercase">Total</span>
+                  <span className="text-2xl font-bold text-white">
+                    {orderTotal.toLocaleString()} <span className="text-base text-zinc-400">DA</span>
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-500 text-right">{orderItems.length} item{orderItems.length !== 1 ? 's' : ''}</p>
               </div>
 
               {/* Amount Paid */}

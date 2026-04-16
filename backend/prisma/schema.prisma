@@ -491,6 +491,9 @@ model Order {
   deliveryProvider   String?
   deliveryFee        Decimal  @default(0) @db.Decimal(10, 2)
   deliverySentAt     DateTime?
+  wilayaId           Int?
+  communeName        String?
+  isStopdesk         Boolean  @default(false)
 
   @@unique([userId, orderNumber])
   @@index([userId, orderDate])
@@ -716,6 +719,25 @@ model Notification {
 
   @@index([userId, isRead, createdAt])
   @@index([userId, type, createdAt])
+}
+
+// ============================================================================
+// Delivery Fee Rules (per-wilaya custom pricing, fallback when no provider API)
+// ============================================================================
+
+model DeliveryFeeRule {
+  id             String   @id @default(uuid())
+  userId         String
+  wilayaId       Int      // 1-58
+  homePrice      Decimal  @default(0) @db.Decimal(10, 2) // Door-to-door
+  stopdeskPrice  Decimal  @default(0) @db.Decimal(10, 2) // Agency pickup
+  returnPrice    Decimal  @default(0) @db.Decimal(10, 2) // Cost if returned
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, wilayaId])
+  @@index([userId, isActive])
 }
 
 // ============================================================================

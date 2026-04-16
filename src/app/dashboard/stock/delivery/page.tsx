@@ -233,6 +233,10 @@ export default function DeliveryDashboardPage() {
           <p className="text-zinc-400 text-sm mt-1">Send orders to delivery companies and track shipments</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => router.push('/dashboard/stock/delivery/fees')}>
+            <DollarIcon className="w-4 h-4 mr-2" />
+            Fees
+          </Button>
           <Button variant="secondary" onClick={() => router.push('/dashboard/stock/delivery/settings')}>
             <SettingsIcon className="w-4 h-4 mr-2" />
             Providers

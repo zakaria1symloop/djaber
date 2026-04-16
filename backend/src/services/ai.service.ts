@@ -11,6 +11,8 @@ import { z } from 'zod';
 import prisma from '../config/database';
 import { createNotification } from './notification.service';
 import { getRecommendationsMap, trackConversion } from './recommendation.service';
+import { computeDeliveryFee } from '../controllers/user-delivery-fees.controller';
+import { wilayas } from '../data/wilayas';
 
 // ============================================================================
 // Types
@@ -310,6 +312,74 @@ function buildProductCatalog(
 }
 
 // ============================================================================
+// Shipping Fee Tool — AI can quote delivery price to the customer
+// ============================================================================
+
+function makeShippingFeeTool(userId: string) {
+  return tool(
+    async (input) => {
+      try {
+        let wid: number | undefined;
+        if (input.wilayaId) {
+          wid = Number(input.wilayaId);
+        } else if (input.wilayaName) {
+          const needle = input.wilayaName.trim().toLowerCase();
+          const found = wilayas.find(
+            (w) =>
+              w.nameFr.toLowerCase() === needle ||
+              w.nameEn.toLowerCase() === needle ||
+              w.name === input.wilayaName ||
+              w.code === input.wilayaName
+          ) || wilayas.find(
+            (w) =>
+              w.nameFr.toLowerCase().includes(needle) ||
+              w.nameEn.toLowerCase().includes(needle)
+          );
+          if (found) wid = found.id;
+        }
+
+        if (!wid || wid < 1 || wid > 58) {
+          return JSON.stringify({
+            success: false,
+            error: 'Unknown wilaya. Ask the customer for their wilaya (e.g. Alger, Oran, Constantine).',
+          });
+        }
+
+        const quote = await computeDeliveryFee(userId, wid, Boolean(input.isStopdesk));
+        const w = wilayas.find((x) => x.id === wid);
+        return JSON.stringify({
+          success: true,
+          wilayaId: wid,
+          wilayaName: w?.nameFr,
+          isStopdesk: Boolean(input.isStopdesk),
+          fee: quote.fee,
+          currency: 'DA',
+        });
+      } catch (error) {
+        console.error('Shipping fee tool error:', error);
+        return JSON.stringify({ success: false, error: 'Failed to compute shipping fee.' });
+      }
+    },
+    {
+      name: 'get_shipping_fee',
+      description:
+        "Quote the delivery fee for a customer's wilaya. Call this when the customer asks about shipping cost, or before creating an order so you can tell them the total. Accepts wilayaId (1-58) or wilayaName (Arabic/French/English). Set isStopdesk=true if the customer wants to pick up at the agency (cheaper).",
+      schema: z.object({
+        wilayaId: z.number().optional().describe('Numeric wilaya ID (1-58). Preferred.'),
+        wilayaName: z
+          .string()
+          .optional()
+          .describe('Wilaya name in Arabic, French, or English (e.g. "Alger", "وهران", "Oran").'),
+        isStopdesk: z
+          .boolean()
+          .optional()
+          .describe('True if pickup at agency (cheaper). Default false = home delivery.'),
+      }),
+    }
+  );
+}
+
+// ============================================================================
 // Create Order Tool — allows the AI to place orders in the database
 // ============================================================================
 
@@ -347,9 +417,40 @@ function makeCreateOrderTool(userId: string, products: ProductInfo[], agentName?
           });
         }
 
-        // Calculate totals
+        // Calculate totals + auto-compute delivery fee from wilaya
         const subtotal = orderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-        const total = subtotal;
+        let deliveryFee = 0;
+        let resolvedWilayaId: number | null = null;
+        if (input.wilayaId || input.wilayaName) {
+          let wid: number | undefined;
+          if (input.wilayaId) {
+            wid = Number(input.wilayaId);
+          } else if (input.wilayaName) {
+            const needle = input.wilayaName.trim().toLowerCase();
+            const found = wilayas.find(
+              (w) =>
+                w.nameFr.toLowerCase() === needle ||
+                w.nameEn.toLowerCase() === needle ||
+                w.name === input.wilayaName ||
+                w.code === input.wilayaName
+            ) || wilayas.find(
+              (w) =>
+                w.nameFr.toLowerCase().includes(needle) ||
+                w.nameEn.toLowerCase().includes(needle)
+            );
+            if (found) wid = found.id;
+          }
+          if (wid && wid >= 1 && wid <= 58) {
+            resolvedWilayaId = wid;
+            try {
+              const quote = await computeDeliveryFee(userId, wid, Boolean(input.isStopdesk));
+              deliveryFee = quote.fee;
+            } catch {
+              deliveryFee = 0;
+            }
+          }
+        }
+        const total = subtotal + deliveryFee;
 
         // Generate order number
         const today = new Date();
@@ -469,6 +570,9 @@ function makeCreateOrderTool(userId: string, products: ProductInfo[], agentName?
             source: 'ai',
             notes: input.notes || null,
             orderDate: today,
+            wilayaId: resolvedWilayaId,
+            isStopdesk: Boolean(input.isStopdesk),
+            deliveryFee,
             items: {
               create: orderItems.map((item) => ({
                 productId: item.productId,
@@ -556,6 +660,8 @@ function makeCreateOrderTool(userId: string, products: ProductInfo[], agentName?
         return JSON.stringify({
           success: true,
           orderNumber: order.orderNumber,
+          subtotal,
+          deliveryFee,
           total,
           itemCount: orderItems.length,
           items: orderItems.map((i) => ({
@@ -576,11 +682,20 @@ function makeCreateOrderTool(userId: string, products: ProductInfo[], agentName?
     {
       name: 'create_order',
       description:
-        'Create a new order when the customer confirms they want to buy. You MUST collect the customer name, phone number, and delivery address BEFORE calling this tool. Only call this when the customer has explicitly confirmed the order.',
+        'Create a new order when the customer confirms they want to buy. You MUST collect the customer name, phone number, delivery address, AND wilaya BEFORE calling this tool. Pass wilayaId or wilayaName so shipping is auto-calculated. Only call this when the customer has explicitly confirmed the order.',
       schema: z.object({
         clientName: z.string().describe('Customer full name'),
         clientPhone: z.string().optional().describe('Customer phone number'),
         clientAddress: z.string().optional().describe('Customer delivery address'),
+        wilayaId: z.number().optional().describe('Destination wilaya ID (1-58). Preferred.'),
+        wilayaName: z
+          .string()
+          .optional()
+          .describe('Destination wilaya name (Arabic/French/English) if ID unknown.'),
+        isStopdesk: z
+          .boolean()
+          .optional()
+          .describe('True if the customer wants to pick up at the agency (cheaper).'),
         items: z
           .array(
             z.object({
@@ -637,9 +752,11 @@ RULES:
 - When a customer asks about a product, provide accurate info from the catalog above.
 - If a product is out of stock, let the customer know and suggest alternatives if available.
 - When a customer wants to buy, confirm the product, quantity, and total price.
-- Ask for their name, phone number, and delivery address to complete the order.
-- Once the customer confirms the order AND provides their name, phone, and address, use the create_order tool to place the order.
-- After placing an order, confirm the order number and total to the customer.
+- Ask for their name, phone number, wilaya, and delivery address to complete the order.
+- Before creating the order, call the get_shipping_fee tool with the customer's wilaya to quote delivery cost, and tell the customer the total (products + shipping).
+- Ask whether they prefer home delivery or stopdesk (agency pickup — cheaper).
+- Once the customer confirms the order AND provides their name, phone, wilaya, and address, call create_order with wilayaId or wilayaName so shipping is included in the total.
+- After placing an order, confirm the order number, subtotal, shipping fee, and grand total to the customer.
 - Use prices in "DA" (Algerian Dinar) currency.
 - Keep responses concise — this is a chat conversation, not an email.
 - If asked about something not in the catalog, politely say you don't have that product.
@@ -726,10 +843,11 @@ STATUS (REQUIRED — YOU MUST ALWAYS ADD THIS):
       messages.push(new HumanMessage(userMessage));
     }
 
-    // Create the order tool
+    // Create tools
     const orderTool = makeCreateOrderTool(userId, products, agent.name, conversationId);
+    const shippingTool = makeShippingFeeTool(userId);
     // All our providers (OpenAI, Anthropic, Google, Groq) support bindTools
-    const llmWithTools = (llm as any).bindTools([orderTool]);
+    const llmWithTools = (llm as any).bindTools([orderTool, shippingTool]);
 
     // Invoke with tool calling loop (max 3 iterations)
     let response = await llmWithTools.invoke(messages);
@@ -746,6 +864,9 @@ STATUS (REQUIRED — YOU MUST ALWAYS ADD THIS):
         let result: string;
         if (tc.name === 'create_order') {
           const toolResult = await orderTool.invoke(tc.args as any);
+          result = typeof toolResult === 'string' ? toolResult : String(toolResult);
+        } else if (tc.name === 'get_shipping_fee') {
+          const toolResult = await shippingTool.invoke(tc.args as any);
           result = typeof toolResult === 'string' ? toolResult : String(toolResult);
         } else {
           result = JSON.stringify({ error: 'Unknown tool' });

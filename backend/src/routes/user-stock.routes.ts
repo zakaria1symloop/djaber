@@ -124,6 +124,13 @@ import {
   deleteCaisseTransaction,
 } from '../controllers/user-caisse.controller';
 import {
+  getDeliveryFeeRules,
+  upsertDeliveryFeeRule,
+  seedDeliveryFees,
+  deleteDeliveryFeeRule,
+  quoteDeliveryFee,
+} from '../controllers/user-delivery-fees.controller';
+import {
   getRecommendations,
   getRecommendationStats,
   getProductRecommendations,
@@ -312,5 +319,12 @@ router.post('/delivery/send/:orderId', sendOrderToDelivery);
 router.get('/delivery/track/:orderId', getTrackingInfo);
 router.get('/delivery/label/:orderId', getShippingLabel);
 router.get('/delivery/rates', getDeliveryRates);
+
+// Delivery fee rules (user-managed per-wilaya pricing + quote)
+router.get('/delivery/fees', getDeliveryFeeRules);
+router.post('/delivery/fees', upsertDeliveryFeeRule);
+router.post('/delivery/fees/seed', seedDeliveryFees);
+router.delete('/delivery/fees/:wilayaId', deleteDeliveryFeeRule);
+router.get('/delivery/fees/quote', quoteDeliveryFee);
 
 export default router;

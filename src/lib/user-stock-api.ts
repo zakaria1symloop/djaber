@@ -978,12 +978,66 @@ export async function createOrder(
     status?: string;
     source?: string;
     notes?: string;
+    wilayaId?: number;
+    communeName?: string;
+    isStopdesk?: boolean;
+    deliveryFee?: number;
   }
 ): Promise<{ order: Order }> {
   return apiRequest('/api/user-stock/orders', {
     method: 'POST',
     body: JSON.stringify(data),
   });
+}
+
+// Delivery fee APIs
+export interface DeliveryFeeRule {
+  wilayaId: number;
+  code: string;
+  name: string;
+  nameAr: string;
+  homePrice: number;
+  stopdeskPrice: number;
+  returnPrice: number;
+  isCustom: boolean;
+  isActive: boolean;
+}
+
+export async function getDeliveryFeeRules(): Promise<{ rules: DeliveryFeeRule[] }> {
+  return apiRequest('/api/user-stock/delivery/fees');
+}
+
+export async function upsertDeliveryFeeRule(data: {
+  wilayaId: number;
+  homePrice?: number;
+  stopdeskPrice?: number;
+  returnPrice?: number;
+  isActive?: boolean;
+}): Promise<{ rule: unknown }> {
+  return apiRequest('/api/user-stock/delivery/fees', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function seedDeliveryFees(overwrite = false): Promise<{ success: boolean; seeded: number }> {
+  return apiRequest('/api/user-stock/delivery/fees/seed', {
+    method: 'POST',
+    body: JSON.stringify({ overwrite }),
+  });
+}
+
+export async function deleteDeliveryFeeRule(wilayaId: number): Promise<{ success: boolean }> {
+  return apiRequest(`/api/user-stock/delivery/fees/${wilayaId}`, { method: 'DELETE' });
+}
+
+export async function quoteDeliveryFee(
+  wilayaId: number,
+  isStopdesk: boolean
+): Promise<{ fee: number; source: string; currency: string; wilayaId: number; wilayaName?: string; isStopdesk: boolean }> {
+  return apiRequest(
+    `/api/user-stock/delivery/fees/quote?wilayaId=${wilayaId}&isStopdesk=${isStopdesk}`
+  );
 }
 
 export async function updateOrder(
