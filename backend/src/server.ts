@@ -224,6 +224,18 @@ app.get('/api/plans', async (_req: Request, res: Response) => {
   }
 });
 
+// Credit status endpoint (authenticated)
+import { getCreditStatus } from './services/credits.service';
+app.get('/api/credits', authenticate, async (req: Request, res: Response) => {
+  try {
+    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    const status = await getCreditStatus(req.user.userId);
+    res.json(status);
+  } catch {
+    res.status(500).json({ error: 'Failed to get credit status' });
+  }
+});
+
 // Public CMS endpoint (no auth)
 app.get('/api/cms/:slug', async (req: Request, res: Response) => {
   try {

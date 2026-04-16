@@ -154,10 +154,15 @@ export async function activateSubscriptionFromPayment(data: {
     },
   });
 
-  // Update user's plan
+  // Update user's plan + sync credit limit
   await prisma.user.update({
     where: { id: data.userId },
-    data: { plan: data.planSlug },
+    data: {
+      plan: data.planSlug,
+      creditsLimit: plan.monthlyCredits,
+      creditsUsed: 0, // Reset on new subscription
+      creditsResetAt: now,
+    },
   });
 
   console.log(`Subscription activated: user=${data.userId} plan=${data.planSlug} until=${endDate.toISOString()}`);

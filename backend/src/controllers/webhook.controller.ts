@@ -5,6 +5,7 @@ import { sendMessage, sendProductCards } from '../services/meta.service';
 import { createNotification } from '../services/notification.service';
 import { trackImpressions } from '../services/recommendation.service';
 import { queueMessage } from '../services/message-batcher';
+import { hasCredits, consumeCredits, CREDIT_COSTS } from '../services/credits.service';
 import prisma from '../config/database';
 
 // Regex to extract [STATUS:OK|UNCLEAR|UNKNOWN:detail] from end of AI response
@@ -329,6 +330,48 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       const agent = agentPage.agent;
       console.log(`Agent "${agent.name}" handling message on page ${pageId}`);
 
+      // Check credits before AI call
+      const creditCost = (imageUrls.length > 0 && (agent as any).imageRecognition)
+        ? CREDIT_COSTS.AI_IMAGE_RECOGNITION
+        : CREDIT_COSTS.AI_TEXT_MESSAGE;
+      const creditCheck = await hasCredits(page.userId, creditCost);
+      if (!creditCheck.ok) {
+        console.log(`User ${page.userId} out of credits (${creditCheck.used}/${creditCheck.limit})`);
+        const outOfCreditsMsg = 'Désolé, notre service est temporairement indisponible. Veuillez réessayer plus tard. 🙏';
+        await sendMessage({
+          pageAccessToken: page.pageAccessToken,
+          recipientId: senderId,
+          message: outOfCreditsMsg,
+          platform: page.platform as 'facebook' | 'instagram',
+        });
+        await prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            messageId: `agent_${Date.now()}`,
+            senderId: recipientId,
+            recipientId: senderId,
+            text: outOfCreditsMsg,
+            timestamp: new Date(),
+            isFromPage: true,
+          },
+        });
+        // Notify user
+        await createNotification({
+          userId: page.userId,
+          type: 'stock_alert',
+          title: 'Credits Exhausted',
+          message: `You've used all ${creditCheck.limit} credits. AI agent is paused. Upgrade your plan to continue.`,
+          metadata: { creditsUsed: creditCheck.used, creditsLimit: creditCheck.limit },
+        });
+        return;
+      }
+
+      // If image recognition is disabled, strip image URLs
+      if (imageUrls.length > 0 && !(agent as any).imageRecognition) {
+        console.log('Image recognition disabled for this agent — ignoring images');
+        imageUrls.length = 0; // Clear images, process as text only
+      }
+
       // Message batching — queue and wait for more messages before responding
       const responseDelay = ((agent as any).responseDelay ?? 3) * 1000;
 
@@ -489,6 +532,9 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
           });
         }
       }
+
+      // Consume credits after successful AI response
+      await consumeCredits(page.userId, creditCost, imageUrls.length > 0 ? 'image_recognition' : 'text_message');
 
       // Save AI response (clean text, no tags)
       await prisma.message.create({

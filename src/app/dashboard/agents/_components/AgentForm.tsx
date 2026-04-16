@@ -72,6 +72,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
   const [productTemplate, setProductTemplate] = useState('');
   const [closingInstructions, setClosingInstructions] = useState('');
   const [humanHandoffRules, setHumanHandoffRules] = useState('');
+  const [imageRecognition, setImageRecognition] = useState(false);
   const [responseDelay, setResponseDelay] = useState(3);
   const templateRef = useRef<HTMLTextAreaElement>(null);
   const [aiModel, setAiModel] = useState('gpt-4o-mini');
@@ -108,6 +109,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         setProductTemplate(agent.productTemplate || '');
         setClosingInstructions(agent.closingInstructions || '');
         setHumanHandoffRules(agent.humanHandoffRules || '');
+        setImageRecognition(agent.imageRecognition ?? false);
         setResponseDelay(agent.responseDelay ?? 3);
         setAiModel(agent.aiModel);
         setTemperature(agent.temperature);
@@ -179,6 +181,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         productTemplate: productTemplate.trim() || undefined,
         closingInstructions: closingInstructions.trim() || undefined,
         humanHandoffRules: humanHandoffRules.trim() || undefined,
+        imageRecognition,
         responseDelay,
         aiModel,
         temperature,
@@ -586,6 +589,23 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:border-white/30 focus:outline-none transition-colors"
             />
             <p className="text-xs text-zinc-500 mt-1">Maximum response length (100-4096)</p>
+          </div>
+
+          {/* Image Recognition Toggle */}
+          <div className="flex items-center justify-between p-4 bg-black/30 border border-white/5 rounded-lg">
+            <div>
+              <h3 className="text-sm font-medium text-zinc-300">Image Recognition</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                AI can see and compare customer photos with your products. Costs 5 credits per image (vs 1 for text).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setImageRecognition(!imageRecognition)}
+              className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 ${imageRecognition ? 'bg-emerald-500' : 'bg-white/10'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white transition-transform ${imageRecognition ? 'translate-x-5' : ''}`} />
+            </button>
           </div>
 
           <div>

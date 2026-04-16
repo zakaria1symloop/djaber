@@ -235,6 +235,7 @@ export interface AdminPlan {
   maxProducts: number;
   maxConversations: number;
   maxTeamMembers: number;
+  monthlyCredits: number;
   features: string[];
   isActive: boolean;
   isFeatured: boolean;
@@ -263,6 +264,7 @@ export type AdminPlanInput = {
   maxProducts?: number;
   maxConversations?: number;
   maxTeamMembers?: number;
+  monthlyCredits?: number;
   features?: string[];
   isActive?: boolean;
   isFeatured?: boolean;

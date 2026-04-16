@@ -878,6 +878,10 @@ export interface Order {
 // Payments (Chargily)
 // ============================================================================
 
+export async function getCreditStatus(): Promise<{ used: number; limit: number; remaining: number; percentage: number }> {
+  return apiRequest('/api/credits');
+}
+
 export async function getPublicPlans(): Promise<{ plans: Array<{ id: string; slug: string; name: string; description: string | null; priceMonthly: string; priceYearly: string; currency: string; maxPages: number; maxAgents: number; maxProducts: number; maxConversations: number; maxTeamMembers: number; features: string[]; isFeatured: boolean }> }> {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:6001';
   const res = await fetch(`${API_URL}/api/plans`);
@@ -1049,6 +1053,7 @@ export interface Agent {
   productTemplate: string | null;
   closingInstructions: string | null;
   humanHandoffRules: string | null;
+  imageRecognition: boolean;
   responseDelay: number;
   isActive: boolean;
   createdAt: string;
@@ -1074,6 +1079,7 @@ export async function createAgent(data: {
   productTemplate?: string;
   closingInstructions?: string;
   humanHandoffRules?: string;
+  imageRecognition?: boolean;
   responseDelay?: number;
   aiModel?: string;
   temperature?: number;
@@ -1098,6 +1104,7 @@ export async function updateAgentApi(
     productTemplate?: string;
     closingInstructions?: string;
   humanHandoffRules?: string;
+  imageRecognition?: boolean;
     responseDelay?: number;
     aiModel?: string;
     temperature?: number;

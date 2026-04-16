@@ -31,6 +31,7 @@ import {
   DollarIcon,
 } from '@/components/ui';
 import { getUnreadCount } from '@/lib/notifications-api';
+import { getCreditStatus } from '@/lib/user-stock-api';
 import { FilterPanelProvider, useFilterPanel } from '@/contexts/FilterPanelContext';
 
 const navigationItems = [
@@ -89,6 +90,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const [urgentAlert, setUrgentAlert] = useState(false);
   const prevUnreadRef = useRef(0);
   const [stockMode, setStockMode] = useState<'simple' | 'advanced'>('simple');
+  const [credits, setCredits] = useState<{ used: number; limit: number; remaining: number; percentage: number } | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -145,7 +147,12 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
         setUnreadCount(data.count);
       })
       .catch(() => {});
-    const interval = setInterval(fetchCount, 10000); // Poll every 10s for faster alerts
+    // Also fetch credits
+    getCreditStatus().then(setCredits).catch(() => {});
+    const interval = setInterval(() => {
+      fetchCount();
+      getCreditStatus().then(setCredits).catch(() => {});
+    }, 10000);
     return () => clearInterval(interval);
   }, [isAuthenticated, playAlertSound]);
 
@@ -445,6 +452,23 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
             </h1>
 
             <div className="flex items-center gap-2">
+              {/* Credits pill */}
+              {credits && (
+                <div
+                  className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border cursor-default ${
+                    credits.percentage >= 100
+                      ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                      : credits.percentage >= 80
+                        ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                        : 'bg-white/5 text-zinc-400 border-white/10'
+                  }`}
+                  title={`${credits.used} / ${credits.limit} credits used`}
+                >
+                  <span className="text-[10px]">⚡</span>
+                  {credits.remaining.toLocaleString()} / {credits.limit.toLocaleString()}
+                </div>
+              )}
+
               {/* Bell icon with urgent alert orbs */}
               <button
                 onClick={() => {
@@ -544,6 +568,33 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
             ? (isCollapsedMode ? 'lg:ml-[288px]' : 'lg:ml-[480px]')
             : 'lg:ml-64'
       }`}>
+        {/* Credit warning bars */}
+        {credits && credits.percentage >= 100 && (
+          <div className="mb-4 bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-red-400 text-sm font-medium">⚠️ Credits exhausted — AI agent is paused</span>
+            </div>
+            <button
+              onClick={() => router.push('/dashboard?section=settings')}
+              className="px-3 py-1 bg-red-500 text-white text-xs font-semibold rounded-lg hover:bg-red-600 transition-colors"
+            >
+              Upgrade Plan
+            </button>
+          </div>
+        )}
+        {credits && credits.percentage >= 80 && credits.percentage < 100 && (
+          <div className="mb-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-yellow-400 text-sm font-medium">⚡ {credits.remaining} credits remaining — consider upgrading</span>
+            </div>
+            <button
+              onClick={() => router.push('/dashboard?section=settings')}
+              className="px-3 py-1 bg-yellow-500 text-black text-xs font-semibold rounded-lg hover:bg-yellow-400 transition-colors"
+            >
+              Upgrade
+            </button>
+          </div>
+        )}
         {children}
       </main>
     </>

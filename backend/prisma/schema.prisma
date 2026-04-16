@@ -17,8 +17,11 @@ model User {
   firstName String
   lastName  String
   plan      String   @default("individual") // individual, teams
-  isAdmin   Boolean  @default(false)
-  createdAt DateTime @default(now())
+  isAdmin        Boolean  @default(false)
+  creditsUsed    Int      @default(0)    // Credits consumed this billing period
+  creditsLimit   Int      @default(500)  // Monthly credit limit (from plan)
+  creditsResetAt DateTime @default(now()) // When credits reset (start of billing period)
+  createdAt      DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   pages         Page[]
@@ -137,6 +140,7 @@ model Agent {
   productTemplate    String?  @db.Text // How the AI should present products in chat
   closingInstructions String? @db.Text // When/how to close conversations
   humanHandoffRules  String?  @db.Text // When to stop AI and request human intervention
+  imageRecognition   Boolean  @default(false) // Enable vision (costs more credits)
   responseDelay      Int      @default(3) // Seconds to wait before responding (message batching)
   isActive           Boolean  @default(true)
   createdAt          DateTime @default(now())
@@ -631,6 +635,7 @@ model Plan {
   maxProducts     Int      @default(50)  // Max products
   maxConversations Int     @default(100) // Max conversations / month
   maxTeamMembers  Int      @default(1)   // Max users in workspace
+  monthlyCredits  Int      @default(500) // Credits included per month
   // Features
   features        String   @db.Text     // JSON array of feature strings
   // Chargily Pay (Algerian payment processor) integration
