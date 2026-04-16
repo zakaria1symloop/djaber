@@ -43,7 +43,7 @@ export async function hasCredits(userId: string, cost: number = 1): Promise<{ ok
 /**
  * Consume credits for an action. Returns false if insufficient.
  */
-export async function consumeCredits(userId: string, cost: number, action: string): Promise<boolean> {
+export async function consumeCredits(userId: string, cost: number, _action: string): Promise<boolean> {
   const check = await hasCredits(userId, cost);
   if (!check.ok) return false;
 
