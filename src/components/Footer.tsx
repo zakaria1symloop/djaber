@@ -1,8 +1,13 @@
+'use client';
+
 import Link from 'next/link';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function Footer() {
+  const { t, dir } = useTranslation();
+
   return (
-    <footer className="relative border-t border-white/5">
+    <footer className="relative border-t border-white/5" dir={dir}>
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-16">
         <div className="grid md:grid-cols-4 gap-12 mb-12">
           {/* Brand */}
@@ -33,7 +38,7 @@ export default function Footer() {
                   </defs>
                 </svg>
               </div>
-              <span 
+              <span
                 className="text-xl font-bold tracking-tight"
                 style={{ fontFamily: 'Syne, sans-serif' }}
               >
@@ -42,9 +47,8 @@ export default function Footer() {
               </span>
             </Link>
             <p className="text-sm text-zinc-400 leading-relaxed mb-4">
-              AI-powered social media agent that handles customer conversations 24/7.
+              {t('footer.tagline')}
             </p>
-            {/* Social links */}
             <div className="flex gap-3">
               {[
                 { name: 'Twitter', icon: 'M23 3a10.9 10.9 0 01-3.14 1.53 4.48 4.48 0 00-7.86 3v1A10.66 10.66 0 013 4s-4 9 5 13a11.64 11.64 0 01-7 2c9 5 20 0 20-11.5a4.5 4.5 0 00-.08-.83A7.72 7.72 0 0023 3z' },
@@ -67,12 +71,18 @@ export default function Footer() {
 
           {/* Product */}
           <div>
-            <h3 className="text-sm font-semibold text-white mb-4 uppercase tracking-wider">Product</h3>
+            <h3 className="text-sm font-semibold text-white mb-4 uppercase tracking-wider">{t('footer.product')}</h3>
             <ul className="space-y-3">
-              {['Features', 'Pricing', 'Integrations', 'API', 'Changelog'].map((item) => (
-                <li key={item}>
-                  <Link href="#" className="text-sm text-zinc-400 hover:text-white transition-colors">
-                    {item}
+              {[
+                { label: t('header.features'), href: '/features' },
+                { label: t('header.pricing'), href: '/pricing' },
+                { label: t('footer.product.integrations'), href: '#' },
+                { label: t('footer.product.api'), href: '/docs' },
+                { label: t('footer.product.changelog'), href: '#' },
+              ].map((item, i) => (
+                <li key={i}>
+                  <Link href={item.href} className="text-sm text-zinc-400 hover:text-white transition-colors">
+                    {item.label}
                   </Link>
                 </li>
               ))}
@@ -81,12 +91,18 @@ export default function Footer() {
 
           {/* Company */}
           <div>
-            <h3 className="text-sm font-semibold text-white mb-4 uppercase tracking-wider">Company</h3>
+            <h3 className="text-sm font-semibold text-white mb-4 uppercase tracking-wider">{t('footer.company')}</h3>
             <ul className="space-y-3">
-              {['About', 'Blog', 'Careers', 'Press', 'Contact'].map((item) => (
-                <li key={item}>
-                  <Link href="#" className="text-sm text-zinc-400 hover:text-white transition-colors">
-                    {item}
+              {[
+                { label: t('footer.company.about'), href: '/about' },
+                { label: t('footer.company.blog'), href: '/blog' },
+                { label: t('footer.company.careers'), href: '/careers' },
+                { label: t('footer.company.press'), href: '#' },
+                { label: t('footer.company.contact'), href: '/contact' },
+              ].map((item, i) => (
+                <li key={i}>
+                  <Link href={item.href} className="text-sm text-zinc-400 hover:text-white transition-colors">
+                    {item.label}
                   </Link>
                 </li>
               ))}
@@ -95,12 +111,18 @@ export default function Footer() {
 
           {/* Resources */}
           <div>
-            <h3 className="text-sm font-semibold text-white mb-4 uppercase tracking-wider">Resources</h3>
+            <h3 className="text-sm font-semibold text-white mb-4 uppercase tracking-wider">{t('footer.resources')}</h3>
             <ul className="space-y-3">
-              {['Documentation', 'Help Center', 'Community', 'Status', 'Terms'].map((item) => (
-                <li key={item}>
-                  <Link href="#" className="text-sm text-zinc-400 hover:text-white transition-colors">
-                    {item}
+              {[
+                { label: t('footer.resources.docs'), href: '/docs' },
+                { label: t('footer.resources.help'), href: '/help' },
+                { label: t('footer.resources.community'), href: '#' },
+                { label: t('footer.resources.status'), href: '#' },
+                { label: t('footer.legal.terms'), href: '/terms' },
+              ].map((item, i) => (
+                <li key={i}>
+                  <Link href={item.href} className="text-sm text-zinc-400 hover:text-white transition-colors">
+                    {item.label}
                   </Link>
                 </li>
               ))}
@@ -111,17 +133,17 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-zinc-500">
-            © 2025 Djaber.ai. All rights reserved.
+            © 2026 Djaber.ai. {t('footer.rights')}
           </p>
           <div className="flex gap-6">
-            <Link href="#" className="text-sm text-zinc-500 hover:text-white transition-colors">
-              Privacy Policy
+            <Link href="/privacy" className="text-sm text-zinc-500 hover:text-white transition-colors">
+              {t('footer.legal.privacy')}
+            </Link>
+            <Link href="/terms" className="text-sm text-zinc-500 hover:text-white transition-colors">
+              {t('footer.legal.terms')}
             </Link>
             <Link href="#" className="text-sm text-zinc-500 hover:text-white transition-colors">
-              Terms of Service
-            </Link>
-            <Link href="#" className="text-sm text-zinc-500 hover:text-white transition-colors">
-              Cookie Policy
+              {t('footer.legal.cookies')}
             </Link>
           </div>
         </div>

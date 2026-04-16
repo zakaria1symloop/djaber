@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:6001';
 
@@ -21,6 +22,7 @@ interface Plan {
 }
 
 export default function PricingSection() {
+  const { t } = useTranslation();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [billing, setBilling] = useState<'monthly' | 'yearly'>('monthly');
   const [loading, setLoading] = useState(true);
@@ -56,7 +58,7 @@ export default function PricingSection() {
               billing === 'monthly' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
             }`}
           >
-            Monthly
+            {t('pricing.monthly')}
           </button>
           <button
             onClick={() => setBilling('yearly')}
@@ -64,7 +66,7 @@ export default function PricingSection() {
               billing === 'yearly' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
             }`}
           >
-            Yearly
+            {t('pricing.yearly')}
           </button>
         </div>
       </div>
@@ -87,7 +89,7 @@ export default function PricingSection() {
               {plan.isFeatured && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                   <span className="px-4 py-1 bg-white text-black text-xs font-bold rounded-full uppercase tracking-wider">
-                    Popular
+                    {t('pricing.popular')}
                   </span>
                 </div>
               )}
@@ -105,11 +107,11 @@ export default function PricingSection() {
 
               <div className="flex items-baseline gap-1 mb-6">
                 <span className="text-4xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-                  {isFree ? 'Free' : price.toLocaleString()}
+                  {isFree ? t('pricing.free') : price.toLocaleString()}
                 </span>
                 {!isFree && (
                   <span className="text-zinc-500 text-sm">
-                    {plan.currency}/{billing === 'yearly' ? 'yr' : 'mo'}
+                    {plan.currency}/{billing === 'yearly' ? t('pricing.perYear') : t('pricing.perMonth')}
                   </span>
                 )}
               </div>
@@ -133,7 +135,7 @@ export default function PricingSection() {
                     : 'bg-white/10 text-white hover:bg-white/20 border border-white/10'
                 }`}
               >
-                {isFree ? 'Get Started Free' : 'Subscribe'}
+                {isFree ? t('pricing.getStartedFree') : t('pricing.subscribe')}
               </Link>
             </div>
           );

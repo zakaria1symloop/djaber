@@ -33,37 +33,38 @@ import {
 import { getUnreadCount } from '@/lib/notifications-api';
 import { getCreditStatus } from '@/lib/user-stock-api';
 import { FilterPanelProvider, useFilterPanel } from '@/contexts/FilterPanelContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 
-const navigationItems = [
-  { id: 'overview', name: 'Overview', icon: HomeIcon, href: '/dashboard' },
-  { id: 'social-media', name: 'Social Media', icon: ChatIcon, href: '/dashboard', section: 'pages' },
-  { id: 'services', name: 'Services', icon: GridIcon, href: '/dashboard/services' },
-  { id: 'notifications', name: 'Notifications', icon: BellIcon, href: '/dashboard/notifications' },
-  { id: 'analytics', name: 'Analytics', icon: ChartIcon, href: '/dashboard', section: 'analytics' },
-  { id: 'settings', name: 'Settings', icon: SettingsIcon, href: '/dashboard', section: 'settings' },
-];
+const navigationItemsBase = [
+  { id: 'overview', labelKey: 'nav.dash.overview', icon: HomeIcon, href: '/dashboard' },
+  { id: 'social-media', labelKey: 'nav.dash.social', icon: ChatIcon, href: '/dashboard', section: 'pages' },
+  { id: 'services', labelKey: 'nav.dash.services', icon: GridIcon, href: '/dashboard/services' },
+  { id: 'notifications', labelKey: 'nav.dash.notifications', icon: BellIcon, href: '/dashboard/notifications' },
+  { id: 'analytics', labelKey: 'nav.dash.analytics', icon: ChartIcon, href: '/dashboard', section: 'analytics' },
+  { id: 'settings', labelKey: 'nav.dash.settings', icon: SettingsIcon, href: '/dashboard', section: 'settings' },
+] as const;
 
-const serviceSubItems = [
-  { id: 'products', name: 'Products', icon: BoxIcon, href: '/dashboard/stock', active: true },
-  { id: 'agents', name: 'Agents', icon: BotIcon, href: '/dashboard/agents', active: true },
-  { id: 'sales', name: 'Sales', icon: ShoppingCartIcon, href: null, active: false },
-  { id: 'commercial', name: 'Commercial', icon: MegaphoneIcon, href: null, active: false },
-];
+const serviceSubItemsBase = [
+  { id: 'products', labelKey: 'nav.dash.products', icon: BoxIcon, href: '/dashboard/stock', active: true },
+  { id: 'agents', labelKey: 'nav.dash.agents', icon: BotIcon, href: '/dashboard/agents', active: true },
+  { id: 'sales', labelKey: 'nav.dash.sales', icon: ShoppingCartIcon, href: null, active: false },
+  { id: 'commercial', labelKey: 'nav.dash.commercial', icon: MegaphoneIcon, href: null, active: false },
+] as const;
 
-const stockNavItems = [
-  { href: '/dashboard/stock', label: 'Overview', icon: HomeIcon, simple: true },
-  { href: '/dashboard/stock/products', label: 'Products', icon: BoxIcon, simple: true },
-  { href: '/dashboard/stock/categories', label: 'Categories', icon: TagIcon, simple: true },
-  { href: '/dashboard/stock/suppliers', label: 'Suppliers', icon: UsersIcon, simple: false },
-  { href: '/dashboard/stock/clients', label: 'Clients', icon: UsersIcon, simple: false },
-  { href: '/dashboard/stock/recommendations', label: 'Cross-Sell', icon: BoltIcon, simple: false },
-  { href: '/dashboard/stock/caisse', label: 'Caisse', icon: DollarIcon, simple: false },
-  { href: '/dashboard/stock/orders', label: 'Orders', icon: ClipboardIcon, simple: true },
-  { href: '/dashboard/stock/delivery', label: 'Delivery', icon: TruckIcon, simple: false },
-  { href: '/dashboard/stock/sales', label: 'Sales', icon: ShoppingCartIcon, simple: false },
-  { href: '/dashboard/stock/purchases', label: 'Purchases', icon: TruckIcon, simple: false },
-  { href: '/dashboard/stock/movements', label: 'Movements', icon: HistoryIcon, simple: false },
-];
+const stockNavItemsBase = [
+  { href: '/dashboard/stock', labelKey: 'nav.dash.overview', icon: HomeIcon, simple: true },
+  { href: '/dashboard/stock/products', labelKey: 'nav.dash.products', icon: BoxIcon, simple: true },
+  { href: '/dashboard/stock/categories', labelKey: 'nav.dash.categories', icon: TagIcon, simple: true },
+  { href: '/dashboard/stock/suppliers', labelKey: 'nav.dash.suppliers', icon: UsersIcon, simple: false },
+  { href: '/dashboard/stock/clients', labelKey: 'nav.dash.clients', icon: UsersIcon, simple: false },
+  { href: '/dashboard/stock/recommendations', labelKey: 'nav.dash.crossSell', icon: BoltIcon, simple: false },
+  { href: '/dashboard/stock/caisse', labelKey: 'nav.dash.caisse', icon: DollarIcon, simple: false },
+  { href: '/dashboard/stock/orders', labelKey: 'nav.dash.orders', icon: ClipboardIcon, simple: true },
+  { href: '/dashboard/stock/delivery', labelKey: 'nav.dash.delivery', icon: TruckIcon, simple: false },
+  { href: '/dashboard/stock/sales', labelKey: 'nav.dash.sales', icon: ShoppingCartIcon, simple: false },
+  { href: '/dashboard/stock/purchases', labelKey: 'nav.dash.purchases', icon: TruckIcon, simple: false },
+  { href: '/dashboard/stock/movements', labelKey: 'nav.dash.movements', icon: HistoryIcon, simple: false },
+] as const;
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
@@ -82,6 +83,10 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, loading: authLoading, logout } = useAuth();
   const { pages } = usePages();
   const { filterPanelOpen, setFilterPanelOpen } = useFilterPanel();
+  const { t, dir } = useTranslation();
+  const navigationItems = navigationItemsBase.map((i) => ({ ...i, name: t(i.labelKey) }));
+  const serviceSubItems = serviceSubItemsBase.map((i) => ({ ...i, name: t(i.labelKey) }));
+  const stockNavItemsRaw = stockNavItemsBase.map((i) => ({ ...i, label: t(i.labelKey) }));
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [servicesExpanded, setServicesExpanded] = useState(false);
@@ -183,8 +188,8 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   // Route guard: redirect to stock overview if on advanced-only route in simple mode
   const isStockRoute = pathname?.startsWith('/dashboard/stock');
   const filteredStockNavItems = stockMode === 'simple'
-    ? stockNavItems.filter(item => item.simple)
-    : stockNavItems;
+    ? stockNavItemsRaw.filter(item => item.simple)
+    : stockNavItemsRaw;
 
   useEffect(() => {
     if (stockMode === 'simple' && isStockRoute && pathname !== '/dashboard/stock') {
@@ -197,8 +202,8 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
 
   if (authLoading || !isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="text-white">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-black" dir={dir}>
+        <div className="text-white">{t('dash.loading')}</div>
       </div>
     );
   }
@@ -236,7 +241,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
     if (item.id === 'services') {
       setServicesExpanded(!servicesExpanded);
       router.push('/dashboard/services');
-    } else if (item.section) {
+    } else if ('section' in item && item.section) {
       router.push(`/dashboard?section=${item.section}`);
     } else {
       router.push(item.href);
@@ -245,13 +250,12 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   };
 
   const getHeaderTitle = () => {
-    if (isNotificationsRoute) return 'Notifications';
-    if (isStockRoute) return 'Products';
-    if (isServicesRoute) return 'Services';
-    if (activeNavId === 'social-media') return 'Social Media';
-    if (activeNavId && activeNavId !== 'overview') {
-      return activeNavId.charAt(0).toUpperCase() + activeNavId.slice(1);
-    }
+    if (isNotificationsRoute) return t('nav.dash.notifications');
+    if (isStockRoute) return t('nav.dash.products');
+    if (isServicesRoute) return t('nav.dash.services');
+    if (activeNavId === 'social-media') return t('nav.dash.social');
+    if (activeNavId === 'analytics') return t('nav.dash.analytics');
+    if (activeNavId === 'settings') return t('nav.dash.settings');
     return '';
   };
 
@@ -273,7 +277,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
             {!isCollapsedMode && (
               <div>
                 <h1 className="text-white font-bold text-lg" style={{ fontFamily: 'Syne, sans-serif' }}>Djaber.ai</h1>
-                <p className="text-xs text-zinc-500">AI Social Agent</p>
+                <p className="text-xs text-zinc-500">{t('dash.tagline')}</p>
               </div>
             )}
           </div>
@@ -353,7 +357,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                           </div>
                           {!sub.active && (
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-white/5 text-zinc-500">
-                              Soon
+                              {t('nav.dash.soon')}
                             </span>
                           )}
                         </button>
@@ -370,11 +374,11 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
           <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
             <Card variant="default" padding="sm">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-zinc-400">Your Plan</span>
-                <Badge variant="default" size="sm">{user?.plan || 'Free'}</Badge>
+                <span className="text-xs text-zinc-400">{t('dash.yourPlan')}</span>
+                <Badge variant="default" size="sm">{user?.plan || t('pricing.free')}</Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-400">Pages</span>
+                <span className="text-xs text-zinc-400">{t('dash.pages')}</span>
                 <span className="text-xs font-semibold text-white">{pages.length} / 10</span>
               </div>
             </Card>
@@ -401,10 +405,10 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
             onClick={() => router.push('/dashboard/services')}
             className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors mb-3"
           >
-            <ChevronLeftIcon className="w-4 h-4" />
-            <span>Back to Services</span>
+            <ChevronLeftIcon className={`w-4 h-4 ${dir === 'rtl' ? 'rotate-180' : ''}`} />
+            <span>{t('nav.dash.backServices')}</span>
           </button>
-          <h2 className="text-sm font-semibold text-white">Products</h2>
+          <h2 className="text-sm font-semibold text-white">{t('nav.dash.products')}</h2>
         </div>
         <nav className="p-2 space-y-0.5 flex-1">
           {filteredStockNavItems.map((item) => {
@@ -509,7 +513,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                     <p className="text-sm font-semibold text-white">{user?.firstName} {user?.lastName}</p>
                     <p className="text-xs text-zinc-400 mt-1">{user?.email}</p>
                     <Badge variant="info" size="sm" className="mt-2">
-                      {user?.plan || 'Free'} Plan
+                      {user?.plan || t('pricing.free')} {t('menu.plan')}
                     </Badge>
                   </div>
                   <div className="p-2">
@@ -521,14 +525,14 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                       className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-all"
                     >
                       <SettingsIcon className="w-4 h-4" />
-                      Settings
+                      {t('menu.settings')}
                     </button>
                     <button
                       onClick={() => router.push('/')}
                       className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-all"
                     >
                       <HomeIcon className="w-4 h-4" />
-                      Back to Home
+                      {t('menu.backHome')}
                     </button>
                   </div>
                   <div className="p-2 border-t border-white/10">
@@ -540,7 +544,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                       className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all"
                     >
                       <LogoutIcon className="w-4 h-4" />
-                      Logout
+                      {t('menu.signout')}
                     </button>
                   </div>
                 </div>
@@ -572,26 +576,26 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
         {credits && credits.percentage >= 100 && (
           <div className="mb-4 bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-red-400 text-sm font-medium">⚠️ Credits exhausted — AI agent is paused</span>
+              <span className="text-red-400 text-sm font-medium">⚠️ {t('dash.creditsExhausted')}</span>
             </div>
             <button
               onClick={() => router.push('/dashboard?section=settings')}
               className="px-3 py-1 bg-red-500 text-white text-xs font-semibold rounded-lg hover:bg-red-600 transition-colors"
             >
-              Upgrade Plan
+              {t('dash.upgradePlan')}
             </button>
           </div>
         )}
         {credits && credits.percentage >= 80 && credits.percentage < 100 && (
           <div className="mb-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-yellow-400 text-sm font-medium">⚡ {credits.remaining} credits remaining — consider upgrading</span>
+              <span className="text-yellow-400 text-sm font-medium">⚡ {credits.remaining} {t('dash.creditsRemaining')}</span>
             </div>
             <button
               onClick={() => router.push('/dashboard?section=settings')}
               className="px-3 py-1 bg-yellow-500 text-black text-xs font-semibold rounded-lg hover:bg-yellow-400 transition-colors"
             >
-              Upgrade
+              {t('dash.upgrade')}
             </button>
           </div>
         )}

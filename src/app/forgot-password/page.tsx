@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function ForgotPasswordPage() {
+  const { t, dir } = useTranslation();
   const [email, setEmail] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -14,16 +16,16 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="fixed inset-0 flex bg-black">
+    <div className="fixed inset-0 flex bg-black" dir={dir}>
       {/* Back Button */}
       <Link
         href="/login"
-        className="fixed top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 backdrop-blur-sm border border-white/10 rounded-full text-zinc-400 hover:text-white transition-all duration-300"
+        className="fixed top-6 start-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 backdrop-blur-sm border border-white/10 rounded-full text-zinc-400 hover:text-white transition-all duration-300"
       >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className={`w-5 h-5 ${dir === 'rtl' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
         </svg>
-        <span className="text-sm">Back to Login</span>
+        <span className="text-sm">{t('auth.forgot.backToLogin')}</span>
       </Link>
 
       {/* Left Side - Information */}
@@ -63,10 +65,10 @@ export default function ForgotPasswordPage() {
           {/* Main Content */}
           <div className="mb-10 animate-fade-in" style={{ animationDelay: '0.2s' }}>
             <h2 className="text-4xl font-bold text-white mb-6 leading-tight" style={{ fontFamily: 'Syne, sans-serif' }}>
-              Reset your password
+              {t('auth.forgot.reset.title')}
             </h2>
             <p className="text-xl text-zinc-400 leading-relaxed">
-              We'll send you instructions to reset your password
+              {t('auth.forgot.reset.subtitle')}
             </p>
           </div>
 
@@ -79,8 +81,8 @@ export default function ForgotPasswordPage() {
                 </svg>
               </div>
               <div className="flex-1">
-                <div className="text-white font-semibold mb-1">Secure Process</div>
-                <div className="text-sm text-zinc-400">Your password reset link is encrypted and expires in 1 hour</div>
+                <div className="text-white font-semibold mb-1">{t('auth.forgot.secure.title')}</div>
+                <div className="text-sm text-zinc-400">{t('auth.forgot.secure.desc')}</div>
               </div>
             </div>
 
@@ -91,8 +93,8 @@ export default function ForgotPasswordPage() {
                 </svg>
               </div>
               <div className="flex-1">
-                <div className="text-white font-semibold mb-1">Email Verification</div>
-                <div className="text-sm text-zinc-400">Check your inbox for the password reset link</div>
+                <div className="text-white font-semibold mb-1">{t('auth.forgot.verify.title')}</div>
+                <div className="text-sm text-zinc-400">{t('auth.forgot.verify.desc')}</div>
               </div>
             </div>
           </div>
@@ -133,9 +135,9 @@ export default function ForgotPasswordPage() {
               className="text-4xl font-bold text-white mb-3"
               style={{ fontFamily: 'Syne, sans-serif' }}
             >
-              Forgot Password?
+              {t('auth.forgot.title')}
             </h1>
-            <p className="text-zinc-400">Enter your email to receive a reset link</p>
+            <p className="text-zinc-400">{t('auth.forgot.subtitle')}</p>
           </div>
 
           {!isSubmitted ? (
@@ -143,7 +145,7 @@ export default function ForgotPasswordPage() {
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-zinc-300 mb-2">
-                    Email Address
+                    {t('auth.forgot.email')}
                   </label>
                   <input
                     type="email"
@@ -151,7 +153,7 @@ export default function ForgotPasswordPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full px-4 py-3 bg-black/50 border border-white/10 rounded-lg text-white placeholder-zinc-500 focus:border-white/30 focus:outline-none transition-colors"
-                    placeholder="john@company.com"
+                    placeholder={t('auth.forgot.emailPlaceholder')}
                   />
                 </div>
 
@@ -159,7 +161,7 @@ export default function ForgotPasswordPage() {
                   type="submit"
                   className="w-full btn-primary px-6 py-4 rounded-full font-semibold"
                 >
-                  <span>Send Reset Link</span>
+                  <span>{t('auth.forgot.submit')}</span>
                 </button>
               </form>
             </div>
@@ -172,18 +174,18 @@ export default function ForgotPasswordPage() {
                   </svg>
                 </div>
                 <h3 className="text-xl font-bold text-white mb-3" style={{ fontFamily: 'Syne, sans-serif' }}>
-                  Check Your Email
+                  {t('auth.forgot.sent.title')}
                 </h3>
                 <p className="text-zinc-400 mb-6">
-                  We've sent a password reset link to <span className="text-white font-medium">{email}</span>
+                  {t('auth.forgot.sent.message')} <span className="text-white font-medium">{email}</span>
                 </p>
                 <div className="bg-[#0a0a0a] border border-white/10 rounded-lg p-4 text-sm text-zinc-400">
-                  <p className="mb-2">Didn't receive the email?</p>
+                  <p className="mb-2">{t('auth.forgot.sent.noReceive')}</p>
                   <button
                     onClick={() => setIsSubmitted(false)}
                     className="text-white hover:underline font-medium"
                   >
-                    Try another email address
+                    {t('auth.forgot.sent.tryAnother')}
                   </button>
                 </div>
               </div>
@@ -192,9 +194,9 @@ export default function ForgotPasswordPage() {
 
           {/* Back to Login */}
           <p className="text-center text-sm text-zinc-400">
-            Remember your password?{' '}
+            {t('auth.forgot.remember')}{' '}
             <Link href="/login" className="text-white hover:underline font-medium">
-              Back to Login
+              {t('auth.forgot.backToLogin')}
             </Link>
           </p>
         </div>

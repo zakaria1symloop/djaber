@@ -3,6 +3,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import { Avatar } from '@/components/ui';
 import {
   ChartIcon,
@@ -20,23 +21,25 @@ import {
   FileTextIcon,
 } from '@/components/ui/icons';
 
-const adminNavItems = [
-  { href: '/admin/analytics', label: 'Analytics', icon: ChartIcon },
-  { href: '/admin/users', label: 'Users', icon: UsersIcon },
-  { href: '/admin/plans', label: 'Plans', icon: StarIcon },
-  { href: '/admin/subscriptions', label: 'Subscriptions', icon: DollarIcon },
-  { href: '/admin/ai-providers', label: 'AI Providers', icon: BoltIcon },
-  { href: '/admin/products', label: 'Products', icon: BoxIcon },
-  { href: '/admin/conversations', label: 'Conversations', icon: ChatIcon },
-  { href: '/admin/company', label: 'Company', icon: GlobeIcon },
-  { href: '/admin/legal', label: 'Legal', icon: FileTextIcon },
-  { href: '/admin/settings', label: 'Settings', icon: SettingsIcon },
-];
+const adminNavItemsBase = [
+  { href: '/admin/analytics', labelKey: 'nav.admin.analytics', icon: ChartIcon },
+  { href: '/admin/users', labelKey: 'nav.admin.users', icon: UsersIcon },
+  { href: '/admin/plans', labelKey: 'nav.admin.plans', icon: StarIcon },
+  { href: '/admin/subscriptions', labelKey: 'nav.admin.subscriptions', icon: DollarIcon },
+  { href: '/admin/ai-providers', labelKey: 'nav.admin.ai', icon: BoltIcon },
+  { href: '/admin/products', labelKey: 'nav.admin.products', icon: BoxIcon },
+  { href: '/admin/conversations', labelKey: 'nav.admin.conversations', icon: ChatIcon },
+  { href: '/admin/company', labelKey: 'nav.admin.company', icon: GlobeIcon },
+  { href: '/admin/legal', labelKey: 'nav.admin.legal', icon: FileTextIcon },
+  { href: '/admin/settings', labelKey: 'nav.admin.settings', icon: SettingsIcon },
+] as const;
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, isAuthenticated, loading: authLoading, logout } = useAuth();
+  const { t, dir } = useTranslation();
+  const adminNavItems = adminNavItemsBase.map((i) => ({ ...i, label: t(i.labelKey) }));
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -65,8 +68,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   if (authLoading || !isAuthenticated || !user?.isAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="text-zinc-400 text-sm">Verifying admin access…</div>
+      <div className="min-h-screen flex items-center justify-center bg-black" dir={dir}>
+        <div className="text-zinc-400 text-sm">{t('admin.verifying')}</div>
       </div>
     );
   }
@@ -74,7 +77,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const isActive = (href: string) => pathname === href || pathname?.startsWith(href + '/');
 
   const activeItem = adminNavItems.find((item) => isActive(item.href));
-  const headerTitle = activeItem?.label || 'Admin';
+  const headerTitle = activeItem?.label || t('admin.defaultTitle');
 
   return (
     <>
@@ -94,7 +97,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <h1 className="text-white font-bold text-lg" style={{ fontFamily: 'Syne, sans-serif' }}>
                 Djaber.ai
               </h1>
-              <p className="text-xs text-zinc-500">Admin Panel</p>
+              <p className="text-xs text-zinc-500">{t('admin.tagline')}</p>
             </div>
           </div>
         </div>
@@ -128,9 +131,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-3">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-zinc-500">Role</span>
+              <span className="text-xs text-zinc-500">{t('admin.role')}</span>
               <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/10 text-white uppercase tracking-wider">
-                Admin
+                {t('admin.role.label')}
               </span>
             </div>
             <p className="text-xs text-white truncate">{user.email}</p>
@@ -177,7 +180,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                     <p className="text-sm font-semibold text-white">{user.firstName} {user.lastName}</p>
                     <p className="text-xs text-zinc-400 mt-1">{user.email}</p>
                     <span className="inline-block mt-2 text-[10px] font-medium px-2 py-0.5 rounded-full bg-white/10 text-white uppercase tracking-wider">
-                      Administrator
+                      {t('admin.role.full')}
                     </span>
                   </div>
                   <div className="p-2">
@@ -189,14 +192,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                       className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-all"
                     >
                       <SettingsIcon className="w-4 h-4" />
-                      Settings
+                      {t('menu.settings')}
                     </button>
                     <button
                       onClick={() => router.push('/')}
                       className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-all"
                     >
                       <HomeIcon className="w-4 h-4" />
-                      Back to Home
+                      {t('menu.backHome')}
                     </button>
                   </div>
                   <div className="p-2 border-t border-white/10">
@@ -208,7 +211,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                       className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all"
                     >
                       <LogoutIcon className="w-4 h-4" />
-                      Sign out
+                      {t('menu.signout')}
                     </button>
                   </div>
                 </div>
