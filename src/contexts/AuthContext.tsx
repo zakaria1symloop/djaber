@@ -120,6 +120,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       const response = await getProfile();
       setUser(response.user);
+      // Update localStorage so plan persists across reloads
+      localStorage.setItem('user', JSON.stringify(response.user));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch profile';
       setError(errorMessage);
