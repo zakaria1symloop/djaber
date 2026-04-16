@@ -88,6 +88,7 @@ function extractAttachments(message: any): {
   let unsupportedType: string | null = null;
 
   if (message.attachments && Array.isArray(message.attachments)) {
+    console.log('Attachments found:', JSON.stringify(message.attachments.map((a: any) => ({ type: a.type, hasUrl: !!a.payload?.url }))));
     for (const att of message.attachments) {
       if (att.type === 'image' && att.payload?.url) {
         imageUrls.push(att.payload.url);
