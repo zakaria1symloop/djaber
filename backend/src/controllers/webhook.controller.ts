@@ -314,89 +314,19 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
     });
 
     if (agentPage && agentPage.agent.isActive) {
-      // Skip AI if conversation is paused for human intervention
+      // Auto-reopen paused conversations when customer sends a new message
+      // (customer is trying again — let the AI handle it)
       if (conversation.status !== 'active') {
-        console.log(`Conversation ${conversation.id} is "${conversation.status}" — skipping AI, human takeover`);
-        // Create insight + notify the owner that customer is waiting
-        await prisma.agentInsight.create({
-          data: {
-            agentId: agentPage.agent.id,
-            conversationId: conversation.id,
-            type: 'unclear',
-            customerMessage: messageText || '(attachment)',
-            aiResponse: '(AI paused — human takeover)',
-            detail: 'Customer still waiting while AI is paused',
-          },
+        console.log(`Auto-reopening conversation ${conversation.id} (was "${conversation.status}") — customer sent new message`);
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: { status: 'active' },
         });
-        await createNotification({
-          userId: page.userId,
-          type: 'agent_insight',
-          title: 'Customer Still Waiting',
-          message: `Customer sent: "${(messageText || '(attachment)').substring(0, 100)}". AI is paused — please respond manually.`,
-          metadata: { conversationId: conversation.id, agentId: agentPage.agent.id, customerMessage: messageText || '(attachment)' },
-        });
-        return;
+        conversation.status = 'active';
       }
 
       const agent = agentPage.agent;
       console.log(`Agent "${agent.name}" handling message on page ${pageId}`);
-
-      // Gibberish detector — ONLY catch truly obvious nonsense like "dfghjk" or "aaaaaaa"
-      // Must be very conservative — "slm cava", "wsh", "cv" are all valid Algerian messages
-      const trimmed = (messageText || '').trim();
-      const isGibberish = trimmed.length > 0 && (
-        // Repeated same char 5+ times (like "aaaaaaa" or "xxxxxxx")
-        /^(.)\1{4,}$/i.test(trimmed) ||
-        // Single char that's not a common response (?, !, .)
-        (trimmed.length === 1 && !/^[?!.\d]$/.test(trimmed))
-      );
-
-      if (isGibberish) {
-        console.log(`Gibberish detected: "${messageText}" — flagging for human`);
-        const politeReply = 'Désolé, je n\'ai pas compris votre message. Un membre de notre équipe va vous répondre bientôt. 😊';
-        await sendMessage({
-          pageAccessToken: page.pageAccessToken,
-          recipientId: senderId,
-          message: politeReply,
-          platform: page.platform as 'facebook' | 'instagram',
-        });
-        await prisma.message.create({
-          data: {
-            conversationId: conversation.id,
-            messageId: `agent_${Date.now()}`,
-            senderId: recipientId,
-            recipientId: senderId,
-            text: politeReply,
-            timestamp: new Date(),
-            isFromPage: true,
-          },
-        });
-        // Pause conversation for human takeover
-        await prisma.conversation.update({
-          where: { id: conversation.id },
-          data: { status: 'resolved' },
-        });
-        // Create insight record (shows in Agent Insights)
-        await prisma.agentInsight.create({
-          data: {
-            agentId: agent.id,
-            conversationId: conversation.id,
-            type: 'unclear',
-            customerMessage: messageText || '[gibberish]',
-            aiResponse: politeReply,
-            detail: 'Gibberish detected — auto-flagged for human',
-          },
-        });
-        // Create notification
-        await createNotification({
-          userId: page.userId,
-          type: 'agent_insight',
-          title: 'Human Intervention Needed',
-          message: `Customer sent unclear message: "${messageText}". AI paused — waiting for human response.`,
-          metadata: { conversationId: conversation.id, agentId: agent.id, customerMessage: messageText },
-        });
-        return;
-      }
 
       // Message batching — queue and wait for more messages before responding
       const responseDelay = ((agent as any).responseDelay ?? 3) * 1000;
