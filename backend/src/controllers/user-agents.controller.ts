@@ -109,6 +109,22 @@ export const createAgent = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
+    // Validate pages belong to this user, then clean up any stale cross-user links
+    if (pageIds.length > 0) {
+      const ownedPages = await prisma.page.findMany({
+        where: { id: { in: pageIds }, userId: req.user.userId },
+        select: { id: true },
+      });
+      const ownedIds = new Set(ownedPages.map(p => p.id));
+      const notOwned = pageIds.filter((id: string) => !ownedIds.has(id));
+      if (notOwned.length > 0) {
+        res.status(400).json({ error: 'One or more pages do not belong to you' });
+        return;
+      }
+      // Remove any stale AgentPage records for these pages (e.g. from deleted/orphaned agents)
+      await prisma.agentPage.deleteMany({ where: { pageId: { in: pageIds } } });
+    }
+
     const agent = await prisma.agent.create({
       data: {
         userId: req.user.userId,
@@ -210,12 +226,28 @@ export const updateAgent = async (req: Request, res: Response): Promise<void> =>
     if (sellAllProducts !== undefined) updateData.sellAllProducts = sellAllProducts;
     if (isActive !== undefined) updateData.isActive = isActive;
 
+    // Validate pages belong to this user before starting transaction
+    if (pageIds !== undefined && pageIds.length > 0) {
+      const ownedPages = await prisma.page.findMany({
+        where: { id: { in: pageIds }, userId: req.user.userId },
+        select: { id: true },
+      });
+      const ownedIds = new Set(ownedPages.map(p => p.id));
+      const notOwned = pageIds.filter((id: string) => !ownedIds.has(id));
+      if (notOwned.length > 0) {
+        res.status(400).json({ error: 'One or more pages do not belong to you' });
+        return;
+      }
+    }
+
     // Update agent + sync page/product links in a transaction
     const agent = await prisma.$transaction(async (tx) => {
       // Sync pages if provided
       if (pageIds !== undefined) {
+        // Delete this agent's existing AgentPages AND any stale links for the requested pages
         await tx.agentPage.deleteMany({ where: { agentId } });
         if (pageIds.length > 0) {
+          await tx.agentPage.deleteMany({ where: { pageId: { in: pageIds } } });
           await tx.agentPage.createMany({
             data: pageIds.map((pageId: string) => ({ agentId, pageId })),
           });
