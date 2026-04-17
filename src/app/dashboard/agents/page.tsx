@@ -14,6 +14,7 @@ import {
   getAgentInsights, getAgentMetrics, resolveAgentInsight,
   type Agent, type AgentInsight, type AgentMetrics,
 } from '@/lib/user-stock-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -22,6 +23,7 @@ interface ChatMessage {
 
 export default function AgentsPage() {
   const router = useRouter();
+  const { t, dir } = useTranslation();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -178,18 +180,18 @@ export default function AgentsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir={dir}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>AI Agents</h1>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('page.agents.title')}</h1>
           <p className="text-sm text-zinc-400 mt-1">
-            Create and manage AI agents that sell your products on connected pages
+            {t('page.agents.subtitle')}
           </p>
         </div>
         {agents.length === 0 && !loading && (
           <Button onClick={() => router.push('/dashboard/agents/new')} icon={<PlusIcon className="w-4 h-4" />}>
-            New Agent
+            {t('page.agents.new')}
           </Button>
         )}
       </div>
@@ -301,7 +303,7 @@ export default function AgentsPage() {
                       </p>
                     </div>
                     <div className="bg-black/30 rounded-lg p-2.5 text-center">
-                      <p className="text-xs text-zinc-500">Model</p>
+                      <p className="text-xs text-zinc-500">{t('page.agents.card.model')}</p>
                       <p className="text-xs font-medium text-zinc-300 mt-1">{agent.aiModel}</p>
                     </div>
                   </div>
@@ -344,7 +346,7 @@ export default function AgentsPage() {
                       <div className="px-4 pb-4 text-center">
                         <div className="flex items-center justify-center gap-2 py-4 text-zinc-600">
                           <CheckCircleIcon className="w-4 h-4 text-emerald-500" />
-                          <span className="text-sm">No pending issues</span>
+                          <span className="text-sm">{t('page.agents.card.noIssues')}</span>
                         </div>
                       </div>
                     ) : (
@@ -431,12 +433,12 @@ export default function AgentsPage() {
           <div className="text-zinc-600 mb-4 flex justify-center">
             <BotIcon className="w-16 h-16" />
           </div>
-          <h3 className="text-lg font-medium text-zinc-300 mb-1">No Agents Yet</h3>
+          <h3 className="text-lg font-medium text-zinc-300 mb-1">{t('page.agents.empty.title')}</h3>
           <p className="text-sm text-zinc-500 max-w-md mx-auto mb-4">
-            Create an AI agent to automatically respond to messages on your connected pages and sell your products.
+            {t('page.agents.empty.desc')}
           </p>
           <Button onClick={() => router.push('/dashboard/agents/new')} icon={<PlusIcon className="w-4 h-4" />}>
-            Create Your Agent
+            {t('page.agents.empty.cta')}
           </Button>
         </div>
       )}

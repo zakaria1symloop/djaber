@@ -21,8 +21,10 @@ import {
   getPurchaseStats,
   type StockDashboard,
 } from '@/lib/user-stock-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function StockOverviewPage() {
+  const { t, dir } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<StockDashboard | null>(null);
@@ -88,15 +90,15 @@ export default function StockOverviewPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir={dir}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Stock Overview</h1>
-          <p className="text-sm text-zinc-400 mt-1">Inventory, sales, and purchase summary</p>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('page.stock.title')}</h1>
+          <p className="text-sm text-zinc-400 mt-1">{t('page.stock.subtitle')}</p>
         </div>
         <Button variant="outline" onClick={loadData} icon={<RefreshIcon className="w-4 h-4" />}>
-          Refresh
+          ↻
         </Button>
       </div>
 
@@ -105,24 +107,24 @@ export default function StockOverviewPage() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatsCard
-              title="Total Products"
+              title={t('page.stock.totalProducts')}
               value={dashboard.stats.totalProducts}
               icon={<BoxIcon className="w-5 h-5" />}
             />
             <StatsCard
-              title="Low Stock"
+              title={t('page.stock.lowStock')}
               value={dashboard.stats.lowStockProducts}
               icon={<AlertIcon className="w-5 h-5" />}
               iconColor="text-amber-400"
             />
             <StatsCard
-              title="Stock Value"
+              title={t('page.stock.stockValue')}
               value={`${dashboard.stats.totalStockValue.toLocaleString()} DA`}
               icon={<DollarIcon className="w-5 h-5" />}
               iconColor="text-emerald-400"
             />
             <StatsCard
-              title="Retail Value"
+              title={t('page.stock.retailValue')}
               value={`${dashboard.stats.totalRetailValue.toLocaleString()} DA`}
               icon={<DollarIcon className="w-5 h-5" />}
             />
@@ -131,17 +133,17 @@ export default function StockOverviewPage() {
           {/* Secondary Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <StatsCard
-              title="Categories"
+              title={t('page.stock.categories')}
               value={dashboard.stats.totalCategories}
               icon={<TagIcon className="w-5 h-5" />}
             />
             <StatsCard
-              title="Suppliers"
+              title={t('page.stock.suppliers')}
               value={dashboard.stats.totalSuppliers}
               icon={<UsersIcon className="w-5 h-5" />}
             />
             <StatsCard
-              title="Total Items in Stock"
+              title={t('page.stock.totalItems')}
               value={dashboard.stats.totalItems}
               icon={<BoxIcon className="w-5 h-5" />}
             />
@@ -152,27 +154,27 @@ export default function StockOverviewPage() {
       {/* Sales Summary (Advanced only) */}
       {stockMode === 'advanced' && salesStats && (
         <div>
-          <h2 className="text-lg font-semibold text-white mb-3">Sales This Month</h2>
+          <h2 className="text-lg font-semibold text-white mb-3">{t('page.stock.salesMonth')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatsCard
-              title="Total Sales"
+              title={t('page.stock.totalSales')}
               value={salesStats.totalSales}
               icon={<ShoppingCartIcon className="w-5 h-5" />}
             />
             <StatsCard
-              title="Revenue"
+              title={t('page.stock.revenue')}
               value={`${salesStats.totalRevenue.toLocaleString()} DA`}
               icon={<DollarIcon className="w-5 h-5" />}
               iconColor="text-emerald-400"
             />
             <StatsCard
-              title="Paid"
+              title={t('page.stock.paid')}
               value={salesStats.paidSales}
               icon={<DollarIcon className="w-5 h-5" />}
               iconColor="text-emerald-400"
             />
             <StatsCard
-              title="Pending"
+              title={t('page.stock.pending')}
               value={salesStats.pendingSales}
               icon={<AlertIcon className="w-5 h-5" />}
               iconColor="text-amber-400"
@@ -184,27 +186,27 @@ export default function StockOverviewPage() {
       {/* Purchase Summary (Advanced only) */}
       {stockMode === 'advanced' && purchaseStats && (
         <div>
-          <h2 className="text-lg font-semibold text-white mb-3">Purchases This Month</h2>
+          <h2 className="text-lg font-semibold text-white mb-3">{t('page.stock.purchasesMonth')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatsCard
-              title="Total Purchases"
+              title={t('page.stock.totalPurchases')}
               value={purchaseStats.totalPurchases}
               icon={<TruckIcon className="w-5 h-5" />}
             />
             <StatsCard
-              title="Total Spent"
+              title={t('page.stock.totalSpent')}
               value={`${purchaseStats.totalSpent.toLocaleString()} DA`}
               icon={<DollarIcon className="w-5 h-5" />}
               iconColor="text-red-400"
             />
             <StatsCard
-              title="Pending"
+              title={t('page.stock.pending')}
               value={purchaseStats.pendingPurchases}
               icon={<AlertIcon className="w-5 h-5" />}
               iconColor="text-amber-400"
             />
             <StatsCard
-              title="Received"
+              title={t('page.stock.received')}
               value={purchaseStats.receivedPurchases}
               icon={<BoxIcon className="w-5 h-5" />}
               iconColor="text-emerald-400"
@@ -216,18 +218,18 @@ export default function StockOverviewPage() {
       {/* Recent Movements */}
       {dashboard && (
         <div>
-          <h2 className="text-lg font-semibold text-white mb-3">Recent Movements</h2>
+          <h2 className="text-lg font-semibold text-white mb-3">{t('page.stock.recentMovements')}</h2>
           {dashboard.recentMovements.length > 0 ? (
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-white/10">
-                      <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Date</th>
-                      <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Product</th>
-                      <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Type</th>
-                      <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Quantity</th>
-                      <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Reason</th>
+                      <th className="text-start text-xs font-medium text-zinc-400 px-4 py-3">{t('page.stock.col.date')}</th>
+                      <th className="text-start text-xs font-medium text-zinc-400 px-4 py-3">{t('page.stock.col.product')}</th>
+                      <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('page.stock.col.type')}</th>
+                      <th className="text-end text-xs font-medium text-zinc-400 px-4 py-3">{t('page.stock.col.qty')}</th>
+                      <th className="text-start text-xs font-medium text-zinc-400 px-4 py-3">{t('page.stock.col.reason')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -268,7 +270,7 @@ export default function StockOverviewPage() {
             </div>
           ) : (
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-8 text-center">
-              <p className="text-sm text-zinc-500">No movements recorded yet. Stock movements will appear here when products are added, sold, or adjusted.</p>
+              <p className="text-sm text-zinc-500">{t('page.stock.empty')}</p>
             </div>
           )}
         </div>

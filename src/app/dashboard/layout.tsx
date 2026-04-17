@@ -265,8 +265,8 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
       <aside
         onMouseEnter={() => sidebarCollapsed && setSidebarHovered(true)}
         onMouseLeave={() => setSidebarHovered(false)}
-        className={`fixed top-0 left-0 h-full bg-black border-r border-white/10 z-50 transition-all duration-300 ease-in-out ${
-          filterPanelOpen ? '-translate-x-full' : sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed top-0 start-0 h-full bg-black border-e border-white/10 z-50 transition-all duration-300 ease-in-out ${
+          filterPanelOpen ? 'rtl:translate-x-full -translate-x-full' : sidebarOpen ? 'translate-x-0' : 'rtl:translate-x-full -translate-x-full'
         } ${filterPanelOpen ? '' : 'lg:translate-x-0'} ${isCollapsedMode ? 'w-16' : 'w-64'}`}
       >
         <div className={`p-6 border-b border-white/10 ${isCollapsedMode ? 'px-3 py-4' : ''}`}>
@@ -371,7 +371,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
         </nav>
 
         {!isCollapsedMode && (
-          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
+          <div className="absolute bottom-0 start-0 end-0 p-4 border-t border-white/10">
             <Card variant="default" padding="sm">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-zinc-400">{t('dash.yourPlan')}</span>
@@ -395,10 +395,12 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
 
       {/* Stock Sub-Sidebar: pushed by main sidebar */}
       <aside
-        className={`hidden lg:flex fixed top-0 h-full w-56 bg-zinc-950 border-r border-white/10 z-40 flex-col transition-all duration-300 ease-in-out ${
-          filterPanelOpen ? '-translate-x-full' : isStockRoute ? 'translate-x-0' : '-translate-x-full'
+        className={`hidden lg:flex fixed top-0 h-full w-56 bg-zinc-950 border-e border-white/10 z-40 flex-col transition-all duration-300 ease-in-out ${
+          filterPanelOpen ? 'rtl:translate-x-full -translate-x-full' : isStockRoute ? 'translate-x-0' : 'rtl:translate-x-full -translate-x-full'
         }`}
-        style={{ left: filterPanelOpen ? '0px' : isCollapsedMode ? '64px' : '256px' }}
+        style={{
+          [dir === 'rtl' ? 'right' : 'left']: filterPanelOpen ? '0px' : isCollapsedMode ? '64px' : '256px',
+        }}
       >
         <div className="p-4 border-b border-white/10">
           <button
@@ -434,12 +436,12 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
 
       {/* Header */}
       <header
-        className={`fixed top-0 left-0 z-30 bg-black/80 backdrop-blur-sm border-b border-white/10 transition-all duration-300 ease-in-out ${
+        className={`fixed top-0 start-0 z-30 bg-black/80 backdrop-blur-sm border-b border-white/10 transition-all duration-300 ease-in-out ${
           filterPanelOpen
-            ? 'lg:pl-0 right-[336px]'
+            ? 'lg:ps-0 end-[336px]'
             : isStockRoute
-              ? (isCollapsedMode ? 'lg:pl-[288px] right-0' : 'lg:pl-[480px] right-0')
-              : 'lg:pl-64 right-0'
+              ? (isCollapsedMode ? 'lg:ps-[288px] end-0' : 'lg:ps-[480px] end-0')
+              : 'lg:ps-64 end-0'
         }`}
       >
         <div className="px-4 sm:px-6 lg:px-8">
@@ -500,7 +502,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className="flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-white/5 transition-all"
               >
-                <div className="hidden sm:block text-right">
+                <div className="hidden sm:block text-end">
                   <p className="text-sm font-medium text-white">{user?.firstName} {user?.lastName}</p>
                   <p className="text-xs text-zinc-400">{user?.email}</p>
                 </div>
@@ -508,7 +510,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
               </button>
 
               {showUserMenu && (
-                <div className="absolute right-0 mt-2 w-64 bg-zinc-900 border border-white/10 rounded-xl shadow-xl overflow-hidden">
+                <div className="absolute end-0 mt-2 w-64 bg-zinc-900 border border-white/10 rounded-xl shadow-xl overflow-hidden">
                   <div className="p-4 border-b border-white/10">
                     <p className="text-sm font-semibold text-white">{user?.firstName} {user?.lastName}</p>
                     <p className="text-xs text-zinc-400 mt-1">{user?.email}</p>
@@ -559,7 +561,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
       {filterPanelOpen && (
         <div
           className="fixed inset-0 cursor-pointer"
-          style={{ right: '336px', zIndex: 36 }}
+          style={{ [dir === 'rtl' ? 'left' : 'right']: '336px', zIndex: 36 }}
           onClick={() => setFilterPanelOpen(false)}
         />
       )}
@@ -567,10 +569,10 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
       {/* Main Content */}
       <main className={`min-h-screen pt-28 pb-20 px-4 sm:px-6 lg:px-8 bg-black transition-all duration-300 ease-in-out ${
         filterPanelOpen
-          ? 'lg:ml-0 mr-[336px]'
+          ? 'lg:ms-0 me-[336px]'
           : isStockRoute
-            ? (isCollapsedMode ? 'lg:ml-[288px]' : 'lg:ml-[480px]')
-            : 'lg:ml-64'
+            ? (isCollapsedMode ? 'lg:ms-[288px]' : 'lg:ms-[480px]')
+            : 'lg:ms-64'
       }`}>
         {/* Credit warning bars */}
         {credits && credits.percentage >= 100 && (

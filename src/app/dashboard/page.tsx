@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePages } from '@/contexts/PagesContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   Button,
   Card,
@@ -66,6 +67,7 @@ function DashboardPageInner() {
   const { user, refreshProfile } = useAuth();
   const { pages, loading: pagesLoading, connectFacebookPage, connectInstagramPage, disconnectPage } = usePages();
   const toast = useToast();
+  const { t, dir } = useTranslation();
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState<string | null>(null);
   const [activePlatformTab, setActivePlatformTab] = useState('all');
   const [stockMode, setStockMode] = useState<'simple' | 'advanced'>('simple');
@@ -206,14 +208,14 @@ function DashboardPageInner() {
   };
 
   return (
-    <>
+    <div dir={dir}>
       {/* Overview Section */}
       {activeSection === 'overview' && (
         <>
           {/* Header */}
           {(() => {
             const hour = new Date().getHours();
-            const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+            const greeting = hour < 12 ? t('page.dash.greeting.morning') : hour < 18 ? t('page.dash.greeting.afternoon') : t('page.dash.greeting.evening');
             const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
             return (
               <div className="mb-8">
@@ -222,7 +224,7 @@ function DashboardPageInner() {
                   className="text-3xl sm:text-4xl font-bold text-white mb-1"
                   style={{ fontFamily: 'Syne, sans-serif' }}
                 >
-                  {greeting}, {user?.firstName} <span className="text-zinc-600">·</span> <span className="text-zinc-400 font-normal">here&apos;s a snapshot</span>
+                  {greeting}, {user?.firstName} <span className="text-zinc-600">·</span> <span className="text-zinc-400 font-normal">{t('page.dash.snapshot')}</span>
                 </h1>
               </div>
             );
@@ -231,38 +233,38 @@ function DashboardPageInner() {
           {/* KPI cards — uses the same neutral KpiCard as analytics */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <KpiCard
-              label="Connected Pages"
+              label={t('page.dash.connectedPages')}
               value={pages.length}
-              hint={pages.length === 0 ? 'Connect to start' : `${pages.length} active`}
+              hint={pages.length === 0 ? '' : `${pages.length}`}
               icon={<ChatIcon className="w-4 h-4" />}
               color="blue"
             />
             <KpiCard
-              label="Products"
+              label={t('page.dash.products')}
               value={dashboard?.stats.totalProducts ?? '—'}
               hint={
                 (dashboard?.stats.lowStockProducts ?? 0) > 0
-                  ? `${dashboard?.stats.lowStockProducts} low stock`
-                  : 'In catalog'
+                  ? `${dashboard?.stats.lowStockProducts} ${t('page.stock.lowStock').toLowerCase()}`
+                  : ''
               }
               icon={<BoxIcon className="w-4 h-4" />}
               color="violet"
             />
             <KpiCard
-              label="Revenue (30d)"
+              label={t('page.dash.revenue30d')}
               value={(() => {
                 const s = Number(salesStats?.stats.totalRevenue || 0);
                 const o = Number(orderStats?.stats.totalRevenue || 0);
                 return `${(s + o).toLocaleString(undefined, { maximumFractionDigits: 0 })} DA`;
               })()}
-              hint={`${(salesStats?.stats.totalSales ?? 0) + (orderStats?.stats.totalOrders ?? 0)} orders`}
+              hint={`${(salesStats?.stats.totalSales ?? 0) + (orderStats?.stats.totalOrders ?? 0)}`}
               icon={<DollarIcon className="w-4 h-4" />}
               color="emerald"
             />
             <KpiCard
-              label="Stock Value"
+              label={t('page.dash.stockValue')}
               value={dashboard ? `${Number(dashboard.stats.totalStockValue).toLocaleString(undefined, { maximumFractionDigits: 0 })} DA` : '—'}
-              hint="At cost"
+              hint=""
               icon={<PackageIcon className="w-4 h-4" />}
               color="orange"
             />
@@ -270,48 +272,48 @@ function DashboardPageInner() {
 
           {/* Quick actions */}
           <div className="mb-8">
-            <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">Quick Actions</h2>
+            <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">{t('page.dash.quickActions')}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <button
                 onClick={() => router.push('/dashboard?section=pages')}
-                className="group text-left bg-zinc-900/50 border border-white/10 hover:border-white/20 rounded-xl p-5 transition-all hover:bg-zinc-900/80"
+                className="group text-start bg-zinc-900/50 border border-white/10 hover:border-white/20 rounded-xl p-5 transition-all hover:bg-zinc-900/80"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
                     <ChatIcon className="w-5 h-5" />
                   </div>
-                  <span className="text-zinc-600 group-hover:text-white transition-colors">→</span>
+                  <span className="text-zinc-600 group-hover:text-white transition-colors">{dir === 'rtl' ? '←' : '→'}</span>
                 </div>
-                <h3 className="text-sm font-semibold text-white mb-1">Connect a Page</h3>
-                <p className="text-xs text-zinc-500">Link your Facebook page</p>
+                <h3 className="text-sm font-semibold text-white mb-1">{t('page.dash.connectPage')}</h3>
+                <p className="text-xs text-zinc-500">{t('page.dash.linkFb')}</p>
               </button>
 
               <button
                 onClick={() => router.push('/dashboard/stock/products')}
-                className="group text-left bg-zinc-900/50 border border-white/10 hover:border-white/20 rounded-xl p-5 transition-all hover:bg-zinc-900/80"
+                className="group text-start bg-zinc-900/50 border border-white/10 hover:border-white/20 rounded-xl p-5 transition-all hover:bg-zinc-900/80"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-10 h-10 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center">
                     <BoxIcon className="w-5 h-5" />
                   </div>
-                  <span className="text-zinc-600 group-hover:text-white transition-colors">→</span>
+                  <span className="text-zinc-600 group-hover:text-white transition-colors">{dir === 'rtl' ? '←' : '→'}</span>
                 </div>
-                <h3 className="text-sm font-semibold text-white mb-1">Add Products</h3>
-                <p className="text-xs text-zinc-500">Build your catalog</p>
+                <h3 className="text-sm font-semibold text-white mb-1">{t('page.dash.addProducts')}</h3>
+                <p className="text-xs text-zinc-500">{t('page.dash.buildCatalog')}</p>
               </button>
 
               <button
                 onClick={() => router.push('/dashboard/agents')}
-                className="group text-left bg-zinc-900/50 border border-white/10 hover:border-white/20 rounded-xl p-5 transition-all hover:bg-zinc-900/80"
+                className="group text-start bg-zinc-900/50 border border-white/10 hover:border-white/20 rounded-xl p-5 transition-all hover:bg-zinc-900/80"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
                     <SparklesIcon className="w-5 h-5" />
                   </div>
-                  <span className="text-zinc-600 group-hover:text-white transition-colors">→</span>
+                  <span className="text-zinc-600 group-hover:text-white transition-colors">{dir === 'rtl' ? '←' : '→'}</span>
                 </div>
-                <h3 className="text-sm font-semibold text-white mb-1">AI Agents</h3>
-                <p className="text-xs text-zinc-500">Manage your assistants</p>
+                <h3 className="text-sm font-semibold text-white mb-1">{t('page.dash.aiAgents')}</h3>
+                <p className="text-xs text-zinc-500">{t('page.dash.manageAssistants')}</p>
               </button>
             </div>
           </div>
@@ -321,12 +323,12 @@ function DashboardPageInner() {
             {/* Pages preview (2/3 width) */}
             <div className="lg:col-span-2 bg-zinc-900/50 border border-white/10 rounded-xl p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-white">Your Pages</h3>
+                <h3 className="text-sm font-semibold text-white">{t('page.dash.yourPages')}</h3>
                 <button
                   onClick={() => router.push('/dashboard?section=pages')}
                   className="text-xs text-zinc-500 hover:text-white transition-colors"
                 >
-                  Manage all →
+                  {t('page.dash.manageAll')}
                 </button>
               </div>
               {pages.length === 0 ? (
@@ -334,7 +336,7 @@ function DashboardPageInner() {
                   <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-3">
                     <ChatIcon className="w-5 h-5 text-zinc-600" />
                   </div>
-                  <p className="text-sm text-zinc-400 mb-1">No pages connected yet</p>
+                  <p className="text-sm text-zinc-400 mb-1">{t('page.dash.noPages')}</p>
                   <p className="text-xs text-zinc-600 mb-4">Link a page to start receiving messages</p>
                   <Button size="sm" onClick={handleConnectFacebook} loading={pagesLoading} icon={<FacebookIcon className="w-4 h-4" />}>
                     Connect Facebook
@@ -1106,6 +1108,6 @@ function DashboardPageInner() {
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }

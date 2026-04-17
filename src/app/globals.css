@@ -1,5 +1,18 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=Changa:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
+
+/* Arabic font: Changa — applied when html[lang="ar"] or [dir="rtl"] */
+html[lang="ar"],
+html[lang="ar"] body,
+[dir="rtl"] {
+  font-family: 'Changa', 'Space Grotesk', sans-serif;
+}
+html[lang="ar"] h1,
+html[lang="ar"] h2,
+html[lang="ar"] h3,
+html[lang="ar"] [style*="Syne"] {
+  font-family: 'Changa', 'Syne', sans-serif !important;
+}
 
 :root {
   --background: #000000;

@@ -14,16 +14,16 @@ import {
   markAllNotificationsAsRead,
   type Notification,
 } from '@/lib/notifications-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
-// Extensible notification type config
 const NOTIFICATION_TYPES: Record<string, {
   icon: React.ComponentType<{ className?: string }>;
   color: string;
-  label: string;
+  labelKey: string;
 }> = {
-  ai_order: { icon: BotIcon, color: 'text-blue-400 bg-blue-500/10', label: 'AI Order' },
-  agent_insight: { icon: AlertIcon, color: 'text-red-400 bg-red-500/10', label: 'Human Needed' },
-  stock_alert: { icon: AlertIcon, color: 'text-amber-400 bg-amber-500/10', label: 'Stock Alert' },
+  ai_order: { icon: BotIcon, color: 'text-blue-400 bg-blue-500/10', labelKey: 'page.notif.type.aiOrder' },
+  agent_insight: { icon: AlertIcon, color: 'text-red-400 bg-red-500/10', labelKey: 'page.notif.type.humanNeeded' },
+  stock_alert: { icon: AlertIcon, color: 'text-amber-400 bg-amber-500/10', labelKey: 'page.notif.type.stockAlert' },
 };
 
 function timeAgo(dateStr: string): string {
@@ -43,6 +43,7 @@ function timeAgo(dateStr: string): string {
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const { t, dir } = useTranslation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -128,28 +129,28 @@ export default function NotificationsPage() {
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir={dir}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Notifications</h1>
-          <p className="text-sm text-zinc-400 mt-1">Stay updated with your AI agent activity</p>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('page.notif.title')}</h1>
+          <p className="text-sm text-zinc-400 mt-1">{t('page.notif.subtitle')}</p>
         </div>
         <button
           onClick={handleMarkAllAsRead}
           className="px-4 py-2 text-sm font-medium text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg transition-colors"
         >
-          Mark All as Read
+          {t('page.notif.markAll')}
         </button>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total', value: total, color: 'text-white' },
-          { label: 'Unread', value: unreadCount, color: 'text-blue-400' },
-          { label: 'AI Orders', value: aiOrderCount, color: 'text-emerald-400' },
-          { label: 'Human Needed', value: humanNeededCount, color: 'text-red-400' },
+          { label: t('page.notif.stats.total'), value: total, color: 'text-white' },
+          { label: t('page.notif.stats.unread'), value: unreadCount, color: 'text-blue-400' },
+          { label: t('page.notif.stats.aiOrders'), value: aiOrderCount, color: 'text-emerald-400' },
+          { label: t('page.notif.stats.humanNeeded'), value: humanNeededCount, color: 'text-red-400' },
         ].map((stat) => (
           <div key={stat.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <p className="text-xs text-zinc-500 uppercase tracking-wider">{stat.label}</p>
@@ -165,18 +166,18 @@ export default function NotificationsPage() {
           onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
           className="bg-zinc-900 border border-zinc-700 text-zinc-300 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-zinc-500"
         >
-          <option value="">All Types</option>
-          <option value="ai_order">AI Order</option>
-          <option value="stock_alert">Stock Alert</option>
+          <option value="">{t('page.notif.stats.total')}</option>
+          <option value="ai_order">{t('page.notif.type.aiOrder')}</option>
+          <option value="stock_alert">{t('page.notif.type.stockAlert')}</option>
         </select>
         <select
           value={readFilter}
           onChange={(e) => { setReadFilter(e.target.value); setPage(1); }}
           className="bg-zinc-900 border border-zinc-700 text-zinc-300 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-zinc-500"
         >
-          <option value="">All</option>
-          <option value="false">Unread</option>
-          <option value="true">Read</option>
+          <option value="">{t('page.notif.stats.total')}</option>
+          <option value="false">{t('page.notif.stats.unread')}</option>
+          <option value="true">✓</option>
         </select>
       </div>
 
@@ -200,9 +201,9 @@ export default function NotificationsPage() {
           <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mb-4">
             <BellIcon className="w-8 h-8 text-zinc-600" />
           </div>
-          <h3 className="text-lg font-medium text-white mb-1">No notifications yet</h3>
+          <h3 className="text-lg font-medium text-white mb-1">{t('page.notif.empty.title')}</h3>
           <p className="text-sm text-zinc-500 max-w-sm">
-            Notifications will appear here when your AI agents create orders or other important events occur.
+            {t('page.notif.empty.desc')}
           </p>
         </div>
       ) : (
@@ -211,15 +212,16 @@ export default function NotificationsPage() {
             const typeConfig = NOTIFICATION_TYPES[notification.type] || {
               icon: BellIcon,
               color: 'text-zinc-400 bg-zinc-500/10',
-              label: notification.type,
+              labelKey: '',
             };
+            const typeLabel = typeConfig.labelKey ? t(typeConfig.labelKey) : notification.type;
             const TypeIcon = typeConfig.icon;
 
             return (
               <button
                 key={notification.id}
                 onClick={() => handleMarkAsRead(notification)}
-                className={`w-full text-left rounded-xl p-4 transition-all hover:bg-zinc-800/80 ${
+                className={`w-full text-start rounded-xl p-4 transition-all hover:bg-zinc-800/80 ${
                   notification.isRead
                     ? 'bg-zinc-900/30 border border-zinc-800/50'
                     : 'bg-zinc-900 border border-zinc-800 border-l-2 border-l-blue-500'
@@ -247,12 +249,12 @@ export default function NotificationsPage() {
                     </p>
                     <div className="flex items-center gap-2 mt-2">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${typeConfig.color}`}>
-                        {typeConfig.label}
+                        {typeLabel}
                       </span>
                       {notification.isRead && (
                         <span className="inline-flex items-center gap-1 text-xs text-zinc-600">
                           <CheckCircleIcon className="w-3 h-3" />
-                          Read
+                          ✓
                         </span>
                       )}
                     </div>
@@ -272,17 +274,17 @@ export default function NotificationsPage() {
             disabled={page === 1}
             className="px-3 py-1.5 text-sm rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            Previous
+            {t('page.notif.prev')}
           </button>
           <span className="text-sm text-zinc-500">
-            Page {page} of {totalPages}
+            {page} / {totalPages}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
             className="px-3 py-1.5 text-sm rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            Next
+            {t('page.notif.next')}
           </button>
         </div>
       )}

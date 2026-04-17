@@ -83,8 +83,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     <>
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-black border-r border-white/10 z-50 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed top-0 start-0 h-full w-64 bg-black border-e border-white/10 z-50 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+          sidebarOpen ? 'translate-x-0' : 'rtl:translate-x-full -translate-x-full'
         }`}
       >
         {/* Logo */}
@@ -128,7 +128,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </nav>
 
         {/* Footer card */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
+        <div className="absolute bottom-0 start-0 end-0 p-4 border-t border-white/10">
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-3">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-zinc-500">{t('admin.role')}</span>
@@ -150,7 +150,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       )}
 
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-30 bg-black/80 backdrop-blur-sm border-b border-white/10 lg:pl-64">
+      <header className="fixed top-0 start-0 end-0 z-30 bg-black/80 backdrop-blur-sm border-b border-white/10 lg:ps-64">
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between py-3">
             <button
@@ -167,7 +167,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className="flex items-center gap-3 px-3 py-1.5 rounded-lg hover:bg-white/5 transition-all"
               >
-                <div className="hidden sm:block text-right">
+                <div className="hidden sm:block text-end">
                   <p className="text-sm font-medium text-white">{user.firstName} {user.lastName}</p>
                   <p className="text-xs text-zinc-400">{user.email}</p>
                 </div>
@@ -175,7 +175,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               </button>
 
               {showUserMenu && (
-                <div className="absolute right-0 mt-2 w-64 bg-zinc-900 border border-white/10 rounded-xl shadow-xl overflow-hidden">
+                <div className="absolute end-0 mt-2 w-64 bg-zinc-900 border border-white/10 rounded-xl shadow-xl overflow-hidden">
                   <div className="p-4 border-b border-white/10">
                     <p className="text-sm font-semibold text-white">{user.firstName} {user.lastName}</p>
                     <p className="text-xs text-zinc-400 mt-1">{user.email}</p>
@@ -222,7 +222,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       </header>
 
       {/* Main */}
-      <main className="min-h-screen pt-28 pb-20 px-4 sm:px-6 lg:px-8 bg-black lg:ml-64">
+      <main className="min-h-screen pt-28 pb-20 px-4 sm:px-6 lg:px-8 bg-black lg:ms-64">
         {children}
       </main>
     </>

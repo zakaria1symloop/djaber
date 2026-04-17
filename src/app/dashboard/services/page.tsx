@@ -2,45 +2,14 @@
 
 import { useRouter } from 'next/navigation';
 import { BoxIcon, ShoppingCartIcon, BotIcon, MegaphoneIcon } from '@/components/ui/icons';
+import { useTranslation } from '@/contexts/LanguageContext';
 
-const services = [
-  {
-    id: 'products',
-    name: 'Products',
-    description: 'Manage your product inventory, categories, and suppliers',
-    icon: BoxIcon,
-    href: '/dashboard/stock',
-    active: true,
-    accent: 'emerald',
-  },
-  {
-    id: 'sales',
-    name: 'Sales',
-    description: 'Track sales, invoices, and revenue analytics',
-    icon: ShoppingCartIcon,
-    href: null,
-    active: false,
-    accent: 'blue',
-  },
-  {
-    id: 'bot',
-    name: 'Bot',
-    description: 'AI-powered chatbot for customer support and automation',
-    icon: BotIcon,
-    href: null,
-    active: false,
-    accent: 'purple',
-  },
-  {
-    id: 'commercial',
-    name: 'Commercial',
-    description: 'Advertising campaigns and promotional tools',
-    icon: MegaphoneIcon,
-    href: null,
-    active: false,
-    accent: 'amber',
-  },
-];
+const servicesBase = [
+  { id: 'products', nameKey: 'page.services.products.title', descKey: 'page.services.products.desc', icon: BoxIcon, href: '/dashboard/stock', active: true, accent: 'emerald' },
+  { id: 'sales', nameKey: 'page.services.sales.title', descKey: 'page.services.sales.desc', icon: ShoppingCartIcon, href: null, active: false, accent: 'blue' },
+  { id: 'bot', nameKey: 'page.services.bot.title', descKey: 'page.services.bot.desc', icon: BotIcon, href: null, active: false, accent: 'purple' },
+  { id: 'commercial', nameKey: 'page.services.commercial.title', descKey: 'page.services.commercial.desc', icon: MegaphoneIcon, href: null, active: false, accent: 'amber' },
+] as const;
 
 const accentMap: Record<string, { border: string; bg: string; icon: string; badge: string }> = {
   emerald: {
@@ -71,18 +40,20 @@ const accentMap: Record<string, { border: string; bg: string; icon: string; badg
 
 export default function ServicesPage() {
   const router = useRouter();
+  const { t, dir } = useTranslation();
+  const services = servicesBase.map(s => ({ ...s, name: t(s.nameKey), description: t(s.descKey) }));
 
   return (
-    <>
+    <div dir={dir}>
       <div className="mb-8">
         <h1
           className="text-3xl font-bold text-white mb-2"
           style={{ fontFamily: 'Syne, sans-serif' }}
         >
-          Services
+          {t('page.services.title')}
         </h1>
         <p className="text-zinc-400">
-          Manage your business tools and services
+          {t('page.services.subtitle')}
         </p>
       </div>
 
@@ -96,7 +67,7 @@ export default function ServicesPage() {
               key={service.id}
               onClick={() => service.href && router.push(service.href)}
               disabled={!service.active}
-              className={`group relative text-left p-6 rounded-xl border transition-all duration-200 ${
+              className={`group relative text-start p-6 rounded-xl border transition-all duration-200 ${
                 service.active
                   ? `${colors.border} bg-zinc-900/50 hover:bg-zinc-900 cursor-pointer`
                   : 'border-white/5 bg-zinc-900/30 cursor-not-allowed opacity-60'
@@ -108,12 +79,12 @@ export default function ServicesPage() {
                 </div>
                 {!service.active && (
                   <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${colors.badge}`}>
-                    Soon
+                    {t('page.services.soon')}
                   </span>
                 )}
                 {service.active && (
                   <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${colors.badge}`}>
-                    Active
+                    {t('page.services.active')}
                   </span>
                 )}
               </div>
@@ -123,8 +94,8 @@ export default function ServicesPage() {
 
               {service.active && (
                 <div className="mt-4 flex items-center gap-1 text-sm text-zinc-400 group-hover:text-white transition-colors">
-                  <span>Open</span>
-                  <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <span>{t('page.services.open')}</span>
+                  <svg className={`w-4 h-4 transition-transform group-hover:translate-x-0.5 ${dir === 'rtl' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </div>
@@ -133,6 +104,6 @@ export default function ServicesPage() {
           );
         })}
       </div>
-    </>
+    </div>
   );
 }
