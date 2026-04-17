@@ -34,6 +34,7 @@ import { getUnreadCount } from '@/lib/notifications-api';
 import { getCreditStatus } from '@/lib/user-stock-api';
 import { FilterPanelProvider, useFilterPanel } from '@/contexts/FilterPanelContext';
 import { useTranslation } from '@/contexts/LanguageContext';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 const navigationItemsBase = [
   { id: 'overview', labelKey: 'nav.dash.overview', icon: HomeIcon, href: '/dashboard' },
@@ -266,8 +267,12 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
         onMouseEnter={() => sidebarCollapsed && setSidebarHovered(true)}
         onMouseLeave={() => setSidebarHovered(false)}
         className={`fixed top-0 start-0 h-full bg-black border-e border-white/10 z-50 transition-all duration-300 ease-in-out ${
-          filterPanelOpen ? 'rtl:translate-x-full -translate-x-full' : sidebarOpen ? 'translate-x-0' : 'rtl:translate-x-full -translate-x-full'
-        } ${filterPanelOpen ? '' : 'lg:translate-x-0'} ${isCollapsedMode ? 'w-16' : 'w-64'}`}
+          filterPanelOpen
+            ? 'rtl:translate-x-full -translate-x-full'
+            : sidebarOpen
+              ? 'translate-x-0'
+              : 'max-lg:rtl:translate-x-full max-lg:-translate-x-full lg:translate-x-0'
+        } ${isCollapsedMode ? 'w-16' : 'w-64'}`}
       >
         <div className={`p-6 border-b border-white/10 ${isCollapsedMode ? 'px-3 py-4' : ''}`}>
           <div className="flex items-center gap-3">
@@ -396,7 +401,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
       {/* Stock Sub-Sidebar: pushed by main sidebar */}
       <aside
         className={`hidden lg:flex fixed top-0 h-full w-56 bg-zinc-950 border-e border-white/10 z-40 flex-col transition-all duration-300 ease-in-out ${
-          filterPanelOpen ? 'rtl:translate-x-full -translate-x-full' : isStockRoute ? 'translate-x-0' : 'rtl:translate-x-full -translate-x-full'
+          filterPanelOpen || !isStockRoute ? 'rtl:translate-x-full -translate-x-full' : 'translate-x-0'
         }`}
         style={{
           [dir === 'rtl' ? 'right' : 'left']: filterPanelOpen ? '0px' : isCollapsedMode ? '64px' : '256px',
@@ -458,6 +463,11 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
             </h1>
 
             <div className="flex items-center gap-2">
+              {/* Language switcher */}
+              <div className="hidden sm:block">
+                <LanguageSwitcher compact />
+              </div>
+
               {/* Credits pill */}
               {credits && (
                 <div

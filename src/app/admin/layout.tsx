@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from '@/contexts/LanguageContext';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { Avatar } from '@/components/ui';
 import {
   ChartIcon,
@@ -83,8 +84,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     <>
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 start-0 h-full w-64 bg-black border-e border-white/10 z-50 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : 'rtl:translate-x-full -translate-x-full'
+        className={`fixed top-0 start-0 h-full w-64 bg-black border-e border-white/10 z-50 transition-transform duration-300 ease-in-out ${
+          sidebarOpen ? 'translate-x-0' : 'max-lg:rtl:translate-x-full max-lg:-translate-x-full lg:translate-x-0'
         }`}
       >
         {/* Logo */}
@@ -162,6 +163,10 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
             <h1 className="text-base font-medium text-white">{headerTitle}</h1>
 
+            <div className="flex items-center gap-2">
+            <div className="hidden sm:block">
+              <LanguageSwitcher compact />
+            </div>
             <div className="relative admin-user-menu">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
@@ -216,6 +221,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                   </div>
                 </div>
               )}
+            </div>
             </div>
           </div>
         </div>
