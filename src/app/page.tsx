@@ -7,336 +7,261 @@ import AnimatedSlogan from '@/components/AnimatedSlogan';
 import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function Home() {
-  const { t, dir } = useTranslation();
+  const { t, dir, lang } = useTranslation();
 
   return (
-    <main className="min-h-screen" dir={dir}>
-      <section className="relative pt-32 pb-20 px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="animate-fade-in inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 mb-8">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00fff0] opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00fff0]"></span>
-              </span>
-              <span className="text-sm text-zinc-400">{t('home.hero.badge')}</span>
+    <main className="min-h-screen relative" dir={dir} style={{ background: 'var(--ink)', color: 'var(--paper)' }}>
+      {/* ──────────────────────────────────────────────── HERO ─── */}
+      <section className="relative pt-28 sm:pt-32 pb-20 px-6 sm:px-10 lg:px-16">
+        <div className="max-w-[1280px] mx-auto">
+          {/* Status row — feels like a real product page */}
+          <div className="flex flex-wrap items-center gap-3 mb-12">
+            <span className="status-live">{t('home.hero.badge')}</span>
+            <span className="label">v1.2 · {new Date().getFullYear()}</span>
+            <span className="label hidden sm:inline">DZ · {lang.toUpperCase()}</span>
+          </div>
+
+          {/* Main grid: headline left, live chat preview right */}
+          <div className="grid grid-cols-12 gap-x-6 gap-y-12 lg:gap-y-0">
+            {/* LEFT: Headline */}
+            <div className="col-span-12 lg:col-span-7">
+              <h1
+                className="font-medium tracking-[-0.03em] leading-[0.95]"
+                style={{
+                  color: 'var(--paper)',
+                  fontSize: 'clamp(48px, 7vw, 104px)',
+                  fontFamily: 'Geist, sans-serif',
+                }}
+              >
+                {t('home.hero.title.top')}
+                <br />
+                <span className="font-bold">{t('home.hero.title.highlight')}</span>
+                <span style={{ color: 'var(--live)' }}>.</span>
+              </h1>
+
+              <div className="mt-8 pl-4 border-s-2" style={{ borderColor: 'var(--rule-strong)' }}>
+                <p className="text-2xl sm:text-3xl leading-snug font-medium tracking-tight" style={{ color: 'var(--paper)' }}>
+                  <AnimatedSlogan />
+                </p>
+              </div>
+
+              <p className="mt-8 text-base sm:text-lg leading-relaxed max-w-[58ch]" style={{ color: 'var(--paper-dim)' }}>
+                {t('home.hero.subtitle')}
+              </p>
+
+              <div className="mt-10 flex flex-wrap items-center gap-3">
+                <Link href="/signup" className="btn-flat">
+                  <span>{t('home.hero.cta.primary')}</span>
+                  <span className="mono">{dir === 'rtl' ? '←' : '→'}</span>
+                </Link>
+                <Link href="#demo" className="btn-line">
+                  <span>{t('home.hero.cta.secondary')}</span>
+                </Link>
+              </div>
             </div>
 
-            <h1
-              className="animate-fade-in-delay-1 text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1] mb-6"
-              style={{ fontFamily: 'Syne, sans-serif' }}
-            >
-              <span className="text-white">{t('home.hero.title.top')}</span>
-              <br />
-              <span className="gradient-text">{t('home.hero.title.highlight')}</span>
-            </h1>
-
-            <div
-              className="animate-fade-in-delay-2 text-2xl sm:text-3xl lg:text-4xl mb-8 h-[1.5em]"
-              style={{ fontFamily: 'Syne, sans-serif' }}
-            >
-              <AnimatedSlogan />
-            </div>
-
-            <p className="animate-fade-in-delay-2 text-lg sm:text-xl text-zinc-400 max-w-2xl mx-auto mb-12 leading-relaxed">
-              {t('home.hero.subtitle')}
-            </p>
-
-            <div className="animate-fade-in-delay-3 flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                href="/signup"
-                className="btn-primary px-8 py-4 rounded-full text-base font-semibold inline-flex items-center justify-center gap-2 group"
-              >
-                <span>{t('home.hero.cta.primary')}</span>
-                <svg
-                  className={`w-4 h-4 transition-transform duration-300 group-hover:translate-x-1 ${
-                    dir === 'rtl' ? 'rotate-180 group-hover:-translate-x-1 group-hover:translate-x-0' : ''
-                  }`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                </svg>
-              </Link>
-              <Link
-                href="#demo"
-                className="btn-glow px-8 py-4 rounded-full text-base font-medium text-white inline-flex items-center justify-center gap-2"
-              >
-                <svg className="w-5 h-5 text-[#00fff0]" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                </svg>
-                {t('home.hero.cta.secondary')}
-              </Link>
+            {/* RIGHT: Live Messenger preview — concrete product imagery */}
+            <div className="col-span-12 lg:col-span-5 lg:pl-4">
+              <ChatPreview />
             </div>
           </div>
 
-          <div className="mt-24 grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
-            {[
-              { value: '10K+', label: t('home.stats.messages') },
-              { value: '500+', label: t('home.stats.pages') },
-              { value: '99.9%', label: t('home.stats.uptime') },
-              { value: '<1s', label: t('home.stats.response') },
-            ].map((stat) => (
-              <div
-                key={stat.label}
-                className="text-center p-6 rounded-2xl bg-[#0a0a0a] border border-white/10 hover:border-white/20 transition-colors duration-300"
-              >
+          {/* Stats bar — dense, mono, no card chrome */}
+          <div className="mt-24 sm:mt-28">
+            <div className="rule mb-6" />
+            <div className="grid grid-cols-2 lg:grid-cols-4">
+              {[
+                { value: '10K+', label: t('home.stats.messages') },
+                { value: '500+', label: t('home.stats.pages') },
+                { value: '99.9%', label: t('home.stats.uptime') },
+                { value: '<1s', label: t('home.stats.response') },
+              ].map((stat, i) => (
                 <div
-                  className="text-3xl sm:text-4xl font-bold text-white mb-2"
-                  style={{ fontFamily: 'Syne, sans-serif' }}
+                  key={i}
+                  className="px-1 py-6 lg:py-8 lg:border-s first:lg:border-s-0"
+                  style={{ borderColor: 'var(--rule)' }}
                 >
-                  {stat.value}
-                </div>
-                <div className="text-sm text-zinc-500">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-
-          <AnimatedDashboard />
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section id="features" className="relative py-32 px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-20">
-            <h2
-              className="text-4xl sm:text-5xl font-bold mb-6"
-              style={{ fontFamily: 'Syne, sans-serif' }}
-            >
-              <span className="gradient-text">{t('home.features.title')}</span>
-            </h2>
-            <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-              {t('home.features.subtitle')}
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              {
-                key: 'f1',
-                icon: (
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                ),
-              },
-              {
-                key: 'f2',
-                icon: (
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                  </svg>
-                ),
-              },
-              {
-                key: 'f3',
-                icon: (
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                ),
-              },
-              {
-                key: 'f4',
-                icon: (
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                ),
-              },
-              {
-                key: 'f5',
-                icon: (
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                  </svg>
-                ),
-              },
-              {
-                key: 'f6',
-                icon: (
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                ),
-              },
-            ].map((feature) => (
-              <div
-                key={feature.key}
-                className="group relative p-8 rounded-2xl bg-[#0a0a0a] border border-white/10 hover:border-white/30 transition-all duration-300 hover:bg-[#141414]"
-              >
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-[#00fff0]/5 to-[#a855f7]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <div className="relative">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#00fff0]/20 to-[#a855f7]/20 flex items-center justify-center mb-6 text-[#00fff0] group-hover:scale-110 transition-transform duration-300">
-                    {feature.icon}
-                  </div>
-                  <h3
-                    className="text-xl font-bold text-white mb-3"
-                    style={{ fontFamily: 'Syne, sans-serif' }}
-                  >
-                    {t(`home.features.${feature.key}.title`)}
-                  </h3>
-                  <p className="text-zinc-400 leading-relaxed">
-                    {t(`home.features.${feature.key}.desc`)}
+                  <p className="text-4xl lg:text-5xl font-bold tracking-tight leading-none mb-3" style={{ color: 'var(--paper)' }}>
+                    {stat.value}
                   </p>
+                  <p className="label">{stat.label}</p>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+            <div className="rule" />
+          </div>
+
+          {/* Dashboard preview */}
+          <div className="mt-20 sm:mt-24" id="demo">
+            <div className="flex items-baseline justify-between mb-5">
+              <p className="label">DASHBOARD · 01</p>
+              <p className="label hidden sm:block">SCROLL ↓</p>
+            </div>
+            <AnimatedDashboard />
           </div>
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className="relative py-32 px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-20">
-            <h2
-              className="text-4xl sm:text-5xl font-bold mb-6"
-              style={{ fontFamily: 'Syne, sans-serif' }}
-            >
-              {t('home.how.title')} <span className="gradient-text">{t('home.how.titleHighlight')}</span>
-            </h2>
-            <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-              {t('home.how.subtitle')}
-            </p>
+      {/* ──────────────────────────────────────────── FEATURES ─── */}
+      <section id="features" className="relative py-28 sm:py-36 px-6 sm:px-10 lg:px-16">
+        <div className="max-w-[1280px] mx-auto">
+          <div className="grid grid-cols-12 gap-6 items-end mb-12">
+            <div className="col-span-12 lg:col-span-7">
+              <p className="label mb-5">FEATURES · 06</p>
+              <h2 className="font-medium tracking-[-0.02em] leading-[1.05]" style={{ fontSize: 'clamp(36px, 4.5vw, 64px)' }}>
+                {t('home.features.title')}
+              </h2>
+            </div>
+            <div className="col-span-12 lg:col-span-5">
+              <p className="text-base leading-relaxed max-w-[44ch]" style={{ color: 'var(--paper-dim)' }}>
+                {t('home.features.subtitle')}
+              </p>
+            </div>
           </div>
 
-          <div className="grid lg:grid-cols-3 gap-12">
-            {[
-              { key: 's1', step: '01', color: 'from-[#00fff0] to-[#3b82f6]' },
-              { key: 's2', step: '02', color: 'from-[#3b82f6] to-[#a855f7]' },
-              { key: 's3', step: '03', color: 'from-[#a855f7] to-[#00fff0]' },
-            ].map((item, index) => (
-              <div key={item.key} className="relative">
-                <div className="text-center">
-                  <div
-                    className={`inline-block text-8xl font-bold mb-6 bg-gradient-to-br ${item.color} bg-clip-text text-transparent opacity-20`}
-                    style={{ fontFamily: 'Syne, sans-serif' }}
-                  >
-                    {item.step}
+          <div className="rule" />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            {(['f1', 'f2', 'f3', 'f4', 'f5', 'f6'] as const).map((key, i) => {
+              const num = String(i + 1).padStart(2, '0');
+              return (
+                <article
+                  key={key}
+                  className="relative px-1 py-10 sm:py-12 border-b md:[&:nth-child(2n)]:border-s lg:[&:nth-child(2n)]:border-s-0 lg:[&:not(:nth-child(3n+1))]:border-s"
+                  style={{ borderColor: 'var(--rule)' }}
+                >
+                  <div className="flex items-center gap-3 mb-5">
+                    <span className="mono text-xs" style={{ color: 'var(--mute)' }}>F{num}</span>
+                    <span className="rule flex-1" />
                   </div>
-                  <h3
-                    className="text-2xl font-bold text-white mb-4"
-                    style={{ fontFamily: 'Syne, sans-serif' }}
-                  >
-                    {t(`home.how.${item.key}.title`)}
+                  <h3 className="text-xl lg:text-2xl font-medium mb-3 tracking-tight leading-snug" style={{ color: 'var(--paper)' }}>
+                    {t(`home.features.${key}.title`)}
                   </h3>
-                  <p className="text-zinc-400 leading-relaxed">
-                    {t(`home.how.${item.key}.desc`)}
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--paper-dim)' }}>
+                    {t(`home.features.${key}.desc`)}
                   </p>
-                </div>
-                {index < 2 && (
-                  <div
-                    className={`hidden lg:block absolute top-20 w-12 h-px bg-gradient-to-r from-[#00fff0]/50 to-transparent ${
-                      dir === 'rtl' ? '-left-6 rotate-180' : '-right-6'
-                    }`}
-                  />
-                )}
-              </div>
-            ))}
+                </article>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section id="pricing" className="relative py-32 px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-20">
-            <h2
-              className="text-4xl sm:text-5xl font-bold mb-6"
-              style={{ fontFamily: 'Syne, sans-serif' }}
-            >
-              {t('home.pricing.title')} <span className="gradient-text">{t('home.pricing.titleHighlight')}</span>
-            </h2>
-            <p className="text-lg text-zinc-400 max-w-2xl mx-auto">
-              {t('home.pricing.subtitle')}
-            </p>
+      {/* ──────────────────────────────────────── HOW IT WORKS ─── */}
+      <section className="relative py-28 sm:py-36 px-6 sm:px-10 lg:px-16">
+        <div className="max-w-[1280px] mx-auto">
+          <div className="grid grid-cols-12 gap-6 mb-14">
+            <div className="col-span-12 lg:col-span-7">
+              <p className="label mb-5">SETUP · 03 STEPS</p>
+              <h2 className="font-medium tracking-[-0.02em] leading-[1.05]" style={{ fontSize: 'clamp(36px, 4.5vw, 64px)' }}>
+                {t('home.how.title')} <span className="font-bold">{t('home.how.titleHighlight')}</span>
+                <span style={{ color: 'var(--live)' }}>.</span>
+              </h2>
+              <p className="mt-6 text-base max-w-[52ch]" style={{ color: 'var(--paper-dim)' }}>
+                {t('home.how.subtitle')}
+              </p>
+            </div>
           </div>
+
+          <div className="border-t" style={{ borderColor: 'var(--rule)' }}>
+            {(['s1', 's2', 's3'] as const).map((key, i) => {
+              const num = String(i + 1).padStart(2, '0');
+              return (
+                <div
+                  key={key}
+                  className="grid grid-cols-12 gap-6 py-10 border-b items-baseline"
+                  style={{ borderColor: 'var(--rule)' }}
+                >
+                  <div className="col-span-3 sm:col-span-2">
+                    <p className="mono text-sm" style={{ color: 'var(--live)' }}>STEP {num}</p>
+                  </div>
+                  <div className="col-span-9 sm:col-span-7 lg:col-span-7">
+                    <h3 className="text-2xl lg:text-3xl font-medium tracking-tight mb-3" style={{ color: 'var(--paper)' }}>
+                      {t(`home.how.${key}.title`)}
+                    </h3>
+                    <p className="text-base leading-relaxed max-w-[56ch]" style={{ color: 'var(--paper-dim)' }}>
+                      {t(`home.how.${key}.desc`)}
+                    </p>
+                  </div>
+                  <div className="hidden sm:block sm:col-span-3 text-end">
+                    <span className="text-6xl lg:text-7xl font-light tracking-tighter" style={{ color: 'var(--rule-strong)' }}>{num}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ──────────────────────────────────────────── PRICING ─── */}
+      <section id="pricing" className="relative py-28 sm:py-36 px-6 sm:px-10 lg:px-16">
+        <div className="max-w-[1280px] mx-auto">
+          <div className="grid grid-cols-12 gap-6 items-end mb-14">
+            <div className="col-span-12 lg:col-span-7">
+              <p className="label mb-5">PRICING</p>
+              <h2 className="font-medium tracking-[-0.02em] leading-[1.05]" style={{ fontSize: 'clamp(36px, 4.5vw, 64px)' }}>
+                {t('home.pricing.title')} <span className="font-bold">{t('home.pricing.titleHighlight')}</span>
+              </h2>
+              <p className="mt-6 text-base max-w-[52ch]" style={{ color: 'var(--paper-dim)' }}>
+                {t('home.pricing.subtitle')}
+              </p>
+            </div>
+          </div>
+
+          <div className="rule mb-12" />
 
           <PricingSection />
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className="relative py-32 px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="relative p-12 rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-transparent overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-[#00fff0]/10 to-[#a855f7]/10" />
-            <div className="relative">
-              <h2
-                className="text-4xl sm:text-5xl font-bold mb-6"
-                style={{ fontFamily: 'Syne, sans-serif' }}
-              >
+      {/* ──────────────────────────────────────────── FINAL CTA ─── */}
+      <section className="relative py-28 sm:py-36 px-6 sm:px-10 lg:px-16">
+        <div className="max-w-[1280px] mx-auto">
+          <div className="rule mb-10" />
+          <div className="grid grid-cols-12 gap-6 items-end">
+            <div className="col-span-12 lg:col-span-8">
+              <p className="label mb-5">START · 24/7</p>
+              <h2 className="font-medium tracking-[-0.03em] leading-[0.95]" style={{ fontSize: 'clamp(40px, 6vw, 88px)' }}>
                 {t('home.cta.title.top')}{' '}
-                <span className="gradient-text">{t('home.cta.title.highlight')}</span>{' '}
+                <span className="font-bold">{t('home.cta.title.highlight')}</span>{' '}
                 {t('home.cta.title.bottom')}
+                <span style={{ color: 'var(--live)' }}>.</span>
               </h2>
-              <p className="text-lg text-zinc-400 mb-10 max-w-2xl mx-auto">
+            </div>
+            <div className="col-span-12 lg:col-span-4">
+              <p className="text-base leading-relaxed mb-8 max-w-[44ch]" style={{ color: 'var(--paper-dim)' }}>
                 {t('home.cta.subtitle')}
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link
-                  href="/signup"
-                  className="btn-primary px-8 py-4 rounded-full text-base font-semibold inline-flex items-center justify-center gap-2 group"
-                >
+              <div className="flex flex-wrap gap-3">
+                <Link href="/signup" className="btn-flat">
                   <span>{t('home.cta.primary')}</span>
-                  <svg
-                    className={`w-4 h-4 transition-transform duration-300 group-hover:translate-x-1 ${
-                      dir === 'rtl' ? 'rotate-180' : ''
-                    }`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                  </svg>
+                  <span className="mono">{dir === 'rtl' ? '←' : '→'}</span>
                 </Link>
-                <Link
-                  href="/contact"
-                  className="btn-glow px-8 py-4 rounded-full text-base font-medium text-white inline-flex items-center justify-center"
-                >
-                  {t('home.cta.secondary')}
+                <Link href="/contact" className="btn-line">
+                  <span>{t('home.cta.secondary')}</span>
                 </Link>
               </div>
             </div>
           </div>
+          <div className="rule mt-14" />
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="relative border-t border-white/5 py-16 px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid md:grid-cols-4 gap-12 mb-12">
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="logo-glow">
-                  <svg width="32" height="32" viewBox="0 0 40 40" fill="none">
-                    <circle cx="20" cy="20" r="18" stroke="url(#footerLogoGradient)" strokeWidth="1.5" fill="none" />
-                    <circle cx="20" cy="12" r="3" fill="#00fff0" />
-                    <circle cx="12" cy="24" r="3" fill="#00fff0" />
-                    <circle cx="28" cy="24" r="3" fill="#00fff0" />
-                    <defs>
-                      <linearGradient id="footerLogoGradient" x1="0" y1="0" x2="40" y2="40">
-                        <stop offset="0%" stopColor="#00fff0" />
-                        <stop offset="100%" stopColor="#a855f7" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                </div>
-                <span className="text-xl font-bold" style={{ fontFamily: 'Syne, sans-serif' }}>
-                  <span className="text-white">Djaber</span>
-                  <span className="text-[#00fff0]">.ai</span>
-                </span>
-              </div>
-              <p className="text-sm text-zinc-500">
+      {/* ──────────────────────────────────────────── FOOTER ─── */}
+      <footer className="relative py-12 px-6 sm:px-10 lg:px-16">
+        <div className="max-w-[1280px] mx-auto">
+          <div className="grid grid-cols-12 gap-6">
+            <div className="col-span-12 md:col-span-4">
+              <p className="text-2xl font-medium tracking-tight mb-3" style={{ color: 'var(--paper)' }}>
+                Djaber<span style={{ color: 'var(--live)' }}>.</span>ai
+              </p>
+              <p className="text-sm leading-relaxed max-w-[36ch]" style={{ color: 'var(--paper-dim)' }}>
                 {t('footer.tagline')}
               </p>
             </div>
 
-            <div>
-              <h4 className="text-sm font-semibold text-white mb-4">{t('footer.product')}</h4>
+            <div className="col-span-6 md:col-span-2 md:col-start-7">
+              <p className="label mb-4">{t('footer.product')}</p>
               <ul className="space-y-3">
                 {[
                   { name: t('header.features'), href: '/features' },
@@ -344,7 +269,7 @@ export default function Home() {
                   { name: t('header.docs'), href: '/docs' },
                 ].map((item) => (
                   <li key={item.href}>
-                    <Link href={item.href} className="text-sm text-zinc-500 hover:text-white transition-colors">
+                    <Link href={item.href} className="text-sm hover:text-white transition-colors" style={{ color: 'var(--paper-dim)' }}>
                       {item.name}
                     </Link>
                   </li>
@@ -352,8 +277,8 @@ export default function Home() {
               </ul>
             </div>
 
-            <div>
-              <h4 className="text-sm font-semibold text-white mb-4">{t('footer.company')}</h4>
+            <div className="col-span-6 md:col-span-2">
+              <p className="label mb-4">{t('footer.company')}</p>
               <ul className="space-y-3">
                 {[
                   { name: 'About', href: '/about' },
@@ -362,7 +287,7 @@ export default function Home() {
                   { name: 'Contact', href: '/contact' },
                 ].map((item) => (
                   <li key={item.href}>
-                    <Link href={item.href} className="text-sm text-zinc-500 hover:text-white transition-colors">
+                    <Link href={item.href} className="text-sm hover:text-white transition-colors" style={{ color: 'var(--paper-dim)' }}>
                       {item.name}
                     </Link>
                   </li>
@@ -370,15 +295,15 @@ export default function Home() {
               </ul>
             </div>
 
-            <div>
-              <h4 className="text-sm font-semibold text-white mb-4">{t('footer.legal')}</h4>
+            <div className="col-span-12 md:col-span-2">
+              <p className="label mb-4">{t('footer.legal')}</p>
               <ul className="space-y-3">
                 {[
-                  { name: 'Privacy', href: '/privacy' },
-                  { name: 'Terms', href: '/terms' },
+                  { name: t('footer.legal.privacy'), href: '/privacy' },
+                  { name: t('footer.legal.terms'), href: '/terms' },
                 ].map((item) => (
                   <li key={item.href}>
-                    <Link href={item.href} className="text-sm text-zinc-500 hover:text-white transition-colors">
+                    <Link href={item.href} className="text-sm hover:text-white transition-colors" style={{ color: 'var(--paper-dim)' }}>
                       {item.name}
                     </Link>
                   </li>
@@ -387,13 +312,93 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="pt-8 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-zinc-500">
-              © 2026 Djaber.ai. {t('footer.rights')}
-            </p>
+          <div className="rule mt-12 mb-5" />
+
+          <div className="flex flex-col md:flex-row justify-between gap-3">
+            <p className="label">© {new Date().getFullYear()} DJABER.AI · {t('footer.rights')}</p>
+            <p className="label">v1.2 · BUILT IN ALGER</p>
           </div>
         </div>
       </footer>
     </main>
+  );
+}
+
+// ──────────────────────────────────────────────────────────
+// Live chat preview — concrete product imagery, no abstract AI
+// Shows a Messenger-style conversation between a customer and the AI agent
+// ──────────────────────────────────────────────────────────
+function ChatPreview() {
+  return (
+    <div
+      className="relative w-full max-w-[460px] mx-auto"
+      style={{ background: 'var(--ink-2)', border: '1px solid var(--rule)' }}
+    >
+      {/* Header bar */}
+      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--rule)' }}>
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold" style={{ background: '#1877F2', color: '#fff' }}>
+            f
+          </div>
+          <div>
+            <p className="text-xs font-semibold leading-tight">Ibtissama-Soft</p>
+            <p className="text-[10px] leading-tight mono" style={{ color: 'var(--mute)' }}>MESSENGER · LIVE</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--live)', boxShadow: '0 0 0 3px var(--live-dim)' }} />
+          <span className="mono text-[10px]" style={{ color: 'var(--paper-dim)' }}>AI</span>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div className="px-4 py-5 space-y-3 min-h-[280px]" style={{ background: 'var(--ink)' }}>
+        {/* Customer */}
+        <div className="flex justify-start">
+          <div className="max-w-[80%] px-3.5 py-2 rounded-2xl rounded-bl-sm text-sm" style={{ background: 'var(--ink-3)', color: 'var(--paper)' }}>
+            slm, 3andkom hadak l-produit b 4500 da?
+          </div>
+        </div>
+
+        {/* AI reply */}
+        <div className="flex justify-end">
+          <div
+            className="max-w-[85%] px-3.5 py-2.5 rounded-2xl rounded-br-sm text-sm"
+            style={{ background: 'var(--paper)', color: 'var(--ink)' }}
+          >
+            Marhba bik 👋 Eh oui, kayen f stock. 4500 DA + 600 DA livraison li wilayat Alger. T7eb tatlab?
+          </div>
+        </div>
+
+        {/* Customer */}
+        <div className="flex justify-start">
+          <div className="max-w-[80%] px-3.5 py-2 rounded-2xl rounded-bl-sm text-sm" style={{ background: 'var(--ink-3)', color: 'var(--paper)' }}>
+            Wah, ndir commande. Ismi Karim, 0555 12 34 56
+          </div>
+        </div>
+
+        {/* AI typing */}
+        <div className="flex justify-end">
+          <div
+            className="px-3.5 py-3 rounded-2xl rounded-br-sm flex items-center gap-1"
+            style={{ background: 'var(--paper)', color: 'var(--ink)' }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-current animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Footer status */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-t" style={{ borderColor: 'var(--rule)' }}>
+        <span className="mono text-[10px]" style={{ color: 'var(--mute)' }}>
+          ● ORDER#2871 CREATED
+        </span>
+        <span className="mono text-[10px]" style={{ color: 'var(--live)' }}>
+          0.8s
+        </span>
+      </div>
+    </div>
   );
 }

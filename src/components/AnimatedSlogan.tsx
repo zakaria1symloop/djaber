@@ -55,11 +55,17 @@ export default function AnimatedSlogan() {
   }, [phase, displayed, current]);
 
   return (
-    <div className="relative inline-flex items-baseline min-h-[1.5em]">
-      <span className="gradient-text font-bold">
-        {displayed || '\u00A0'}
-      </span>
-      <span className="inline-block w-[2px] h-[1em] ms-1 bg-[#00fff0] animate-pulse self-center" />
-    </div>
+    <span className="font-medium" style={{ color: 'var(--paper)', letterSpacing: '-0.01em' }}>
+      {displayed || '\u00A0'}
+      <span
+        className="caret inline-block ms-[0.06em] align-baseline"
+        style={{
+          width: '0.5ch',
+          height: '0.95em',
+          background: 'var(--live)',
+          transform: 'translateY(0.08em)',
+        }}
+      />
+    </span>
   );
 }
