@@ -85,6 +85,7 @@ export const createAgent = async (req: Request, res: Response): Promise<void> =>
       closingInstructions,
       humanHandoffRules,
       imageRecognition = false,
+      voiceTranscription = false,
       responseDelay = 3,
       aiModel = 'gpt-4',
       temperature = 0.7,
@@ -136,6 +137,7 @@ export const createAgent = async (req: Request, res: Response): Promise<void> =>
         closingInstructions: closingInstructions?.trim() || null,
         humanHandoffRules: humanHandoffRules?.trim() || null,
         imageRecognition: !!imageRecognition,
+        voiceTranscription: !!voiceTranscription,
         responseDelay: Number(responseDelay) || 3,
         aiModel,
         temperature,
@@ -193,6 +195,7 @@ export const updateAgent = async (req: Request, res: Response): Promise<void> =>
       closingInstructions,
       humanHandoffRules,
       imageRecognition,
+      voiceTranscription,
       responseDelay,
       aiModel,
       temperature,
@@ -219,6 +222,7 @@ export const updateAgent = async (req: Request, res: Response): Promise<void> =>
     if (closingInstructions !== undefined) updateData.closingInstructions = closingInstructions?.trim() || null;
     if (humanHandoffRules !== undefined) updateData.humanHandoffRules = humanHandoffRules?.trim() || null;
     if (imageRecognition !== undefined) updateData.imageRecognition = !!imageRecognition;
+    if (voiceTranscription !== undefined) updateData.voiceTranscription = !!voiceTranscription;
     if (responseDelay !== undefined) updateData.responseDelay = Number(responseDelay);
     if (aiModel !== undefined) updateData.aiModel = aiModel;
     if (temperature !== undefined) updateData.temperature = temperature;

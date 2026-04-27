@@ -2,9 +2,10 @@ import prisma from '../config/database';
 
 // Credit costs per action
 export const CREDIT_COSTS = {
-  AI_TEXT_MESSAGE: 1,      // Each AI response
-  AI_IMAGE_RECOGNITION: 5, // Vision API call
-  AI_ORDER_CREATED: 2,     // Tool call for order
+  AI_TEXT_MESSAGE: 1,         // Each AI response
+  AI_IMAGE_RECOGNITION: 5,    // Vision API call
+  AI_VOICE_TRANSCRIPTION: 3,  // Whisper API call for voice notes
+  AI_ORDER_CREATED: 2,        // Tool call for order
 };
 
 /**

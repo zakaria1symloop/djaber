@@ -73,6 +73,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
   const [closingInstructions, setClosingInstructions] = useState('');
   const [humanHandoffRules, setHumanHandoffRules] = useState('');
   const [imageRecognition, setImageRecognition] = useState(false);
+  const [voiceTranscription, setVoiceTranscription] = useState(false);
   const [responseDelay, setResponseDelay] = useState(3);
   const templateRef = useRef<HTMLTextAreaElement>(null);
   const [aiModel, setAiModel] = useState('gpt-4o-mini');
@@ -110,6 +111,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         setClosingInstructions(agent.closingInstructions || '');
         setHumanHandoffRules(agent.humanHandoffRules || '');
         setImageRecognition(agent.imageRecognition ?? false);
+        setVoiceTranscription((agent as Agent & { voiceTranscription?: boolean }).voiceTranscription ?? false);
         setResponseDelay(agent.responseDelay ?? 3);
         setAiModel(agent.aiModel);
         setTemperature(agent.temperature);
@@ -182,6 +184,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         closingInstructions: closingInstructions.trim() || undefined,
         humanHandoffRules: humanHandoffRules.trim() || undefined,
         imageRecognition,
+        voiceTranscription,
         responseDelay,
         aiModel,
         temperature,
@@ -605,6 +608,23 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 ${imageRecognition ? 'bg-emerald-500' : 'bg-white/10'}`}
             >
               <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white transition-transform ${imageRecognition ? 'translate-x-5' : ''}`} />
+            </button>
+          </div>
+
+          {/* Voice Transcription Toggle */}
+          <div className="flex items-center justify-between p-4 bg-black/30 border border-white/5 rounded-lg">
+            <div>
+              <h3 className="text-sm font-medium text-zinc-300">Voice Notes (Whisper)</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                AI listens to and transcribes Messenger voice notes (AR/FR/EN/Darja). Costs 3 credits per voice note. When off, the agent politely asks the customer to send text instead.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setVoiceTranscription(!voiceTranscription)}
+              className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 ${voiceTranscription ? 'bg-emerald-500' : 'bg-white/10'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white transition-transform ${voiceTranscription ? 'translate-x-5' : ''}`} />
             </button>
           </div>
 

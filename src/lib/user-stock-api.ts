@@ -1108,6 +1108,7 @@ export interface Agent {
   closingInstructions: string | null;
   humanHandoffRules: string | null;
   imageRecognition: boolean;
+  voiceTranscription: boolean;
   responseDelay: number;
   isActive: boolean;
   createdAt: string;
@@ -1134,6 +1135,7 @@ export async function createAgent(data: {
   closingInstructions?: string;
   humanHandoffRules?: string;
   imageRecognition?: boolean;
+  voiceTranscription?: boolean;
   responseDelay?: number;
   aiModel?: string;
   temperature?: number;
@@ -1159,6 +1161,7 @@ export async function updateAgentApi(
     closingInstructions?: string;
   humanHandoffRules?: string;
   imageRecognition?: boolean;
+  voiceTranscription?: boolean;
     responseDelay?: number;
     aiModel?: string;
     temperature?: number;

@@ -6,6 +6,7 @@ import { createNotification } from '../services/notification.service';
 import { trackImpressions } from '../services/recommendation.service';
 import { queueMessage } from '../services/message-batcher';
 import { hasCredits, consumeCredits, CREDIT_COSTS } from '../services/credits.service';
+import { transcribeAudio } from '../services/transcription.service';
 import prisma from '../config/database';
 
 // Regex to extract [STATUS:OK|UNCLEAR|UNKNOWN:detail] from end of AI response
@@ -78,14 +79,16 @@ export const handleMetaWebhook = async (
   }
 };
 
-// Unsupported attachment types — AI can't process these yet
-const UNSUPPORTED_ATTACHMENT_TYPES = new Set(['audio', 'video', 'file', 'location', 'fallback']);
+// Unsupported attachment types — AI can't process these yet (audio is now handled via Whisper)
+const UNSUPPORTED_ATTACHMENT_TYPES = new Set(['video', 'file', 'location', 'fallback']);
 
 function extractAttachments(message: any): {
   imageUrls: string[];
+  audioUrls: string[];
   unsupportedType: string | null;
 } {
   const imageUrls: string[] = [];
+  const audioUrls: string[] = [];
   let unsupportedType: string | null = null;
 
   if (message.attachments && Array.isArray(message.attachments)) {
@@ -96,6 +99,8 @@ function extractAttachments(message: any): {
       } else if (att.type === 'sticker' && att.payload?.url) {
         // Treat stickers as images
         imageUrls.push(att.payload.url);
+      } else if (att.type === 'audio' && att.payload?.url) {
+        audioUrls.push(att.payload.url);
       } else if (UNSUPPORTED_ATTACHMENT_TYPES.has(att.type)) {
         unsupportedType = att.type;
       }
@@ -110,7 +115,7 @@ function extractAttachments(message: any): {
     }
   }
 
-  return { imageUrls, unsupportedType };
+  return { imageUrls, audioUrls, unsupportedType };
 }
 
 async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
@@ -125,21 +130,25 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
     }
 
     // Extract text and attachments
-    const messageText = message.text || null;
-    const { imageUrls, unsupportedType } = extractAttachments(message);
+    let messageText: string | null = message.text || null;
+    const { imageUrls, audioUrls, unsupportedType } = extractAttachments(message);
+    let voiceTranscribed = false;
+    // Audio transcription is gated behind agent.voiceTranscription — done after we have the agent
 
     // Determine primary attachment type for storage
     const attachmentType = imageUrls.length > 0
       ? 'image'
+      : audioUrls.length > 0
+      ? 'audio'
       : unsupportedType || (message.attachments?.[0]?.type ?? null);
-    const attachmentUrl = imageUrls[0] || message.attachments?.[0]?.payload?.url || null;
+    const attachmentUrl = imageUrls[0] || audioUrls[0] || message.attachments?.[0]?.payload?.url || null;
 
-    // Skip if no text, no images, and no attachments at all
+    // Skip if nothing usable
     if (!messageText && imageUrls.length === 0 && !unsupportedType) {
       return;
     }
 
-    console.log(`Message from ${senderId} on page ${pageId}: text="${messageText || ''}", images=${imageUrls.length}, unsupported=${unsupportedType || 'none'}`);
+    console.log(`Message from ${senderId} on page ${pageId}: text="${messageText || ''}", images=${imageUrls.length}, audio=${audioUrls.length}, unsupported=${unsupportedType || 'none'}`);
 
     // Find the page in our database
     const page = await prisma.page.findFirst({
@@ -330,10 +339,54 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       const agent = agentPage.agent;
       console.log(`Agent "${agent.name}" handling message on page ${pageId}`);
 
+      // Voice transcription gate — only transcribe if agent has it enabled
+      if (audioUrls.length > 0) {
+        if ((agent as any).voiceTranscription) {
+          const transcripts: string[] = [];
+          for (const url of audioUrls) {
+            const t = await transcribeAudio(url);
+            if (t) transcripts.push(t);
+          }
+          if (transcripts.length > 0) {
+            const joined = transcripts.join(' ');
+            messageText = messageText
+              ? `${messageText}\n\n[voice note] ${joined}`
+              : `[voice note] ${joined}`;
+            voiceTranscribed = true;
+          }
+        } else if (!messageText && imageUrls.length === 0) {
+          // Voice off and nothing else to work with — reply politely and stop
+          const polite = "Sorry, I can't process voice messages yet. Please send a text message and I'll be happy to help! 😊";
+          await sendMessage({
+            pageAccessToken: page.pageAccessToken,
+            recipientId: senderId,
+            message: polite,
+            platform: page.platform as 'facebook' | 'instagram',
+          });
+          await prisma.message.create({
+            data: {
+              conversationId: conversation.id,
+              messageId: `auto_${Date.now()}`,
+              senderId: recipientId,
+              recipientId: senderId,
+              text: polite,
+              timestamp: new Date(),
+              isFromPage: true,
+            },
+          });
+          return;
+        }
+      }
+
       // Check credits before AI call
-      const creditCost = (imageUrls.length > 0 && (agent as any).imageRecognition)
-        ? CREDIT_COSTS.AI_IMAGE_RECOGNITION
-        : CREDIT_COSTS.AI_TEXT_MESSAGE;
+      let creditCost: number;
+      if (imageUrls.length > 0 && (agent as any).imageRecognition) {
+        creditCost = CREDIT_COSTS.AI_IMAGE_RECOGNITION;
+      } else if (voiceTranscribed) {
+        creditCost = CREDIT_COSTS.AI_VOICE_TRANSCRIPTION;
+      } else {
+        creditCost = CREDIT_COSTS.AI_TEXT_MESSAGE;
+      }
       const creditCheck = await hasCredits(page.userId, creditCost);
       if (!creditCheck.ok) {
         console.log(`User ${page.userId} out of credits (${creditCheck.used}/${creditCheck.limit})`);
@@ -534,7 +587,8 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       }
 
       // Consume credits after successful AI response
-      await consumeCredits(page.userId, creditCost, imageUrls.length > 0 ? 'image_recognition' : 'text_message');
+      const action = imageUrls.length > 0 ? 'image_recognition' : voiceTranscribed ? 'voice_transcription' : 'text_message';
+      await consumeCredits(page.userId, creditCost, action);
 
       // Save AI response (clean text, no tags)
       await prisma.message.create({

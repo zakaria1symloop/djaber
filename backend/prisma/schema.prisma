@@ -141,6 +141,7 @@ model Agent {
   closingInstructions String? @db.Text // When/how to close conversations
   humanHandoffRules  String?  @db.Text // When to stop AI and request human intervention
   imageRecognition   Boolean  @default(false) // Enable vision (costs more credits)
+  voiceTranscription Boolean  @default(false) // Enable Whisper for voice notes (costs more credits)
   responseDelay      Int      @default(3) // Seconds to wait before responding (message batching)
   isActive           Boolean  @default(true)
   createdAt          DateTime @default(now())
