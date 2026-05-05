@@ -1,6 +1,39 @@
 import axios from 'axios';
+import crypto from 'crypto';
 import prisma from '../config/database';
 import { fetchPagePostsFromMeta, FetchedPost } from './meta.service';
+
+const GCS_BUCKET = process.env.GCS_BUCKET || 'djaber-prod-uploads';
+const IS_PROD = process.env.NODE_ENV === 'production';
+
+async function uploadBufferToGCS(buffer: Buffer, contentType: string): Promise<string | null> {
+  if (!IS_PROD) {
+    // In dev, we can't upload — but the URL would be too long anyway.
+    // Return null so the caller falls back gracefully.
+    return null;
+  }
+  try {
+    const { Storage } = require('@google-cloud/storage');
+    const gcs = new Storage();
+    const bucket = gcs.bucket(GCS_BUCKET);
+    const ext = contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg';
+    const filename = `products/fb-${crypto.randomBytes(8).toString('hex')}.${ext}`;
+    const file = bucket.file(filename);
+    await file.save(buffer, {
+      contentType,
+      metadata: { cacheControl: 'public, max-age=31536000' },
+    });
+    try {
+      await file.makePublic();
+    } catch {
+      // bucket may already grant public read at the bucket level — non-fatal
+    }
+    return `https://storage.googleapis.com/${GCS_BUCKET}/${filename}`;
+  } catch (err: any) {
+    console.error('[page-analysis] GCS upload failed:', err.message);
+    return null;
+  }
+}
 
 /**
  * Vision-based product extraction from Facebook page posts.
@@ -39,16 +72,17 @@ interface RawExtraction {
   category?: string | null;
 }
 
-async function downloadAsDataUrl(url: string): Promise<string | null> {
+async function downloadImage(url: string): Promise<{ dataUrl: string; buffer: Buffer; contentType: string } | null> {
   try {
     const res = await axios.get(url, {
       responseType: 'arraybuffer',
       timeout: 15000,
-      maxContentLength: 10 * 1024 * 1024, // 10MB max
+      maxContentLength: 10 * 1024 * 1024,
     });
-    const contentType = res.headers['content-type'] || 'image/jpeg';
-    const base64 = Buffer.from(res.data).toString('base64');
-    return `data:${contentType};base64,${base64}`;
+    const contentType = (res.headers['content-type'] as string) || 'image/jpeg';
+    const buffer = Buffer.from(res.data);
+    const dataUrl = `data:${contentType};base64,${buffer.toString('base64')}`;
+    return { dataUrl, buffer, contentType };
   } catch (err: any) {
     console.error(`[page-analysis] Could not download image: ${err.message}`);
     return null;
@@ -65,8 +99,14 @@ async function extractFromPost(
   // Skip posts with neither image nor text
   if (!imageUrl && !text.trim()) return null;
 
-  // Pre-download the image to base64 — OpenAI can't fetch FB CDN URLs directly
-  const imageDataUrl = imageUrl ? await downloadAsDataUrl(imageUrl) : null;
+  // Pre-download the image — OpenAI can't fetch FB CDN URLs directly,
+  // and the URL is too long to store in our DB.
+  const imageData = imageUrl ? await downloadImage(imageUrl) : null;
+  const imageDataUrl = imageData?.dataUrl || null;
+  // Re-host on our infra so the URL is short + permanent (FB CDN tokens expire)
+  const persistentImageUrl = imageData
+    ? await uploadBufferToGCS(imageData.buffer, imageData.contentType)
+    : null;
 
   const prompt = `You are cataloging products for an Algerian e-commerce merchant from their Facebook page posts.
 The merchant sells products through Messenger. Most photo posts on this page ARE products — be GENEROUS.
@@ -133,7 +173,8 @@ Post text:
       name: String(parsed.name).trim().slice(0, 120),
       description: String(parsed.description || '').trim().slice(0, 400),
       priceDA: typeof parsed.priceDA === 'number' && parsed.priceDA > 0 ? Math.round(parsed.priceDA) : 0,
-      imageUrl,
+      // Prefer our re-hosted short URL; fall back to FB URL only if upload failed.
+      imageUrl: persistentImageUrl || (imageUrl && imageUrl.length <= 190 ? imageUrl : null),
       category: parsed.category || null,
       sourceText: text.slice(0, 200),
     };
@@ -216,6 +257,9 @@ export async function importExtractedProducts(
     if (!cleanName) { skipped += 1; continue; }
 
     const sku = `FB-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    // Both Product.imageUrl and ProductImage.url are varchar(191) by default —
+    // FB CDN URLs are way longer, so drop them rather than crash the insert.
+    const safeImageUrl = item.imageUrl && item.imageUrl.length <= 190 ? item.imageUrl : null;
 
     try {
       const product = await prisma.product.create({
@@ -228,19 +272,19 @@ export async function importExtractedProducts(
           quantity: 0,
           minQuantity: 1,
           unit: 'piece',
-          imageUrl: item.imageUrl || null,
+          imageUrl: safeImageUrl,
           isActive: true,
         },
       });
 
       // Save the source post image as a ProductImage row too
-      if (item.imageUrl) {
+      if (safeImageUrl) {
         try {
           const filename = `fb-post-${Date.now()}.jpg`;
           await prisma.productImage.create({
             data: {
               productId: product.id,
-              url: item.imageUrl,
+              url: safeImageUrl,
               filename,
               isPrimary: true,
             },
