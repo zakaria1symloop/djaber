@@ -594,7 +594,15 @@ export const analyzePagePostsController = async (req: Request, res: Response): P
     const result = await analyzePagePosts(pageId, Math.min(Math.max(limit, 1), 50));
     res.json(result);
   } catch (error: any) {
-    console.error('Analyze posts error:', error.response?.data || error.message || error);
+    console.error('Analyze posts error:', error?.message || error);
+    if (error?.name === 'MetaPermissionError') {
+      res.status(403).json({
+        error: 'Permission required',
+        message: `Facebook says: ${error.message}. Please reconnect this page so we can request the new "read posts" permission.`,
+        needsReconnect: true,
+      });
+      return;
+    }
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to analyze page posts.',

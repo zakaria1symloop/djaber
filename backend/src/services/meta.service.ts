@@ -253,6 +253,13 @@ export interface FetchedPost {
   createdTime: string;
 }
 
+export class MetaPermissionError extends Error {
+  constructor(message: string, public fbCode?: number, public fbType?: string) {
+    super(message);
+    this.name = 'MetaPermissionError';
+  }
+}
+
 export const fetchPagePostsFromMeta = async (
   platformPageId: string,
   pageAccessToken: string,
@@ -260,9 +267,22 @@ export const fetchPagePostsFromMeta = async (
 ): Promise<FetchedPost[]> => {
   const url = `${META_GRAPH_API_URL}/${platformPageId}/posts`;
   const fields = 'id,message,full_picture,created_time,attachments{media_type,media,description,subattachments}';
-  const response = await axios.get(url, {
-    params: { fields, limit, access_token: pageAccessToken },
-  });
+  let response;
+  try {
+    response = await axios.get(url, {
+      params: { fields, limit, access_token: pageAccessToken },
+    });
+  } catch (err: any) {
+    const fbError = err.response?.data?.error;
+    if (fbError) {
+      throw new MetaPermissionError(
+        fbError.message || 'Facebook rejected the request',
+        fbError.code,
+        fbError.type,
+      );
+    }
+    throw err;
+  }
 
   const posts = response.data?.data || [];
   return posts.map((p: any): FetchedPost => {

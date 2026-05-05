@@ -25,7 +25,10 @@ export async function apiRequest<T>(endpoint: string, options: RequestInit = {})
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.message || data.error || 'Something went wrong');
+    const err = new Error(data.message || data.error || 'Something went wrong') as Error & { data?: any; status?: number };
+    err.data = data;
+    err.status = response.status;
+    throw err;
   }
 
   return data as T;

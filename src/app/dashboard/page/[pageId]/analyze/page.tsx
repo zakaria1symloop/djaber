@@ -22,9 +22,12 @@ export default function AnalyzePage() {
   const [warning, setWarning] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<{ created: number; skipped: number } | null>(null);
 
+  const [needsReconnect, setNeedsReconnect] = useState(false);
+
   const startScan = async () => {
     setPhase('scanning');
     setWarning(null);
+    setNeedsReconnect(false);
     try {
       const res = await analyzePagePosts(pageId, 30);
       setPageName(res.pageName);
@@ -33,6 +36,10 @@ export default function AnalyzePage() {
       setItems(res.extracted.map((e) => ({ ...e, selected: true })));
       setPhase('review');
     } catch (err: any) {
+      const data = err?.data || err?.response?.data;
+      if (data?.needsReconnect || /reconnect/i.test(err?.message || '')) {
+        setNeedsReconnect(true);
+      }
       toast.error(err?.message || 'Could not analyze posts');
       setPhase('idle');
     }
@@ -99,6 +106,20 @@ export default function AnalyzePage() {
           <p className="text-sm text-zinc-500 max-w-md mx-auto mb-6">
             Pulls up to 30 of your latest posts, runs vision AI to detect products, and shows you a preview before anything is added to stock.
           </p>
+          {needsReconnect && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 max-w-md mx-auto mb-4 text-start">
+              <p className="text-sm font-semibold text-amber-300 mb-1">Facebook permission needed</p>
+              <p className="text-xs text-amber-200/80 mb-2">
+                Your page was connected before we asked Facebook for the &quot;read posts&quot; permission. Reconnect the page to grant it.
+              </p>
+              <button
+                onClick={() => router.push('/dashboard?section=pages')}
+                className="text-xs font-semibold text-amber-300 hover:text-amber-200 underline"
+              >
+                Go to Pages → reconnect
+              </button>
+            </div>
+          )}
           <button
             onClick={startScan}
             className="px-5 py-2.5 bg-white text-black rounded-lg text-sm font-semibold hover:bg-zinc-100 transition-colors"
