@@ -114,8 +114,13 @@ export default function MessagesSection({ pageId, page }: MessagesSectionProps) 
       setReplyText('');
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {});
-    } catch {
-      // surfaced via context error
+    } catch (err: any) {
+      const fbMsg = err?.data?.message || err?.message;
+      if (err?.data?.outsideWindow) {
+        toast.error(fbMsg || 'Customer hasn\'t messaged in 24h — Facebook blocks new messages until they reply again.');
+      } else {
+        toast.error(fbMsg || 'Could not send message');
+      }
     } finally {
       setSending(false);
     }

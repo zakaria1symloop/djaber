@@ -10,49 +10,102 @@ interface SendMessageParams {
   platform: 'facebook' | 'instagram';
 }
 
+export class MetaMessagingError extends Error {
+  constructor(
+    message: string,
+    public fbCode?: number,
+    public fbSubcode?: number,
+    public outsideWindow?: boolean,
+  ) {
+    super(message);
+    this.name = 'MetaMessagingError';
+  }
+}
+
+async function postFacebookMessage(
+  pageAccessToken: string,
+  recipientId: string,
+  message: string,
+  extra: Record<string, any> = {},
+): Promise<any> {
+  const response = await axios.post(
+    `${META_GRAPH_API_URL}/me/messages`,
+    {
+      recipient: { id: recipientId },
+      message: { text: message },
+      ...extra,
+    },
+    { params: { access_token: pageAccessToken } },
+  );
+  return response.data;
+}
+
 export const sendMessage = async ({
   pageAccessToken,
   recipientId,
   message,
   platform,
 }: SendMessageParams): Promise<any> => {
-  try {
-    if (platform === 'instagram') {
-      // Instagram API requires Authorization header
+  if (platform === 'instagram') {
+    try {
       const response = await axios.post(
         `${INSTAGRAM_GRAPH_API_URL}/me/messages`,
-        {
-          recipient: { id: recipientId },
-          message: { text: message },
-        },
+        { recipient: { id: recipientId }, message: { text: message } },
         {
           headers: {
-            'Authorization': `Bearer ${pageAccessToken}`,
+            Authorization: `Bearer ${pageAccessToken}`,
             'Content-Type': 'application/json',
           },
-        }
+        },
       );
       return response.data;
+    } catch (error: any) {
+      const fbErr = error.response?.data?.error;
+      console.error('Meta send message error (instagram):', fbErr || error.message);
+      throw new MetaMessagingError(
+        fbErr?.message || 'Failed to send Instagram DM',
+        fbErr?.code,
+        fbErr?.error_subcode,
+      );
+    }
+  }
+
+  // Facebook: try regular send first, then retry with HUMAN_AGENT tag if outside 24h window.
+  try {
+    return await postFacebookMessage(pageAccessToken, recipientId, message);
+  } catch (error: any) {
+    const fbErr = error.response?.data?.error;
+    const code = fbErr?.code;
+    const subcode = fbErr?.error_subcode;
+    // 10 / 2018278 = "message sent outside allowed window"
+    const outsideWindow = code === 10 && subcode === 2018278;
+
+    if (outsideWindow) {
+      try {
+        const retried = await postFacebookMessage(pageAccessToken, recipientId, message, {
+          messaging_type: 'MESSAGE_TAG',
+          tag: 'HUMAN_AGENT',
+        });
+        return retried;
+      } catch (retryErr: any) {
+        const retryFbErr = retryErr.response?.data?.error;
+        console.error('Meta send message error (HUMAN_AGENT retry):', retryFbErr || retryErr.message);
+        throw new MetaMessagingError(
+          'This conversation is older than 24 hours. Facebook only lets you reply within that window unless your app has the HUMAN_AGENT permission. Ask the customer to send a new message first.',
+          retryFbErr?.code,
+          retryFbErr?.error_subcode,
+          true,
+        );
+      }
     }
 
-    // Facebook uses access_token as query param
-    const response = await axios.post(
-      `${META_GRAPH_API_URL}/me/messages`,
-      {
-        recipient: { id: recipientId },
-        message: { text: message },
-      },
-      {
-        params: {
-          access_token: pageAccessToken,
-        },
-      }
+    console.error('Meta send message error:', fbErr || error.message);
+    throw new MetaMessagingError(
+      fbErr?.message || 'Failed to send message via Facebook',
+      code,
+      subcode,
+      false,
     );
-
-    return response.data;
-  } catch (error: any) {
-    console.error('Meta send message error:', error.response?.data || error.message);
-    throw new Error('Failed to send message via Meta API');
   }
 };
 

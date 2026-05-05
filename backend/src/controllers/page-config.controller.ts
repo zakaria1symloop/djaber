@@ -528,11 +528,19 @@ export const sendReplyController = async (req: Request, res: Response): Promise<
         message: 'Reply sent successfully',
         messageId: savedMessage.id,
       });
-    } catch (metaError) {
-      console.error('Meta send message error:', metaError);
+    } catch (metaError: any) {
+      console.error('Meta send message error:', metaError?.message || metaError);
+      if (metaError?.outsideWindow) {
+        res.status(409).json({
+          error: 'Outside 24h window',
+          message: metaError.message,
+          outsideWindow: true,
+        });
+        return;
+      }
       res.status(503).json({
         error: 'Service Unavailable',
-        message: 'Failed to send message via Facebook. Please try again.',
+        message: metaError?.message || 'Failed to send message via Facebook. Please try again.',
       });
     }
   } catch (error) {
