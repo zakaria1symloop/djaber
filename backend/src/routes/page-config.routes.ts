@@ -8,6 +8,9 @@ import {
   getConversationMessagesController,
   updateConversationController,
   sendReplyController,
+  syncPageConversationsController,
+  analyzePagePostsController,
+  importExtractedProductsController,
 } from '../controllers/page-config.controller';
 import { authenticate } from '../middleware/auth';
 
@@ -40,5 +43,14 @@ router.get('/:pageId/ai-settings', authenticate, getPageAISettingsController);
 
 // Update AI settings for a page
 router.put('/:pageId/ai-settings', authenticate, updatePageAISettingsController);
+
+// Pull fresh conversations + messages from Facebook into our DB
+router.post('/:pageId/sync', authenticate, syncPageConversationsController);
+
+// AI-driven page analysis: extract products from page posts
+router.post('/:pageId/analyze', authenticate, analyzePagePostsController);
+
+// Import confirmed extracted products into the user's main stock
+router.post('/:pageId/import-products', authenticate, importExtractedProductsController);
 
 export default router;

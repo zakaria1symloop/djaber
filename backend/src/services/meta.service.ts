@@ -178,6 +178,121 @@ export const getPageInsights = async ({
   }
 };
 
+// ============================================================================
+// Fetch conversations + messages from Facebook (used by manual sync)
+// ============================================================================
+
+export interface FetchedConversation {
+  conversationId: string; // Facebook's conversation id (t_xxx)
+  senderId: string;
+  senderName: string | null;
+  updatedTime: string;
+  messages: Array<{
+    messageId: string;
+    fromId: string;
+    fromName: string | null;
+    toId: string;
+    text: string | null;
+    attachments: Array<{ type: string; url: string | null }>;
+    createdTime: string;
+  }>;
+}
+
+export const fetchPageConversationsFromMeta = async (
+  platformPageId: string,
+  pageAccessToken: string,
+  limit = 25,
+  messagesPerConv = 25,
+): Promise<FetchedConversation[]> => {
+  const url = `${META_GRAPH_API_URL}/${platformPageId}/conversations`;
+  const fields = `id,updated_time,participants,messages.limit(${messagesPerConv}){id,from,to,message,attachments,created_time}`;
+  const response = await axios.get(url, {
+    params: { fields, limit, access_token: pageAccessToken },
+  });
+
+  const conversations = response.data?.data || [];
+
+  return conversations.map((conv: any): FetchedConversation => {
+    // Pick the participant that is NOT the page itself
+    const participants = conv.participants?.data || [];
+    const otherParticipant = participants.find((p: any) => p.id !== platformPageId) || participants[0];
+
+    const rawMessages = conv.messages?.data || [];
+    const messages = rawMessages.map((m: any) => ({
+      messageId: m.id,
+      fromId: m.from?.id,
+      fromName: m.from?.name || null,
+      toId: m.to?.data?.[0]?.id,
+      text: m.message || null,
+      attachments: (m.attachments?.data || []).map((a: any) => ({
+        type: a.mime_type?.startsWith('image/') ? 'image' : (a.image_data ? 'image' : 'file'),
+        url: a.image_data?.url || a.file_url || a.video_data?.url || null,
+      })),
+      createdTime: m.created_time,
+    }));
+
+    return {
+      conversationId: conv.id,
+      senderId: otherParticipant?.id || '',
+      senderName: otherParticipant?.name || null,
+      updatedTime: conv.updated_time,
+      messages,
+    };
+  });
+};
+
+// ============================================================================
+// Fetch page posts (used by AI page-analysis wizard)
+// ============================================================================
+
+export interface FetchedPost {
+  postId: string;
+  message: string | null;
+  fullPicture: string | null;
+  attachments: Array<{ type: string | null; url: string | null; description: string | null }>;
+  createdTime: string;
+}
+
+export const fetchPagePostsFromMeta = async (
+  platformPageId: string,
+  pageAccessToken: string,
+  limit = 50,
+): Promise<FetchedPost[]> => {
+  const url = `${META_GRAPH_API_URL}/${platformPageId}/posts`;
+  const fields = 'id,message,full_picture,created_time,attachments{media_type,media,description,subattachments}';
+  const response = await axios.get(url, {
+    params: { fields, limit, access_token: pageAccessToken },
+  });
+
+  const posts = response.data?.data || [];
+  return posts.map((p: any): FetchedPost => {
+    const atts: any[] = [];
+    const top = p.attachments?.data?.[0];
+    if (top) {
+      atts.push({
+        type: top.media_type || null,
+        url: top.media?.image?.src || null,
+        description: top.description || null,
+      });
+      const subs = top.subattachments?.data || [];
+      for (const s of subs) {
+        atts.push({
+          type: s.media_type || null,
+          url: s.media?.image?.src || null,
+          description: s.description || null,
+        });
+      }
+    }
+    return {
+      postId: p.id,
+      message: p.message || null,
+      fullPicture: p.full_picture || null,
+      attachments: atts,
+      createdTime: p.created_time,
+    };
+  });
+};
+
 interface VerifyWebhookParams {
   mode: string;
   token: string;

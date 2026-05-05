@@ -167,6 +167,29 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
       </div>
       )}
 
+      {/* AI page analysis CTA */}
+      <div className="bg-gradient-to-br from-emerald-500/10 to-blue-500/5 border border-emerald-500/20 rounded-xl p-5">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-start gap-3 min-w-0 flex-1">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0 text-lg">
+              🔍
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-white mb-1">Analyze this page with AI</h3>
+              <p className="text-xs text-zinc-400 max-w-md">
+                Scan your recent posts, auto-detect products, and import them into your stock with one click. You confirm everything before anything is added.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => router.push(`/dashboard/page/${pageId}/analyze`)}
+            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-xs font-semibold whitespace-nowrap"
+          >
+            Run analysis →
+          </button>
+        </div>
+      </div>
+
       {/* Stock & Inventory link card */}
       <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
         <div className="flex items-center gap-3 mb-4">

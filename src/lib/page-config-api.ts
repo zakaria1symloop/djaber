@@ -192,3 +192,48 @@ export async function sendReply(
     body: JSON.stringify({ message }),
   });
 }
+
+// ==================== SYNC + AI PAGE ANALYSIS ====================
+
+export interface SyncResult {
+  newConversations: number;
+  newMessages: number;
+  totalConversations: number;
+  totalMessages: number;
+}
+
+export async function syncPageFromFacebook(pageId: string): Promise<SyncResult> {
+  return apiRequest<SyncResult>(`/api/pages/${pageId}/sync`, { method: 'POST' });
+}
+
+export interface ExtractedProduct {
+  postId: string;
+  name: string;
+  description: string;
+  priceDA: number;
+  imageUrl: string | null;
+  category: string | null;
+  sourceText: string;
+}
+
+export interface AnalyzeResult {
+  pageName: string;
+  pageId: string;
+  scanned: number;
+  extracted: ExtractedProduct[];
+  warning: string | null;
+}
+
+export async function analyzePagePosts(pageId: string, limit = 30): Promise<AnalyzeResult> {
+  return apiRequest<AnalyzeResult>(`/api/pages/${pageId}/analyze?limit=${limit}`, { method: 'POST' });
+}
+
+export async function importExtractedProducts(
+  pageId: string,
+  items: Array<{ name: string; description?: string; priceDA: number; imageUrl?: string | null; sourcePostId?: string }>,
+): Promise<{ created: number; skipped: number }> {
+  return apiRequest(`/api/pages/${pageId}/import-products`, {
+    method: 'POST',
+    body: JSON.stringify({ items }),
+  });
+}

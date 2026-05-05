@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { getPageInsights, sendMessage } from '../services/meta.service';
+import { syncFacebookConversations } from '../services/page-sync.service';
+import { analyzePagePosts, importExtractedProducts } from '../services/page-analysis.service';
 
 /**
  * Get Facebook page insights (followers, engagement, reach)
@@ -538,6 +540,97 @@ export const sendReplyController = async (req: Request, res: Response): Promise<
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to send reply',
+    });
+  }
+};
+
+/**
+ * Pull the latest conversations + messages from Facebook into our DB.
+ * Used by the Refresh button in the Messages tab.
+ */
+export const syncPageConversationsController = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const pageId = req.params.pageId as string;
+    const page = await prisma.page.findFirst({
+      where: { id: pageId, userId: req.user.userId, isActive: true },
+    });
+    if (!page) {
+      res.status(404).json({ error: 'Page not found' });
+      return;
+    }
+    const result = await syncFacebookConversations(pageId);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Sync conversations error:', error.response?.data || error.message || error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to sync from Facebook. The page token may have expired — try reconnecting the page.',
+    });
+  }
+};
+
+/**
+ * Analyze the page's recent posts with vision AI to suggest products.
+ */
+export const analyzePagePostsController = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const pageId = req.params.pageId as string;
+    const page = await prisma.page.findFirst({
+      where: { id: pageId, userId: req.user.userId, isActive: true },
+    });
+    if (!page) {
+      res.status(404).json({ error: 'Page not found' });
+      return;
+    }
+    const limit = parseInt((req.query.limit as string) || '30', 10);
+    const result = await analyzePagePosts(pageId, Math.min(Math.max(limit, 1), 50));
+    res.json(result);
+  } catch (error: any) {
+    console.error('Analyze posts error:', error.response?.data || error.message || error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to analyze page posts.',
+    });
+  }
+};
+
+/**
+ * Import a list of confirmed extracted products into the user's main stock.
+ */
+export const importExtractedProductsController = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const pageId = req.params.pageId as string;
+    const page = await prisma.page.findFirst({
+      where: { id: pageId, userId: req.user.userId, isActive: true },
+    });
+    if (!page) {
+      res.status(404).json({ error: 'Page not found' });
+      return;
+    }
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (items.length === 0) {
+      res.status(400).json({ error: 'No items provided' });
+      return;
+    }
+    const result = await importExtractedProducts(req.user.userId, items);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Import extracted products error:', error.message || error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to import products.',
     });
   }
 };
