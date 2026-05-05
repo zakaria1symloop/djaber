@@ -39,6 +39,22 @@ interface RawExtraction {
   category?: string | null;
 }
 
+async function downloadAsDataUrl(url: string): Promise<string | null> {
+  try {
+    const res = await axios.get(url, {
+      responseType: 'arraybuffer',
+      timeout: 15000,
+      maxContentLength: 10 * 1024 * 1024, // 10MB max
+    });
+    const contentType = res.headers['content-type'] || 'image/jpeg';
+    const base64 = Buffer.from(res.data).toString('base64');
+    return `data:${contentType};base64,${base64}`;
+  } catch (err: any) {
+    console.error(`[page-analysis] Could not download image: ${err.message}`);
+    return null;
+  }
+}
+
 async function extractFromPost(
   apiKey: string,
   post: FetchedPost,
@@ -48,6 +64,9 @@ async function extractFromPost(
 
   // Skip posts with neither image nor text
   if (!imageUrl && !text.trim()) return null;
+
+  // Pre-download the image to base64 — OpenAI can't fetch FB CDN URLs directly
+  const imageDataUrl = imageUrl ? await downloadAsDataUrl(imageUrl) : null;
 
   const prompt = `You are cataloging products for an Algerian e-commerce merchant from their Facebook page posts.
 The merchant sells products through Messenger. Most photo posts on this page ARE products — be GENEROUS.
@@ -77,10 +96,10 @@ Post text:
   const messages: any[] = [
     {
       role: 'user',
-      content: imageUrl
+      content: imageDataUrl
         ? [
             { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: imageUrl } },
+            { type: 'image_url', image_url: { url: imageDataUrl } },
           ]
         : prompt,
     },
