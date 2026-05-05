@@ -49,20 +49,29 @@ async function extractFromPost(
   // Skip posts with neither image nor text
   if (!imageUrl && !text.trim()) return null;
 
-  const prompt = `You are analyzing a Facebook post from an Algerian e-commerce page.
-Decide whether this post is advertising a SPECIFIC PRODUCT (not a general announcement, greeting, or job ad).
+  const prompt = `You are cataloging products for an Algerian e-commerce merchant from their Facebook page posts.
+The merchant sells products through Messenger. Most photo posts on this page ARE products — be GENEROUS.
 
-Reply with strict JSON only — no markdown, no commentary:
+Set "isProduct": true if you see ANY of:
+- a clear photo of an item that could be sold (clothing, accessories, beauty, electronics, food, home, kids, etc.)
+- a product description in the caption (even without an image)
+- a price mentioned in the caption (even without a clear product photo)
+
+Set "isProduct": false ONLY for: greetings, page announcements, job ads, location-only posts, pure text without any product reference.
+
+Look at BOTH the image AND the caption. If the caption mentions a product or price, assume it's a product.
+
+Reply with strict JSON only:
 {
   "isProduct": boolean,
-  "name": "short product name (3-6 words, in the language of the post)",
-  "description": "one-sentence description in the language of the post",
-  "priceDA": number or null (extract Algerian Dinar price if mentioned, e.g. "4500 DA" → 4500; null if no price),
+  "name": "short product name (2-6 words, language of the post — Arabic/French/Darja accepted, transliterate Darja if needed)",
+  "description": "one-sentence description, language of the post",
+  "priceDA": number or 0 (extract Algerian Dinar price if visible — "4500 DA", "4500دج", "4.500", etc. → 4500; 0 if no price),
   "category": "guess: clothing, beauty, electronics, food, accessories, home, kids, other"
 }
 
 Post text:
-${text || '(no caption)'}
+"""${text || '(no caption — judge from image alone)'}"""
 `;
 
   const messages: any[] = [
@@ -97,6 +106,7 @@ ${text || '(no caption)'}
     if (!content) return null;
 
     const parsed = JSON.parse(content) as RawExtraction;
+    console.log(`[page-analysis] post ${post.postId} → isProduct=${parsed.isProduct} name="${parsed.name || ''}" price=${parsed.priceDA || 0}`);
     if (!parsed.isProduct || !parsed.name) return null;
 
     return {
