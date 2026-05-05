@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePages } from '@/contexts/PagesContext';
 import { PageConfigProvider } from '@/contexts/PageConfigContext';
@@ -33,12 +33,25 @@ const sections: Array<{ id: Section; label: string; icon: React.ComponentType<{ 
 function PageConfigContent() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const { isAuthenticated, loading: authLoading } = useAuth();
   const { pages, loading: pagesLoading } = usePages();
-  const [activeSection, setActiveSection] = useState<Section>('overview');
 
   const pageId = params?.pageId as string;
   const currentPage = pages.find((p) => p.id === pageId);
+
+  const initialSection = ((): Section => {
+    const t = searchParams?.get('tab');
+    return t === 'messages' || t === 'ai-settings' || t === 'history' || t === 'overview' ? (t as Section) : 'overview';
+  })();
+  const [activeSection, setActiveSection] = useState<Section>(initialSection);
+
+  const changeSection = (s: Section) => {
+    setActiveSection(s);
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    params.set('tab', s);
+    router.replace(`/dashboard/page/${pageId}?${params.toString()}`, { scroll: false });
+  };
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.push('/login');
@@ -114,7 +127,7 @@ function PageConfigContent() {
           return (
             <button
               key={s.id}
-              onClick={() => setActiveSection(s.id)}
+              onClick={() => changeSection(s.id)}
               className={`inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${
                 active
                   ? 'bg-white text-black'

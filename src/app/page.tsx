@@ -14,13 +14,6 @@ export default function Home() {
       {/* ──────────────────────────────────────────────── HERO ─── */}
       <section className="relative pt-28 sm:pt-32 pb-20 px-6 sm:px-10 lg:px-16">
         <div className="max-w-[1280px] mx-auto">
-          {/* Status row — feels like a real product page */}
-          <div className="flex flex-wrap items-center gap-3 mb-12">
-            <span className="status-live">{t('home.hero.badge')}</span>
-            <span className="label">v1.2 · {new Date().getFullYear()}</span>
-            <span className="label hidden sm:inline">DZ · {lang.toUpperCase()}</span>
-          </div>
-
           {/* Main grid: headline left, live chat preview right */}
           <div className="grid grid-cols-12 gap-x-6 gap-y-12 lg:gap-y-0">
             {/* LEFT: Headline */}

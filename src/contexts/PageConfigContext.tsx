@@ -46,12 +46,12 @@ export function PageConfigProvider({ children }: { children: ReactNode }) {
   const fetchInsights = async (pageId: string) => {
     try {
       setLoading(true);
-      setError(null);
       const data = await getPageInsights(pageId);
       setInsights(data);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch insights';
-      setError(errorMessage);
+      // Insights are gated behind Facebook permissions still under review.
+      // Don't surface the error globally — the Overview tab has its own info box.
+      setInsights({ data: [] } as any);
       throw err;
     } finally {
       setLoading(false);

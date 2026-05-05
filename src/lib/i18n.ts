@@ -65,8 +65,10 @@ const en: Dict = {
   'header.features': 'Features',
   'header.pricing': 'Pricing',
   'header.docs': 'Docs',
+  'header.app': 'Mobile app',
   'header.login': 'Sign in',
   'header.signup': 'Get started',
+  'header.platforms.now': 'Now on',
 
   // Home — hero
   'home.hero.badge': 'Built for Algerian e-commerce',
@@ -601,8 +603,10 @@ const fr: Dict = {
   'header.features': 'Fonctionnalités',
   'header.pricing': 'Tarifs',
   'header.docs': 'Docs',
+  'header.app': 'App mobile',
   'header.login': 'Connexion',
   'header.signup': 'Commencer',
+  'header.platforms.now': 'Disponible sur',
 
   'home.hero.badge': 'Conçu pour l\'e-commerce algérien',
   'home.hero.title.top': 'Transformez Messenger en',
@@ -1112,8 +1116,10 @@ const ar: Dict = {
   'header.features': 'المميزات',
   'header.pricing': 'الأسعار',
   'header.docs': 'الوثائق',
+  'header.app': 'تطبيق الجوال',
   'header.login': 'تسجيل الدخول',
   'header.signup': 'ابدأ الآن',
+  'header.platforms.now': 'متاح على',
 
   'home.hero.badge': 'مصمم للتجارة الإلكترونية في الجزائر',
   'home.hero.title.top': 'حوّل ماسنجر إلى',

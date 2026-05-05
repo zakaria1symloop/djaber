@@ -100,11 +100,13 @@ export default function MessagesSection({ pageId }: MessagesSectionProps) {
           <p className="text-xs text-zinc-500 mt-0.5">{conversations?.total || 0} conversations</p>
         </div>
         <button
-          onClick={() => fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {})}
+          onClick={() => { clearError(); fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {}); }}
           disabled={loading}
-          className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-300 hover:text-white bg-zinc-900/60 hover:bg-white/5 border border-white/10 rounded-lg transition-colors disabled:opacity-50"
+          title="Reload conversations"
         >
           <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
         </button>
       </div>
 
@@ -180,19 +182,31 @@ export default function MessagesSection({ pageId }: MessagesSectionProps) {
                     </Badge>
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2">
                   {selectedConv.status === 'active' && (
                     <button
                       onClick={async () => {
                         await updateConversationStatus(selectedConv.id, 'resolved');
-                        toast.success('Conversation resolved');
+                        toast.success('Conversation marked as resolved');
                         fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {});
                       }}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors"
-                      title="Mark as resolved"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-400 border border-emerald-400 rounded-lg shadow-sm transition-colors"
+                      title="Mark this conversation as resolved"
                     >
-                      <CheckCircleIcon className="w-3.5 h-3.5" />
-                      Resolve
+                      <CheckCircleIcon className="w-4 h-4" />
+                      Mark resolved
+                    </button>
+                  )}
+                  {selectedConv.status !== 'active' && (
+                    <button
+                      onClick={async () => {
+                        await updateConversationStatus(selectedConv.id, 'active');
+                        toast.success('Conversation reopened');
+                        fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {});
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-300 hover:text-white bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-lg transition-colors"
+                    >
+                      Reopen
                     </button>
                   )}
                   {selectedConv.status !== 'archived' && (
@@ -203,22 +217,10 @@ export default function MessagesSection({ pageId }: MessagesSectionProps) {
                         setSelectedConv(null);
                         fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {});
                       }}
-                      className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                      title="Archive"
+                      className="inline-flex items-center justify-center w-8 h-8 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                      title="Archive conversation"
                     >
                       <CloseIcon className="w-4 h-4" />
-                    </button>
-                  )}
-                  {selectedConv.status !== 'active' && (
-                    <button
-                      onClick={async () => {
-                        await updateConversationStatus(selectedConv.id, 'active');
-                        toast.success('Conversation reopened');
-                        fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {});
-                      }}
-                      className="px-2.5 py-1.5 text-[11px] font-medium text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg transition-colors"
-                    >
-                      Reopen
                     </button>
                   )}
                 </div>

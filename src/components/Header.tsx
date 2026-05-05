@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/contexts/LanguageContext';
 import LanguageSwitcher from './LanguageSwitcher';
+import { FacebookIcon, InstagramIcon } from '@/components/ui/icons';
 
 export default function Header() {
   const router = useRouter();
@@ -68,11 +69,21 @@ export default function Header() {
             </span>
           </Link>
 
+          {/* Platforms badge — Messenger + Instagram */}
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">{t('header.platforms.now')}</span>
+            <span className="flex items-center gap-1.5">
+              <FacebookIcon className="w-3.5 h-3.5 text-[#1877F2]" />
+              <InstagramIcon className="w-3.5 h-3.5 text-[#E1306C]" />
+            </span>
+          </div>
+
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1">
             {[
               { name: t('header.features'), href: '/features' },
               { name: t('header.pricing'), href: '/pricing' },
+              { name: t('header.app'), href: '/app' },
               { name: t('header.docs'), href: '/docs' },
             ].map((item) => (
               <Link
@@ -187,6 +198,7 @@ export default function Header() {
               {[
                 { name: t('header.features'), href: '/features' },
                 { name: t('header.pricing'), href: '/pricing' },
+                { name: t('header.app'), href: '/app' },
                 { name: t('header.docs'), href: '/docs' },
               ].map((item) => (
                 <Link
@@ -198,6 +210,11 @@ export default function Header() {
                   {item.name}
                 </Link>
               ))}
+              <div className="px-4 py-3 flex items-center gap-2 text-xs text-zinc-500">
+                <span className="uppercase tracking-wider">{t('header.platforms.now')}</span>
+                <FacebookIcon className="w-3.5 h-3.5 text-[#1877F2]" />
+                <InstagramIcon className="w-3.5 h-3.5 text-[#E1306C]" />
+              </div>
               <div className="px-4 py-2">
                 <LanguageSwitcher />
               </div>
