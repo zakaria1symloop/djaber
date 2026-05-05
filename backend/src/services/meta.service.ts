@@ -295,6 +295,109 @@ export const fetchPageConversationsFromMeta = async (
 };
 
 // ============================================================================
+// Resolve FB page ID from a page access token (used to sync IG conversations,
+// which live under the FB page that the IG business account is linked to).
+// ============================================================================
+export const resolvePageIdFromToken = async (pageAccessToken: string): Promise<string | null> => {
+  try {
+    const res = await axios.get(`${META_GRAPH_API_URL}/me`, {
+      params: { fields: 'id', access_token: pageAccessToken },
+    });
+    return res.data?.id || null;
+  } catch (err: any) {
+    console.error('resolvePageIdFromToken error:', err.response?.data || err.message);
+    return null;
+  }
+};
+
+// ============================================================================
+// Fetch Instagram DMs — they live under the linked FB page with platform=instagram
+// ============================================================================
+export const fetchInstagramConversationsFromMeta = async (
+  fbPageId: string,
+  pageAccessToken: string,
+  limit = 25,
+  messagesPerConv = 25,
+): Promise<FetchedConversation[]> => {
+  const url = `${META_GRAPH_API_URL}/${fbPageId}/conversations`;
+  const fields = `id,updated_time,participants,messages.limit(${messagesPerConv}){id,from,to,message,created_time}`;
+  const response = await axios.get(url, {
+    params: { fields, limit, platform: 'instagram', access_token: pageAccessToken },
+  });
+
+  const conversations = response.data?.data || [];
+  return conversations.map((conv: any): FetchedConversation => {
+    const participants = conv.participants?.data || [];
+    // The page itself is one participant — pick the other one
+    const otherParticipant = participants.find((p: any) => p.id !== fbPageId) || participants[0];
+    const rawMessages = conv.messages?.data || [];
+    const messages = rawMessages.map((m: any) => ({
+      messageId: m.id,
+      fromId: m.from?.id,
+      fromName: m.from?.name || m.from?.username || null,
+      toId: m.to?.data?.[0]?.id,
+      text: m.message || null,
+      attachments: [],
+      createdTime: m.created_time,
+    }));
+    return {
+      conversationId: conv.id,
+      senderId: otherParticipant?.id || '',
+      senderName: otherParticipant?.username || otherParticipant?.name || null,
+      updatedTime: conv.updated_time,
+      messages,
+    };
+  });
+};
+
+// ============================================================================
+// Fetch Instagram media (posts + reels) for the AI analyze wizard.
+// Uses the IG Business Account ID (stored as our Page.pageId for IG records).
+// ============================================================================
+export const fetchInstagramMediaFromMeta = async (
+  igUserId: string,
+  pageAccessToken: string,
+  limit = 50,
+): Promise<FetchedPost[]> => {
+  const url = `${META_GRAPH_API_URL}/${igUserId}/media`;
+  const fields = 'id,caption,media_url,thumbnail_url,media_type,timestamp,children{media_url,media_type}';
+  let response;
+  try {
+    response = await axios.get(url, {
+      params: { fields, limit, access_token: pageAccessToken },
+    });
+  } catch (err: any) {
+    const fbError = err.response?.data?.error;
+    if (fbError) {
+      throw new MetaPermissionError(fbError.message || 'Instagram rejected the request', fbError.code, fbError.type);
+    }
+    throw err;
+  }
+
+  const items = response.data?.data || [];
+  return items.map((m: any): FetchedPost => {
+    const isVideo = m.media_type === 'VIDEO' || m.media_type === 'REELS';
+    const main = isVideo ? m.thumbnail_url : m.media_url;
+    const atts: any[] = [];
+    if (main) {
+      atts.push({ type: m.media_type || null, url: main, description: null });
+    }
+    const children = m.children?.data || [];
+    for (const c of children) {
+      const childUrl = c.media_type === 'VIDEO' ? null : c.media_url;
+      if (childUrl) atts.push({ type: c.media_type, url: childUrl, description: null });
+    }
+    return {
+      postId: m.id,
+      message: m.caption || null,
+      fullPicture: main || null,
+      attachments: atts,
+      createdTime: m.timestamp,
+    };
+  });
+};
+
+// ============================================================================
 // Fetch page posts (used by AI page-analysis wizard)
 // ============================================================================
 

@@ -1,7 +1,11 @@
 import axios from 'axios';
 import crypto from 'crypto';
 import prisma from '../config/database';
-import { fetchPagePostsFromMeta, FetchedPost } from './meta.service';
+import {
+  fetchPagePostsFromMeta,
+  fetchInstagramMediaFromMeta,
+  FetchedPost,
+} from './meta.service';
 
 const GCS_BUCKET = process.env.GCS_BUCKET || 'djaber-prod-uploads';
 const IS_PROD = process.env.NODE_ENV === 'production';
@@ -209,7 +213,10 @@ export async function analyzePagePosts(internalPageId: string, limit = 30): Prom
     };
   }
 
-  const posts = await fetchPagePostsFromMeta(page.pageId, page.pageAccessToken, limit);
+  const posts =
+    page.platform === 'instagram'
+      ? await fetchInstagramMediaFromMeta(page.pageId, page.pageAccessToken, limit)
+      : await fetchPagePostsFromMeta(page.pageId, page.pageAccessToken, limit);
   const candidates: ExtractedProduct[] = [];
 
   // Sequential to keep request rate sane on large pages

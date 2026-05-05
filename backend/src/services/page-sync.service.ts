@@ -1,22 +1,39 @@
 import prisma from '../config/database';
-import { fetchPageConversationsFromMeta } from './meta.service';
+import {
+  fetchPageConversationsFromMeta,
+  fetchInstagramConversationsFromMeta,
+  resolvePageIdFromToken,
+  FetchedConversation,
+} from './meta.service';
 
 /**
- * Pull the latest conversations + messages for a page from Facebook
+ * Pull the latest conversations + messages for a page from Facebook (or Instagram)
  * and upsert them into our DB. Returns counts so the API can report
  * how many new things showed up.
  */
 export async function syncFacebookConversations(internalPageId: string) {
   const page = await prisma.page.findUnique({ where: { id: internalPageId } });
   if (!page) throw new Error('Page not found');
-  if (page.platform !== 'facebook') {
-    return { newConversations: 0, newMessages: 0, totalConversations: 0, totalMessages: 0 };
-  }
   if (!page.pageAccessToken) {
     return { newConversations: 0, newMessages: 0, totalConversations: 0, totalMessages: 0 };
   }
 
-  const fetched = await fetchPageConversationsFromMeta(page.pageId, page.pageAccessToken);
+  let fetched: FetchedConversation[] = [];
+  let pageOwnId = page.pageId; // who "owns" the convo on the platform side (FB page ID for both)
+
+  if (page.platform === 'facebook') {
+    fetched = await fetchPageConversationsFromMeta(page.pageId, page.pageAccessToken);
+  } else if (page.platform === 'instagram') {
+    // IG conversations live under the FB page that the IG business account is linked to
+    const fbPageId = await resolvePageIdFromToken(page.pageAccessToken);
+    if (!fbPageId) {
+      return { newConversations: 0, newMessages: 0, totalConversations: 0, totalMessages: 0 };
+    }
+    pageOwnId = fbPageId;
+    fetched = await fetchInstagramConversationsFromMeta(fbPageId, page.pageAccessToken);
+  } else {
+    return { newConversations: 0, newMessages: 0, totalConversations: 0, totalMessages: 0 };
+  }
 
   let newConversations = 0;
   let newMessages = 0;
@@ -31,7 +48,7 @@ export async function syncFacebookConversations(internalPageId: string) {
     const existing = await prisma.conversation.findUnique({
       where: {
         platform_pageId_senderId: {
-          platform: 'facebook',
+          platform: page.platform,
           pageId: page.id,
           senderId: fc.senderId,
         },
@@ -53,7 +70,7 @@ export async function syncFacebookConversations(internalPageId: string) {
           pageId: page.id,
           senderId: fc.senderId,
           senderName: fc.senderName,
-          platform: 'facebook',
+          platform: page.platform,
           userId: page.userId,
           status: 'active',
         },
@@ -75,7 +92,7 @@ export async function syncFacebookConversations(internalPageId: string) {
       });
       if (existingMsg) continue;
 
-      const isFromPage = m.fromId === page.pageId;
+      const isFromPage = m.fromId === page.pageId || m.fromId === pageOwnId;
       const firstAttachment = m.attachments[0];
 
       try {
