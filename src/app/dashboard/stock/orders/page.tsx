@@ -5,14 +5,15 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Modal, DatePicker, Pagination, RangeSlider } from '@/components/stock';
 import { Button, Badge } from '@/components/ui';
 import {
-  ClipboardIcon, SearchIcon, EyeIcon, TrashIcon, PlusIcon,
+  ClipboardIcon, SearchIcon, TrashIcon, PlusIcon,
   PhoneIcon, FilterIcon, CloseIcon,
 } from '@/components/ui/icons';
 import { useFilterPanel } from '@/contexts/FilterPanelContext';
 import {
-  getOrders, deleteOrder, addOrderCall, updateOrder,
-  type Order, type OrderCall,
+  getOrders, deleteOrder, updateOrder,
+  type Order,
 } from '@/lib/user-stock-api';
+import ConfirmOrderModal from '@/components/stock/ConfirmOrderModal';
 
 const LIMIT = 30;
 const DEFAULT_TOTAL_MAX = 1000000;
@@ -66,15 +67,9 @@ function OrdersPageInner() {
   const [bulkProcessing, setBulkProcessing] = useState(false);
 
   // Modal state
-  const [viewing, setViewing] = useState<Order | null>(null);
+  const [confirmingOrder, setConfirmingOrder] = useState<Order | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Order | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  // Call modal
-  const [callingOrder, setCallingOrder] = useState<Order | null>(null);
-  const [callResult, setCallResult] = useState('');
-  const [callNotes, setCallNotes] = useState('');
-  const [savingCall, setSavingCall] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -162,9 +157,8 @@ function OrdersPageInner() {
 
   const toggleFilters = () => {
     if (!filtersOpen) {
-      setViewing(null);
+      setConfirmingOrder(null);
       setDeleteConfirm(null);
-      setCallingOrder(null);
     }
     setFiltersOpen(!filtersOpen);
   };
@@ -284,24 +278,34 @@ function OrdersPageInner() {
     }
   };
 
-  const handleAddCall = async () => {
-    if (!callingOrder || !callResult) return;
-    try {
-      setSavingCall(true);
-      const res = await addOrderCall(callingOrder.id, {
-        result: callResult,
-        notes: callNotes || undefined,
-      });
-      setOrders(orders.map((o) => (o.id === callingOrder.id ? res.order : o)));
-      if (viewing?.id === callingOrder.id) setViewing(res.order);
-      setCallingOrder(null);
-      setCallResult('');
-      setCallNotes('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save call');
-    } finally {
-      setSavingCall(false);
-    }
+  const handleConfirmModalChange = (updated: Order) => {
+    setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+    setConfirmingOrder(updated);
+  };
+
+  // Decide a row's left-border accent — gives a quick at-a-glance "what to do next"
+  // Cast to string because the Order type is narrower than the runtime statuses
+  // ('preparing', 'shipped', 'returned' exist in the DB but not in the TS type)
+  const rowAccent = (order: Order): string => {
+    const s = order.status as string;
+    if (s === 'cancelled' || s === 'returned') return 'border-l-rose-500/40';
+    if (s === 'delivered') return 'border-l-emerald-500/40';
+    if (s === 'shipped' || s === 'dispatched') return 'border-l-cyan-500/40';
+    if (s === 'preparing') return 'border-l-violet-500/40';
+    if (order.confirmationStatus === 'confirmed') return 'border-l-emerald-500/40';
+    if (order.confirmationStatus === 'no_answer') return 'border-l-amber-500/40';
+    if (order.confirmationStatus === 'rejected') return 'border-l-rose-500/40';
+    return 'border-l-blue-500/40'; // not_called yet
+  };
+
+  const primaryAction = (order: Order): { label: string; tone: 'emerald' | 'blue' | 'amber' | 'zinc' } => {
+    const s = order.status as string;
+    if (s === 'pending' && order.confirmationStatus === 'not_called') return { label: 'Call & confirm', tone: 'blue' };
+    if (s === 'pending' && order.confirmationStatus === 'no_answer') return { label: 'Try again', tone: 'amber' };
+    if (s === 'confirmed') return { label: 'Prepare', tone: 'emerald' };
+    if (s === 'preparing') return { label: 'Mark shipped', tone: 'emerald' };
+    if (s === 'shipped') return { label: 'Mark delivered', tone: 'emerald' };
+    return { label: 'Open', tone: 'zinc' };
   };
 
   // Compute stats from loaded orders
@@ -518,9 +522,22 @@ function OrdersPageInner() {
               <tbody>
                 {orders.map((order) => {
                   const remaining = Math.max(0, Number(order.total) - Number(order.amountPaid));
+                  const action = primaryAction(order);
+                  const next = getNextStatus(order.status);
+                  const accent = rowAccent(order);
+                  const toneClasses =
+                    action.tone === 'emerald' ? 'bg-emerald-500 hover:bg-emerald-400 text-white'
+                      : action.tone === 'blue' ? 'bg-blue-500 hover:bg-blue-400 text-white'
+                      : action.tone === 'amber' ? 'bg-amber-500 hover:bg-amber-400 text-white'
+                      : 'bg-white/10 hover:bg-white/20 text-zinc-200';
                   return (
-                    <tr key={order.id} className={`border-b border-white/5 hover:bg-white/5 transition-colors ${selectedIds.has(order.id) ? 'bg-white/[0.03]' : ''}`}>
-                      <td className="px-4 py-3">
+                    <tr
+                      key={order.id}
+                      className={`border-b border-white/5 hover:bg-white/[0.04] transition-colors border-l-[3px] ${accent} ${
+                        selectedIds.has(order.id) ? 'bg-white/[0.03]' : ''
+                      }`}
+                    >
+                      <td className="px-3 py-3">
                         <input
                           type="checkbox"
                           checked={selectedIds.has(order.id)}
@@ -528,22 +545,28 @@ function OrdersPageInner() {
                           className="w-4 h-4 rounded border-white/20 bg-black/60 text-white focus:ring-1 focus:ring-white/30"
                         />
                       </td>
-                      <td className="px-4 py-3 text-sm text-white font-medium">{order.orderNumber}</td>
-                      <td className="px-4 py-3">
-                        <div>
-                          <p className="text-sm text-white">{order.clientName}</p>
-                          {order.clientPhone && <p className="text-xs text-zinc-500">{order.clientPhone}</p>}
-                        </div>
+                      <td
+                        className="px-4 py-3 text-sm text-white font-medium cursor-pointer"
+                        onClick={() => setConfirmingOrder(order)}
+                      >
+                        {order.orderNumber}
+                        {order.source === 'ai' && (
+                          <span className="ms-1.5 text-[9px] text-violet-300 bg-violet-500/15 border border-violet-500/30 px-1.5 py-0.5 rounded uppercase tracking-wider">AI</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 cursor-pointer" onClick={() => setConfirmingOrder(order)}>
+                        <p className="text-sm text-white truncate max-w-[180px]">{order.clientName}</p>
+                        {order.clientPhone && <p className="text-xs text-zinc-500">{order.clientPhone}</p>}
                       </td>
                       <td className="px-4 py-3 text-sm text-center text-zinc-400">{order.items.length}</td>
-                      <td className="px-4 py-3 text-sm text-right text-white font-medium">
+                      <td className="px-4 py-3 text-sm text-right text-white font-medium whitespace-nowrap">
                         {Number(order.total).toLocaleString()} DA
                       </td>
-                      <td className="px-4 py-3 text-sm text-right text-emerald-400">
+                      <td className="px-4 py-3 text-sm text-right text-emerald-400 whitespace-nowrap">
                         {Number(order.amountPaid).toLocaleString()} DA
                       </td>
-                      <td className="px-4 py-3 text-sm text-right text-red-400">
-                        {remaining > 0 ? `${remaining.toLocaleString()} DA` : '-'}
+                      <td className="px-4 py-3 text-sm text-right text-red-400 whitespace-nowrap">
+                        {remaining > 0 ? `${remaining.toLocaleString()} DA` : '–'}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
@@ -554,55 +577,32 @@ function OrdersPageInner() {
                           {order.callAttempts > 0 && ` (${order.callAttempts})`}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-sm text-zinc-500">
+                      <td className="px-4 py-3 text-xs text-zinc-500 whitespace-nowrap">
                         {new Date(order.orderDate).toLocaleDateString()}
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {/* Quick status advance button */}
-                          {(() => {
-                            const next = getNextStatus(order.status);
-                            if (!next) return null;
-                            return (
-                              <button
-                                onClick={() => handleQuickStatus(order.id, next.next)}
-                                className="px-2 py-1 text-[10px] font-medium text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors whitespace-nowrap"
-                                title={next.label}
-                              >
-                                {next.label}
-                              </button>
-                            );
-                          })()}
+                      <td className="px-3 py-3 text-end">
+                        <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => setCallingOrder(order)}
-                            className="p-1.5 text-zinc-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
-                            title="Log call"
+                            onClick={() => {
+                              if (next && order.confirmationStatus === 'confirmed' && order.status !== 'pending') {
+                                // Confirmed orders can advance straight via the row CTA
+                                handleQuickStatus(order.id, next.next);
+                              } else {
+                                setConfirmingOrder(order);
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors ${toneClasses}`}
+                            title={action.label}
                           >
-                            <PhoneIcon className="w-4 h-4" />
+                            {action.label}
                           </button>
-                          <button
-                            onClick={() => setViewing(order)}
-                            className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                            title="View details"
-                          >
-                            <EyeIcon className="w-4 h-4" />
-                          </button>
-                          {order.status !== 'delivered' && order.status !== 'cancelled' && (
-                            <button
-                              onClick={() => handleQuickStatus(order.id, 'cancelled')}
-                              className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                              title="Cancel order"
-                            >
-                              <CloseIcon className="w-4 h-4" />
-                            </button>
-                          )}
                           {order.status !== 'delivered' && order.status !== 'cancelled' && (
                             <button
                               onClick={() => setDeleteConfirm(order)}
-                              className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                              className="p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
                               title="Delete order"
                             >
-                              <TrashIcon className="w-4 h-4" />
+                              <TrashIcon className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
@@ -630,219 +630,13 @@ function OrdersPageInner() {
 
       <Pagination total={total} limit={LIMIT} offset={offset} onPageChange={setOffset} />
 
-      {/* View Order Detail Modal */}
-      <Modal isOpen={!!viewing} onClose={() => setViewing(null)} title={`Order ${viewing?.orderNumber || ''}`} size="lg">
-        {viewing && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-zinc-500">Client</p>
-                <p className="text-sm text-white">{viewing.clientName}</p>
-              </div>
-              <div>
-                <p className="text-xs text-zinc-500">Phone</p>
-                <p className="text-sm text-white">{viewing.clientPhone || '-'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-zinc-500">Address</p>
-                <p className="text-sm text-white">{viewing.clientAddress || '-'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-zinc-500">Date</p>
-                <p className="text-sm text-white">{new Date(viewing.orderDate).toLocaleString()}</p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <div>
-                <p className="text-xs text-zinc-500 mb-1">Status</p>
-                <Badge variant={getStatusVariant(viewing.status)}>{viewing.status}</Badge>
-              </div>
-              <div>
-                <p className="text-xs text-zinc-500 mb-1">Payment</p>
-                <Badge variant={getPaymentVariant(viewing.paymentStatus)}>{viewing.paymentStatus}</Badge>
-              </div>
-              <div>
-                <p className="text-xs text-zinc-500 mb-1">Confirmation</p>
-                <Badge variant={getConfirmVariant(viewing.confirmationStatus)}>
-                  {getConfirmLabel(viewing.confirmationStatus)}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-xs text-zinc-500 mb-1">Source</p>
-                <Badge variant={viewing.source === 'ai' ? 'info' : 'default'}>
-                  {viewing.source === 'ai' ? 'AI Chat' : 'Manual'}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
-                <p className="text-xs text-zinc-500">Total</p>
-                <p className="text-lg font-bold text-white">{Number(viewing.total).toLocaleString()} DA</p>
-              </div>
-              <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
-                <p className="text-xs text-zinc-500">Paid</p>
-                <p className="text-lg font-bold text-emerald-400">{Number(viewing.amountPaid).toLocaleString()} DA</p>
-              </div>
-              <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
-                <p className="text-xs text-zinc-500">Remaining</p>
-                <p className={`text-lg font-bold ${Number(viewing.total) - Number(viewing.amountPaid) > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                  {Math.max(0, Number(viewing.total) - Number(viewing.amountPaid)).toLocaleString()} DA
-                </p>
-              </div>
-            </div>
-
-            <div className="border border-white/10 rounded-lg overflow-hidden">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-zinc-800/50">
-                    <th className="text-left text-xs font-medium text-zinc-400 px-4 py-2">Product</th>
-                    <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2">Qty</th>
-                    <th className="text-right text-xs font-medium text-zinc-400 px-4 py-2">Price</th>
-                    <th className="text-right text-xs font-medium text-zinc-400 px-4 py-2">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {viewing.items.map((item) => (
-                    <tr key={item.id} className="border-t border-white/5">
-                      <td className="px-4 py-2 text-sm text-white">
-                        {item.productName}
-                        {item.variantName && <span className="text-xs text-zinc-500 ml-1.5">({item.variantName})</span>}
-                      </td>
-                      <td className="px-4 py-2 text-sm text-center text-white">{item.quantity}</td>
-                      <td className="px-4 py-2 text-sm text-right text-zinc-400">{Number(item.unitPrice).toLocaleString()} DA</td>
-                      <td className="px-4 py-2 text-sm text-right text-white">{Number(item.total).toLocaleString()} DA</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {viewing.calls && viewing.calls.length > 0 && (
-              <div>
-                <p className="text-xs text-zinc-500 mb-2">Call History ({viewing.callAttempts} attempt{viewing.callAttempts !== 1 ? 's' : ''})</p>
-                <div className="space-y-2">
-                  {viewing.calls.map((call) => (
-                    <div key={call.id} className="flex items-start gap-3 bg-zinc-800/50 rounded-lg p-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        call.result === 'picked_up' ? 'bg-emerald-500/20 text-emerald-400'
-                          : call.result === 'rejected' ? 'bg-red-500/20 text-red-400'
-                          : 'bg-amber-500/20 text-amber-400'
-                      }`}>
-                        <PhoneIcon className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-white font-medium capitalize">{call.result.replace('_', ' ')}</span>
-                          <span className="text-xs text-zinc-500">{new Date(call.calledAt).toLocaleString()}</span>
-                        </div>
-                        {call.notes && <p className="text-xs text-zinc-400 mt-0.5">{call.notes}</p>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {viewing.notes && (
-              <div>
-                <p className="text-xs text-zinc-500 mb-1">Notes</p>
-                <p className="text-sm text-zinc-400">{viewing.notes}</p>
-              </div>
-            )}
-
-            <div className="flex gap-3 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => { setCallingOrder(viewing); setViewing(null); }}
-                icon={<PhoneIcon className="w-4 h-4" />}
-              >
-                Log Call
-              </Button>
-              <Button variant="outline" className="flex-1" onClick={() => setViewing(null)}>
-                Close
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* Call Logging Modal */}
-      <Modal isOpen={!!callingOrder} onClose={() => { setCallingOrder(null); setCallResult(''); setCallNotes(''); }} title={`Log Call — ${callingOrder?.orderNumber || ''}`} size="sm">
-        {callingOrder && (
-          <div className="space-y-4">
-            <div className="bg-zinc-800/50 rounded-lg p-3">
-              <p className="text-sm text-white font-medium">{callingOrder.clientName}</p>
-              {callingOrder.clientPhone && (
-                <p className="text-sm text-blue-400 mt-0.5">{callingOrder.clientPhone}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs text-zinc-400 mb-2">Call Result *</label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: 'picked_up', label: 'Picked Up', color: 'emerald' },
-                  { value: 'no_answer', label: 'No Answer', color: 'amber' },
-                  { value: 'busy', label: 'Busy', color: 'amber' },
-                  { value: 'rejected', label: 'Rejected', color: 'red' },
-                  { value: 'voicemail', label: 'Voicemail', color: 'zinc' },
-                ].map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setCallResult(opt.value)}
-                    className={`px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
-                      callResult === opt.value
-                        ? opt.color === 'emerald' ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
-                        : opt.color === 'red' ? 'bg-red-500/20 border-red-500/40 text-red-400'
-                        : opt.color === 'amber' ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
-                        : 'bg-zinc-500/20 border-zinc-500/40 text-zinc-300'
-                        : 'bg-black border-white/10 text-zinc-400 hover:bg-white/5'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs text-zinc-400 mb-1.5">Notes / Client Response</label>
-              <textarea
-                value={callNotes}
-                onChange={(e) => setCallNotes(e.target.value)}
-                placeholder="What did the client say?"
-                rows={3}
-                className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/20 resize-none"
-              />
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => { setCallingOrder(null); setCallResult(''); setCallNotes(''); }}
-                disabled={savingCall}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                className="flex-1"
-                onClick={handleAddCall}
-                disabled={savingCall || !callResult}
-              >
-                {savingCall ? 'Saving...' : 'Save Call'}
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
+      {/* Confirmation wizard — replaces View + Call modals with one unified flow */}
+      <ConfirmOrderModal
+        order={confirmingOrder}
+        isOpen={!!confirmingOrder}
+        onClose={() => setConfirmingOrder(null)}
+        onChanged={handleConfirmModalChange}
+      />
 
       {/* Delete Confirm Modal */}
       <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="Delete Order" size="sm">
