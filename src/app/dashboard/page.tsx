@@ -16,6 +16,7 @@ import {
   Input,
   EmptyState,
   FacebookIcon,
+  InstagramIcon,
   PlusIcon,
   SettingsIcon,
   CloseIcon,
@@ -27,6 +28,8 @@ import {
   MessageIcon,
   BoxIcon,
 } from '@/components/ui';
+import PageDashboardCard from '@/components/page-config/PageDashboardCard';
+import GenerateAgentModal from '@/components/page-config/GenerateAgentModal';
 import {
   DollarIcon,
   ShoppingCartIcon,
@@ -61,6 +64,18 @@ export default function DashboardPage() {
   );
 }
 
+function ChannelStat({ label, value, icon }: { label: string; value: number | string; icon: React.ReactNode }) {
+  return (
+    <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-3 flex items-center gap-3">
+      <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">{icon}</div>
+      <div>
+        <p className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</p>
+        <p className="text-lg font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{value}</p>
+      </div>
+    </div>
+  );
+}
+
 function DashboardPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -70,6 +85,7 @@ function DashboardPageInner() {
   const { t, dir } = useTranslation();
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState<string | null>(null);
   const [activePlatformTab, setActivePlatformTab] = useState('all');
+  const [generateAgentFor, setGenerateAgentFor] = useState<{ id: string; name: string } | null>(null);
   const [stockMode, setStockMode] = useState<'simple' | 'advanced'>('simple');
   const activeSection = searchParams.get('section') || 'overview';
 
@@ -413,15 +429,16 @@ function DashboardPageInner() {
       {/* Pages Section */}
       {activeSection === 'pages' && (
         <>
-          <div className="mb-8">
+          <div className="mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>
-                  Social Media
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 mb-1">Connected channels</p>
+                <h1 className="text-3xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
+                  Pages & inboxes
                 </h1>
-                <p className="text-zinc-400">Manage all your connected social media pages and platforms</p>
+                <p className="text-sm text-zinc-400">Each connected page has its own inbox, stock and tailored AI agent.</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   onClick={handleConnectFacebook}
                   loading={pagesLoading}
@@ -429,91 +446,56 @@ function DashboardPageInner() {
                 >
                   Connect Facebook
                 </Button>
+                <Button
+                  onClick={handleConnectInstagram}
+                  loading={pagesLoading}
+                  variant="outline"
+                  icon={<InstagramIcon className="w-4 h-4" />}
+                >
+                  Connect Instagram
+                </Button>
               </div>
             </div>
           </div>
+
+          {/* Quick channel summary strip */}
+          {pages.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+              <ChannelStat label="Total pages" value={pages.length} icon={<ChatIcon className="w-4 h-4 text-zinc-400" />} />
+              <ChannelStat
+                label="Facebook"
+                value={pages.filter((p) => p.platform === 'facebook').length}
+                icon={<FacebookIcon className="w-4 h-4 text-[#1877F2]" />}
+              />
+              <ChannelStat
+                label="Instagram"
+                value={pages.filter((p) => p.platform === 'instagram').length}
+                icon={<InstagramIcon className="w-4 h-4 text-pink-400" />}
+              />
+              <ChannelStat label="Plan limit" value={`${pages.length}/∞`} icon={<BoltIcon className="w-4 h-4 text-amber-400" />} />
+            </div>
+          )}
 
           <Tabs defaultValue="all" value={activePlatformTab} onValueChange={setActivePlatformTab}>
             <TabsList className="mb-6">
               <TabsTrigger value="all">All Platforms</TabsTrigger>
               <TabsTrigger value="facebook" icon={<FacebookIcon className="w-4 h-4" />}>Facebook</TabsTrigger>
+              <TabsTrigger value="instagram" icon={<InstagramIcon className="w-4 h-4" />}>Instagram</TabsTrigger>
             </TabsList>
 
             <TabsContent value={activePlatformTab}>
               {filteredPages.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {filteredPages.map((page) => (
-                    <Card key={page.id} variant="interactive">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
-                            {getPlatformIcon()}
-                          </div>
-                          <div>
-                            <h3 className="text-white font-semibold">{page.pageName}</h3>
-                            <p className="text-xs text-zinc-500 capitalize">{page.platform}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3 mb-4">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-zinc-400">Status</span>
-                          <Badge variant="success">Active</Badge>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-zinc-400">Connected</span>
-                          <span className="text-white">{new Date(page.createdAt).toLocaleDateString()}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-zinc-400">AI Agent</span>
-                          <Badge variant="success">Active</Badge>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => router.push(`/dashboard/page/${page.id}`)}
-                          icon={<SettingsIcon className="w-4 h-4" />}
-                        >
-                          Configure
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => router.push(`/dashboard/page/${page.id}/stock`)}
-                          icon={<BoxIcon className="w-4 h-4" />}
-                        >
-                          Stock
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowDisconnectConfirm(page.id)}
-                          className="text-red-400 hover:text-red-300"
-                        >
-                          <CloseIcon className="w-4 h-4" />
-                        </Button>
-                      </div>
-
-                      {showDisconnectConfirm === page.id && (
-                        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-                          <Card className="max-w-md mx-4">
-                            <h3 className="text-xl font-bold text-white mb-2">Disconnect Page?</h3>
-                            <p className="text-zinc-400 mb-6">
-                              Are you sure you want to disconnect {page.pageName}? You won't receive messages anymore.
-                            </p>
-                            <div className="flex gap-3">
-                              <Button variant="outline" className="flex-1" onClick={() => setShowDisconnectConfirm(null)}>Cancel</Button>
-                              <Button variant="danger" className="flex-1" onClick={() => handleDisconnect(page.id)}>Disconnect</Button>
-                            </div>
-                          </Card>
-                        </div>
-                      )}
-                    </Card>
+                    <PageDashboardCard
+                      key={page.id}
+                      page={page}
+                      onConfigure={() => router.push(`/dashboard/page/${page.id}`)}
+                      onStock={() => router.push(`/dashboard/page/${page.id}/stock`)}
+                      onInbox={() => router.push(`/dashboard/page/${page.id}?tab=messages`)}
+                      onGenerateAgent={() => setGenerateAgentFor({ id: page.id, name: page.pageName })}
+                      onDisconnect={() => setShowDisconnectConfirm(page.id)}
+                    />
                   ))}
                 </div>
               ) : (
@@ -527,15 +509,47 @@ function DashboardPageInner() {
                         : `Connect your ${activePlatformTab.charAt(0).toUpperCase() + activePlatformTab.slice(1)} pages to get started`
                     }
                     action={
-                      <Button onClick={handleConnectFacebook} loading={pagesLoading} icon={<FacebookIcon className="w-4 h-4" />}>
-                        Connect Facebook
-                      </Button>
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        <Button onClick={handleConnectFacebook} loading={pagesLoading} icon={<FacebookIcon className="w-4 h-4" />}>
+                          Connect Facebook
+                        </Button>
+                        <Button onClick={handleConnectInstagram} loading={pagesLoading} variant="outline" icon={<InstagramIcon className="w-4 h-4" />}>
+                          Connect Instagram
+                        </Button>
+                      </div>
                     }
                   />
                 </Card>
               )}
             </TabsContent>
           </Tabs>
+
+          {/* Disconnect confirmation modal (shared across all cards) */}
+          {showDisconnectConfirm && (
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+              <Card className="max-w-md mx-4">
+                <h3 className="text-xl font-bold text-white mb-2">Disconnect page?</h3>
+                <p className="text-zinc-400 mb-6">
+                  Are you sure you want to disconnect this page? You won&apos;t receive messages anymore and the AI agent will stop replying.
+                </p>
+                <div className="flex gap-3">
+                  <Button variant="outline" className="flex-1" onClick={() => setShowDisconnectConfirm(null)}>Cancel</Button>
+                  <Button variant="danger" className="flex-1" onClick={() => handleDisconnect(showDisconnectConfirm)}>Disconnect</Button>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* Generate-agent modal */}
+          {generateAgentFor && (
+            <GenerateAgentModal
+              pageId={generateAgentFor.id}
+              pageName={generateAgentFor.name}
+              isOpen={!!generateAgentFor}
+              onClose={() => setGenerateAgentFor(null)}
+              onApplied={() => setGenerateAgentFor(null)}
+            />
+          )}
         </>
       )}
 

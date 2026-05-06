@@ -3,6 +3,8 @@ import prisma from '../config/database';
 import { getPageInsights, sendMessage } from '../services/meta.service';
 import { syncFacebookConversations } from '../services/page-sync.service';
 import { analyzePagePosts, importExtractedProducts } from '../services/page-analysis.service';
+import { getPageSummary } from '../services/page-summary.service';
+import { generateAgentFromInbox } from '../services/agent-generation.service';
 
 /**
  * Get Facebook page insights (followers, engagement, reach)
@@ -614,6 +616,53 @@ export const analyzePagePostsController = async (req: Request, res: Response): P
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to analyze page posts.',
+    });
+  }
+};
+
+/**
+ * Aggregated dashboard stats for one page (counts, agent status, etc.)
+ */
+export const getPageSummaryController = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const pageId = req.params.pageId as string;
+    const summary = await getPageSummary(pageId, req.user.userId);
+    if (!summary) {
+      res.status(404).json({ error: 'Page not found' });
+      return;
+    }
+    res.json(summary);
+  } catch (error: any) {
+    console.error('Get page summary error:', error.message || error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to load page summary.',
+    });
+  }
+};
+
+/**
+ * Read the page's recent inbox and draft a tailored AI agent for it.
+ * Returns a preview the user can apply via PUT /:pageId/ai-settings.
+ */
+export const generatePageAgentController = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const pageId = req.params.pageId as string;
+    const result = await generateAgentFromInbox(pageId, req.user.userId);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Generate agent error:', error.message || error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to generate AI agent. Please try again.',
     });
   }
 };

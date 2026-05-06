@@ -7,7 +7,19 @@ import { useToast } from '@/components/ui/Toast';
 
 interface DraftItem extends ExtractedProduct {
   selected: boolean;
+  quantity: number;
 }
+
+const isItemValid = (i: DraftItem) =>
+  i.name.trim().length > 0 && i.priceDA > 0 && i.quantity > 0;
+
+const itemErrors = (i: DraftItem): string[] => {
+  const errs: string[] = [];
+  if (!i.name.trim()) errs.push('name');
+  if (!i.priceDA || i.priceDA <= 0) errs.push('price');
+  if (!i.quantity || i.quantity <= 0) errs.push('stock');
+  return errs;
+};
 
 export default function AnalyzePage() {
   const params = useParams();
@@ -33,7 +45,7 @@ export default function AnalyzePage() {
       setPageName(res.pageName);
       setScanned(res.scanned);
       setWarning(res.warning);
-      setItems(res.extracted.map((e) => ({ ...e, selected: true })));
+      setItems(res.extracted.map((e) => ({ ...e, selected: true, quantity: 1 })));
       setPhase('review');
     } catch (err: any) {
       const data = err?.data || err?.response?.data;
@@ -58,14 +70,20 @@ export default function AnalyzePage() {
       toast.error('Select at least one product');
       return;
     }
+    const invalid = chosen.filter((c) => !isItemValid(c));
+    if (invalid.length > 0) {
+      toast.error(`Set name, price and stock on ${invalid.length} product${invalid.length > 1 ? 's' : ''} before importing`);
+      return;
+    }
     setPhase('importing');
     try {
       const result = await importExtractedProducts(
         pageId,
         chosen.map((c) => ({
-          name: c.name,
+          name: c.name.trim(),
           description: c.description,
           priceDA: c.priceDA,
+          quantity: c.quantity,
           imageUrl: c.imageUrl,
           sourcePostId: c.postId,
         })),
@@ -78,7 +96,10 @@ export default function AnalyzePage() {
     }
   };
 
-  const selectedCount = items.filter((i) => i.selected).length;
+  const selectedItems = items.filter((i) => i.selected);
+  const selectedCount = selectedItems.length;
+  const invalidCount = selectedItems.filter((i) => !isItemValid(i)).length;
+  const canImport = selectedCount > 0 && invalidCount === 0;
 
   return (
     <div className="space-y-6">
@@ -161,7 +182,8 @@ export default function AnalyzePage() {
               </button>
               <button
                 onClick={importToStock}
-                disabled={selectedCount === 0}
+                disabled={!canImport}
+                title={!canImport && invalidCount > 0 ? `Fill in price and stock on ${invalidCount} product${invalidCount > 1 ? 's' : ''}` : undefined}
                 className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 Import {selectedCount} to stock
@@ -175,65 +197,122 @@ export default function AnalyzePage() {
             </div>
           )}
 
+          {invalidCount > 0 && (
+            <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 text-sm text-rose-300 flex items-center gap-2">
+              <span className="text-base">⚠️</span>
+              <span>
+                {invalidCount} selected product{invalidCount > 1 ? 's are' : ' is'} missing required fields. Set <strong>price (DA)</strong> and <strong>initial stock</strong> on each before importing.
+              </span>
+            </div>
+          )}
+
           {items.length === 0 ? (
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-8 text-center text-sm text-zinc-500">
               No products detected in your recent posts. The AI looks for product photos with prices or clear product captions.
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {items.map((item, idx) => (
-                <div
-                  key={item.postId + idx}
-                  className={`bg-zinc-900/50 border rounded-xl overflow-hidden transition-all ${
-                    item.selected ? 'border-emerald-500/40 ring-1 ring-emerald-500/20' : 'border-white/10 opacity-60'
-                  }`}
-                >
-                  {item.imageUrl ? (
-                    <div className="relative aspect-[4/3] bg-black">
-                      <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-                      <button
-                        onClick={() => toggleItem(idx)}
-                        className={`absolute top-2 end-2 w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold ${
-                          item.selected ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-black/60 border-white/30 text-transparent'
-                        }`}
-                      >
-                        ✓
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="aspect-[4/3] bg-zinc-800 flex items-center justify-center text-3xl text-zinc-600">📷</div>
-                  )}
-                  <div className="p-3 space-y-2">
-                    <input
-                      type="text"
-                      value={item.name}
-                      onChange={(e) => editItem(idx, { name: e.target.value })}
-                      className="w-full bg-transparent border-b border-white/10 focus:border-white/30 text-sm font-semibold text-white px-1 py-1 focus:outline-none"
-                    />
-                    <textarea
-                      value={item.description}
-                      onChange={(e) => editItem(idx, { description: e.target.value })}
-                      rows={2}
-                      className="w-full bg-black/30 border border-white/10 focus:border-white/30 rounded-md text-xs text-zinc-300 px-2 py-1.5 focus:outline-none resize-none"
-                      placeholder="Description"
-                    />
-                    <div className="flex items-center gap-2">
-                      <label className="text-[10px] uppercase tracking-wider text-zinc-500">Price (DA)</label>
-                      <input
-                        type="number"
-                        value={item.priceDA || ''}
-                        onChange={(e) => editItem(idx, { priceDA: parseInt(e.target.value, 10) || 0 })}
-                        className="flex-1 bg-black/30 border border-white/10 focus:border-white/30 rounded-md text-xs text-white px-2 py-1 focus:outline-none"
-                      />
-                    </div>
-                    {item.category && (
-                      <span className="inline-block text-[10px] uppercase tracking-wider text-zinc-500">
-                        {item.category}
-                      </span>
+              {items.map((item, idx) => {
+                const errs = itemErrors(item);
+                const showErrors = item.selected && errs.length > 0;
+                return (
+                  <div
+                    key={item.postId + idx}
+                    className={`bg-zinc-900/50 border rounded-xl overflow-hidden transition-all ${
+                      !item.selected
+                        ? 'border-white/10 opacity-60'
+                        : showErrors
+                        ? 'border-rose-500/40 ring-1 ring-rose-500/20'
+                        : 'border-emerald-500/40 ring-1 ring-emerald-500/20'
+                    }`}
+                  >
+                    {item.imageUrl ? (
+                      <div className="relative aspect-[4/3] bg-black">
+                        <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                        <button
+                          onClick={() => toggleItem(idx)}
+                          className={`absolute top-2 end-2 w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold ${
+                            item.selected ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-black/60 border-white/30 text-transparent'
+                          }`}
+                        >
+                          ✓
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="aspect-[4/3] bg-zinc-800 flex items-center justify-center text-3xl text-zinc-600">📷</div>
                     )}
+                    <div className="p-3 space-y-2">
+                      <input
+                        type="text"
+                        value={item.name}
+                        onChange={(e) => editItem(idx, { name: e.target.value })}
+                        placeholder="Product name (required)"
+                        className={`w-full bg-transparent border-b text-sm font-semibold text-white px-1 py-1 focus:outline-none ${
+                          showErrors && errs.includes('name')
+                            ? 'border-rose-500/60 focus:border-rose-400'
+                            : 'border-white/10 focus:border-white/30'
+                        }`}
+                      />
+                      <textarea
+                        value={item.description}
+                        onChange={(e) => editItem(idx, { description: e.target.value })}
+                        rows={2}
+                        className="w-full bg-black/30 border border-white/10 focus:border-white/30 rounded-md text-xs text-zinc-300 px-2 py-1.5 focus:outline-none resize-none"
+                        placeholder="Description (optional)"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] uppercase tracking-wider text-zinc-500 flex items-center gap-1">
+                            Price (DA)
+                            <span className="text-rose-400">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={item.priceDA || ''}
+                            onChange={(e) => editItem(idx, { priceDA: parseInt(e.target.value, 10) || 0 })}
+                            placeholder="0"
+                            className={`w-full mt-1 bg-black/30 border rounded-md text-xs text-white px-2 py-1.5 focus:outline-none ${
+                              showErrors && errs.includes('price')
+                                ? 'border-rose-500/60 focus:border-rose-400'
+                                : 'border-white/10 focus:border-white/30'
+                            }`}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase tracking-wider text-zinc-500 flex items-center gap-1">
+                            Stock
+                            <span className="text-rose-400">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={item.quantity || ''}
+                            onChange={(e) => editItem(idx, { quantity: parseInt(e.target.value, 10) || 0 })}
+                            placeholder="0"
+                            className={`w-full mt-1 bg-black/30 border rounded-md text-xs text-white px-2 py-1.5 focus:outline-none ${
+                              showErrors && errs.includes('stock')
+                                ? 'border-rose-500/60 focus:border-rose-400'
+                                : 'border-white/10 focus:border-white/30'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                      {showErrors && (
+                        <p className="text-[11px] text-rose-300 flex items-center gap-1">
+                          <span>⚠️</span>
+                          <span>Fill {errs.join(', ')} to import</span>
+                        </p>
+                      )}
+                      {item.category && (
+                        <span className="inline-block text-[10px] uppercase tracking-wider text-zinc-500">
+                          {item.category}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </>

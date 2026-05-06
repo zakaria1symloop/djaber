@@ -254,19 +254,22 @@ export async function analyzePagePosts(internalPageId: string, limit = 30): Prom
  */
 export async function importExtractedProducts(
   userId: string,
-  items: Array<{ name: string; description?: string; priceDA: number; imageUrl?: string | null; sourcePostId?: string }>,
+  items: Array<{ name: string; description?: string; priceDA: number; quantity?: number; imageUrl?: string | null; sourcePostId?: string }>,
 ): Promise<{ created: number; skipped: number }> {
   let created = 0;
   let skipped = 0;
 
   for (const item of items) {
     const cleanName = item.name.trim().slice(0, 120);
-    if (!cleanName) { skipped += 1; continue; }
+    // Defensive server-side gate — frontend already enforces these,
+    // but never insert junk if the request bypasses the UI.
+    if (!cleanName || !item.priceDA || item.priceDA <= 0) { skipped += 1; continue; }
 
     const sku = `FB-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     // Both Product.imageUrl and ProductImage.url are varchar(191) by default —
     // FB CDN URLs are way longer, so drop them rather than crash the insert.
     const safeImageUrl = item.imageUrl && item.imageUrl.length <= 190 ? item.imageUrl : null;
+    const initialQuantity = typeof item.quantity === 'number' && item.quantity > 0 ? Math.floor(item.quantity) : 0;
 
     try {
       const product = await prisma.product.create({
@@ -275,8 +278,8 @@ export async function importExtractedProducts(
           sku,
           name: cleanName,
           description: (item.description || '').slice(0, 1000) || null,
-          sellingPrice: item.priceDA > 0 ? item.priceDA : 0,
-          quantity: 0,
+          sellingPrice: item.priceDA,
+          quantity: initialQuantity,
           minQuantity: 1,
           unit: 'piece',
           imageUrl: safeImageUrl,

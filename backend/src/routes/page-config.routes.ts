@@ -11,6 +11,8 @@ import {
   syncPageConversationsController,
   analyzePagePostsController,
   importExtractedProductsController,
+  getPageSummaryController,
+  generatePageAgentController,
 } from '../controllers/page-config.controller';
 import { authenticate } from '../middleware/auth';
 
@@ -52,5 +54,11 @@ router.post('/:pageId/analyze', authenticate, analyzePagePostsController);
 
 // Import confirmed extracted products into the user's main stock
 router.post('/:pageId/import-products', authenticate, importExtractedProductsController);
+
+// Aggregated stats for the page dashboard card
+router.get('/:pageId/summary', authenticate, getPageSummaryController);
+
+// Read the inbox and draft a tailored AI agent (returns preview, user applies separately)
+router.post('/:pageId/generate-agent', authenticate, generatePageAgentController);
 
 export default router;

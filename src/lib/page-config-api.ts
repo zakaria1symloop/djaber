@@ -193,6 +193,45 @@ export async function sendReply(
   });
 }
 
+// ==================== PAGE SUMMARY + AGENT GENERATION ====================
+
+export interface PageSummary {
+  id: string;
+  platform: string;
+  pageId: string;
+  pageName: string;
+  pictureUrl: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  conversations: { total: number; active: number; resolved: number; archived: number; unread: number };
+  messages: { last7d: number; last24h: number; incoming7d: number; outgoing7d: number };
+  products: number;
+  agent: { enabled: boolean; autoReply: boolean; personality: string | null; hasInstructions: boolean };
+  lastActivity: string | null;
+}
+
+export async function getPageSummary(pageId: string): Promise<PageSummary> {
+  return apiRequest<PageSummary>(`/api/pages/${pageId}/summary`);
+}
+
+export interface GeneratedAgent {
+  personality: 'professional' | 'friendly' | 'casual' | 'technical';
+  responseTone: 'balanced' | 'formal' | 'casual' | 'enthusiastic';
+  responseLength: 'short' | 'medium' | 'detailed';
+  customInstructions: string;
+  businessSummary: string;
+  languages: string[];
+  topQuestions: string[];
+  sampledMessages: number;
+  sampledConversations: number;
+  warning: string | null;
+}
+
+export async function generatePageAgent(pageId: string): Promise<GeneratedAgent> {
+  return apiRequest<GeneratedAgent>(`/api/pages/${pageId}/generate-agent`, { method: 'POST' });
+}
+
 // ==================== SYNC + AI PAGE ANALYSIS ====================
 
 export interface SyncResult {
@@ -230,7 +269,7 @@ export async function analyzePagePosts(pageId: string, limit = 30): Promise<Anal
 
 export async function importExtractedProducts(
   pageId: string,
-  items: Array<{ name: string; description?: string; priceDA: number; imageUrl?: string | null; sourcePostId?: string }>,
+  items: Array<{ name: string; description?: string; priceDA: number; quantity?: number; imageUrl?: string | null; sourcePostId?: string }>,
 ): Promise<{ created: number; skipped: number }> {
   return apiRequest(`/api/pages/${pageId}/import-products`, {
     method: 'POST',
