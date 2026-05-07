@@ -209,7 +209,7 @@ export async function analyzePagePosts(internalPageId: string, limit = 30): Prom
       pageId: page.id,
       scanned: 0,
       extracted: [],
-      warning: 'No OpenAI API key configured. Add one under Admin → AI Providers.',
+      warning: 'AI vision is temporarily unavailable. Please try again in a moment or contact support.',
     };
   }
 

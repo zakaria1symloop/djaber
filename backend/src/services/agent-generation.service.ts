@@ -66,7 +66,7 @@ export async function generateAgentFromInbox(
       ...DEFAULT_AGENT,
       sampledMessages: 0,
       sampledConversations: 0,
-      warning: 'No OpenAI API key configured. Returned a sensible default. Add a key under Admin → AI Providers and try again.',
+      warning: 'AI is temporarily unavailable — we drafted a sensible default for you. Try regenerating in a few minutes.',
     };
   }
 

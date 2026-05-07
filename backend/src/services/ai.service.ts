@@ -89,7 +89,8 @@ async function createLLM(modelName: string, temperature: number, maxTokens: numb
   }
 
   if (!provider.apiKey) {
-    throw new Error(`No API key configured for provider "${providerName}". Contact the administrator.`);
+    // Internal: no provider key set up. Surface a generic message to end users.
+    throw new Error('AI is temporarily unavailable. Please try again later.');
   }
 
   const apiKey = provider.apiKey;
@@ -176,7 +177,7 @@ async function findBestVisionModel(): Promise<{ model: string; provider: string 
     }
   }
 
-  throw new Error('No vision-capable AI model is available. Please configure OpenAI (GPT-4o), Anthropic (Claude), or Google (Gemini) in AI Providers.');
+  throw new Error('AI image analysis is temporarily unavailable. Please try again later.');
 }
 
 // ============================================================================
