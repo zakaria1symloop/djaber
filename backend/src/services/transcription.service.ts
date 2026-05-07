@@ -83,7 +83,7 @@ export async function transcribeAudio(audioUrl: string, languageHint?: string): 
     });
 
     // Facebook usually serves voice notes as audio/mp4 (m4a). Default to that.
-    const contentType = audioRes.headers['content-type'] || 'audio/mp4';
+    const contentType = String(audioRes.headers['content-type'] || 'audio/mp4');
     const ext = contentType.includes('mpeg') ? 'mp3'
       : contentType.includes('wav') ? 'wav'
       : contentType.includes('ogg') ? 'ogg'
