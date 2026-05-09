@@ -229,26 +229,40 @@ export default function AnalyzePage() {
                         : 'border-emerald-500/40 ring-1 ring-emerald-500/20'
                     }`}
                   >
-                    {item.imageUrl ? (
-                      <div className="relative aspect-[4/3] bg-black">
+                    <div
+                      onClick={() => toggleItem(idx)}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={item.selected ? 'Deselect' : 'Select'}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleItem(idx); } }}
+                      className="relative aspect-[4/3] bg-black cursor-pointer group"
+                    >
+                      {item.imageUrl ? (
                         <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-                        <button
-                          onClick={() => toggleItem(idx)}
-                          aria-label={item.selected ? 'Deselect' : 'Select'}
-                          className={`absolute top-2 end-2 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-colors ${
-                            item.selected ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-black/60 border-white/30 text-transparent hover:text-white/40'
-                          }`}
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="aspect-[4/3] bg-zinc-800 flex items-center justify-center text-zinc-600">
-                        <ImageIcon className="w-10 h-10" />
-                      </div>
-                    )}
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-900 flex flex-col items-center justify-center gap-1 text-zinc-600">
+                          <ImageIcon className="w-9 h-9" />
+                          <span className="text-[10px] uppercase tracking-wider">No image</span>
+                        </div>
+                      )}
+                      {/* Translucent dim on hover so the user knows the card is clickable */}
+                      <div className={`absolute inset-0 transition-colors ${item.selected ? 'bg-emerald-500/0' : 'bg-black/0 group-hover:bg-black/20'}`} />
+                      {/* Select check — always rendered, regardless of image */}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); toggleItem(idx); }}
+                        aria-label={item.selected ? 'Deselect' : 'Select'}
+                        className={`absolute top-2 end-2 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
+                          item.selected
+                            ? 'bg-emerald-500 border-emerald-400 text-white shadow-lg shadow-emerald-500/30'
+                            : 'bg-black/70 border-white/30 text-transparent group-hover:text-white/40 group-hover:border-white/60'
+                        }`}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </button>
+                    </div>
                     <div className="p-3 space-y-2">
                       <input
                         type="text"

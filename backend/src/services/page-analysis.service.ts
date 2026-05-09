@@ -1,5 +1,7 @@
 import axios from 'axios';
 import crypto from 'crypto';
+import path from 'path';
+import fs from 'fs/promises';
 import prisma from '../config/database';
 import {
   fetchPagePostsFromMeta,
@@ -9,34 +11,57 @@ import {
 
 const GCS_BUCKET = process.env.GCS_BUCKET || 'djaber-prod-uploads';
 const IS_PROD = process.env.NODE_ENV === 'production';
+const BACKEND_URL = process.env.BACKEND_URL || '';
 
-async function uploadBufferToGCS(buffer: Buffer, contentType: string): Promise<string | null> {
-  if (!IS_PROD) {
-    // In dev, we can't upload — but the URL would be too long anyway.
-    // Return null so the caller falls back gracefully.
-    return null;
-  }
+// Local fallback dir when GCS isn't configured (e.g. VPS deploy without GCP auth).
+// Backend already serves /uploads as static via express.static, so the file
+// becomes reachable at ${BACKEND_URL}/uploads/products/<filename>.
+const LOCAL_UPLOAD_DIR = path.resolve(__dirname, '../../uploads/products');
+
+async function saveBufferLocally(buffer: Buffer, contentType: string): Promise<string | null> {
   try {
-    const { Storage } = require('@google-cloud/storage');
-    const gcs = new Storage();
-    const bucket = gcs.bucket(GCS_BUCKET);
+    await fs.mkdir(LOCAL_UPLOAD_DIR, { recursive: true });
     const ext = contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg';
-    const filename = `products/fb-${crypto.randomBytes(8).toString('hex')}.${ext}`;
-    const file = bucket.file(filename);
-    await file.save(buffer, {
-      contentType,
-      metadata: { cacheControl: 'public, max-age=31536000' },
-    });
-    try {
-      await file.makePublic();
-    } catch {
-      // bucket may already grant public read at the bucket level — non-fatal
-    }
-    return `https://storage.googleapis.com/${GCS_BUCKET}/${filename}`;
+    const filename = `fb-${crypto.randomBytes(8).toString('hex')}.${ext}`;
+    await fs.writeFile(path.join(LOCAL_UPLOAD_DIR, filename), buffer);
+    if (!BACKEND_URL) return null; // can't form a public URL without it
+    return `${BACKEND_URL.replace(/\/+$/, '')}/uploads/products/${filename}`;
   } catch (err: any) {
-    console.error('[page-analysis] GCS upload failed:', err.message);
+    console.error('[page-analysis] local save failed:', err.message);
     return null;
   }
+}
+
+/**
+ * Re-host a downloaded image so we have a short, permanent URL we can store in
+ * Product.imageUrl (varchar 191). Try GCS first if a service account is
+ * available; fall back to saving on the VPS's own disk.
+ */
+async function rehostImage(buffer: Buffer, contentType: string): Promise<string | null> {
+  if (IS_PROD) {
+    try {
+      const { Storage } = require('@google-cloud/storage');
+      const gcs = new Storage();
+      const bucket = gcs.bucket(GCS_BUCKET);
+      const ext = contentType === 'image/png' ? 'png' : contentType === 'image/webp' ? 'webp' : 'jpg';
+      const filename = `products/fb-${crypto.randomBytes(8).toString('hex')}.${ext}`;
+      const file = bucket.file(filename);
+      await file.save(buffer, {
+        contentType,
+        metadata: { cacheControl: 'public, max-age=31536000' },
+      });
+      try {
+        await file.makePublic();
+      } catch {
+        // bucket may already grant public read at the bucket level — non-fatal
+      }
+      return `https://storage.googleapis.com/${GCS_BUCKET}/${filename}`;
+    } catch (err: any) {
+      // No GCS credentials on this VPS — fall through to local disk.
+      console.warn('[page-analysis] GCS unavailable, falling back to local disk:', err.message);
+    }
+  }
+  return saveBufferLocally(buffer, contentType);
 }
 
 /**
@@ -109,7 +134,7 @@ async function extractFromPost(
   const imageDataUrl = imageData?.dataUrl || null;
   // Re-host on our infra so the URL is short + permanent (FB CDN tokens expire)
   const persistentImageUrl = imageData
-    ? await uploadBufferToGCS(imageData.buffer, imageData.contentType)
+    ? await rehostImage(imageData.buffer, imageData.contentType)
     : null;
 
   const prompt = `You are cataloging products for an Algerian e-commerce merchant from their Facebook page posts.
