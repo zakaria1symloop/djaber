@@ -1,9 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getAdminAIProviders, updateAdminAIProvider, type AdminAIProvider } from '@/lib/admin-api';
+import {
+  getAdminAIProviders,
+  updateAdminAIProvider,
+  testAdminAIProvider,
+  type AdminAIProvider,
+} from '@/lib/admin-api';
 import { useToast } from '@/components/ui/Toast';
-import { RefreshIcon, CheckCircleIcon, AlertIcon } from '@/components/ui/icons';
+import { RefreshIcon, CheckCircleIcon, AlertIcon, BoltIcon } from '@/components/ui/icons';
 
 const PROVIDER_BRANDING: Record<string, { color: string; bg: string; description: string; getKeyUrl: string }> = {
   openai: {
@@ -39,6 +44,8 @@ export default function AdminAIProvidersPage() {
   const [editing, setEditing] = useState<string | null>(null);
   const [draftKey, setDraftKey] = useState('');
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string; latencyMs?: number; modelsAvailable?: number; ts: number }>>({});
 
   const load = async () => {
     try {
@@ -100,6 +107,32 @@ export default function AdminAIProvidersPage() {
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to toggle');
+    }
+  };
+
+  const runTest = async (provider: AdminAIProvider) => {
+    if (!provider.apiKey) {
+      toast.error('Set an API key first');
+      return;
+    }
+    setTesting(provider.provider);
+    try {
+      const result = await testAdminAIProvider(provider.provider);
+      setTestResults((prev) => ({
+        ...prev,
+        [provider.provider]: { ...result, ts: Date.now() },
+      }));
+      if (result.ok) {
+        const extra =
+          result.latencyMs != null ? ` · ${result.latencyMs}ms` : '';
+        toast.success(`${provider.displayName}: ${result.message}${extra}`);
+      } else {
+        toast.error(`${provider.displayName}: ${result.message}`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Test request failed');
+    } finally {
+      setTesting(null);
     }
   };
 
@@ -285,30 +318,88 @@ export default function AdminAIProvidersPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex-1 min-w-0 text-xs text-zinc-500">
-                      {hasKey ? (
-                        <span className="font-mono">key {provider.apiKey}</span>
-                      ) : (
-                        <span>No API key set</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {hasKey && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex-1 min-w-0 text-xs text-zinc-500">
+                        {hasKey ? (
+                          <span className="font-mono">key {provider.apiKey}</span>
+                        ) : (
+                          <span>No API key set</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {hasKey && (
+                          <button
+                            onClick={() => runTest(provider)}
+                            disabled={testing === provider.provider}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Make a tiny request to the provider to verify the key works"
+                          >
+                            {testing === provider.provider ? (
+                              <>
+                                <RefreshIcon className="w-3.5 h-3.5 animate-spin" />
+                                Testing…
+                              </>
+                            ) : (
+                              <>
+                                <BoltIcon className="w-3.5 h-3.5" />
+                                Test
+                              </>
+                            )}
+                          </button>
+                        )}
+                        {hasKey && (
+                          <button
+                            onClick={() => removeKey(provider)}
+                            className="text-[11px] text-zinc-500 hover:text-red-400 px-2 py-1 transition-colors"
+                          >
+                            Remove
+                          </button>
+                        )}
                         <button
-                          onClick={() => removeKey(provider)}
-                          className="text-[11px] text-zinc-500 hover:text-red-400 transition-colors"
+                          onClick={() => startEdit(provider)}
+                          className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs text-white transition-colors"
                         >
-                          Remove
+                          {hasKey ? 'Replace key' : 'Set API key'}
                         </button>
-                      )}
-                      <button
-                        onClick={() => startEdit(provider)}
-                        className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs text-white transition-colors"
-                      >
-                        {hasKey ? 'Replace key' : 'Set API key'}
-                      </button>
+                      </div>
                     </div>
+
+                    {/* Test result chip — sticks until next test or page reload */}
+                    {testResults[provider.provider] && (
+                      <div
+                        className={`text-[11px] rounded-lg px-3 py-2 border flex items-start gap-2 ${
+                          testResults[provider.provider].ok
+                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                            : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                        }`}
+                      >
+                        {testResults[provider.provider].ok ? (
+                          <CheckCircleIcon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                        ) : (
+                          <AlertIcon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                        )}
+                        <span className="flex-1">
+                          {testResults[provider.provider].message}
+                          {testResults[provider.provider].ok && (
+                            <>
+                              {testResults[provider.provider].modelsAvailable != null && (
+                                <span className="text-emerald-400/70">
+                                  {' '}
+                                  · {testResults[provider.provider].modelsAvailable} models available
+                                </span>
+                              )}
+                              {testResults[provider.provider].latencyMs != null && (
+                                <span className="text-emerald-400/70">
+                                  {' '}
+                                  · {testResults[provider.provider].latencyMs}ms
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

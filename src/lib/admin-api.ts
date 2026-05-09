@@ -85,6 +85,19 @@ export async function updateAdminAIProvider(
   });
 }
 
+export interface AdminAIProviderTestResult {
+  ok: boolean;
+  message: string;
+  modelsAvailable?: number;
+  latencyMs?: number;
+}
+
+export async function testAdminAIProvider(provider: string): Promise<AdminAIProviderTestResult> {
+  return apiRequest<AdminAIProviderTestResult>(`/api/admin/ai-providers/${provider}/test`, {
+    method: 'POST',
+  });
+}
+
 // ============================================================================
 // Users
 // ============================================================================

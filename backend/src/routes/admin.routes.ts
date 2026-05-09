@@ -3,6 +3,7 @@ import { authenticate, requireAdmin } from '../middleware/auth';
 import {
   getAllProviders,
   updateProvider,
+  testProvider,
 } from '../controllers/ai-providers.controller';
 import {
   getAdminAnalytics,
@@ -102,5 +103,6 @@ router.patch('/profile', updateAdminProfile);
 // ============================================================================
 router.get('/ai-providers', getAllProviders);
 router.put('/ai-providers/:provider', updateProvider);
+router.post('/ai-providers/:provider/test', testProvider);
 
 export default router;
