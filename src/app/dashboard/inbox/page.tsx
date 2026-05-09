@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePages } from '@/contexts/PagesContext';
 import { PageConfigProvider } from '@/contexts/PageConfigContext';
@@ -9,9 +9,8 @@ import {
   FacebookIcon,
   InstagramIcon,
   ChatIcon,
-  MessageIcon,
 } from '@/components/ui';
-import { RefreshIcon } from '@/components/ui/icons';
+import { RefreshIcon, ChevronDownIcon, PlusIcon } from '@/components/ui/icons';
 import MessagesSection from '@/components/page-config/MessagesSection';
 import { syncPageFromFacebook } from '@/lib/page-config-api';
 import { useToast } from '@/components/ui/Toast';
@@ -109,49 +108,14 @@ function InboxInner() {
     // Full-height inbox: own header on top, messenger fills the remaining viewport height
     <div className="flex flex-col gap-4 h-[calc(100vh-7rem)] min-h-[560px]">
       {/* Top bar — single row */}
-      <div className="bg-zinc-900/60 backdrop-blur border border-white/10 rounded-2xl px-4 py-3 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
-            <MessageIcon className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="min-w-0">
-            <h1
-              className="text-base sm:text-lg font-bold text-white leading-tight truncate"
-              style={{ fontFamily: 'Syne, sans-serif' }}
-            >
-              {selectedPage?.pageName || 'Inbox'}
-            </h1>
-            <p className="text-[11px] text-zinc-500 leading-tight">
-              {selectedPage?.platform === 'instagram' ? 'Instagram DMs' : 'Messenger'}
-              {lastSyncedLabel && <span className="text-zinc-600"> · synced {lastSyncedLabel}</span>}
-            </p>
-          </div>
-        </div>
-
-        {/* Page picker — only shown when 2+ pages */}
-        {activePages.length > 1 && (
-          <div className="bg-black/40 border border-white/10 rounded-xl p-1 inline-flex flex-wrap gap-1 max-w-full overflow-x-auto">
-            {activePages.map((p) => {
-              const active = selectedPage?.id === p.id;
-              const Icon = p.platform === 'instagram' ? InstagramIcon : FacebookIcon;
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => switchPage(p.id)}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium whitespace-nowrap transition-colors ${
-                    active
-                      ? 'bg-white text-black'
-                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                  }`}
-                  title={p.pageName}
-                >
-                  <Icon className={`w-3.5 h-3.5 ${active ? '' : p.platform === 'instagram' ? 'text-pink-400' : 'text-[#1877F2]'}`} />
-                  <span className="max-w-[140px] truncate">{p.pageName}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+      <div className="bg-zinc-900/60 backdrop-blur border border-white/10 rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 flex flex-wrap items-center gap-3">
+        <PageSwitcher
+          pages={activePages}
+          selected={selectedPage}
+          onSelect={switchPage}
+          onConnectMore={() => router.push('/dashboard?section=pages')}
+          lastSyncedLabel={lastSyncedLabel}
+        />
 
         <div className="ms-auto flex items-center gap-2">
           <Button
@@ -175,6 +139,140 @@ function InboxInner() {
             fullHeight
           />
         </PageConfigProvider>
+      )}
+    </div>
+  );
+}
+
+interface SwitcherPage {
+  id: string;
+  pageName: string;
+  platform: string;
+}
+
+function PageSwitcher({
+  pages,
+  selected,
+  onSelect,
+  onConnectMore,
+  lastSyncedLabel,
+}: {
+  pages: SwitcherPage[];
+  selected: SwitcherPage | null;
+  onSelect: (id: string) => void;
+  onConnectMore: () => void;
+  lastSyncedLabel: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClickOut = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOut);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onClickOut);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [open]);
+
+  if (!selected) return null;
+  const SelectedIcon = selected.platform === 'instagram' ? InstagramIcon : FacebookIcon;
+  const selectedColor = selected.platform === 'instagram' ? 'text-pink-400' : 'text-[#1877F2]';
+  const multi = pages.length > 1;
+
+  return (
+    <div className="relative min-w-0" ref={ref}>
+      <button
+        onClick={() => multi && setOpen((v) => !v)}
+        disabled={!multi}
+        className={`flex items-center gap-2.5 min-w-0 max-w-full pe-2 ps-1 py-1 rounded-xl transition-colors ${
+          multi ? 'hover:bg-white/5 cursor-pointer' : 'cursor-default'
+        }`}
+      >
+        <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+          <SelectedIcon className={`w-4 h-4 ${selectedColor}`} />
+        </div>
+        <div className="min-w-0 text-start">
+          <div className="flex items-center gap-1.5">
+            <h1
+              className="text-base sm:text-lg font-bold text-white leading-tight truncate max-w-[200px] sm:max-w-[300px]"
+              style={{ fontFamily: 'Syne, sans-serif' }}
+            >
+              {selected.pageName}
+            </h1>
+            {multi && (
+              <ChevronDownIcon
+                className={`w-4 h-4 text-zinc-500 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+              />
+            )}
+          </div>
+          <p className="text-[11px] text-zinc-500 leading-tight">
+            {selected.platform === 'instagram' ? 'Instagram DMs' : 'Messenger'}
+            {lastSyncedLabel && <span className="text-zinc-600"> · synced {lastSyncedLabel}</span>}
+          </p>
+        </div>
+      </button>
+
+      {open && (
+        <div className="absolute top-full start-0 mt-2 w-72 max-w-[90vw] bg-zinc-950 border border-white/10 rounded-xl shadow-2xl z-30 overflow-hidden">
+          <div className="px-3 pt-2 pb-1.5">
+            <p className="text-[10px] uppercase tracking-wider text-zinc-500">Switch page</p>
+          </div>
+          <ul className="max-h-72 overflow-y-auto pb-1">
+            {pages.map((p) => {
+              const active = p.id === selected.id;
+              const Icon = p.platform === 'instagram' ? InstagramIcon : FacebookIcon;
+              const color = p.platform === 'instagram' ? 'text-pink-400' : 'text-[#1877F2]';
+              return (
+                <li key={p.id}>
+                  <button
+                    onClick={() => {
+                      onSelect(p.id);
+                      setOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 text-start transition-colors ${
+                      active ? 'bg-white/5' : 'hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+                      <Icon className={`w-3.5 h-3.5 ${color}`} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-sm truncate ${active ? 'text-white font-semibold' : 'text-zinc-200'}`}>
+                        {p.pageName}
+                      </p>
+                      <p className="text-[10px] text-zinc-500 capitalize">{p.platform}</p>
+                    </div>
+                    {active && (
+                      <span className="text-[10px] uppercase tracking-wider text-emerald-400 font-semibold flex-shrink-0">
+                        Active
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <button
+            onClick={() => {
+              setOpen(false);
+              onConnectMore();
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-zinc-400 hover:text-white hover:bg-white/5 border-t border-white/5 transition-colors"
+          >
+            <PlusIcon className="w-3.5 h-3.5" />
+            Connect another page
+          </button>
+        </div>
       )}
     </div>
   );
