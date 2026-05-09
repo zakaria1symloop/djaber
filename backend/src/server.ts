@@ -303,7 +303,9 @@ async function seedDefaultUnits() {
 app.listen(Number(PORT), '0.0.0.0', async () => {
   console.log(`Server is running on http://0.0.0.0:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Public URL: ${process.env.BACKEND_URL || '(not set)'}`);
   console.log(`Allowed origins: ${allowedOrigins.join(', ')}`);
+  console.log(`Started at: ${new Date().toISOString()}`);
 
   // Seed default units
   try {
