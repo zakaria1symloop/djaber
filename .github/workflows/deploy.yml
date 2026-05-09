@@ -1,38 +1,52 @@
-name: Deploy to VPS
+name: Deploy backend to VPS
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:
+
+concurrency:
+  group: deploy-backend-vps
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy to Production
+    name: Pull, build, restart pm2 on VPS
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Deploy to VPS
-        uses: appleboy/ssh-action@v1.0.0
+      - name: SSH and deploy
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
+          username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
           script: |
-            cd /var/www/djaber
-            bash deploy.sh
+            set -e
+            cd /opt/djaber/backend
 
-      - name: Deployment Status
-        if: success()
-        run: |
-          echo "✅ Deployment successful!"
-          echo "🌐 Frontend: http://${{ secrets.VPS_HOST }}:3002"
-          echo "🔗 Backend API: http://${{ secrets.VPS_HOST }}:5000"
+            echo '--- git pull ---'
+            git fetch --depth 1 origin master
+            git reset --hard origin/master
 
-      - name: Notify on Failure
-        if: failure()
-        run: |
-          echo "❌ Deployment failed! Check the logs above for details."
+            echo '--- npm install (idempotent; ~2-5s if no change) ---'
+            npm install --no-audit --no-fund --loglevel=error
+
+            echo '--- prisma generate ---'
+            ./node_modules/.bin/prisma generate >/dev/null
+
+            echo '--- prisma db push (test DB; safe to sync schema) ---'
+            ./node_modules/.bin/prisma db push --skip-generate --accept-data-loss
+
+            echo '--- build ---'
+            npm run build
+
+            echo '--- pm2 reload ---'
+            pm2 reload djaber-api --update-env || pm2 start dist/server.js --name djaber-api
+
+            sleep 1
+            echo '--- health probe ---'
+            curl -fsS -o /dev/null -w "HTTP %{http_code} in %{time_total}s\n" http://127.0.0.1:6101/health
