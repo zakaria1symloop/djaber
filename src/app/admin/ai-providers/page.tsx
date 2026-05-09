@@ -8,7 +8,8 @@ import {
   type AdminAIProvider,
 } from '@/lib/admin-api';
 import { useToast } from '@/components/ui/Toast';
-import { RefreshIcon, CheckCircleIcon, AlertIcon, BoltIcon } from '@/components/ui/icons';
+import { Button } from '@/components/ui';
+import { RefreshIcon, CheckCircleIcon, AlertIcon, BoltIcon, TrashIcon, EditIcon } from '@/components/ui/icons';
 
 const PROVIDER_BRANDING: Record<string, { color: string; bg: string; description: string; getKeyUrl: string }> = {
   openai: {
@@ -280,28 +281,26 @@ export default function AdminAIProvidersPage() {
                 {/* API Key row */}
                 {isEditing ? (
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <input
                         type="password"
                         value={draftKey}
                         onChange={(e) => setDraftKey(e.target.value)}
                         placeholder={`Paste your ${provider.displayName} API key…`}
-                        className="flex-1 px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
+                        className="flex-1 min-w-[200px] px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
                         autoFocus
                       />
-                      <button
+                      <Button
+                        size="sm"
+                        variant="primary"
                         onClick={() => saveKey(provider)}
-                        disabled={saving}
-                        className="px-4 py-2 bg-white text-black rounded-lg text-xs font-semibold hover:bg-zinc-200 disabled:opacity-50 transition-colors"
+                        loading={saving}
                       >
-                        {saving ? 'Saving…' : 'Save'}
-                      </button>
-                      <button
-                        onClick={cancelEdit}
-                        className="px-3 py-2 text-zinc-400 hover:text-white text-xs transition-colors"
-                      >
+                        Save
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={cancelEdit}>
                         Cancel
-                      </button>
+                      </Button>
                     </div>
                     {branding.getKeyUrl && (
                       <p className="text-[11px] text-zinc-600">
@@ -319,7 +318,7 @@ export default function AdminAIProvidersPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex-1 min-w-0 text-xs text-zinc-500">
                         {hasKey ? (
                           <span className="font-mono">key {provider.apiKey}</span>
@@ -327,41 +326,38 @@ export default function AdminAIProvidersPage() {
                           <span>No API key set</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         {hasKey && (
-                          <button
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => runTest(provider)}
-                            disabled={testing === provider.provider}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            loading={testing === provider.provider}
+                            icon={<BoltIcon className="w-3.5 h-3.5" />}
                             title="Make a tiny request to the provider to verify the key works"
                           >
-                            {testing === provider.provider ? (
-                              <>
-                                <RefreshIcon className="w-3.5 h-3.5 animate-spin" />
-                                Testing…
-                              </>
-                            ) : (
-                              <>
-                                <BoltIcon className="w-3.5 h-3.5" />
-                                Test
-                              </>
-                            )}
-                          </button>
+                            {testing === provider.provider ? 'Testing…' : 'Test'}
+                          </Button>
                         )}
                         {hasKey && (
-                          <button
+                          <Button
+                            size="sm"
+                            variant="ghost"
                             onClick={() => removeKey(provider)}
-                            className="text-[11px] text-zinc-500 hover:text-red-400 px-2 py-1 transition-colors"
+                            icon={<TrashIcon className="w-3.5 h-3.5" />}
+                            className="text-zinc-500 hover:text-rose-400"
                           >
                             Remove
-                          </button>
+                          </Button>
                         )}
-                        <button
+                        <Button
+                          size="sm"
+                          variant={hasKey ? 'secondary' : 'primary'}
                           onClick={() => startEdit(provider)}
-                          className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs text-white transition-colors"
+                          icon={<EditIcon className="w-3.5 h-3.5" />}
                         >
                           {hasKey ? 'Replace key' : 'Set API key'}
-                        </button>
+                        </Button>
                       </div>
                     </div>
 
