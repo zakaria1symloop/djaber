@@ -15,6 +15,10 @@ import { useToast } from '@/components/ui/Toast';
 interface MessagesSectionProps {
   pageId: string;
   page: { id: string; pageName: string; platform: string };
+  // When true, the component renders without its own page-level header (inbox shortcut renders its own).
+  hideHeader?: boolean;
+  // Tells the layout to take the parent's available height instead of a fixed 68vh.
+  fullHeight?: boolean;
 }
 
 interface ConversationMessage {
@@ -31,7 +35,7 @@ type FilterTab = 'all' | 'active' | 'resolved' | 'archived';
 
 const QUICK_REPLIES = ['Bonjour 👋', 'Merci pour votre message', 'Disponible, oui', 'Je vous envoie le détail'];
 
-export default function MessagesSection({ pageId, page }: MessagesSectionProps) {
+export default function MessagesSection({ pageId, page, hideHeader = false, fullHeight = false }: MessagesSectionProps) {
   const { conversations, loading, error, fetchConversations, sendReply, clearError } = usePageConfig();
   const toast = useToast();
   const [selectedConv, setSelectedConv] = useState<ConversationSummary | null>(null);
@@ -164,28 +168,30 @@ export default function MessagesSection({ pageId, page }: MessagesSectionProps) 
   const isUnread = (c: ConversationSummary) => c.lastMessage && !c.lastMessage.isFromPage && c.status === 'active';
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-            Inbox
-          </h2>
-          <p className="text-xs text-zinc-500 mt-0.5">
-            {page.pageName} · {conversations?.total || 0} conversations
-            {lastSyncedAt && <span className="ml-2 text-zinc-600">· last synced {formatTime(lastSyncedAt.toISOString())} ago</span>}
-          </p>
+    <div className={fullHeight ? 'flex flex-col min-h-0 flex-1 gap-4' : 'space-y-4'}>
+      {/* Header — hidden when used inside the Inbox shortcut (which provides its own chrome) */}
+      {!hideHeader && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
+              Inbox
+            </h2>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              {page.pageName} · {conversations?.total || 0} conversations
+              {lastSyncedAt && <span className="ml-2 text-zinc-600">· last synced {formatTime(lastSyncedAt.toISOString())} ago</span>}
+            </p>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={syncing || loading}
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-black bg-white hover:bg-zinc-100 rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Pull the latest messages from Facebook"
+          >
+            <RefreshIcon className={`w-4 h-4 ${syncing || loading ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing…' : 'Sync from Facebook'}
+          </button>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={syncing || loading}
-          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-black bg-white hover:bg-zinc-100 rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Pull the latest messages from Facebook"
-        >
-          <RefreshIcon className={`w-4 h-4 ${syncing || loading ? 'animate-spin' : ''}`} />
-          {syncing ? 'Syncing…' : 'Sync from Facebook'}
-        </button>
-      </div>
+      )}
 
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-400 flex items-center justify-between">
@@ -203,7 +209,7 @@ export default function MessagesSection({ pageId, page }: MessagesSectionProps) 
       )}
 
       {/* Two-column layout */}
-      <div className="flex gap-3 h-[68vh] min-h-[480px]">
+      <div className={`flex gap-3 ${fullHeight ? 'flex-1 min-h-0' : 'h-[68vh] min-h-[480px]'}`}>
         {/* Conversation list */}
         <div className="w-[340px] flex-shrink-0 bg-zinc-900/50 border border-white/10 rounded-xl overflow-hidden flex flex-col">
           {/* Search */}
