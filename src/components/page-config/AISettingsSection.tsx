@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Badge, Button } from '@/components/ui';
 import { BotIcon, EditIcon, AlertIcon } from '@/components/ui/icons';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 interface Page {
   id: string;
@@ -33,6 +34,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:6001';
 
 export default function AISettingsSection({ pageId }: AISettingsSectionProps) {
   const router = useRouter();
+  const { t } = useTranslation();
   const [agent, setAgent] = useState<LinkedAgent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,24 +51,24 @@ export default function AISettingsSection({ pageId }: AISettingsSectionProps) {
       const res = await fetch(`${API_URL}/api/user-stock/agents`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error('Failed to load agents');
+      if (!res.ok) throw new Error(t('aiSettings.error'));
       const data = await res.json();
       const linked = data.agents?.find((a: any) =>
         a.pages?.some((ap: any) => ap.pageId === pageId || ap.page?.id === pageId)
       );
       setAgent(linked || null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load agent');
+      setError(err instanceof Error ? err.message : t('aiSettings.error'));
     } finally {
       setLoading(false);
     }
   };
 
   const personalityLabels: Record<string, { label: string; color: string }> = {
-    professional: { label: 'Professional', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-    friendly: { label: 'Friendly', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-    casual: { label: 'Casual', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-    technical: { label: 'Technical', color: 'bg-violet-500/10 text-violet-400 border-violet-500/20' },
+    professional: { label: t('aiSettings.personality.professional'), color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+    friendly: { label: t('aiSettings.personality.friendly'), color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+    casual: { label: t('aiSettings.personality.casual'), color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+    technical: { label: t('aiSettings.personality.technical'), color: 'bg-violet-500/10 text-violet-400 border-violet-500/20' },
   };
 
   if (loading) {
@@ -81,14 +83,14 @@ export default function AISettingsSection({ pageId }: AISettingsSectionProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>AI Settings</h2>
-        <p className="text-xs text-zinc-500 mt-0.5">AI agent configuration for this page</p>
+        <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('aiSettings.title')}</h2>
+        <p className="text-xs text-zinc-500 mt-0.5">{t('aiSettings.subtitle')}</p>
       </div>
 
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-400">
           {error}
-          <button onClick={loadAgent} className="ml-2 underline text-xs">Retry</button>
+          <button onClick={loadAgent} className="ml-2 underline text-xs">{t('aiSettings.retry')}</button>
         </div>
       )}
 
@@ -111,7 +113,7 @@ export default function AISettingsSection({ pageId }: AISettingsSectionProps) {
                       {personalityLabels[agent.personality]?.label || agent.personality}
                     </span>
                     <Badge variant={agent.isActive ? 'success' : 'default'} size="sm">
-                      {agent.isActive ? 'Active' : 'Inactive'}
+                      {agent.isActive ? t('aiSettings.active') : t('aiSettings.inactive')}
                     </Badge>
                   </div>
                 </div>
@@ -122,20 +124,23 @@ export default function AISettingsSection({ pageId }: AISettingsSectionProps) {
                 icon={<EditIcon className="w-3.5 h-3.5" />}
                 onClick={() => router.push(`/dashboard/agents/${agent.id}`)}
               >
-                Edit
+                {t('aiSettings.edit')}
               </Button>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-              <InfoTile label="Model" value={agent.aiModel} />
-              <InfoTile label="Temperature" value={agent.temperature.toFixed(1)} />
-              <InfoTile label="Max Tokens" value={agent.maxTokens.toString()} />
-              <InfoTile label="Products" value={agent.sellAllProducts ? 'All' : `${agent._count.products} selected`} />
+              <InfoTile label={t('aiSettings.tile.model')} value={agent.aiModel} />
+              <InfoTile label={t('aiSettings.tile.temperature')} value={agent.temperature.toFixed(1)} />
+              <InfoTile label={t('aiSettings.tile.maxTokens')} value={agent.maxTokens.toString()} />
+              <InfoTile
+                label={t('aiSettings.tile.products')}
+                value={agent.sellAllProducts ? t('aiSettings.tile.allProducts') : t('aiSettings.tile.selectedProducts').replace('{n}', String(agent._count.products))}
+              />
             </div>
 
             {agent.customInstructions && (
               <div>
-                <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">Custom Instructions</p>
+                <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">{t('aiSettings.customInstructions')}</p>
                 <div className="bg-black/40 border border-white/5 rounded-lg p-3">
                   <p className="text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed">{agent.customInstructions}</p>
                 </div>
@@ -143,16 +148,18 @@ export default function AISettingsSection({ pageId }: AISettingsSectionProps) {
             )}
 
             <div className="flex items-center gap-4 mt-4 pt-4 border-t border-white/5 text-xs text-zinc-500">
-              <span>{agent._count.pages} page{agent._count.pages !== 1 ? 's' : ''} linked</span>
+              <span>
+                {t('aiSettings.linked.pages').replace('{n}', String(agent._count.pages)).replace(/\{plural\}/g, agent._count.pages !== 1 ? 's' : '')}
+              </span>
               <span>·</span>
-              <span>{agent._count.conversations} conversation{agent._count.conversations !== 1 ? 's' : ''}</span>
+              <span>
+                {t('aiSettings.linked.convs').replace('{n}', String(agent._count.conversations)).replace(/\{plural\}/g, agent._count.conversations !== 1 ? 's' : '')}
+              </span>
             </div>
           </div>
 
           <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-3">
-            <p className="text-xs text-blue-400/80">
-              To change how the AI responds, edit the agent&apos;s personality, model, or custom instructions. Changes apply to all pages linked to this agent.
-            </p>
+            <p className="text-xs text-blue-400/80">{t('aiSettings.help')}</p>
           </div>
         </div>
       ) : (
@@ -160,15 +167,13 @@ export default function AISettingsSection({ pageId }: AISettingsSectionProps) {
           <div className="w-14 h-14 rounded-xl bg-yellow-500/10 text-yellow-400 flex items-center justify-center mx-auto mb-3">
             <AlertIcon className="w-6 h-6" />
           </div>
-          <h3 className="text-base font-semibold text-white mb-1">No AI Agent Linked</h3>
-          <p className="text-xs text-zinc-400 mb-4 max-w-md mx-auto">
-            This page doesn&apos;t have an AI agent assigned. Create or link an agent so it can automatically respond to incoming messages.
-          </p>
+          <h3 className="text-base font-semibold text-white mb-1">{t('aiSettings.empty.title')}</h3>
+          <p className="text-xs text-zinc-400 mb-4 max-w-md mx-auto">{t('aiSettings.empty.desc')}</p>
           <Button
             onClick={() => router.push('/dashboard/agents')}
             icon={<BotIcon className="w-4 h-4" />}
           >
-            Go to Agents
+            {t('aiSettings.empty.cta')}
           </Button>
         </div>
       )}

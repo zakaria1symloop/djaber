@@ -12,6 +12,7 @@ import {
   ChatIcon,
   RefreshIcon,
 } from '@/components/ui/icons';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 interface Page {
   id: string;
@@ -28,6 +29,7 @@ const PER_PAGE = 50;
 
 export default function MessageHistorySection({ pageId }: MessageHistorySectionProps) {
   const { messages, loading, error, fetchMessages, clearError } = usePageConfig();
+  const { t } = useTranslation();
 
   const [draftType, setDraftType] = useState<'all' | 'incoming' | 'outgoing'>('all');
   const [draftFrom, setDraftFrom] = useState('');
@@ -95,15 +97,15 @@ export default function MessageHistorySection({ pageId }: MessageHistorySectionP
       {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 mb-1">Conversation log</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 mb-1">{t('history.kicker')}</p>
           <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-            Message history
+            {t('history.title')}
           </h2>
           <p className="text-sm text-zinc-500 mt-1">
             {loading && !messages
-              ? 'Loading…'
-              : `${total.toLocaleString()} message${total === 1 ? '' : 's'}`}
-            {hasAppliedFilters && ' · filtered'}
+              ? t('history.loading')
+              : t('history.count').replace('{n}', total.toLocaleString()).replace(/\{plural\}/g, total === 1 ? '' : 's')}
+            {hasAppliedFilters && ` · ${t('history.filtered')}`}
           </p>
         </div>
         <Button
@@ -113,7 +115,7 @@ export default function MessageHistorySection({ pageId }: MessageHistorySectionP
           disabled={loading}
           icon={<RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
         >
-          Refresh
+          {t('history.refresh')}
         </Button>
       </header>
 
@@ -122,14 +124,14 @@ export default function MessageHistorySection({ pageId }: MessageHistorySectionP
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
             <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">
-              Direction
+              {t('history.filter.direction')}
             </label>
             <div className="bg-black border border-white/10 rounded-lg p-1 inline-flex w-full">
               {(
                 [
-                  { v: 'all', label: 'All' },
-                  { v: 'incoming', label: 'In' },
-                  { v: 'outgoing', label: 'Out' },
+                  { v: 'all', label: t('history.dir.all') },
+                  { v: 'incoming', label: t('history.dir.in') },
+                  { v: 'outgoing', label: t('history.dir.out') },
                 ] as const
               ).map((opt) => (
                 <button
@@ -149,16 +151,16 @@ export default function MessageHistorySection({ pageId }: MessageHistorySectionP
 
           <div>
             <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">
-              From
+              {t('history.filter.from')}
             </label>
-            <DatePicker value={draftFrom} onChange={setDraftFrom} placeholder="From date" />
+            <DatePicker value={draftFrom} onChange={setDraftFrom} placeholder={t('history.filter.from')} />
           </div>
 
           <div>
             <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">
-              To
+              {t('history.filter.to')}
             </label>
-            <DatePicker value={draftTo} onChange={setDraftTo} placeholder="To date" />
+            <DatePicker value={draftTo} onChange={setDraftTo} placeholder={t('history.filter.to')} />
           </div>
 
           <div className="flex items-end gap-2">
@@ -168,11 +170,11 @@ export default function MessageHistorySection({ pageId }: MessageHistorySectionP
               onClick={apply}
               disabled={loading || !filtersDirty}
             >
-              Apply
+              {t('history.btn.apply')}
             </Button>
             {(filtersDirty || hasAppliedFilters) && (
               <Button size="sm" variant="ghost" onClick={clear}>
-                Clear
+                {t('history.btn.clear')}
               </Button>
             )}
           </div>
@@ -184,7 +186,7 @@ export default function MessageHistorySection({ pageId }: MessageHistorySectionP
         <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 flex items-start gap-3">
           <AlertIcon className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-rose-300">Could not load messages</p>
+            <p className="text-sm font-medium text-rose-300">{t('history.error.title')}</p>
             <p className="text-xs text-rose-400/80 mt-0.5">{error}</p>
             <Button
               size="sm"
@@ -195,7 +197,7 @@ export default function MessageHistorySection({ pageId }: MessageHistorySectionP
                 load();
               }}
             >
-              Retry
+              {t('msg.error.retry')}
             </Button>
           </div>
         </div>
@@ -213,20 +215,18 @@ export default function MessageHistorySection({ pageId }: MessageHistorySectionP
           <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 mx-auto mb-3 flex items-center justify-center">
             <ChatIcon className="w-5 h-5 text-zinc-500" />
           </div>
-          <p className="text-sm font-semibold text-white mb-1">No messages</p>
+          <p className="text-sm font-semibold text-white mb-1">{t('history.empty.title')}</p>
           <p className="text-xs text-zinc-500">
-            {hasAppliedFilters
-              ? 'No messages match your filters. Try widening the range.'
-              : 'When this page exchanges messages, they will appear here.'}
+            {hasAppliedFilters ? t('history.empty.filtered') : t('history.empty.none')}
           </p>
         </div>
       ) : (
         <div className="bg-zinc-900/50 border border-white/10 rounded-2xl overflow-hidden">
           <div className="hidden sm:grid grid-cols-[170px_1fr_100px_2fr] gap-3 px-4 py-3 border-b border-white/5 text-[10px] uppercase tracking-wider text-zinc-500">
-            <span>Date</span>
-            <span>Sender</span>
-            <span>Direction</span>
-            <span>Message</span>
+            <span>{t('history.col.date')}</span>
+            <span>{t('history.col.sender')}</span>
+            <span>{t('history.col.direction')}</span>
+            <span>{t('history.col.message')}</span>
           </div>
           <ul>
             {list.map((m) => (
@@ -246,17 +246,17 @@ export default function MessageHistorySection({ pageId }: MessageHistorySectionP
                     {m.isFromPage ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-500/15 text-blue-300 border border-blue-500/30">
                         <ArrowUpIcon className="w-3 h-3" />
-                        Out
+                        {t('history.tag.out')}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                         <ArrowDownIcon className="w-3 h-3" />
-                        In
+                        {t('history.tag.in')}
                       </span>
                     )}
                   </span>
                   <span className="text-sm text-zinc-300 truncate">
-                    {m.text || <span className="text-zinc-600 italic">(no text)</span>}
+                    {m.text || <span className="text-zinc-600 italic">{t('history.empty.noText')}</span>}
                   </span>
                 </div>
                 {/* Mobile row */}
@@ -268,17 +268,17 @@ export default function MessageHistorySection({ pageId }: MessageHistorySectionP
                     {m.isFromPage ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/15 text-blue-300 border border-blue-500/30">
                         <ArrowUpIcon className="w-3 h-3" />
-                        Out
+                        {t('history.tag.out')}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                         <ArrowDownIcon className="w-3 h-3" />
-                        In
+                        {t('history.tag.in')}
                       </span>
                     )}
                   </div>
                   <p className="text-sm text-zinc-300 line-clamp-2">
-                    {m.text || <span className="text-zinc-600 italic">(no text)</span>}
+                    {m.text || <span className="text-zinc-600 italic">{t('history.empty.noText')}</span>}
                   </p>
                   <p className="text-[10px] text-zinc-600 mt-1">{formatDateTime(m.timestamp)}</p>
                 </div>

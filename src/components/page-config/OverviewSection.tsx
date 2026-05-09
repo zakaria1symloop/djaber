@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { usePageConfig } from '@/contexts/PageConfigContext';
 import { BoxIcon, PackageIcon, ChevronRightIcon, SearchIcon } from '@/components/ui/icons';
 import { getStockDashboard } from '@/lib/user-stock-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 interface Page {
   id: string;
@@ -19,6 +20,7 @@ interface OverviewSectionProps {
 
 export default function OverviewSection({ pageId }: OverviewSectionProps) {
   const router = useRouter();
+  const { t } = useTranslation();
   const { insights, loading, error, fetchInsights, clearError } = usePageConfig();
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [mainStock, setMainStock] = useState<{ totalProducts: number; totalStockValue: number } | null>(null);
@@ -51,7 +53,7 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
 
   const metrics = [
     {
-      name: 'Followers',
+      name: t('overview.metric.followers'),
       value: getMetricValue('page_followers_count'),
       icon: (
         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -61,7 +63,7 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
       color: 'blue',
     },
     {
-      name: 'Impressions',
+      name: t('overview.metric.impressions'),
       value: getMetricValue('page_impressions'),
       icon: (
         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -72,7 +74,7 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
       color: 'purple',
     },
     {
-      name: 'Engaged Users',
+      name: t('overview.metric.engagedUsers'),
       value: getMetricValue('page_engaged_users'),
       icon: (
         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -82,7 +84,7 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
       color: 'green',
     },
     {
-      name: 'Post Engagements',
+      name: t('overview.metric.postEngagements'),
       value: getMetricValue('page_post_engagements'),
       icon: (
         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -105,7 +107,7 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-            Page Overview
+            {t('overview.title')}
           </h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -127,11 +129,11 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-            Page Overview
+            {t('overview.title')}
           </h2>
           {lastUpdated && (
             <p className="text-sm text-zinc-500 mt-1">
-              Last updated: {lastUpdated.toLocaleTimeString()}
+              {t('overview.lastUpdated').replace('{time}', lastUpdated.toLocaleTimeString())}
             </p>
           )}
         </div>
@@ -143,7 +145,7 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
           <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          Refresh
+          {t('overview.refresh')}
         </button>
       </div>
 
@@ -175,17 +177,15 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
               <SearchIcon className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-white mb-1">Analyze this page with AI</h3>
-              <p className="text-xs text-zinc-400 max-w-md">
-                Scan your recent posts, auto-detect products, and import them into your stock with one click. You confirm everything before anything is added.
-              </p>
+              <h3 className="text-sm font-semibold text-white mb-1">{t('overview.aiAnalyze.title')}</h3>
+              <p className="text-xs text-zinc-400 max-w-md">{t('overview.aiAnalyze.desc')}</p>
             </div>
           </div>
           <button
             onClick={() => router.push(`/dashboard/page/${pageId}/analyze`)}
             className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-xs font-semibold whitespace-nowrap"
           >
-            Run analysis →
+            {t('overview.aiAnalyze.cta')}
           </button>
         </div>
       </div>
@@ -197,8 +197,8 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
             <BoxIcon className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white">Stock & Inventory</h3>
-            <p className="text-[11px] text-zinc-500">Choose where this page reads its product catalog from</p>
+            <h3 className="text-sm font-semibold text-white">{t('overview.stock.title')}</h3>
+            <p className="text-[11px] text-zinc-500">{t('overview.stock.subtitle')}</p>
           </div>
         </div>
 
@@ -211,14 +211,14 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center gap-2">
                 <PackageIcon className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-medium text-white">Main Stock</span>
+                <span className="text-xs font-medium text-white">{t('overview.stock.main')}</span>
               </div>
               <ChevronRightIcon className="w-4 h-4 text-zinc-600 group-hover:text-white transition-colors" />
             </div>
-            <p className="text-[11px] text-zinc-500 mb-2">Shared catalog across all your pages</p>
+            <p className="text-[11px] text-zinc-500 mb-2">{t('overview.stock.mainDesc')}</p>
             <div className="flex items-baseline gap-1">
               <span className="text-lg font-bold text-white">{mainStock?.totalProducts ?? '—'}</span>
-              <span className="text-[11px] text-zinc-500">products</span>
+              <span className="text-[11px] text-zinc-500">{t('overview.stock.mainCount')}</span>
             </div>
           </button>
 
@@ -230,12 +230,12 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center gap-2">
                 <BoxIcon className="w-4 h-4 text-blue-400" />
-                <span className="text-xs font-medium text-white">Page Stock</span>
+                <span className="text-xs font-medium text-white">{t('overview.stock.page')}</span>
               </div>
               <ChevronRightIcon className="w-4 h-4 text-zinc-600 group-hover:text-white transition-colors" />
             </div>
-            <p className="text-[11px] text-zinc-500 mb-2">Catalog dedicated to this page only</p>
-            <div className="text-[11px] text-zinc-400">Open dedicated stock →</div>
+            <p className="text-[11px] text-zinc-500 mb-2">{t('overview.stock.pageDesc')}</p>
+            <div className="text-[11px] text-zinc-400">{t('overview.stock.pageCta')}</div>
           </button>
         </div>
       </div>
@@ -248,11 +248,8 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div>
-              <h3 className="text-blue-400 font-medium">Insights Not Available</h3>
-              <p className="text-blue-300/80 text-sm mt-1">
-                Facebook Page Insights require additional permissions that are currently under review by Facebook.
-                In the meantime, you can still use the Messages and AI Settings features to manage your page.
-              </p>
+              <h3 className="text-blue-400 font-medium">{t('overview.insights.unavail.title')}</h3>
+              <p className="text-blue-300/80 text-sm mt-1">{t('overview.insights.unavail.desc')}</p>
             </div>
           </div>
         </div>

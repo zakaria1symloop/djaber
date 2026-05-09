@@ -20,20 +20,22 @@ import OverviewSection from '@/components/page-config/OverviewSection';
 import MessagesSection from '@/components/page-config/MessagesSection';
 import AISettingsSection from '@/components/page-config/AISettingsSection';
 import MessageHistorySection from '@/components/page-config/MessageHistorySection';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 type Section = 'overview' | 'messages' | 'ai-settings' | 'history';
 
-const sections: Array<{ id: Section; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { id: 'overview', label: 'Overview', icon: HomeIcon },
-  { id: 'messages', label: 'Messages', icon: ChatIcon },
-  { id: 'ai-settings', label: 'AI Settings', icon: SettingsIcon },
-  { id: 'history', label: 'History', icon: ClockIcon },
+const sectionDefs: Array<{ id: Section; key: string; icon: React.ComponentType<{ className?: string }> }> = [
+  { id: 'overview', key: 'pageDetail.tab.overview', icon: HomeIcon },
+  { id: 'messages', key: 'pageDetail.tab.messages', icon: ChatIcon },
+  { id: 'ai-settings', key: 'pageDetail.tab.aiSettings', icon: SettingsIcon },
+  { id: 'history', key: 'pageDetail.tab.history', icon: ClockIcon },
 ];
 
 function PageConfigContent() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
+  const { t } = useTranslation();
   const { isAuthenticated, loading: authLoading } = useAuth();
   const { pages, loading: pagesLoading } = usePages();
 
@@ -80,7 +82,7 @@ function PageConfigContent() {
           onClick={() => router.push('/dashboard?section=pages')}
           className="hover:text-white transition-colors"
         >
-          Pages
+          {t('pageDetail.crumb.pages')}
         </button>
         <ChevronRightIcon className="w-3 h-3" />
         <span className="text-white">{currentPage.pageName}</span>
@@ -101,10 +103,10 @@ function PageConfigContent() {
                 <h1 className="text-xl sm:text-2xl font-bold text-white truncate" style={{ fontFamily: 'Syne, sans-serif' }}>
                   {currentPage.pageName}
                 </h1>
-                <Badge variant="success">Active</Badge>
+                <Badge variant="success">{t('pageDetail.status.active')}</Badge>
               </div>
               <p className="text-xs text-zinc-500 capitalize">
-                {currentPage.platform} · Connected {new Date(currentPage.createdAt).toLocaleDateString()}
+                {currentPage.platform} · {t('pageDetail.connected')} {new Date(currentPage.createdAt).toLocaleDateString()}
               </p>
             </div>
           </div>
@@ -114,14 +116,14 @@ function PageConfigContent() {
             icon={<BoxIcon className="w-4 h-4" />}
             onClick={() => router.push(`/dashboard/page/${pageId}/stock`)}
           >
-            Open Stock
+            {t('pageDetail.openStock')}
           </Button>
         </div>
       </div>
 
       {/* Section tabs */}
       <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-1 inline-flex flex-wrap gap-1">
-        {sections.map((s) => {
+        {sectionDefs.map((s) => {
           const Icon = s.icon;
           const active = activeSection === s.id;
           return (
@@ -135,7 +137,7 @@ function PageConfigContent() {
               }`}
             >
               <Icon className="w-4 h-4" />
-              {s.label}
+              {t(s.key)}
             </button>
           );
         })}
