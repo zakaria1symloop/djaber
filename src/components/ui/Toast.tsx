@@ -137,7 +137,9 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: number)
       <div className={`flex-shrink-0 w-6 h-6 rounded-full ${v.bg} ${v.iconColor} flex items-center justify-center mt-0.5`}>
         {v.icon}
       </div>
-      <p className="flex-1 text-sm text-white leading-relaxed">{toast.message}</p>
+      <p className="flex-1 text-sm text-white leading-relaxed break-words break-all line-clamp-6 min-w-0">
+        {toast.message}
+      </p>
       <button
         onClick={handleDismiss}
         className="flex-shrink-0 text-zinc-500 hover:text-white transition-colors"

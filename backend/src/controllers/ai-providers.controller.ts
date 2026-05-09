@@ -175,13 +175,27 @@ async function testProviderKey(provider: string, apiKey: string): Promise<TestRe
     return { ok: false, message: `Test not implemented for provider "${provider}".` };
   } catch (err: any) {
     const status = err.response?.status;
-    const apiMsg =
+    let apiMsg =
       err.response?.data?.error?.message ||
       err.response?.data?.error ||
       err.response?.data?.message ||
-      err.message;
+      err.message ||
+      '';
+
+    // Scrub the noisy masked key OpenAI/others echo back, plus any URLs/IDs.
+    apiMsg = String(apiMsg)
+      // sk-proj-XXXXX... or sk-XXXXX... possibly with asterisks
+      .replace(/sk-[A-Za-z0-9_-]*\*+[A-Za-z0-9_-]*/g, '[redacted key]')
+      .replace(/[*]{4,}/g, '***')
+      // OpenAI link suggestion
+      .replace(/\.?\s*You can find your API key at https?:\/\/\S+/i, '')
+      .trim();
+
+    // Hard cap so absurd messages don't blow up the UI either.
+    if (apiMsg.length > 240) apiMsg = apiMsg.slice(0, 240) + '…';
+
     if (status === 401 || status === 403) {
-      return { ok: false, message: `Key rejected (${status}). ${apiMsg}` };
+      return { ok: false, message: `Key rejected (${status}). ${apiMsg || 'Provider rejected the key.'}` };
     }
     if (status === 429) {
       return { ok: false, message: `Rate-limited (429). Key looks valid but the provider is throttling: ${apiMsg}` };
