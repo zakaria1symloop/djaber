@@ -223,7 +223,14 @@ function PageSwitcher({
       </button>
 
       {open && (
-        <div className="absolute top-full start-0 mt-2 w-72 max-w-[90vw] bg-zinc-950 border border-white/10 rounded-xl shadow-2xl z-30 overflow-hidden">
+        <div
+          className="absolute top-full start-0 mt-2 w-72 max-w-[90vw] rounded-xl overflow-hidden z-50 ring-1 ring-white/10 shadow-2xl"
+          style={{
+            // Fully opaque background that won't inherit any backdrop filter from ancestors
+            backgroundColor: '#0a0a0c',
+            boxShadow: '0 20px 50px -10px rgba(0,0,0,0.6), 0 8px 16px -8px rgba(0,0,0,0.5)',
+          }}
+        >
           <div className="px-3 pt-2 pb-1.5">
             <p className="text-[10px] uppercase tracking-wider text-zinc-500">Switch page</p>
           </div>
