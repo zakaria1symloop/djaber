@@ -190,3 +190,120 @@ Respond with strict JSON ONLY in this exact shape (no extra keys, no commentary)
     };
   }
 }
+
+/**
+ * Map response length to a token budget for the underlying model.
+ */
+function lengthToMaxTokens(length: GeneratedAgent['responseLength']): number {
+  return length === 'short' ? 400 : length === 'detailed' ? 1500 : 800;
+}
+
+/**
+ * Take a generated agent + the page it was generated for and apply it as a real
+ * Agent record (creates or updates the user's single Agent), then ensures
+ * the AgentPage link exists so the agent shows up under this page.
+ *
+ * One agent per user, one agent per page (DB enforces it via @@unique).
+ */
+export async function applyGeneratedAgentToPage(args: {
+  pageId: string;
+  userId: string;
+  generated: Pick<
+    GeneratedAgent,
+    'personality' | 'responseTone' | 'responseLength' | 'customInstructions' | 'businessSummary'
+  >;
+}): Promise<{ agent: any; created: boolean }> {
+  const { pageId, userId, generated } = args;
+
+  const page = await prisma.page.findFirst({
+    where: { id: pageId, userId, isActive: true },
+  });
+  if (!page) throw new Error('Page not found');
+
+  // Compose customInstructions for the Agent record. We prepend the tone +
+  // length guidance because the Agent schema doesn't have separate fields.
+  const guidance = `Tone: ${generated.responseTone}. Reply length: ${generated.responseLength}. Personality: ${generated.personality}.`;
+  const fullInstructions = `${guidance}\n\n${generated.customInstructions || ''}`.trim();
+
+  const existing = await prisma.agent.findFirst({
+    where: { userId },
+    include: { pages: true },
+  });
+
+  let agent;
+  let created = false;
+
+  if (existing) {
+    // Update the user's existing agent, do not change name/model unless empty
+    agent = await prisma.agent.update({
+      where: { id: existing.id },
+      data: {
+        personality: generated.personality,
+        customInstructions: fullInstructions,
+        maxTokens: lengthToMaxTokens(generated.responseLength),
+        description: generated.businessSummary?.slice(0, 500) || existing.description,
+        isActive: true,
+      },
+    });
+  } else {
+    // Create a fresh Agent for this user
+    const baseName = `${page.pageName} agent`.slice(0, 80) || 'AI agent';
+    agent = await prisma.agent.create({
+      data: {
+        userId,
+        name: baseName,
+        description: generated.businessSummary?.slice(0, 500) || null,
+        personality: generated.personality,
+        customInstructions: fullInstructions,
+        aiModel: 'gpt-4',
+        temperature: 0.7,
+        maxTokens: lengthToMaxTokens(generated.responseLength),
+        sellAllProducts: true,
+        isActive: true,
+      },
+    });
+    created = true;
+  }
+
+  // Wipe any stale link for this page (any agent), then upsert the link to OUR agent
+  await prisma.agentPage.deleteMany({ where: { pageId, NOT: { agentId: agent.id } } });
+  await prisma.agentPage.upsert({
+    where: { agentId_pageId: { agentId: agent.id, pageId } },
+    create: { agentId: agent.id, pageId },
+    update: {},
+  });
+
+  // Mirror the personality/instructions onto PageAISettings too so the legacy
+  // webhook + page summary card both see "AI on" + the right config.
+  await prisma.pageAISettings.upsert({
+    where: { pageId },
+    create: {
+      pageId,
+      aiEnabled: true,
+      aiPersonality: generated.personality,
+      customInstructions: fullInstructions,
+      autoReply: true,
+      responseTone: generated.responseTone,
+      responseLength: generated.responseLength,
+    },
+    update: {
+      aiEnabled: true,
+      aiPersonality: generated.personality,
+      customInstructions: fullInstructions,
+      autoReply: true,
+      responseTone: generated.responseTone,
+      responseLength: generated.responseLength,
+    },
+  });
+
+  // Return the agent with relations the frontend needs
+  const full = await prisma.agent.findUnique({
+    where: { id: agent.id },
+    include: {
+      pages: { include: { page: { select: { id: true, pageName: true, platform: true } } } },
+      _count: { select: { pages: true, products: true } },
+    },
+  });
+
+  return { agent: full, created };
+}

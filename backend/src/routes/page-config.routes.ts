@@ -13,6 +13,7 @@ import {
   importExtractedProductsController,
   getPageSummaryController,
   generatePageAgentController,
+  applyPageAgentController,
 } from '../controllers/page-config.controller';
 import { authenticate } from '../middleware/auth';
 
@@ -60,5 +61,8 @@ router.get('/:pageId/summary', authenticate, getPageSummaryController);
 
 // Read the inbox and draft a tailored AI agent (returns preview, user applies separately)
 router.post('/:pageId/generate-agent', authenticate, generatePageAgentController);
+
+// Apply the generated draft as a real Agent record + link it to this page
+router.post('/:pageId/apply-agent', authenticate, applyPageAgentController);
 
 export default router;

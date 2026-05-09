@@ -4,7 +4,7 @@ import { getPageInsights, sendMessage } from '../services/meta.service';
 import { syncFacebookConversations } from '../services/page-sync.service';
 import { analyzePagePosts, importExtractedProducts } from '../services/page-analysis.service';
 import { getPageSummary } from '../services/page-summary.service';
-import { generateAgentFromInbox } from '../services/agent-generation.service';
+import { generateAgentFromInbox, applyGeneratedAgentToPage } from '../services/agent-generation.service';
 
 /**
  * Get Facebook page insights (followers, engagement, reach)
@@ -647,7 +647,7 @@ export const getPageSummaryController = async (req: Request, res: Response): Pro
 
 /**
  * Read the page's recent inbox and draft a tailored AI agent for it.
- * Returns a preview the user can apply via PUT /:pageId/ai-settings.
+ * Returns a preview the user can apply via POST /:pageId/apply-agent.
  */
 export const generatePageAgentController = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -663,6 +663,47 @@ export const generatePageAgentController = async (req: Request, res: Response): 
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to generate AI agent. Please try again.',
+    });
+  }
+};
+
+/**
+ * Apply a (possibly edited) generated-agent draft to the user's Agent record
+ * and link it to this page. Creates the Agent if missing, otherwise updates it.
+ * Mirrors to PageAISettings so the page card and webhook flow see consistent state.
+ */
+export const applyPageAgentController = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const pageId = req.params.pageId as string;
+    const body = req.body || {};
+
+    // Accept the same shape the generate endpoint returns; allow user edits.
+    const allowedPersonality = ['professional', 'friendly', 'casual', 'technical'];
+    const allowedTone = ['balanced', 'formal', 'casual', 'enthusiastic'];
+    const allowedLength = ['short', 'medium', 'detailed'];
+
+    const personality = allowedPersonality.includes(body.personality) ? body.personality : 'friendly';
+    const responseTone = allowedTone.includes(body.responseTone) ? body.responseTone : 'balanced';
+    const responseLength = allowedLength.includes(body.responseLength) ? body.responseLength : 'medium';
+    const customInstructions = String(body.customInstructions || '').slice(0, 4000);
+    const businessSummary = String(body.businessSummary || '').slice(0, 600);
+
+    const result = await applyGeneratedAgentToPage({
+      pageId,
+      userId: req.user.userId,
+      generated: { personality, responseTone, responseLength, customInstructions, businessSummary },
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('Apply agent error:', error.message || error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to apply AI agent. Please try again.',
     });
   }
 };

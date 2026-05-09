@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import {
   generatePageAgent,
-  updatePageAISettings,
+  applyPageAgent,
   type GeneratedAgent,
 } from '@/lib/page-config-api';
 import { useToast } from '@/components/ui/Toast';
@@ -63,15 +63,18 @@ export default function GenerateAgentModal({
     if (!draft) return;
     setPhase('applying');
     try {
-      await updatePageAISettings(pageId, {
-        aiEnabled: true,
-        aiPersonality: draft.personality,
+      const res = await applyPageAgent(pageId, {
+        personality: draft.personality,
         responseTone: draft.responseTone,
         responseLength: draft.responseLength,
         customInstructions: editedInstructions,
-        autoReply: true,
+        businessSummary: draft.businessSummary,
       });
-      toast.success('AI agent applied to ' + pageName);
+      toast.success(
+        res.created
+          ? `AI agent created and linked to ${pageName}`
+          : `AI agent updated for ${pageName}`,
+      );
       onApplied?.();
       onClose();
     } catch (err: any) {

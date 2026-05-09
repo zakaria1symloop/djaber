@@ -232,6 +232,26 @@ export async function generatePageAgent(pageId: string): Promise<GeneratedAgent>
   return apiRequest<GeneratedAgent>(`/api/pages/${pageId}/generate-agent`, { method: 'POST' });
 }
 
+/**
+ * Apply a generated agent draft as a real Agent record + link to this page.
+ * Returns { agent, created } where agent is the persisted Agent row.
+ */
+export async function applyPageAgent(
+  pageId: string,
+  draft: {
+    personality: GeneratedAgent['personality'];
+    responseTone: GeneratedAgent['responseTone'];
+    responseLength: GeneratedAgent['responseLength'];
+    customInstructions: string;
+    businessSummary: string;
+  },
+): Promise<{ agent: any; created: boolean }> {
+  return apiRequest(`/api/pages/${pageId}/apply-agent`, {
+    method: 'POST',
+    body: JSON.stringify(draft),
+  });
+}
+
 // ==================== SYNC + AI PAGE ANALYSIS ====================
 
 export interface SyncResult {
