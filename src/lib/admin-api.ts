@@ -88,6 +88,7 @@ export async function updateAdminAIProvider(
 export interface AdminAIProviderTestResult {
   ok: boolean;
   message: string;
+  models?: string[];
   modelsAvailable?: number;
   latencyMs?: number;
 }

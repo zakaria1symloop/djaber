@@ -46,7 +46,7 @@ export default function AdminAIProvidersPage() {
   const [draftKey, setDraftKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string; latencyMs?: number; modelsAvailable?: number; ts: number }>>({});
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string; latencyMs?: number; modelsAvailable?: number; models?: string[]; ts: number }>>({});
 
   const load = async () => {
     try {
@@ -124,9 +124,12 @@ export default function AdminAIProvidersPage() {
         [provider.provider]: { ...result, ts: Date.now() },
       }));
       if (result.ok) {
-        const extra =
-          result.latencyMs != null ? ` · ${result.latencyMs}ms` : '';
-        toast.success(`${provider.displayName}: ${result.message}${extra}`);
+        const count = result.models?.length ?? result.modelsAvailable ?? 0;
+        toast.success(
+          `${provider.displayName} works · ${count} model${count === 1 ? '' : 's'} available`,
+        );
+        // Refresh providers so the persisted models list updates the pills.
+        await load();
       } else {
         toast.error(`${provider.displayName}: ${result.message}`);
       }
@@ -364,36 +367,58 @@ export default function AdminAIProvidersPage() {
                     {/* Test result chip — sticks until next test or page reload */}
                     {testResults[provider.provider] && (
                       <div
-                        className={`text-[11px] rounded-lg px-3 py-2 border flex items-start gap-2 ${
+                        className={`rounded-lg border ${
                           testResults[provider.provider].ok
-                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
-                            : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                            ? 'bg-emerald-500/10 border-emerald-500/20'
+                            : 'bg-rose-500/10 border-rose-500/30'
                         }`}
                       >
-                        {testResults[provider.provider].ok ? (
-                          <CheckCircleIcon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                        ) : (
-                          <AlertIcon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                        )}
-                        <span className="flex-1">
-                          {testResults[provider.provider].message}
-                          {testResults[provider.provider].ok && (
-                            <>
-                              {testResults[provider.provider].modelsAvailable != null && (
-                                <span className="text-emerald-400/70">
-                                  {' '}
-                                  · {testResults[provider.provider].modelsAvailable} models available
-                                </span>
-                              )}
-                              {testResults[provider.provider].latencyMs != null && (
-                                <span className="text-emerald-400/70">
-                                  {' '}
-                                  · {testResults[provider.provider].latencyMs}ms
-                                </span>
-                              )}
-                            </>
+                        <div
+                          className={`flex items-start gap-2 px-3 py-2 text-[11px] ${
+                            testResults[provider.provider].ok ? 'text-emerald-300' : 'text-rose-300'
+                          }`}
+                        >
+                          {testResults[provider.provider].ok ? (
+                            <CheckCircleIcon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                          ) : (
+                            <AlertIcon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
                           )}
-                        </span>
+                          <span className="flex-1">
+                            {testResults[provider.provider].message}
+                            {testResults[provider.provider].ok && (
+                              <>
+                                {testResults[provider.provider].modelsAvailable != null && (
+                                  <span className="text-emerald-400/70">
+                                    {' '}· {testResults[provider.provider].modelsAvailable} models on the account
+                                  </span>
+                                )}
+                                {testResults[provider.provider].latencyMs != null && (
+                                  <span className="text-emerald-400/70">
+                                    {' '}· {testResults[provider.provider].latencyMs}ms
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </span>
+                        </div>
+
+                        {testResults[provider.provider].ok && (testResults[provider.provider].models?.length ?? 0) > 0 && (
+                          <div className="px-3 pb-2.5 pt-0.5">
+                            <p className="text-[10px] uppercase tracking-wider text-emerald-400/70 mb-1.5">
+                              Chat-capable models
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {testResults[provider.provider].models!.map((m) => (
+                                <span
+                                  key={m}
+                                  className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-200 border border-emerald-500/20"
+                                >
+                                  {m}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

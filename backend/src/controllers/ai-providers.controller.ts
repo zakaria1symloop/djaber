@@ -100,8 +100,50 @@ export const updateProvider = async (req: Request, res: Response): Promise<void>
 interface TestResult {
   ok: boolean;
   message: string;
-  modelsAvailable?: number;
+  models?: string[]; // Chat-capable models the key actually has access to
+  modelsAvailable?: number; // Count, may be larger than models.length
   latencyMs?: number;
+}
+
+/**
+ * Filter raw model lists down to text-generation chat models we can actually
+ * use as agent backbones. Sorted with the most recent / capable on top.
+ */
+function pickOpenAIChatModels(ids: string[]): string[] {
+  const interesting = ids.filter(
+    (id) =>
+      /^gpt-4o(\b|-)/.test(id) ||
+      /^gpt-4-turbo/.test(id) ||
+      /^gpt-4(\b|-)/.test(id) ||
+      /^gpt-3\.5-turbo/.test(id) ||
+      /^o1(\b|-)/.test(id) ||
+      /^o3(\b|-)/.test(id),
+  );
+  // Drop dated snapshots and embeddings, prefer canonical aliases
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const id of interesting) {
+    if (/-\d{4}-\d{2}-\d{2}$/.test(id)) continue; // skip 2024-08-06 snapshots
+    if (/embedding|whisper|tts|audio|search/i.test(id)) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out.sort();
+}
+
+function pickGroqChatModels(ids: string[]): string[] {
+  return ids
+    .filter((id) => !/whisper|guard|tts|embedding/i.test(id))
+    .sort();
+}
+
+function pickGoogleModels(items: Array<{ name?: string; supportedGenerationMethods?: string[] }>): string[] {
+  return items
+    .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
+    .map((m) => (m.name || '').replace(/^models\//, ''))
+    .filter((n) => /^gemini/i.test(n))
+    .sort();
 }
 
 async function testProviderKey(provider: string, apiKey: string): Promise<TestResult> {
@@ -112,10 +154,13 @@ async function testProviderKey(provider: string, apiKey: string): Promise<TestRe
         headers: { Authorization: `Bearer ${apiKey}` },
         timeout: 10000,
       });
+      const all = Array.isArray(r.data?.data) ? r.data.data.map((m: any) => String(m.id)) : [];
+      const models = pickOpenAIChatModels(all);
       return {
         ok: true,
         message: 'Key valid. OpenAI responded successfully.',
-        modelsAvailable: Array.isArray(r.data?.data) ? r.data.data.length : undefined,
+        models,
+        modelsAvailable: all.length,
         latencyMs: Date.now() - t0,
       };
     }
@@ -125,10 +170,13 @@ async function testProviderKey(provider: string, apiKey: string): Promise<TestRe
         headers: { Authorization: `Bearer ${apiKey}` },
         timeout: 10000,
       });
+      const all = Array.isArray(r.data?.data) ? r.data.data.map((m: any) => String(m.id)) : [];
+      const models = pickGroqChatModels(all);
       return {
         ok: true,
         message: 'Key valid. Groq responded successfully.',
-        modelsAvailable: Array.isArray(r.data?.data) ? r.data.data.length : undefined,
+        models,
+        modelsAvailable: all.length,
         latencyMs: Date.now() - t0,
       };
     }
@@ -152,9 +200,18 @@ async function testProviderKey(provider: string, apiKey: string): Promise<TestRe
           timeout: 10000,
         },
       );
+      // Anthropic has a stable, public model lineup we can return statically.
+      const models = [
+        'claude-3-5-sonnet-20241022',
+        'claude-3-5-haiku-20241022',
+        'claude-3-opus-20240229',
+        'claude-3-sonnet-20240229',
+      ];
       return {
         ok: !!r.data,
         message: 'Key valid. Anthropic responded successfully.',
+        models,
+        modelsAvailable: models.length,
         latencyMs: Date.now() - t0,
       };
     }
@@ -164,10 +221,13 @@ async function testProviderKey(provider: string, apiKey: string): Promise<TestRe
         `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
         { timeout: 10000 },
       );
+      const items = Array.isArray(r.data?.models) ? r.data.models : [];
+      const models = pickGoogleModels(items);
       return {
         ok: true,
         message: 'Key valid. Google AI responded successfully.',
-        modelsAvailable: Array.isArray(r.data?.models) ? r.data.models.length : undefined,
+        models,
+        modelsAvailable: items.length,
         latencyMs: Date.now() - t0,
       };
     }
@@ -220,6 +280,20 @@ export const testProvider = async (req: Request, res: Response): Promise<void> =
       return;
     }
     const result = await testProviderKey(provider, row.apiKey);
+
+    // On success, persist the live model list so the agent form auto-shows
+    // exactly what this key has access to (no stale seed values).
+    if (result.ok && result.models && result.models.length > 0) {
+      try {
+        await prisma.aIProvider.update({
+          where: { provider },
+          data: { models: JSON.stringify(result.models) },
+        });
+      } catch (persistErr) {
+        console.warn(`Could not persist models for ${provider}:`, persistErr);
+      }
+    }
+
     res.json(result);
   } catch (error: any) {
     console.error('Test provider error:', error?.message || error);
