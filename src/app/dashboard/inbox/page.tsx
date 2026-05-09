@@ -15,6 +15,7 @@ import { RefreshIcon, ChevronDownIcon, PlusIcon } from '@/components/ui/icons';
 import MessagesSection from '@/components/page-config/MessagesSection';
 import { syncPageFromFacebook } from '@/lib/page-config-api';
 import { useToast } from '@/components/ui/Toast';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function InboxPage() {
   return (
@@ -28,6 +29,7 @@ function InboxInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
+  const { t } = useTranslation();
   const { pages, loading: pagesLoading } = usePages();
   const [syncing, setSyncing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
@@ -64,12 +66,16 @@ function InboxInner() {
     try {
       const r = await syncPageFromFacebook(selectedPage.id);
       const newCount = r.newConversations + r.newMessages;
-      toast.success(newCount > 0 ? `Synced — ${r.newMessages} new message${r.newMessages === 1 ? '' : 's'}` : 'Up to date');
+      if (newCount > 0) {
+        const plural = r.newMessages === 1 ? '' : 's';
+        toast.success(t('msg.toast.synced').replace('{n}', String(r.newMessages)).replace(/\{plural\}/g, plural));
+      } else {
+        toast.success(t('msg.toast.upToDate'));
+      }
       setLastSyncedAt(new Date());
-      // PageConfigContext (rendered below) will re-fetch when its key changes; force a remount via state below
-      setSyncToken((t) => t + 1);
+      setSyncToken((tok) => tok + 1);
     } catch (err: any) {
-      toast.error(err?.message || 'Could not reach Facebook. Try again.');
+      toast.error(err?.message || t('msg.toast.syncFail'));
     } finally {
       setSyncing(false);
     }
@@ -78,23 +84,21 @@ function InboxInner() {
   const [syncToken, setSyncToken] = useState(0);
 
   if (pagesLoading) {
-    return <div className="text-zinc-400 text-sm">Loading pages…</div>;
+    return <div className="text-zinc-400 text-sm">…</div>;
   }
 
   if (activePages.length === 0) {
     return (
       <div className="space-y-6">
-        <PageHeader subtitle="Read and reply to your customer messages." />
+        <PageHeader title={t('inbox.title')} subtitle={t('inbox.subtitle')} />
         <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-10 text-center">
           <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 mx-auto mb-4 flex items-center justify-center">
             <ChatIcon className="w-6 h-6 text-zinc-400" />
           </div>
-          <h3 className="text-lg font-semibold text-white mb-1">No pages connected</h3>
-          <p className="text-sm text-zinc-500 max-w-md mx-auto mb-5">
-            Connect a Facebook or Instagram page to start receiving messages here.
-          </p>
+          <h3 className="text-lg font-semibold text-white mb-1">{t('inbox.empty.title')}</h3>
+          <p className="text-sm text-zinc-500 max-w-md mx-auto mb-5">{t('inbox.empty.desc')}</p>
           <Button onClick={() => router.push('/dashboard?section=pages')}>
-            Connect a page
+            {t('inbox.empty.cta')}
           </Button>
         </div>
       </div>
@@ -116,6 +120,7 @@ function InboxInner() {
           onSelect={switchPage}
           onConnectMore={() => router.push('/dashboard?section=pages')}
           lastSyncedLabel={lastSyncedLabel}
+          t={t}
         />
 
         <div className="ms-auto flex items-center gap-2">
@@ -125,7 +130,7 @@ function InboxInner() {
             disabled={syncing || !selectedPage}
             icon={<RefreshIcon className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />}
           >
-            {syncing ? 'Syncing…' : 'Sync'}
+            {syncing ? t('inbox.btn.syncing') : t('inbox.btn.sync')}
           </Button>
         </div>
       </div>
@@ -157,12 +162,14 @@ function PageSwitcher({
   onSelect,
   onConnectMore,
   lastSyncedLabel,
+  t,
 }: {
   pages: SwitcherPage[];
   selected: SwitcherPage | null;
   onSelect: (id: string) => void;
   onConnectMore: () => void;
   lastSyncedLabel: string | null;
+  t: (key: string, fb?: string) => string;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -249,8 +256,13 @@ function PageSwitcher({
             )}
           </div>
           <p className="text-[11px] text-zinc-500 leading-tight">
-            {selected.platform === 'instagram' ? 'Instagram DMs' : 'Messenger'}
-            {lastSyncedLabel && <span className="text-zinc-600"> · synced {lastSyncedLabel}</span>}
+            {selected.platform === 'instagram' ? t('inbox.platform.instagram') : t('inbox.platform.messenger')}
+            {lastSyncedLabel && (
+              <span className="text-zinc-600">
+                {' · '}
+                {t('inbox.synced').replace('{time}', lastSyncedLabel)}
+              </span>
+            )}
           </p>
         </div>
       </button>
@@ -273,7 +285,7 @@ function PageSwitcher({
           }}
         >
           <div className="px-3 pt-2 pb-1.5">
-            <p className="text-[10px] uppercase tracking-wider text-zinc-500">Switch page</p>
+            <p className="text-[10px] uppercase tracking-wider text-zinc-500">{t('inbox.switcher.title')}</p>
           </div>
           <ul className="max-h-72 overflow-y-auto pb-1">
             {pages.map((p) => {
@@ -318,7 +330,7 @@ function PageSwitcher({
             className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-zinc-400 hover:text-white hover:bg-white/5 border-t border-white/5 transition-colors"
           >
             <PlusIcon className="w-3.5 h-3.5" />
-            Connect another page
+            {t('inbox.switcher.connectMore')}
           </button>
         </div>,
         document.body,
@@ -327,15 +339,14 @@ function PageSwitcher({
   );
 }
 
-function PageHeader({ subtitle }: { subtitle: string }) {
+function PageHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <header>
-      <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 mb-1">Customer messages</p>
       <h1
         className="text-2xl sm:text-3xl font-bold text-white"
         style={{ fontFamily: 'Syne, sans-serif' }}
       >
-        Inbox
+        {title}
       </h1>
       <p className="text-sm text-zinc-500 mt-1">{subtitle}</p>
     </header>

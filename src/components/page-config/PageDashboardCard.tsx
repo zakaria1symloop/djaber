@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Badge, FacebookIcon, InstagramIcon, BoxIcon, SettingsIcon, ChatIcon, CloseIcon } from '@/components/ui';
 import { SparklesIcon, RefreshIcon } from '@/components/ui/icons';
 import { getPageSummary, type PageSummary } from '@/lib/page-config-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 interface Props {
   page: { id: string; pageName: string; platform: string; createdAt: string };
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export default function PageDashboardCard({ page, onConfigure, onStock, onInbox, onGenerateAgent, onDisconnect }: Props) {
+  const { t } = useTranslation();
   const [summary, setSummary] = useState<PageSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [imgError, setImgError] = useState(false);
@@ -45,7 +47,7 @@ export default function PageDashboardCard({ page, onConfigure, onStock, onInbox,
   const msgs = summary?.messages;
   const agent = summary?.agent;
 
-  const lastActivity = summary?.lastActivity ? formatRelative(new Date(summary.lastActivity)) : 'No activity yet';
+  const lastActivity = summary?.lastActivity ? formatRelative(new Date(summary.lastActivity), t) : t('pageCard.lastActivity.none');
 
   return (
     <div className="bg-zinc-900/50 border border-white/10 rounded-2xl overflow-hidden hover:border-white/20 transition-colors">
@@ -54,13 +56,13 @@ export default function PageDashboardCard({ page, onConfigure, onStock, onInbox,
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22><circle cx=%221%22 cy=%221%22 r=%221%22 fill=%22white%22 fill-opacity=%220.05%22/></svg>')]" />
         <div className="absolute top-3 end-3 flex items-center gap-1.5">
           {summary && agent?.enabled ? (
-            <Badge variant="success" size="sm">AI on</Badge>
+            <Badge variant="success" size="sm">{t('pageCard.aiOn')}</Badge>
           ) : summary ? (
-            <Badge variant="warning" size="sm">AI off</Badge>
+            <Badge variant="warning" size="sm">{t('pageCard.aiOff')}</Badge>
           ) : null}
           {summary && conv && conv.unread > 0 && (
             <span className="px-2 py-0.5 bg-rose-500 text-white text-[10px] font-bold rounded-full">
-              {conv.unread} unread
+              {conv.unread} {t('pageCard.unread')}
             </span>
           )}
         </div>
@@ -101,7 +103,7 @@ export default function PageDashboardCard({ page, onConfigure, onStock, onInbox,
           <button
             onClick={refresh}
             className="text-zinc-600 hover:text-white p-1 transition-colors"
-            title="Refresh stats"
+            title={t('pageCard.refresh')}
           >
             <RefreshIcon className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -109,10 +111,26 @@ export default function PageDashboardCard({ page, onConfigure, onStock, onInbox,
 
         {/* Stats grid */}
         <div className="grid grid-cols-4 gap-2 mb-4 pb-4 border-b border-white/5">
-          <Stat label="Convos" value={conv?.total ?? '–'} subtle={`${conv?.active ?? 0} active`} />
-          <Stat label="Msgs 7d" value={msgs?.last7d ?? '–'} subtle={`${msgs?.incoming7d ?? 0} in`} />
-          <Stat label="Unread" value={conv?.unread ?? '–'} highlight={(conv?.unread ?? 0) > 0} />
-          <Stat label="Stock" value={summary?.products ?? '–'} subtle="products" />
+          <Stat
+            label={t('pageCard.stat.convos')}
+            value={conv?.total ?? '–'}
+            subtle={t('pageCard.stat.active').replace('{n}', String(conv?.active ?? 0))}
+          />
+          <Stat
+            label={t('pageCard.stat.msgs7d')}
+            value={msgs?.last7d ?? '–'}
+            subtle={t('pageCard.stat.in').replace('{n}', String(msgs?.incoming7d ?? 0))}
+          />
+          <Stat
+            label={t('pageCard.stat.unread')}
+            value={conv?.unread ?? '–'}
+            highlight={(conv?.unread ?? 0) > 0}
+          />
+          <Stat
+            label={t('pageCard.stat.stock')}
+            value={summary?.products ?? '–'}
+            subtle={t('pageCard.stat.products')}
+          />
         </div>
 
         {/* Agent strip */}
@@ -134,14 +152,14 @@ export default function PageDashboardCard({ page, onConfigure, onStock, onInbox,
             {agent?.enabled && agent.hasInstructions ? (
               <>
                 <p className="text-xs font-semibold text-emerald-200">
-                  AI agent ready · <span className="capitalize font-normal text-emerald-300/80">{agent.personality}</span>
+                  {t('pageCard.agent.ready')} · <span className="capitalize font-normal text-emerald-300/80">{agent.personality}</span>
                 </p>
-                <p className="text-[11px] text-emerald-300/70">Tailored to this page&apos;s inbox.</p>
+                <p className="text-[11px] text-emerald-300/70">{t('pageCard.agent.tailored')}</p>
               </>
             ) : (
               <>
-                <p className="text-xs font-semibold text-amber-200">No tailored agent yet</p>
-                <p className="text-[11px] text-amber-300/70">Generate one from this page&apos;s recent conversations.</p>
+                <p className="text-xs font-semibold text-amber-200">{t('pageCard.agent.notReady')}</p>
+                <p className="text-[11px] text-amber-300/70">{t('pageCard.agent.notReadyHint')}</p>
               </>
             )}
           </div>
@@ -149,7 +167,7 @@ export default function PageDashboardCard({ page, onConfigure, onStock, onInbox,
             onClick={onGenerateAgent}
             className="text-[11px] font-semibold px-2.5 py-1.5 bg-white text-black hover:bg-zinc-100 rounded-lg whitespace-nowrap transition-colors"
           >
-            {agent?.enabled && agent.hasInstructions ? 'Regenerate' : 'Generate'}
+            {agent?.enabled && agent.hasInstructions ? t('pageCard.agent.regenerate') : t('pageCard.agent.generate')}
           </button>
         </div>
 
@@ -160,26 +178,26 @@ export default function PageDashboardCard({ page, onConfigure, onStock, onInbox,
             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white rounded-lg text-xs font-medium transition-colors"
           >
             <ChatIcon className="w-3.5 h-3.5" />
-            Inbox
+            {t('pageCard.action.inbox')}
           </button>
           <button
             onClick={onStock}
             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white rounded-lg text-xs font-medium transition-colors"
           >
             <BoxIcon className="w-3.5 h-3.5" />
-            Stock
+            {t('pageCard.action.stock')}
           </button>
           <button
             onClick={onConfigure}
             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white rounded-lg text-xs font-medium transition-colors"
           >
             <SettingsIcon className="w-3.5 h-3.5" />
-            Configure
+            {t('pageCard.action.configure')}
           </button>
           <button
             onClick={onDisconnect}
             className="px-2 py-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-            title="Disconnect"
+            title={t('pageCard.action.disconnect')}
           >
             <CloseIcon className="w-3.5 h-3.5" />
           </button>
@@ -201,14 +219,14 @@ function Stat({ label, value, subtle, highlight }: { label: string; value: numbe
   );
 }
 
-function formatRelative(date: Date): string {
+function formatRelative(date: Date, t: (key: string, fb?: string) => string): string {
   const diff = Date.now() - date.getTime();
   const min = Math.floor(diff / 60000);
   const hour = Math.floor(diff / 3600000);
   const day = Math.floor(diff / 86400000);
-  if (min < 1) return 'just now';
-  if (min < 60) return `${min}m ago`;
-  if (hour < 24) return `${hour}h ago`;
-  if (day < 30) return `${day}d ago`;
+  if (min < 1) return t('pageCard.lastActivity.now');
+  if (min < 60) return `${min}m`;
+  if (hour < 24) return `${hour}h`;
+  if (day < 30) return `${day}d`;
   return date.toLocaleDateString();
 }

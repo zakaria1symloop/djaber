@@ -8,6 +8,7 @@ import {
 } from '@/lib/page-config-api';
 import { useToast } from '@/components/ui/Toast';
 import { SparklesIcon, AlertIcon } from '@/components/ui/icons';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 interface GenerateAgentModalProps {
   pageId: string;
@@ -25,6 +26,7 @@ export default function GenerateAgentModal({
   onApplied,
 }: GenerateAgentModalProps) {
   const toast = useToast();
+  const { t } = useTranslation();
   const [phase, setPhase] = useState<'idle' | 'reading' | 'analyzing' | 'drafting' | 'preview' | 'applying'>(
     'idle',
   );
@@ -55,7 +57,7 @@ export default function GenerateAgentModal({
       setEditedInstructions(result.customInstructions);
       setPhase('preview');
     } catch (err: any) {
-      setError(err?.message || 'Could not generate AI agent');
+      setError(err?.message || t('agentGen.toast.genFail'));
       setPhase('idle');
     }
   };
@@ -72,14 +74,15 @@ export default function GenerateAgentModal({
         businessSummary: draft.businessSummary,
       });
       toast.success(
-        res.created
-          ? `AI agent created and linked to ${pageName}`
-          : `AI agent updated for ${pageName}`,
+        (res.created
+          ? t('agentGen.toast.created')
+          : t('agentGen.toast.updated')
+        ).replace('{pageName}', pageName),
       );
       onApplied?.();
       onClose();
     } catch (err: any) {
-      toast.error(err?.message || 'Could not apply settings');
+      toast.error(err?.message || t('agentGen.toast.fail'));
       setPhase('preview');
     }
   };
@@ -97,11 +100,16 @@ export default function GenerateAgentModal({
                 <SparklesIcon className="w-3.5 h-3.5" />
               </div>
               <h2 className="text-lg font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-                Generate AI agent from inbox
+                {t('agentGen.title')}
               </h2>
             </div>
             <p className="text-xs text-zinc-500">
-              We&apos;ll read the recent conversations on <span className="text-zinc-300">{pageName}</span> and draft a tailored agent.
+              {t('agentGen.subtitle').split('{pageName}').map((part, i, arr) => (
+                <span key={i}>
+                  {part}
+                  {i < arr.length - 1 && <span className="text-zinc-300">{pageName}</span>}
+                </span>
+              ))}
             </p>
           </div>
           <button
@@ -118,12 +126,12 @@ export default function GenerateAgentModal({
           {phase === 'idle' && (
             <div className="space-y-4">
               <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4">
-                <h3 className="text-sm font-semibold text-emerald-300 mb-2">What this does</h3>
+                <h3 className="text-sm font-semibold text-emerald-300 mb-2">{t('agentGen.what.title')}</h3>
                 <ul className="space-y-1.5 text-xs text-zinc-300">
-                  <li className="flex gap-2"><span className="text-emerald-400">•</span> Reads up to 25 recent conversations on this page (we don&apos;t store any new copy)</li>
-                  <li className="flex gap-2"><span className="text-emerald-400">•</span> Detects what you sell, the languages your customers use, and the most common questions</li>
-                  <li className="flex gap-2"><span className="text-emerald-400">•</span> Drafts a personality, tone, response length, and custom instructions tailored to your business</li>
-                  <li className="flex gap-2"><span className="text-emerald-400">•</span> You preview, edit, and apply — nothing is changed until you click Apply</li>
+                  <li className="flex gap-2"><span className="text-emerald-400">•</span> {t('agentGen.what.l1')}</li>
+                  <li className="flex gap-2"><span className="text-emerald-400">•</span> {t('agentGen.what.l2')}</li>
+                  <li className="flex gap-2"><span className="text-emerald-400">•</span> {t('agentGen.what.l3')}</li>
+                  <li className="flex gap-2"><span className="text-emerald-400">•</span> {t('agentGen.what.l4')}</li>
                 </ul>
               </div>
               {error && (
@@ -136,13 +144,13 @@ export default function GenerateAgentModal({
                   onClick={onClose}
                   className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors"
                 >
-                  Cancel
+                  {t('agentGen.cancel')}
                 </button>
                 <button
                   onClick={startGeneration}
                   className="px-5 py-2 bg-white text-black rounded-lg text-sm font-semibold hover:bg-zinc-100 transition-colors"
                 >
-                  Read inbox & generate
+                  {t('agentGen.start')}
                 </button>
               </div>
             </div>
@@ -156,18 +164,18 @@ export default function GenerateAgentModal({
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-white mb-1">
-                    {phase === 'reading' && 'Reading recent conversations…'}
-                    {phase === 'analyzing' && 'Understanding context — products, language, tone…'}
-                    {phase === 'drafting' && 'Drafting your tailored AI agent…'}
+                    {phase === 'reading' && t('agentGen.phase.reading')}
+                    {phase === 'analyzing' && t('agentGen.phase.analyzing')}
+                    {phase === 'drafting' && t('agentGen.phase.drafting')}
                   </p>
-                  <p className="text-xs text-zinc-500">This usually takes 10–30 seconds.</p>
+                  <p className="text-xs text-zinc-500">{t('agentGen.phase.subhint')}</p>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <Step active={phase === 'reading'} done={phase !== 'reading'} label="Read" />
+                  <Step active={phase === 'reading'} done={phase !== 'reading'} label={t('agentGen.phase.step.read')} />
                   <Connector />
-                  <Step active={phase === 'analyzing'} done={phase === 'drafting'} label="Analyze" />
+                  <Step active={phase === 'analyzing'} done={phase === 'drafting'} label={t('agentGen.phase.step.analyze')} />
                   <Connector />
-                  <Step active={phase === 'drafting'} done={false} label="Draft" />
+                  <Step active={phase === 'drafting'} done={false} label={t('agentGen.phase.step.draft')} />
                 </div>
               </div>
             </div>
@@ -184,7 +192,7 @@ export default function GenerateAgentModal({
 
               <div className="bg-white/[0.02] border border-white/10 rounded-xl p-4 space-y-3">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <h3 className="text-xs uppercase tracking-wider text-zinc-500">Business summary</h3>
+                  <h3 className="text-xs uppercase tracking-wider text-zinc-500">{t('agentGen.preview.summary')}</h3>
                   <span className="text-[10px] text-zinc-600">
                     {draft.sampledConversations} conversations · {draft.sampledMessages} messages
                   </span>
@@ -192,7 +200,7 @@ export default function GenerateAgentModal({
                 <p className="text-sm text-white leading-relaxed">{draft.businessSummary}</p>
                 {draft.languages.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    <span className="text-[10px] uppercase tracking-wider text-zinc-500 me-1">Languages</span>
+                    <span className="text-[10px] uppercase tracking-wider text-zinc-500 me-1">{t('agentGen.preview.languages')}</span>
                     {draft.languages.map((l) => (
                       <span key={l} className="text-[11px] px-2 py-0.5 bg-white/5 rounded-full text-zinc-300">
                         {l}
@@ -202,7 +210,7 @@ export default function GenerateAgentModal({
                 )}
                 {draft.topQuestions.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[10px] uppercase tracking-wider text-zinc-500 me-1">Top questions</span>
+                    <span className="text-[10px] uppercase tracking-wider text-zinc-500 me-1">{t('agentGen.preview.topQuestions')}</span>
                     {draft.topQuestions.map((q) => (
                       <span key={q} className="text-[11px] px-2 py-0.5 bg-emerald-500/10 text-emerald-300 rounded-full">
                         {q}
@@ -213,14 +221,14 @@ export default function GenerateAgentModal({
               </div>
 
               <div className="grid grid-cols-3 gap-2">
-                <PreviewPill label="Personality" value={draft.personality} />
-                <PreviewPill label="Tone" value={draft.responseTone} />
-                <PreviewPill label="Length" value={draft.responseLength} />
+                <PreviewPill label={t('agentGen.preview.personality')} value={draft.personality} />
+                <PreviewPill label={t('agentGen.preview.tone')} value={draft.responseTone} />
+                <PreviewPill label={t('agentGen.preview.length')} value={draft.responseLength} />
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs uppercase tracking-wider text-zinc-500">Custom instructions</label>
+                  <label className="text-xs uppercase tracking-wider text-zinc-500">{t('agentGen.preview.instructions')}</label>
                   <span className="text-[10px] text-zinc-600">{editedInstructions.length} chars</span>
                 </div>
                 <textarea
@@ -230,7 +238,7 @@ export default function GenerateAgentModal({
                   className="w-full bg-black/40 border border-white/10 focus:border-emerald-500/40 rounded-lg text-xs text-zinc-200 px-3 py-2.5 focus:outline-none font-mono leading-relaxed resize-y"
                 />
                 <p className="text-[10px] text-zinc-600 mt-1">
-                  Edit anything before applying. These instructions are saved on this page&apos;s AI settings.
+                  {t('agentGen.preview.editHint')}
                 </p>
               </div>
 
@@ -242,13 +250,13 @@ export default function GenerateAgentModal({
                   }}
                   className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors"
                 >
-                  Discard
+                  {t('agentGen.preview.discard')}
                 </button>
                 <button
                   onClick={applyDraft}
                   className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-sm font-semibold transition-colors"
                 >
-                  Apply to {pageName}
+                  {t('agentGen.preview.apply').replace('{pageName}', pageName)}
                 </button>
               </div>
             </div>
@@ -258,7 +266,7 @@ export default function GenerateAgentModal({
             <div className="py-12 text-center">
               <div className="inline-flex items-center gap-3 text-zinc-400">
                 <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                <span className="text-sm">Applying settings…</span>
+                <span className="text-sm">{t('agentGen.applying')}</span>
               </div>
             </div>
           )}

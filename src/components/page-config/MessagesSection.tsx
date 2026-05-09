@@ -11,6 +11,7 @@ import type { ConversationSummary } from '@/lib/page-config-api';
 import { RefreshIcon, ChatIcon, BotIcon, CheckCircleIcon, CloseIcon, SearchIcon } from '@/components/ui/icons';
 import { Badge } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 interface MessagesSectionProps {
   pageId: string;
@@ -38,6 +39,7 @@ const QUICK_REPLIES = ['Bonjour 👋', 'Merci pour votre message', 'Disponible, 
 export default function MessagesSection({ pageId, page, hideHeader = false, fullHeight = false }: MessagesSectionProps) {
   const { conversations, loading, error, fetchConversations, sendReply, clearError } = usePageConfig();
   const toast = useToast();
+  const { t } = useTranslation();
   const [selectedConv, setSelectedConv] = useState<ConversationSummary | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -60,13 +62,14 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
     try {
       const result = await syncPageFromFacebook(pageId);
       if (result.newConversations + result.newMessages > 0) {
-        toast.success(`Synced — ${result.newMessages} new message${result.newMessages === 1 ? '' : 's'}`);
+        const plural = result.newMessages === 1 ? '' : 's';
+        toast.success(t('msg.toast.synced').replace('{n}', String(result.newMessages)).replace(/\{plural\}/g, plural));
       } else {
-        toast.success('Up to date');
+        toast.success(t('msg.toast.upToDate'));
       }
       setLastSyncedAt(new Date());
     } catch (err: any) {
-      toast.error(err?.message || 'Could not reach Facebook. Try again.');
+      toast.error(err?.message || t('msg.toast.syncFail'));
     } finally {
       setSyncing(false);
       // Always re-pull from DB so the list reflects latest state
@@ -188,7 +191,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
             title="Pull the latest messages from Facebook"
           >
             <RefreshIcon className={`w-4 h-4 ${syncing || loading ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing…' : 'Sync from Facebook'}
+            {syncing ? t('inbox.btn.syncing') : t('inbox.btn.sync')}
           </button>
         </div>
       )}
@@ -220,7 +223,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name or message…"
+                placeholder={t('msg.search.placeholder')}
                 className="w-full ps-9 pe-3 py-2 bg-black/40 border border-white/10 focus:border-white/30 rounded-lg text-xs text-white placeholder-zinc-600 focus:outline-none"
               />
             </div>
@@ -230,10 +233,10 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
             <div className="bg-black/40 border border-white/10 rounded-lg p-1 grid grid-cols-4 gap-1">
               {(
                 [
-                  { v: 'all', label: 'All' },
-                  { v: 'active', label: 'Active' },
-                  { v: 'resolved', label: 'Done' },
-                  { v: 'archived', label: 'Archived' },
+                  { v: 'all', label: t('msg.tabs.all') },
+                  { v: 'active', label: t('msg.tabs.active') },
+                  { v: 'resolved', label: t('msg.tabs.resolved') },
+                  { v: 'archived', label: t('msg.tabs.archived') },
                 ] as Array<{ v: FilterTab; label: string }>
               ).map((tab) => {
                 const active = filterTab === tab.v;
@@ -276,7 +279,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
               <div className="p-8 text-center">
                 <ChatIcon className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
                 <p className="text-xs text-zinc-500 mb-3">
-                  {search ? 'No matches' : conversations?.conversations.length === 0 ? 'No conversations yet' : 'Nothing in this view'}
+                  {search ? t('msg.empty.noMatches') : conversations?.conversations.length === 0 ? t('msg.empty.none') : t('msg.empty.nothingHere')}
                 </p>
                 {conversations?.conversations.length === 0 && !search && (
                   <button
@@ -284,7 +287,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg"
                   >
                     <RefreshIcon className="w-3.5 h-3.5" />
-                    Pull from Facebook
+                    {t('msg.empty.pullCta')}
                   </button>
                 )}
               </div>
@@ -361,7 +364,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                       >
                         {selectedConv.status}
                       </Badge>
-                      <span className="text-[10px] text-zinc-600">via {page.platform === 'instagram' ? 'Instagram' : 'Messenger'}</span>
+                      <span className="text-[10px] text-zinc-600">{t('msg.thread.via')} {page.platform === 'instagram' ? t('inbox.platform.instagram') : t('inbox.platform.messenger')}</span>
                     </div>
                   </div>
                 </div>
@@ -370,14 +373,14 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                     <button
                       onClick={async () => {
                         await updateConversationStatus(selectedConv.id, 'resolved');
-                        toast.success('Marked as resolved');
+                        toast.success(t('msg.toast.markedResolved'));
                         fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {});
                       }}
                       className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-400 rounded-lg shadow-sm transition-colors"
-                      title="Mark this conversation as resolved"
+                      title={t('msg.thread.markResolved')}
                     >
                       <CheckCircleIcon className="w-4 h-4" />
-                      Mark resolved
+                      {t('msg.thread.markResolved')}
                     </button>
                   )}
                   {selectedConv.status !== 'active' && (
@@ -396,12 +399,12 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                     <button
                       onClick={async () => {
                         await updateConversationStatus(selectedConv.id, 'archived');
-                        toast.success('Archived');
+                        toast.success(t('msg.toast.archived'));
                         setSelectedConv(null);
                         fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {});
                       }}
                       className="inline-flex items-center justify-center w-8 h-8 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                      title="Archive conversation"
+                      title={t('msg.thread.archive')}
                     >
                       <CloseIcon className="w-4 h-4" />
                     </button>
@@ -422,7 +425,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                     ))}
                   </div>
                 ) : messages.length === 0 ? (
-                  <p className="text-xs text-zinc-600 text-center py-8">No messages yet</p>
+                  <p className="text-xs text-zinc-600 text-center py-8">{t('msg.thread.empty')}</p>
                 ) : (
                   messages.map((msg: any, idx) => {
                     const prev = messages[idx - 1] as any;
@@ -519,7 +522,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                         handleSendReply();
                       }
                     }}
-                    placeholder="Type your reply… (Shift+Enter for new line)"
+                    placeholder={t('msg.reply.placeholder')}
                     rows={1}
                     className="flex-1 px-3.5 py-2.5 bg-black/40 border border-white/10 focus:border-white/30 rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none resize-none max-h-32"
                     disabled={sending || selectedConv.status !== 'active'}
@@ -529,12 +532,12 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                     disabled={!replyText.trim() || sending || selectedConv.status !== 'active'}
                     className="px-4 py-2.5 bg-blue-500 hover:bg-blue-400 text-white rounded-xl text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
-                    {sending ? 'Sending…' : 'Send'}
+                    {sending ? t('msg.reply.sending') : t('msg.reply.send')}
                   </button>
                 </div>
                 {selectedConv.status !== 'active' && (
                   <p className="text-[10px] text-zinc-600 mt-2 text-center">
-                    Reopen this conversation to reply.
+                    {t('msg.reply.reopenHint')}
                   </p>
                 )}
               </div>
@@ -543,9 +546,9 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
                 <ChatIcon className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
-                <p className="text-sm text-zinc-500 mb-1">Select a conversation</p>
+                <p className="text-sm text-zinc-500 mb-1">{t('msg.thread.selectPrompt')}</p>
                 <p className="text-xs text-zinc-600">
-                  Or hit <span className="text-zinc-400">Sync from Facebook</span> to pull the latest.
+                  {t('msg.thread.selectHint')} <span className="text-zinc-400">{t('inbox.btn.sync')}</span> {t('msg.thread.selectHint2')}
                 </p>
               </div>
             </div>
