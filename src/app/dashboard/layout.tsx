@@ -87,6 +87,14 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const { pages } = usePages();
   const { filterPanelOpen, setFilterPanelOpen } = useFilterPanel();
   const { t, dir } = useTranslation();
+
+  // Auto-close any open filter panel on route changes. The panel state lives in
+  // a global context so without this it can leak across pages and the
+  // click-outside overlay below blocks hover/click on the new page.
+  useEffect(() => {
+    setFilterPanelOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
   const navigationItems = navigationItemsBase.map((i) => ({ ...i, name: t(i.labelKey) }));
   const serviceSubItems = serviceSubItemsBase.map((i) => ({ ...i, name: t(i.labelKey) }));
   const stockNavItemsRaw = stockNavItemsBase.map((i) => ({ ...i, label: t(i.labelKey) }));
