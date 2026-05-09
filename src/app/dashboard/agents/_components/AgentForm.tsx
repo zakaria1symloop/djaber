@@ -9,6 +9,8 @@ import {
   BoxIcon,
   SearchIcon,
   CheckCircleIcon,
+  FacebookIcon,
+  InstagramIcon,
 } from '@/components/ui/icons';
 import { usePages } from '@/contexts/PagesContext';
 import {
@@ -654,54 +656,135 @@ export default function AgentForm({ agentId }: AgentFormProps) {
 
         {/* Connected Pages */}
         <section className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Connected Pages</h2>
-          <p className="text-xs text-zinc-500">Select which pages this agent will respond on. Each page can only have one agent.</p>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Connected pages</h2>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Select which pages this agent will respond on. Each page can only have one agent.
+              </p>
+            </div>
+            {pages.length > 0 && (
+              <span className="text-[11px] text-zinc-500">
+                <span className="text-emerald-400 font-semibold">{selectedPageIds.length}</span> of {pages.length} selected
+              </span>
+            )}
+          </div>
 
           {pages.length > 0 ? (
-            <div className="space-y-2">
-              {pages.map((page) => {
-                const isSelected = selectedPageIds.includes(page.id);
-                return (
-                  <button
-                    key={page.id}
-                    type="button"
-                    onClick={() => togglePage(page.id)}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${
-                      isSelected
-                        ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
-                        : 'bg-black/30 border-white/10 text-zinc-400 hover:border-white/20'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
-                        isSelected ? 'bg-blue-500/20' : 'bg-zinc-800'
-                      }`}>
-                        {page.pageName.charAt(0).toUpperCase()}
+            <>
+              {/* Quick select shortcuts */}
+              <div className="flex items-center gap-2 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPageIds(pages.map((p) => p.id))}
+                  className="text-zinc-400 hover:text-white transition-colors"
+                  disabled={selectedPageIds.length === pages.length}
+                >
+                  Select all
+                </button>
+                <span className="text-zinc-700">·</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPageIds([])}
+                  className="text-zinc-400 hover:text-white transition-colors"
+                  disabled={selectedPageIds.length === 0}
+                >
+                  Clear
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {pages.map((page) => {
+                  const isSelected = selectedPageIds.includes(page.id);
+                  const isInstagram = page.platform === 'instagram';
+                  const Icon = isInstagram ? InstagramIcon : FacebookIcon;
+                  const platformBg = isInstagram
+                    ? 'bg-gradient-to-br from-pink-500/10 to-amber-500/10'
+                    : 'bg-gradient-to-br from-blue-500/10 to-blue-700/10';
+                  const platformIconColor = isInstagram ? 'text-pink-400' : 'text-[#1877F2]';
+                  const pictureUrl = !isInstagram
+                    ? `https://graph.facebook.com/v18.0/${page.pageId}/picture?type=large`
+                    : null;
+
+                  return (
+                    <button
+                      key={page.id}
+                      type="button"
+                      onClick={() => togglePage(page.id)}
+                      className={`group relative text-start rounded-xl border-2 overflow-hidden transition-all ${
+                        isSelected
+                          ? 'border-emerald-500/50 bg-emerald-500/5 ring-2 ring-emerald-500/15'
+                          : 'border-white/10 bg-black/30 hover:border-white/25 hover:bg-white/[0.02]'
+                      }`}
+                    >
+                      {/* Banner accent */}
+                      <div className={`h-12 ${platformBg} relative`}>
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.06),transparent_60%)]" />
+                        {/* Selection check (top-right) */}
+                        <div
+                          className={`absolute top-2 end-2 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                            isSelected
+                              ? 'bg-emerald-500 border-emerald-400 shadow-lg shadow-emerald-500/30'
+                              : 'bg-black/50 border-white/30 group-hover:border-white/60'
+                          }`}
+                        >
+                          {isSelected && (
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-left">
-                        <p className={`text-sm font-medium ${isSelected ? 'text-white' : ''}`}>{page.pageName}</p>
-                        <p className="text-xs text-zinc-500">{page.platform}</p>
+
+                      <div className="px-3.5 pb-3.5 pt-0 -mt-7 flex items-start gap-3">
+                        {/* Avatar */}
+                        <div className="w-12 h-12 rounded-xl bg-zinc-950 border-[3px] border-zinc-950 overflow-hidden flex-shrink-0 shadow-lg">
+                          <PageAvatar pictureUrl={pictureUrl} fallback={page.pageName} icon={<Icon className={`w-5 h-5 ${platformIconColor}`} />} />
+                        </div>
+
+                        <div className="min-w-0 flex-1 pt-1">
+                          <p
+                            className={`text-sm font-semibold truncate ${
+                              isSelected ? 'text-white' : 'text-zinc-200'
+                            }`}
+                          >
+                            {page.pageName}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Icon className={`w-3 h-3 flex-shrink-0 ${platformIconColor}`} />
+                            <span className="text-[11px] text-zinc-500 capitalize">{page.platform}</span>
+                            <span className="text-zinc-700">·</span>
+                            {page.isActive ? (
+                              <span className="text-[10px] text-emerald-400 font-medium">Active</span>
+                            ) : (
+                              <span className="text-[10px] text-zinc-600 font-medium">Inactive</span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-zinc-600 mt-1">
+                            Connected {formatRelativeDate(page.createdAt)}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
-                      isSelected
-                        ? 'bg-blue-500 border-blue-500'
-                        : 'border-zinc-600'
-                    }`}>
-                      {isSelected && (
-                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
           ) : (
-            <div className="text-center py-6">
-              <p className="text-sm text-zinc-500">No connected pages yet.</p>
-              <p className="text-xs text-zinc-600 mt-1">Connect a Facebook page first in Social Media settings.</p>
+            <div className="text-center py-10">
+              <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 mx-auto mb-3 flex items-center justify-center">
+                <FacebookIcon className="w-5 h-5 text-zinc-500" />
+              </div>
+              <p className="text-sm text-white font-semibold mb-1">No pages connected yet</p>
+              <p className="text-xs text-zinc-500 max-w-sm mx-auto mb-4">
+                Connect a Facebook or Instagram page in <span className="text-zinc-300">Social Media</span> first, then come back here to link this agent.
+              </p>
+              <a
+                href="/dashboard?section=pages"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-black rounded-lg text-xs font-semibold hover:bg-zinc-100 transition-colors"
+              >
+                Open Social Media
+              </a>
             </div>
           )}
         </section>
@@ -840,4 +923,49 @@ export default function AgentForm({ agentId }: AgentFormProps) {
       </form>
     </div>
   );
+}
+
+// Tiny avatar component that renders the FB picture URL with a fallback to
+// the page's first-letter when the request 404s or the user is on Instagram.
+function PageAvatar({
+  pictureUrl,
+  fallback,
+  icon,
+}: {
+  pictureUrl: string | null;
+  fallback: string;
+  icon: React.ReactNode;
+}) {
+  const [errored, setErrored] = useState(false);
+  if (pictureUrl && !errored) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={pictureUrl}
+        alt={fallback}
+        referrerPolicy="no-referrer"
+        onError={() => setErrored(true)}
+        className="w-full h-full object-cover"
+      />
+    );
+  }
+  return (
+    <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-zinc-300 text-sm font-semibold">
+      {icon || (fallback || '?').charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
+function formatRelativeDate(iso: string): string {
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  const day = 86_400_000;
+  if (diff < day) return 'today';
+  if (diff < 2 * day) return 'yesterday';
+  if (diff < 30 * day) return `${Math.floor(diff / day)} days ago`;
+  if (diff < 365 * day) {
+    const months = Math.floor(diff / (30 * day));
+    return `${months} ${months === 1 ? 'month' : 'months'} ago`;
+  }
+  return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
 }
