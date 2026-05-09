@@ -1,6 +1,7 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePages } from '@/contexts/PagesContext';
 import { PageConfigProvider } from '@/contexts/PageConfigContext';
@@ -164,12 +165,43 @@ function PageSwitcher({
   lastSyncedLabel: string | null;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => setMounted(true), []);
+
+  // Recompute the panel position whenever the trigger geometry changes
+  useLayoutEffect(() => {
+    if (!open) return;
+    const compute = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setPos({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: Math.max(rect.width, 288), // 288 ≈ w-72
+      });
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    window.addEventListener('scroll', compute, true);
+    return () => {
+      window.removeEventListener('resize', compute);
+      window.removeEventListener('scroll', compute, true);
+    };
+  }, [open]);
+
+  // Click outside / ESC closes
   useEffect(() => {
     if (!open) return;
     const onClickOut = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const t = e.target as Node;
+      if (
+        triggerRef.current && !triggerRef.current.contains(t) &&
+        panelRef.current && !panelRef.current.contains(t)
+      ) {
         setOpen(false);
       }
     };
@@ -190,8 +222,9 @@ function PageSwitcher({
   const multi = pages.length > 1;
 
   return (
-    <div className="relative min-w-0" ref={ref}>
+    <>
       <button
+        ref={triggerRef}
         onClick={() => multi && setOpen((v) => !v)}
         disabled={!multi}
         className={`flex items-center gap-2.5 min-w-0 max-w-full pe-2 ps-1 py-1 rounded-xl transition-colors ${
@@ -222,13 +255,21 @@ function PageSwitcher({
         </div>
       </button>
 
-      {open && (
+      {/* Panel rendered via portal at document.body so no parent stacking
+          context (backdrop-blur / overflow) can affect it. */}
+      {mounted && open && pos && createPortal(
         <div
-          className="absolute top-full start-0 mt-2 w-72 max-w-[90vw] rounded-xl overflow-hidden z-50 ring-1 ring-white/10 shadow-2xl"
+          ref={panelRef}
+          className="fixed rounded-xl overflow-hidden ring-1 ring-white/10"
           style={{
-            // Fully opaque background that won't inherit any backdrop filter from ancestors
+            top: pos.top,
+            left: pos.left,
+            width: pos.width,
+            maxWidth: 'calc(100vw - 16px)',
             backgroundColor: '#0a0a0c',
-            boxShadow: '0 20px 50px -10px rgba(0,0,0,0.6), 0 8px 16px -8px rgba(0,0,0,0.5)',
+            boxShadow:
+              '0 20px 50px -10px rgba(0,0,0,0.65), 0 8px 16px -8px rgba(0,0,0,0.55)',
+            zIndex: 1000,
           }}
         >
           <div className="px-3 pt-2 pb-1.5">
@@ -279,9 +320,10 @@ function PageSwitcher({
             <PlusIcon className="w-3.5 h-3.5" />
             Connect another page
           </button>
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }
 
