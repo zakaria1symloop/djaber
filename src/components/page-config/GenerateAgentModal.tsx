@@ -7,6 +7,7 @@ import {
   type GeneratedAgent,
 } from '@/lib/page-config-api';
 import { useToast } from '@/components/ui/Toast';
+import { SparklesIcon, AlertIcon } from '@/components/ui/icons';
 
 interface GenerateAgentModalProps {
   pageId: string;
@@ -91,8 +92,10 @@ export default function GenerateAgentModal({
         {/* Header */}
         <div className="px-6 py-5 border-b border-white/10 flex items-start justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-lg">🧠</span>
+            <div className="flex items-center gap-2.5 mb-1">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
+                <SparklesIcon className="w-3.5 h-3.5" />
+              </div>
               <h2 className="text-lg font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
                 Generate AI agent from inbox
               </h2>
@@ -173,8 +176,9 @@ export default function GenerateAgentModal({
           {phase === 'preview' && draft && (
             <div className="space-y-4">
               {draft.warning && (
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-300">
-                  ⚠️ {draft.warning}
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-300 flex items-start gap-2">
+                  <AlertIcon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                  <span>{draft.warning}</span>
                 </div>
               )}
 
