@@ -226,21 +226,42 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
             </div>
           </div>
           {/* Filter tabs */}
-          <div className="px-2 pt-2 pb-1 flex items-center gap-1 border-b border-white/5">
-            {(['all', 'active', 'resolved', 'archived'] as FilterTab[]).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setFilterTab(tab)}
-                className={`flex-1 px-2 py-1.5 text-[10px] uppercase tracking-wider font-semibold rounded-md transition-colors ${
-                  filterTab === tab
-                    ? 'bg-white/10 text-white'
-                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
-                }`}
-              >
-                {tab}
-                <span className="ms-1 text-[9px] text-zinc-500">{counts[tab]}</span>
-              </button>
-            ))}
+          <div className="px-2 py-2 border-b border-white/5">
+            <div className="bg-black/40 border border-white/10 rounded-lg p-1 grid grid-cols-4 gap-1">
+              {(
+                [
+                  { v: 'all', label: 'All' },
+                  { v: 'active', label: 'Active' },
+                  { v: 'resolved', label: 'Done' },
+                  { v: 'archived', label: 'Archived' },
+                ] as Array<{ v: FilterTab; label: string }>
+              ).map((tab) => {
+                const active = filterTab === tab.v;
+                const count = counts[tab.v];
+                return (
+                  <button
+                    key={tab.v}
+                    onClick={() => setFilterTab(tab.v)}
+                    className={`flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      active
+                        ? 'bg-white text-black'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    {count > 0 && (
+                      <span
+                        className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${
+                          active ? 'bg-black/15 text-black' : 'bg-white/10 text-zinc-300'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           {/* List */}
           <div className="flex-1 overflow-y-auto">
