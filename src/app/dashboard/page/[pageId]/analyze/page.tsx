@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { analyzePagePosts, importExtractedProducts, type ExtractedProduct } from '@/lib/page-config-api';
 import { useToast } from '@/components/ui/Toast';
 import { SearchIcon, AlertIcon, ImageIcon, CheckCircleIcon, SparklesIcon } from '@/components/ui/icons';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 interface DraftItem extends ExtractedProduct {
   selected: boolean;
@@ -26,6 +27,7 @@ export default function AnalyzePage() {
   const params = useParams();
   const router = useRouter();
   const toast = useToast();
+  const { t } = useTranslation();
   const pageId = params?.pageId as string;
 
   const [phase, setPhase] = useState<'idle' | 'scanning' | 'review' | 'importing' | 'done'>('idle');
@@ -53,7 +55,7 @@ export default function AnalyzePage() {
       if (data?.needsReconnect || /reconnect/i.test(err?.message || '')) {
         setNeedsReconnect(true);
       }
-      toast.error(err?.message || 'Could not analyze posts');
+      toast.error(err?.message || t('analyze.toast.cantAnalyze'));
       setPhase('idle');
     }
   };
@@ -68,12 +70,16 @@ export default function AnalyzePage() {
   const importToStock = async () => {
     const chosen = items.filter((i) => i.selected);
     if (chosen.length === 0) {
-      toast.error('Select at least one product');
+      toast.error(t('analyze.toast.selectAtLeastOne'));
       return;
     }
     const invalid = chosen.filter((c) => !isItemValid(c));
     if (invalid.length > 0) {
-      toast.error(`Set name, price and stock on ${invalid.length} product${invalid.length > 1 ? 's' : ''} before importing`);
+      toast.error(
+        t('analyze.toast.invalidGate')
+          .replace('{n}', String(invalid.length))
+          .replace(/\{plural\}/g, invalid.length > 1 ? 's' : ''),
+      );
       return;
     }
     setPhase('importing');
@@ -92,7 +98,7 @@ export default function AnalyzePage() {
       setImportResult(result);
       setPhase('done');
     } catch (err: any) {
-      toast.error(err?.message || 'Could not import to stock');
+      toast.error(err?.message || t('analyze.toast.cantImport'));
       setPhase('review');
     }
   };
@@ -109,14 +115,12 @@ export default function AnalyzePage() {
           onClick={() => router.push(`/dashboard/page/${pageId}`)}
           className="text-xs text-zinc-500 hover:text-white mb-3"
         >
-          ← Back to page
+          {t('analyze.back')}
         </button>
         <h1 className="text-2xl sm:text-3xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-          AI page analysis
+          {t('analyze.title')}
         </h1>
-        <p className="text-sm text-zinc-500 mt-1">
-          We&apos;ll scan your recent Facebook posts, detect products, and let you confirm what to import into your stock.
-        </p>
+        <p className="text-sm text-zinc-500 mt-1">{t('analyze.subtitle')}</p>
       </header>
 
       {phase === 'idle' && (
@@ -124,21 +128,17 @@ export default function AnalyzePage() {
           <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 mx-auto mb-4 flex items-center justify-center">
             <SearchIcon className="w-6 h-6" />
           </div>
-          <h3 className="text-lg font-semibold text-white mb-1">Scan recent posts</h3>
-          <p className="text-sm text-zinc-500 max-w-md mx-auto mb-6">
-            Pulls up to 30 of your latest posts, runs vision AI to detect products, and shows you a preview before anything is added to stock.
-          </p>
+          <h3 className="text-lg font-semibold text-white mb-1">{t('analyze.idle.title')}</h3>
+          <p className="text-sm text-zinc-500 max-w-md mx-auto mb-6">{t('analyze.idle.desc')}</p>
           {needsReconnect && (
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 max-w-md mx-auto mb-4 text-start">
-              <p className="text-sm font-semibold text-amber-300 mb-1">Facebook permission needed</p>
-              <p className="text-xs text-amber-200/80 mb-2">
-                Your page was connected before we asked Facebook for the &quot;read posts&quot; permission. Reconnect the page to grant it.
-              </p>
+              <p className="text-sm font-semibold text-amber-300 mb-1">{t('analyze.reconnect.title')}</p>
+              <p className="text-xs text-amber-200/80 mb-2">{t('analyze.reconnect.desc')}</p>
               <button
                 onClick={() => router.push('/dashboard?section=pages')}
                 className="text-xs font-semibold text-amber-300 hover:text-amber-200 underline"
               >
-                Go to Pages → reconnect
+                {t('analyze.reconnect.cta')}
               </button>
             </div>
           )}
@@ -146,7 +146,7 @@ export default function AnalyzePage() {
             onClick={startScan}
             className="px-5 py-2.5 bg-white text-black rounded-lg text-sm font-semibold hover:bg-zinc-100 transition-colors"
           >
-            Start scan
+            {t('analyze.start')}
           </button>
         </div>
       )}
@@ -155,7 +155,7 @@ export default function AnalyzePage() {
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-8 text-center">
           <div className="inline-flex items-center gap-3 text-zinc-400">
             <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-            <span className="text-sm">Scanning posts and extracting products… This can take 30–60 seconds.</span>
+            <span className="text-sm">{t('analyze.scanning')}</span>
           </div>
         </div>
       )}
@@ -165,29 +165,29 @@ export default function AnalyzePage() {
           <div className="flex flex-wrap items-center justify-between gap-3 bg-zinc-900/50 border border-white/10 rounded-xl px-4 py-3">
             <div className="text-sm">
               <span className="text-white font-semibold">{pageName}</span>
-              <span className="text-zinc-500"> · scanned {scanned} posts · </span>
-              <span className="text-emerald-400">{items.length} products detected</span>
+              <span className="text-zinc-500"> · {t('analyze.review.scanned').replace('{n}', String(scanned))} · </span>
+              <span className="text-emerald-400">{t('analyze.review.detected').replace('{n}', String(items.length))}</span>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setItems(items.map((i) => ({ ...i, selected: true })))}
                 className="text-xs text-zinc-400 hover:text-white px-2 py-1"
               >
-                Select all
+                {t('analyze.btn.selectAll')}
               </button>
               <button
                 onClick={() => setItems(items.map((i) => ({ ...i, selected: false })))}
                 className="text-xs text-zinc-400 hover:text-white px-2 py-1"
               >
-                Deselect all
+                {t('analyze.btn.deselectAll')}
               </button>
               <button
                 onClick={importToStock}
                 disabled={!canImport}
-                title={!canImport && invalidCount > 0 ? `Fill in price and stock on ${invalidCount} product${invalidCount > 1 ? 's' : ''}` : undefined}
+                title={!canImport && invalidCount > 0 ? t('analyze.btn.importHint').replace('{n}', String(invalidCount)).replace(/\{plural\}/g, invalidCount > 1 ? 's' : '') : undefined}
                 className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                Import {selectedCount} to stock
+                {t('analyze.btn.import').replace('{n}', String(selectedCount))}
               </button>
             </div>
           </div>
@@ -202,14 +202,16 @@ export default function AnalyzePage() {
             <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 text-sm text-rose-300 flex items-center gap-2">
               <AlertIcon className="w-4 h-4 flex-shrink-0" />
               <span>
-                {invalidCount} selected product{invalidCount > 1 ? 's are' : ' is'} missing required fields. Set <strong>price (DA)</strong> and <strong>initial stock</strong> on each before importing.
+                {t('analyze.invalid.message')
+                  .replace('{n}', String(invalidCount))
+                  .replace(/\{plural\}/g, invalidCount > 1 ? 's' : '')}
               </span>
             </div>
           )}
 
           {items.length === 0 ? (
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-8 text-center text-sm text-zinc-500">
-              No products detected in your recent posts. The AI looks for product photos with prices or clear product captions.
+              {t('analyze.empty')}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -252,7 +254,7 @@ export default function AnalyzePage() {
                         type="text"
                         value={item.name}
                         onChange={(e) => editItem(idx, { name: e.target.value })}
-                        placeholder="Product name (required)"
+                        placeholder={t('analyze.field.namePh')}
                         className={`w-full bg-transparent border-b text-sm font-semibold text-white px-1 py-1 focus:outline-none ${
                           showErrors && errs.includes('name')
                             ? 'border-rose-500/60 focus:border-rose-400'
@@ -264,12 +266,12 @@ export default function AnalyzePage() {
                         onChange={(e) => editItem(idx, { description: e.target.value })}
                         rows={2}
                         className="w-full bg-black/30 border border-white/10 focus:border-white/30 rounded-md text-xs text-zinc-300 px-2 py-1.5 focus:outline-none resize-none"
-                        placeholder="Description (optional)"
+                        placeholder={t('analyze.field.descPh')}
                       />
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="text-[10px] uppercase tracking-wider text-zinc-500 flex items-center gap-1">
-                            Price (DA)
+                            {t('analyze.field.price')}
                             <span className="text-rose-400">*</span>
                           </label>
                           <input
@@ -287,7 +289,7 @@ export default function AnalyzePage() {
                         </div>
                         <div>
                           <label className="text-[10px] uppercase tracking-wider text-zinc-500 flex items-center gap-1">
-                            Stock
+                            {t('analyze.field.stock')}
                             <span className="text-rose-400">*</span>
                           </label>
                           <input
@@ -307,7 +309,7 @@ export default function AnalyzePage() {
                       {showErrors && (
                         <p className="text-[11px] text-rose-300 flex items-center gap-1">
                           <AlertIcon className="w-3 h-3 flex-shrink-0" />
-                          <span>Fill {errs.join(', ')} to import</span>
+                          <span>{t('analyze.field.errorHint').replace('{fields}', errs.join(', '))}</span>
                         </p>
                       )}
                       {item.category && (
@@ -328,7 +330,7 @@ export default function AnalyzePage() {
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-8 text-center">
           <div className="inline-flex items-center gap-3 text-zinc-400">
             <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-            <span className="text-sm">Importing products to stock…</span>
+            <span className="text-sm">{t('analyze.importing')}</span>
           </div>
         </div>
       )}
@@ -338,22 +340,22 @@ export default function AnalyzePage() {
           <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-400 mx-auto mb-3 flex items-center justify-center">
             <CheckCircleIcon className="w-7 h-7" />
           </div>
-          <h3 className="text-lg font-semibold text-white mb-1">Imported {importResult.created} products</h3>
+          <h3 className="text-lg font-semibold text-white mb-1">{t('analyze.done.title').replace('{n}', String(importResult.created))}</h3>
           {importResult.skipped > 0 && (
-            <p className="text-xs text-zinc-500 mb-4">{importResult.skipped} skipped</p>
+            <p className="text-xs text-zinc-500 mb-4">{t('analyze.done.skipped').replace('{n}', String(importResult.skipped))}</p>
           )}
           <div className="flex justify-center gap-2 mt-4">
             <button
               onClick={() => router.push('/dashboard/stock/products')}
               className="px-4 py-2 bg-white text-black rounded-lg text-sm font-semibold hover:bg-zinc-100"
             >
-              Open stock
+              {t('analyze.done.openStock')}
             </button>
             <button
               onClick={() => router.push(`/dashboard/page/${pageId}`)}
               className="px-4 py-2 text-sm text-zinc-300 hover:text-white"
             >
-              Back to page
+              {t('analyze.done.back')}
             </button>
           </div>
         </div>
