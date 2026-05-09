@@ -10,6 +10,7 @@ import {
 import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui';
 import { RefreshIcon, CheckCircleIcon, AlertIcon, BoltIcon, TrashIcon, EditIcon } from '@/components/ui/icons';
+import PricingCalculator from './PricingCalculator';
 
 const PROVIDER_BRANDING: Record<string, { color: string; bg: string; description: string; getKeyUrl: string }> = {
   openai: {
@@ -436,6 +437,11 @@ export default function AdminAIProvidersPage() {
           all users can select its models when creating an agent. <strong>Groq</strong> is the cheapest option (free tier with
           ultra-fast inference).
         </p>
+      </div>
+
+      {/* Pricing reference + calculator */}
+      <div className="mt-8">
+        <PricingCalculator />
       </div>
     </>
   );
