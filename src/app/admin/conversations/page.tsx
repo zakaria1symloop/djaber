@@ -10,7 +10,6 @@ import {
   type AdminLookupPage,
   type AdminLookupAgent,
 } from '@/lib/admin-api';
-import { SkeletonTable } from '@/components/ui/Loader';
 import { useToast } from '@/components/ui/Toast';
 import { Badge } from '@/components/ui';
 import {
@@ -18,33 +17,55 @@ import {
   RefreshIcon,
   ChatIcon,
   FacebookIcon,
+  InstagramIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from '@/components/ui/icons';
 import { FilterPanel, FilterPanelTrigger, FilterSection, FilterChip } from '@/components/admin/FilterPanel';
+
+const PAGE_SIZE_OPTIONS = [50, 100, 200] as const;
+type PageSize = (typeof PAGE_SIZE_OPTIONS)[number];
+
+type Status = 'all' | 'active' | 'resolved' | 'archived';
+type Platform = 'all' | 'facebook' | 'instagram';
 
 export default function AdminConversationsPage() {
   const router = useRouter();
   const toast = useToast();
+
+  // Data
   const [conversations, setConversations] = useState<AdminConversation[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<PageSize>(50);
+
+  // Search + quick filters (top-of-page)
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<Status>('all');
+  const [platformFilter, setPlatformFilter] = useState<Platform>('all');
+
+  // Advanced filters (panel)
   const [filterOpen, setFilterOpen] = useState(false);
-  const [platformFilter, setPlatformFilter] = useState<'all' | 'facebook'>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'resolved' | 'archived'>('all');
   const [pageId, setPageId] = useState<string>('');
   const [agentId, setAgentId] = useState<string>('');
   const [ownerSearch, setOwnerSearch] = useState('');
   const [minMessages, setMinMessages] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [pages, setPages] = useState<AdminLookupPage[]>([]);
-  const [agents, setAgents] = useState<AdminLookupAgent[]>([]);
-  const [sortBy, setSortBy] = useState<'updatedAt' | 'createdAt' | 'messages'>('updatedAt');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [hasUser, setHasUser] = useState<'all' | 'with' | 'without'>('all');
   const [hasAgent, setHasAgent] = useState<'all' | 'with' | 'without'>('all');
+
+  // Selection
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [density, setDensity] = useState<'compact' | 'comfortable'>('comfortable');
+
+  // Lookups
+  const [pages, setPages] = useState<AdminLookupPage[]>([]);
+  const [agents, setAgents] = useState<AdminLookupAgent[]>([]);
 
   useEffect(() => {
     listAdminLookupPages().then((r) => setPages(r.pages)).catch(() => {});
@@ -55,6 +76,11 @@ export default function AdminConversationsPage() {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
   }, [search]);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, platformFilter, statusFilter, pageId, agentId, minMessages, startDate, endDate, pageSize]);
 
   const load = async () => {
     try {
@@ -68,10 +94,12 @@ export default function AdminConversationsPage() {
         minMessages: minMessages ? Number(minMessages) : undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
-        limit: 200,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
       });
       setConversations(res.conversations);
       setTotal(res.total);
+      setSelected(new Set());
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to load conversations');
     } finally {
@@ -82,11 +110,11 @@ export default function AdminConversationsPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, platformFilter, statusFilter, pageId, agentId, minMessages, startDate, endDate]);
+  }, [debouncedSearch, platformFilter, statusFilter, pageId, agentId, minMessages, startDate, endDate, page, pageSize]);
 
   const filtered = useMemo(() => {
     const owner = ownerSearch.trim().toLowerCase();
-    let result = conversations.filter((c) => {
+    return conversations.filter((c) => {
       if (hasUser === 'with' && !c.user) return false;
       if (hasUser === 'without' && c.user) return false;
       if (hasAgent === 'with' && !c.agent) return false;
@@ -102,25 +130,9 @@ export default function AdminConversationsPage() {
       }
       return true;
     });
+  }, [conversations, ownerSearch, hasUser, hasAgent]);
 
-    result = [...result].sort((a, b) => {
-      let av: number | string = 0;
-      let bv: number | string = 0;
-      switch (sortBy) {
-        case 'createdAt': av = a.createdAt; bv = b.createdAt; break;
-        case 'messages': av = a._count.messages; bv = b._count.messages; break;
-        default: av = a.updatedAt; bv = b.updatedAt;
-      }
-      const cmp = typeof av === 'string' ? av.localeCompare(String(bv)) : (av as number) - (bv as number);
-      return sortOrder === 'asc' ? cmp : -cmp;
-    });
-
-    return result;
-  }, [conversations, ownerSearch, hasUser, hasAgent, sortBy, sortOrder]);
-
-  const activeFilterCount =
-    (platformFilter !== 'all' ? 1 : 0) +
-    (statusFilter !== 'all' ? 1 : 0) +
+  const advancedFilterCount =
     (pageId ? 1 : 0) +
     (agentId ? 1 : 0) +
     (ownerSearch.trim() ? 1 : 0) +
@@ -128,22 +140,9 @@ export default function AdminConversationsPage() {
     (startDate ? 1 : 0) +
     (endDate ? 1 : 0) +
     (hasUser !== 'all' ? 1 : 0) +
-    (hasAgent !== 'all' ? 1 : 0) +
-    (sortBy !== 'updatedAt' || sortOrder !== 'desc' ? 1 : 0);
+    (hasAgent !== 'all' ? 1 : 0);
 
-  const stats = useMemo(() => {
-    const totalMessages = conversations.reduce((s, c) => s + c._count.messages, 0);
-    return {
-      total,
-      active: conversations.filter((c) => c.status === 'active').length,
-      messages: totalMessages,
-      uniqueUsers: new Set(conversations.map((c) => c.user?.id).filter(Boolean)).size,
-    };
-  }, [conversations, total]);
-
-  const clearFilters = () => {
-    setPlatformFilter('all');
-    setStatusFilter('all');
+  const clearAdvanced = () => {
     setPageId('');
     setAgentId('');
     setOwnerSearch('');
@@ -152,22 +151,45 @@ export default function AdminConversationsPage() {
     setEndDate('');
     setHasUser('all');
     setHasAgent('all');
-    setSortBy('updatedAt');
-    setSortOrder('desc');
+  };
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, total);
+
+  const toggleAll = () => {
+    if (selected.size === filtered.length) setSelected(new Set());
+    else setSelected(new Set(filtered.map((c) => c.id)));
+  };
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   };
 
   return (
     <>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
+          <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 mb-1">Platform-wide</p>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
             Conversations
           </h1>
-          <p className="text-sm text-zinc-400">All AI-handled conversations across the platform</p>
+          <p className="text-sm text-zinc-500 mt-1">
+            {total.toLocaleString()} {total === 1 ? 'conversation' : 'conversations'}
+            {total > 0 && (
+              <span className="text-zinc-600">
+                {' · showing '}
+                {start.toLocaleString()}–{end.toLocaleString()}
+              </span>
+            )}
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <FilterPanelTrigger open={filterOpen} setOpen={setFilterOpen} activeCount={activeFilterCount} />
+          <FilterPanelTrigger open={filterOpen} setOpen={setFilterOpen} activeCount={advancedFilterCount} />
           <button
             onClick={load}
             disabled={loading}
@@ -179,149 +201,294 @@ export default function AdminConversationsPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Total" value={stats.total.toString()} />
-        <StatCard label="Active" value={stats.active.toString()} />
-        <StatCard label="Total Messages" value={stats.messages.toString()} />
-        <StatCard label="Unique Users" value={stats.uniqueUsers.toString()} />
-      </div>
-
-      {/* Search */}
-      <div className="relative mb-4">
-        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by sender name…"
-          className="w-full pl-10 pr-4 py-2.5 bg-zinc-900/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none transition-colors"
-        />
-      </div>
-
-      {/* Table */}
-      {loading ? (
-        <SkeletonTable rows={8} />
-      ) : filtered.length === 0 ? (
-        <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-12 text-center text-sm text-zinc-500">
-          {activeFilterCount > 0 || debouncedSearch ? 'No conversations match your filters' : 'No conversations yet'}
+      {/* Quick filters + search */}
+      <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-3 sm:p-4 mb-4 space-y-3">
+        <div className="relative">
+          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by sender name or ID…"
+            className="w-full pl-10 pr-4 py-2 bg-black/40 border border-white/10 focus:border-white/30 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none transition-colors"
+          />
         </div>
-      ) : (
-        <div className="bg-zinc-900/50 border border-white/10 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-white/10 text-left">
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Sender</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider hidden md:table-cell">Page</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider hidden lg:table-cell">User</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-center">Messages</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider hidden md:table-cell">Last activity</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((c) => (
-                  <tr
-                    key={c.id}
-                    className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors cursor-pointer"
-                    onClick={() => router.push(`/admin/conversations/${c.id}`)}
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-xs font-semibold text-zinc-300 flex-shrink-0">
-                          {(c.senderName || '?').charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm text-white truncate">{c.senderName || 'Unknown'}</p>
-                            <PlatformIcon />
-                          </div>
-                          <p className="text-[11px] text-zinc-500 truncate">{c.senderId}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      {c.page ? (
-                        <span className="text-xs text-zinc-300">{c.page.pageName}</span>
-                      ) : (
-                        <span className="text-xs text-zinc-700">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 hidden lg:table-cell">
-                      {c.user ? (
-                        <div className="text-xs">
-                          <p className="text-zinc-300 truncate max-w-[150px]">{c.user.firstName} {c.user.lastName}</p>
-                          <p className="text-zinc-600 truncate max-w-[150px]">{c.user.email}</p>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-zinc-700">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="inline-flex items-center gap-1 text-xs text-zinc-300">
-                        <ChatIcon className="w-3.5 h-3.5 text-zinc-500" />
-                        {c._count.messages}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={c.status === 'active' ? 'success' : c.status === 'resolved' ? 'info' : 'default'} size="sm">
-                        {c.status}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <span className="text-xs text-zinc-500">
-                        {new Date(c.updatedAt).toLocaleDateString()} {new Date(c.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+        <div className="flex flex-wrap gap-2 items-center">
+          {/* Status segmented */}
+          <div className="bg-black/40 border border-white/10 rounded-lg p-1 inline-flex gap-1">
+            {(['all', 'active', 'resolved', 'archived'] as Status[]).map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors capitalize ${
+                  statusFilter === s
+                    ? 'bg-white text-black'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+
+          {/* Platform segmented */}
+          <div className="bg-black/40 border border-white/10 rounded-lg p-1 inline-flex gap-1">
+            <button
+              onClick={() => setPlatformFilter('all')}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                platformFilter === 'all' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setPlatformFilter('facebook')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                platformFilter === 'facebook' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <FacebookIcon className={`w-3.5 h-3.5 ${platformFilter === 'facebook' ? '' : 'text-[#1877F2]'}`} />
+              Facebook
+            </button>
+            <button
+              onClick={() => setPlatformFilter('instagram')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                platformFilter === 'instagram' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <InstagramIcon className={`w-3.5 h-3.5 ${platformFilter === 'instagram' ? '' : 'text-pink-400'}`} />
+              Instagram
+            </button>
+          </div>
+
+          {/* Density toggle */}
+          <div className="ms-auto flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-zinc-600">Density</span>
+            <div className="bg-black/40 border border-white/10 rounded-lg p-1 inline-flex gap-1">
+              {(['compact', 'comfortable'] as const).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setDensity(d)}
+                  className={`px-2 py-1 rounded-md text-[10px] font-medium uppercase tracking-wider transition-colors ${
+                    density === d ? 'bg-white text-black' : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  {d.slice(0, 4)}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-2.5 mb-3 flex items-center justify-between">
+          <span className="text-sm text-blue-200">
+            {selected.size} selected
+          </span>
+          <div className="flex items-center gap-2">
+            {/* TODO: wire bulk actions to server when needed */}
+            <button
+              onClick={() => setSelected(new Set())}
+              className="text-xs text-blue-300 hover:text-blue-200"
+            >
+              Clear
+            </button>
           </div>
         </div>
       )}
 
-      {/* Filter panel */}
-      <FilterPanel open={filterOpen} onClose={() => setFilterOpen(false)} onClear={clearFilters}>
-        <FilterSection label="Sort by">
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              className="px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
-            >
-              <option value="updatedAt">Last activity</option>
-              <option value="createdAt">Created</option>
-              <option value="messages">Message count</option>
-            </select>
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
-              className="px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
-            >
-              <option value="desc">Newest first</option>
-              <option value="asc">Oldest first</option>
-            </select>
+      {/* Table */}
+      {loading ? (
+        <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-3">
+          <div className="space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="animate-pulse h-14 bg-white/[0.03] rounded-lg" />
+            ))}
           </div>
-        </FilterSection>
-
-        <FilterSection label="Platform">
-          <div className="flex flex-wrap gap-2">
-            <FilterChip label="All" active={platformFilter === 'all'} onClick={() => setPlatformFilter('all')} />
-            <FilterChip label="Facebook" active={platformFilter === 'facebook'} onClick={() => setPlatformFilter('facebook')} />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-12 text-center">
+          <ChatIcon className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
+          <p className="text-sm font-semibold text-white mb-1">No conversations</p>
+          <p className="text-xs text-zinc-500">
+            {advancedFilterCount > 0 || debouncedSearch || statusFilter !== 'all' || platformFilter !== 'all'
+              ? 'No matches for your filters. Try widening the criteria.'
+              : 'No conversations have been recorded yet.'}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-zinc-900/50 border border-white/10 rounded-2xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-white/5 text-start">
+                  <th className={`${density === 'compact' ? 'px-3 py-2' : 'px-3 py-3'} w-8`}>
+                    <input
+                      type="checkbox"
+                      checked={selected.size > 0 && selected.size === filtered.length}
+                      onChange={toggleAll}
+                      className="w-3.5 h-3.5 rounded border-white/20 bg-black/60 text-white focus:ring-1 focus:ring-white/30"
+                      aria-label="Select all"
+                    />
+                  </th>
+                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-start">Conversation</th>
+                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-start hidden lg:table-cell">Owner</th>
+                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-start hidden md:table-cell">Page</th>
+                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-end whitespace-nowrap">Msgs</th>
+                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-start">Status</th>
+                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-end whitespace-nowrap">Last activity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((c) => {
+                  const Icon = c.platform === 'instagram' ? InstagramIcon : FacebookIcon;
+                  const platformColor = c.platform === 'instagram' ? 'text-pink-400' : 'text-[#1877F2]';
+                  const lastMsg = c.lastMessage;
+                  const padY = density === 'compact' ? 'py-2' : 'py-3';
+                  return (
+                    <tr
+                      key={c.id}
+                      className={`border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors ${
+                        selected.has(c.id) ? 'bg-white/[0.03]' : ''
+                      }`}
+                    >
+                      <td className={`px-3 ${padY}`} onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(c.id)}
+                          onChange={() => toggleOne(c.id)}
+                          className="w-3.5 h-3.5 rounded border-white/20 bg-black/60 text-white focus:ring-1 focus:ring-white/30"
+                          aria-label="Select"
+                        />
+                      </td>
+                      <td
+                        className={`px-3 ${padY} cursor-pointer`}
+                        onClick={() => router.push(`/admin/conversations/${c.id}`)}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-[11px] font-semibold text-zinc-300 flex-shrink-0">
+                            {(c.senderName || '?').charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <Icon className={`w-3 h-3 flex-shrink-0 ${platformColor}`} />
+                              <p className="text-sm text-white truncate">{c.senderName || 'Unknown'}</p>
+                            </div>
+                            {density === 'comfortable' && lastMsg && (
+                              <p className="text-[11px] text-zinc-500 truncate max-w-[420px]">
+                                {lastMsg.isFromPage && <span className="text-zinc-600">↗ </span>}
+                                {lastMsg.text || <span className="italic text-zinc-600">(attachment)</span>}
+                              </p>
+                            )}
+                            {density === 'compact' && (
+                              <p className="text-[10px] text-zinc-600 truncate">{c.senderId}</p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className={`px-3 ${padY} hidden lg:table-cell`}>
+                        {c.user ? (
+                          <div className="text-xs">
+                            <p className="text-zinc-300 truncate max-w-[160px]">{c.user.firstName} {c.user.lastName}</p>
+                            <p className="text-zinc-600 truncate max-w-[160px]">{c.user.email}</p>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-zinc-700">—</span>
+                        )}
+                      </td>
+                      <td className={`px-3 ${padY} hidden md:table-cell`}>
+                        {c.page ? (
+                          <span className="text-xs text-zinc-300 truncate max-w-[160px] inline-block">{c.page.pageName}</span>
+                        ) : (
+                          <span className="text-xs text-zinc-700">—</span>
+                        )}
+                      </td>
+                      <td className={`px-3 ${padY} text-end`}>
+                        <span className="inline-flex items-center gap-1 text-xs text-zinc-300 tabular-nums">
+                          <ChatIcon className="w-3 h-3 text-zinc-600" />
+                          {c._count.messages.toLocaleString()}
+                        </span>
+                      </td>
+                      <td className={`px-3 ${padY}`}>
+                        <Badge variant={c.status === 'active' ? 'success' : c.status === 'resolved' ? 'info' : 'default'} size="sm">
+                          {c.status}
+                        </Badge>
+                      </td>
+                      <td className={`px-3 ${padY} text-end whitespace-nowrap`}>
+                        <span className="text-xs text-zinc-500">{formatRel(c.updatedAt)}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </FilterSection>
 
-        <FilterSection label="Status">
-          <div className="flex flex-wrap gap-2">
-            <FilterChip label="All" active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
-            <FilterChip label="Active" active={statusFilter === 'active'} onClick={() => setStatusFilter('active')} />
-            <FilterChip label="Resolved" active={statusFilter === 'resolved'} onClick={() => setStatusFilter('resolved')} />
-            <FilterChip label="Archived" active={statusFilter === 'archived'} onClick={() => setStatusFilter('archived')} />
+          {/* Pagination footer */}
+          <div className="border-t border-white/5 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3">
+              <span className="text-zinc-500">
+                Showing <span className="text-white font-semibold">{start.toLocaleString()}–{end.toLocaleString()}</span> of{' '}
+                <span className="text-white font-semibold">{total.toLocaleString()}</span>
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-zinc-600">Rows</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
+                  className="bg-black/40 border border-white/10 focus:border-white/30 rounded-md px-2 py-1 text-xs text-white focus:outline-none"
+                >
+                  {PAGE_SIZE_OPTIONS.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setPage(1)}
+                disabled={page === 1 || loading}
+                className="px-2 py-1 text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                First
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1 || loading}
+                className="p-1 text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Previous"
+              >
+                <ChevronLeftIcon className="w-4 h-4" />
+              </button>
+              <span className="text-zinc-300 tabular-nums">
+                Page {page} / {totalPages.toLocaleString()}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages || loading}
+                className="p-1 text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Next"
+              >
+                <ChevronRightIcon className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setPage(totalPages)}
+                disabled={page >= totalPages || loading}
+                className="px-2 py-1 text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                Last
+              </button>
+            </div>
           </div>
-        </FilterSection>
+        </div>
+      )}
 
+      {/* Filter panel — advanced */}
+      <FilterPanel open={filterOpen} onClose={() => setFilterOpen(false)} onClear={clearAdvanced}>
         <FilterSection label="Page">
           <select
             value={pageId}
@@ -405,15 +572,12 @@ export default function AdminConversationsPage() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
-      <p className="text-[10px] uppercase tracking-wider mb-1 text-zinc-500">{label}</p>
-      <p className="text-2xl font-bold text-white">{value}</p>
-    </div>
-  );
-}
-
-function PlatformIcon() {
-  return <span style={{ color: '#1877F2' }}><FacebookIcon className="w-3.5 h-3.5" /></span>;
+function formatRel(iso: string): string {
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  if (diff < 60_000) return 'now';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }

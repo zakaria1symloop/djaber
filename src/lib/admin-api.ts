@@ -400,6 +400,7 @@ export interface AdminConversation {
   user: { id: string; email: string; firstName: string; lastName: string } | null;
   agent: { id: string; name: string } | null;
   _count: { messages: number };
+  lastMessage: { text: string | null; isFromPage: boolean; timestamp: string } | null;
 }
 
 export interface AdminConversationDetails extends AdminConversation {

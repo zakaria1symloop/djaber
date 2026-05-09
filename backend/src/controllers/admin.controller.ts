@@ -466,15 +466,35 @@ export const listConversations = async (req: Request, res: Response): Promise<vo
           user: { select: { id: true, email: true, firstName: true, lastName: true } },
           agent: { select: { id: true, name: true } },
           _count: { select: { messages: true } },
+          messages: {
+            orderBy: { timestamp: 'desc' },
+            take: 1,
+            select: { text: true, isFromPage: true, timestamp: true },
+          },
         },
       }),
       prisma.conversation.count({ where }),
     ]);
 
+    // Flatten the latest-message-only relation into a `lastMessage` field
+    const reshaped = conversationsRaw.map((c) => {
+      const { messages, ...rest } = c as typeof c & { messages: Array<{ text: string | null; isFromPage: boolean; timestamp: Date }> };
+      return {
+        ...rest,
+        lastMessage: messages[0]
+          ? {
+              text: messages[0].text,
+              isFromPage: messages[0].isFromPage,
+              timestamp: messages[0].timestamp,
+            }
+          : null,
+      };
+    });
+
     // Post-filter on minimum message count (Prisma can't do this directly)
     const conversations = (minMessages !== undefined && !Number.isNaN(minMessages))
-      ? conversationsRaw.filter((c) => c._count.messages >= minMessages)
-      : conversationsRaw;
+      ? reshaped.filter((c) => c._count.messages >= minMessages)
+      : reshaped;
 
     res.json({
       conversations,
