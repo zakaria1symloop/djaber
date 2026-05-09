@@ -47,6 +47,13 @@ jobs:
             echo '--- pm2 reload ---'
             pm2 reload djaber-api --update-env || pm2 start dist/server.js --name djaber-api
 
-            sleep 1
-            echo '--- health probe ---'
-            curl -fsS -o /dev/null -w "HTTP %{http_code} in %{time_total}s\n" http://127.0.0.1:6101/health
+            echo '--- health probe (retry up to 10s) ---'
+            for i in 1 2 3 4 5; do
+              sleep 2
+              if curl -fsS -o /dev/null -w "HTTP %{http_code} in %{time_total}s on attempt $i\n" http://127.0.0.1:6101/health; then
+                exit 0
+              fi
+            done
+            echo 'Health check never recovered — failing deploy'
+            pm2 logs djaber-api --lines 30 --nostream || true
+            exit 1
