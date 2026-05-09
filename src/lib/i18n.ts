@@ -369,6 +369,7 @@ const en: Dict = {
 
   // Dashboard nav + chrome
   'nav.dash.overview': 'Overview',
+  'nav.dash.inbox': 'Inbox',
   'nav.dash.social': 'Social Media',
   'nav.dash.services': 'Services',
   'nav.dash.notifications': 'Notifications',
@@ -890,6 +891,7 @@ const fr: Dict = {
   'help.cat5.a3': "Oui, nous offrons des intégrations avec CRM, helpdesk et outils métier via notre API. Consultez la documentation.",
 
   'nav.dash.overview': 'Vue d\'ensemble',
+  'nav.dash.inbox': 'Boîte de réception',
   'nav.dash.social': 'Réseaux sociaux',
   'nav.dash.services': 'Services',
   'nav.dash.notifications': 'Notifications',
@@ -1403,6 +1405,7 @@ const ar: Dict = {
   'help.cat5.a3': 'نعم، نقدم تكاملات مع CRM ومكاتب المساعدة وأدوات الأعمال عبر API. راجع التوثيق.',
 
   'nav.dash.overview': 'نظرة عامة',
+  'nav.dash.inbox': 'البريد الوارد',
   'nav.dash.social': 'وسائل التواصل',
   'nav.dash.services': 'الخدمات',
   'nav.dash.notifications': 'الإشعارات',

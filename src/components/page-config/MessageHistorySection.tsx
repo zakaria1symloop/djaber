@@ -2,7 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { usePageConfig } from '@/contexts/PageConfigContext';
-import { DatePicker } from '@/components/stock';
+import { DatePicker, Pagination } from '@/components/stock';
+import { Button } from '@/components/ui';
+import {
+  HistoryIcon,
+  AlertIcon,
+  ArrowDownIcon,
+  ArrowUpIcon,
+  ChatIcon,
+  RefreshIcon,
+} from '@/components/ui/icons';
 
 interface Page {
   id: string;
@@ -15,267 +24,271 @@ interface MessageHistorySectionProps {
   page: Page;
 }
 
+const PER_PAGE = 50;
+
 export default function MessageHistorySection({ pageId }: MessageHistorySectionProps) {
   const { messages, loading, error, fetchMessages, clearError } = usePageConfig();
-  const [filters, setFilters] = useState({
-    type: 'all',
-    dateFrom: '',
-    dateTo: '',
-  });
-  const [currentPage, setCurrentPage] = useState(1);
-  const messagesPerPage = 50;
+
+  const [draftType, setDraftType] = useState<'all' | 'incoming' | 'outgoing'>('all');
+  const [draftFrom, setDraftFrom] = useState('');
+  const [draftTo, setDraftTo] = useState('');
+
+  const [appliedType, setAppliedType] = useState<'all' | 'incoming' | 'outgoing'>('all');
+  const [appliedFrom, setAppliedFrom] = useState('');
+  const [appliedTo, setAppliedTo] = useState('');
+
+  const [offset, setOffset] = useState(0);
 
   useEffect(() => {
-    loadMessages();
-  }, [pageId, currentPage]);
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageId, offset, appliedType, appliedFrom, appliedTo]);
 
-  const loadMessages = async () => {
+  const load = async () => {
     try {
-      const params: any = {
-        limit: messagesPerPage,
-        offset: (currentPage - 1) * messagesPerPage,
-      };
-
-      if (filters.type !== 'all') {
-        params.type = filters.type;
-      }
-      if (filters.dateFrom) {
-        params.dateFrom = filters.dateFrom;
-      }
-      if (filters.dateTo) {
-        params.dateTo = filters.dateTo;
-      }
-
+      const params: any = { limit: PER_PAGE, offset };
+      if (appliedType !== 'all') params.type = appliedType;
+      if (appliedFrom) params.dateFrom = appliedFrom;
+      if (appliedTo) params.dateTo = appliedTo;
       await fetchMessages(pageId, params);
-    } catch (err) {
-      // Error handled by context
+    } catch {
+      // handled by context
     }
   };
 
-  const handleApplyFilters = () => {
-    setCurrentPage(1);
-    loadMessages();
+  const apply = () => {
+    setAppliedType(draftType);
+    setAppliedFrom(draftFrom);
+    setAppliedTo(draftTo);
+    setOffset(0);
   };
 
-  const handleClearFilters = () => {
-    setFilters({
-      type: 'all',
-      dateFrom: '',
-      dateTo: '',
-    });
-    setCurrentPage(1);
+  const clear = () => {
+    setDraftType('all');
+    setDraftFrom('');
+    setDraftTo('');
+    setAppliedType('all');
+    setAppliedFrom('');
+    setAppliedTo('');
+    setOffset(0);
   };
 
-  const formatDateTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleString('en-US', {
+  const formatDateTime = (timestamp: string) =>
+    new Date(timestamp).toLocaleString(undefined, {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     });
-  };
 
-  const totalPages = messages ? Math.ceil(messages.total / messagesPerPage) : 0;
+  const filtersDirty =
+    draftType !== appliedType || draftFrom !== appliedFrom || draftTo !== appliedTo;
+  const hasAppliedFilters =
+    appliedType !== 'all' || !!appliedFrom || !!appliedTo;
+
+  const total = messages?.total ?? 0;
+  const list = messages?.messages ?? [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-          Message History
-        </h2>
-        <p className="text-zinc-400 text-sm mt-1">
-          View all messages exchanged on this page
-        </p>
-      </div>
+      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 mb-1">Conversation log</p>
+          <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
+            Message history
+          </h2>
+          <p className="text-sm text-zinc-500 mt-1">
+            {loading && !messages
+              ? 'Loading…'
+              : `${total.toLocaleString()} message${total === 1 ? '' : 's'}`}
+            {hasAppliedFilters && ' · filtered'}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={load}
+          disabled={loading}
+          icon={<RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />}
+        >
+          Refresh
+        </Button>
+      </header>
 
-      {/* Filters */}
-      <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Message Type Filter */}
+      {/* Filter card */}
+      <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-4 sm:p-5">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
-            <label className="block text-white text-sm font-medium mb-2">
-              Message Type
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">
+              Direction
             </label>
-            <select
-              value={filters.type}
-              onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-              className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:border-white/20"
-            >
-              <option value="all">All Messages</option>
-              <option value="incoming">Incoming Only</option>
-              <option value="outgoing">Outgoing Only</option>
-            </select>
+            <div className="bg-black border border-white/10 rounded-lg p-1 inline-flex w-full">
+              {(
+                [
+                  { v: 'all', label: 'All' },
+                  { v: 'incoming', label: 'In' },
+                  { v: 'outgoing', label: 'Out' },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.v}
+                  onClick={() => setDraftType(opt.v)}
+                  className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    draftType === opt.v
+                      ? 'bg-white text-black'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Date From */}
-          <DatePicker
-            label="From Date"
-            value={filters.dateFrom}
-            onChange={(v) => setFilters({ ...filters, dateFrom: v })}
-          />
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">
+              From
+            </label>
+            <DatePicker value={draftFrom} onChange={setDraftFrom} placeholder="From date" />
+          </div>
 
-          {/* Date To */}
-          <DatePicker
-            label="To Date"
-            value={filters.dateTo}
-            onChange={(v) => setFilters({ ...filters, dateTo: v })}
-          />
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">
+              To
+            </label>
+            <DatePicker value={draftTo} onChange={setDraftTo} placeholder="To date" />
+          </div>
 
-          {/* Filter Actions */}
           <div className="flex items-end gap-2">
-            <button
-              onClick={handleApplyFilters}
-              disabled={loading}
-              className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/50 text-white rounded-lg text-sm font-medium transition-colors"
+            <Button
+              size="sm"
+              className="flex-1"
+              onClick={apply}
+              disabled={loading || !filtersDirty}
             >
               Apply
-            </button>
-            <button
-              onClick={handleClearFilters}
-              className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-lg text-sm transition-colors"
-            >
-              Clear
-            </button>
+            </Button>
+            {(filtersDirty || hasAppliedFilters) && (
+              <Button size="sm" variant="ghost" onClick={clear}>
+                Clear
+              </Button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Error State */}
+      {/* Error */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
-          <div className="flex items-start gap-3">
-            <svg className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div className="flex-1">
-              <h3 className="text-red-400 font-medium">Error Loading Messages</h3>
-              <p className="text-red-300/80 text-sm mt-1">{error}</p>
-              <button
-                onClick={() => {
-                  clearError();
-                  loadMessages();
-                }}
-                className="mt-3 text-sm text-red-400 hover:text-red-300 underline"
-              >
-                Try Again
-              </button>
-            </div>
+        <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 flex items-start gap-3">
+          <AlertIcon className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-rose-300">Could not load messages</p>
+            <p className="text-xs text-rose-400/80 mt-0.5">{error}</p>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="mt-2 text-rose-300"
+              onClick={() => {
+                clearError();
+                load();
+              }}
+            >
+              Retry
+            </Button>
           </div>
         </div>
       )}
 
-      {/* Messages Table */}
-      <div className="bg-zinc-900/50 border border-white/10 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-white/10">
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase">
-                  Timestamp
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase">
-                  Sender
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase">
-                  Type
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase">
-                  Message
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && !messages && (
-                <>
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <tr key={i} className="border-b border-white/5">
-                      <td className="px-4 py-3" colSpan={4}>
-                        <div className="animate-pulse">
-                          <div className="h-4 bg-white/10 rounded w-full"></div>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </>
-              )}
-
-              {messages?.messages.length === 0 && !loading && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-12 text-center">
-                    <svg className="w-12 h-12 text-zinc-600 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                    </svg>
-                    <p className="text-zinc-500 text-sm">No messages found</p>
-                  </td>
-                </tr>
-              )}
-
-              {messages?.messages.map((msg) => (
-                <tr key={msg.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                  <td className="px-4 py-3 text-sm text-zinc-400 whitespace-nowrap">
-                    {formatDateTime(msg.timestamp)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-white">
-                    {msg.senderName || msg.senderId.substring(0, 15) + '...'}
-                  </td>
-                  <td className="px-4 py-3">
-                    {msg.isFromPage ? (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                        <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                        </svg>
-                        Outgoing
+      {/* Empty / loading / list */}
+      {loading && !messages ? (
+        <div className="bg-zinc-900/40 border border-white/10 rounded-2xl p-4 space-y-2">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="animate-pulse h-12 bg-white/[0.03] rounded-lg" />
+          ))}
+        </div>
+      ) : list.length === 0 ? (
+        <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-10 text-center">
+          <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 mx-auto mb-3 flex items-center justify-center">
+            <ChatIcon className="w-5 h-5 text-zinc-500" />
+          </div>
+          <p className="text-sm font-semibold text-white mb-1">No messages</p>
+          <p className="text-xs text-zinc-500">
+            {hasAppliedFilters
+              ? 'No messages match your filters. Try widening the range.'
+              : 'When this page exchanges messages, they will appear here.'}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-zinc-900/50 border border-white/10 rounded-2xl overflow-hidden">
+          <div className="hidden sm:grid grid-cols-[170px_1fr_100px_2fr] gap-3 px-4 py-3 border-b border-white/5 text-[10px] uppercase tracking-wider text-zinc-500">
+            <span>Date</span>
+            <span>Sender</span>
+            <span>Direction</span>
+            <span>Message</span>
+          </div>
+          <ul>
+            {list.map((m) => (
+              <li
+                key={m.id}
+                className="border-b border-white/5 last:border-b-0 hover:bg-white/[0.02] transition-colors"
+              >
+                {/* Desktop row */}
+                <div className="hidden sm:grid grid-cols-[170px_1fr_100px_2fr] gap-3 px-4 py-3 items-center">
+                  <span className="text-xs text-zinc-500 whitespace-nowrap">
+                    {formatDateTime(m.timestamp)}
+                  </span>
+                  <span className="text-sm text-white truncate">
+                    {m.senderName || `${m.senderId.substring(0, 14)}…`}
+                  </span>
+                  <span>
+                    {m.isFromPage ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                        <ArrowUpIcon className="w-3 h-3" />
+                        Out
                       </span>
                     ) : (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
-                        <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18" />
-                        </svg>
-                        Incoming
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                        <ArrowDownIcon className="w-3 h-3" />
+                        In
                       </span>
                     )}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-zinc-300 max-w-md truncate">
-                    {msg.text || '(No text)'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </span>
+                  <span className="text-sm text-zinc-300 truncate">
+                    {m.text || <span className="text-zinc-600 italic">(no text)</span>}
+                  </span>
+                </div>
+                {/* Mobile row */}
+                <div className="sm:hidden px-4 py-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm text-white truncate">
+                      {m.senderName || `${m.senderId.substring(0, 12)}…`}
+                    </span>
+                    {m.isFromPage ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                        <ArrowUpIcon className="w-3 h-3" />
+                        Out
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                        <ArrowDownIcon className="w-3 h-3" />
+                        In
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-zinc-300 line-clamp-2">
+                    {m.text || <span className="text-zinc-600 italic">(no text)</span>}
+                  </p>
+                  <p className="text-[10px] text-zinc-600 mt-1">{formatDateTime(m.timestamp)}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
+      )}
 
-        {/* Pagination */}
-        {messages && messages.total > messagesPerPage && (
-          <div className="px-4 py-3 border-t border-white/10 flex items-center justify-between">
-            <p className="text-sm text-zinc-400">
-              Showing {(currentPage - 1) * messagesPerPage + 1} to{' '}
-              {Math.min(currentPage * messagesPerPage, messages.total)} of {messages.total} messages
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(currentPage - 1)}
-                disabled={currentPage === 1 || loading}
-                className="px-3 py-1 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed border border-white/10 rounded text-white text-sm transition-colors"
-              >
-                Previous
-              </button>
-              <span className="text-sm text-zinc-400">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                onClick={() => setCurrentPage(currentPage + 1)}
-                disabled={currentPage >= totalPages || loading}
-                className="px-3 py-1 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed border border-white/10 rounded text-white text-sm transition-colors"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      <Pagination total={total} limit={PER_PAGE} offset={offset} onPageChange={setOffset} />
     </div>
   );
 }

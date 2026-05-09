@@ -10,6 +10,7 @@ import {
   Avatar,
   HomeIcon,
   ChatIcon,
+  MessageIcon,
   ChartIcon,
   SettingsIcon,
   MenuIcon,
@@ -38,6 +39,7 @@ import LanguageSwitcher from '@/components/LanguageSwitcher';
 
 const navigationItemsBase = [
   { id: 'overview', labelKey: 'nav.dash.overview', icon: HomeIcon, href: '/dashboard' },
+  { id: 'inbox', labelKey: 'nav.dash.inbox', icon: MessageIcon, href: '/dashboard/inbox' },
   { id: 'social-media', labelKey: 'nav.dash.social', icon: ChatIcon, href: '/dashboard', section: 'pages' },
   { id: 'services', labelKey: 'nav.dash.services', icon: GridIcon, href: '/dashboard/services' },
   { id: 'notifications', labelKey: 'nav.dash.notifications', icon: BellIcon, href: '/dashboard/notifications' },
@@ -212,6 +214,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const isAgentsRoute = pathname?.startsWith('/dashboard/agents');
   const isServicesRoute = pathname === '/dashboard/services';
   const isNotificationsRoute = pathname?.startsWith('/dashboard/notifications');
+  const isInboxRoute = pathname?.startsWith('/dashboard/inbox');
   const isDashboardRoot = pathname === '/dashboard';
   const section = searchParams.get('section');
 
@@ -224,6 +227,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const isCollapsedMode = sidebarCollapsed && !sidebarHovered;
 
   const getActiveId = () => {
+    if (isInboxRoute) return 'inbox';
     if (isNotificationsRoute) return 'notifications';
     if (isStockRoute) return 'services';
     if (isAgentsRoute) return 'services';
@@ -251,6 +255,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   };
 
   const getHeaderTitle = () => {
+    if (isInboxRoute) return t('nav.dash.inbox');
     if (isNotificationsRoute) return t('nav.dash.notifications');
     if (isStockRoute) return t('nav.dash.products');
     if (isServicesRoute) return t('nav.dash.services');

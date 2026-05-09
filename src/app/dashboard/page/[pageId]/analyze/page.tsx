@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { analyzePagePosts, importExtractedProducts, type ExtractedProduct } from '@/lib/page-config-api';
 import { useToast } from '@/components/ui/Toast';
+import { SearchIcon, AlertIcon, ImageIcon, CheckCircleIcon, SparklesIcon } from '@/components/ui/icons';
 
 interface DraftItem extends ExtractedProduct {
   selected: boolean;
@@ -120,8 +121,8 @@ export default function AnalyzePage() {
 
       {phase === 'idle' && (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 sm:p-8 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 mx-auto mb-4 flex items-center justify-center text-2xl">
-            🔍
+          <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 mx-auto mb-4 flex items-center justify-center">
+            <SearchIcon className="w-6 h-6" />
           </div>
           <h3 className="text-lg font-semibold text-white mb-1">Scan recent posts</h3>
           <p className="text-sm text-zinc-500 max-w-md mx-auto mb-6">
@@ -199,7 +200,7 @@ export default function AnalyzePage() {
 
           {invalidCount > 0 && (
             <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 text-sm text-rose-300 flex items-center gap-2">
-              <span className="text-base">⚠️</span>
+              <AlertIcon className="w-4 h-4 flex-shrink-0" />
               <span>
                 {invalidCount} selected product{invalidCount > 1 ? 's are' : ' is'} missing required fields. Set <strong>price (DA)</strong> and <strong>initial stock</strong> on each before importing.
               </span>
@@ -231,15 +232,20 @@ export default function AnalyzePage() {
                         <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
                         <button
                           onClick={() => toggleItem(idx)}
-                          className={`absolute top-2 end-2 w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold ${
-                            item.selected ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-black/60 border-white/30 text-transparent'
+                          aria-label={item.selected ? 'Deselect' : 'Select'}
+                          className={`absolute top-2 end-2 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-colors ${
+                            item.selected ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-black/60 border-white/30 text-transparent hover:text-white/40'
                           }`}
                         >
-                          ✓
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
                         </button>
                       </div>
                     ) : (
-                      <div className="aspect-[4/3] bg-zinc-800 flex items-center justify-center text-3xl text-zinc-600">📷</div>
+                      <div className="aspect-[4/3] bg-zinc-800 flex items-center justify-center text-zinc-600">
+                        <ImageIcon className="w-10 h-10" />
+                      </div>
                     )}
                     <div className="p-3 space-y-2">
                       <input
@@ -300,7 +306,7 @@ export default function AnalyzePage() {
                       </div>
                       {showErrors && (
                         <p className="text-[11px] text-rose-300 flex items-center gap-1">
-                          <span>⚠️</span>
+                          <AlertIcon className="w-3 h-3 flex-shrink-0" />
                           <span>Fill {errs.join(', ')} to import</span>
                         </p>
                       )}
@@ -329,8 +335,8 @@ export default function AnalyzePage() {
 
       {phase === 'done' && importResult && (
         <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-6 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 mx-auto mb-3 flex items-center justify-center text-2xl">
-            ✓
+          <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-400 mx-auto mb-3 flex items-center justify-center">
+            <CheckCircleIcon className="w-7 h-7" />
           </div>
           <h3 className="text-lg font-semibold text-white mb-1">Imported {importResult.created} products</h3>
           {importResult.skipped > 0 && (

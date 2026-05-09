@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { usePageConfig } from '@/contexts/PageConfigContext';
-import { BoxIcon, PackageIcon, ChevronRightIcon } from '@/components/ui/icons';
+import { BoxIcon, PackageIcon, ChevronRightIcon, SearchIcon } from '@/components/ui/icons';
 import { getStockDashboard } from '@/lib/user-stock-api';
 
 interface Page {
@@ -171,8 +171,8 @@ export default function OverviewSection({ pageId }: OverviewSectionProps) {
       <div className="bg-gradient-to-br from-emerald-500/10 to-blue-500/5 border border-emerald-500/20 rounded-xl p-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-start gap-3 min-w-0 flex-1">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0 text-lg">
-              🔍
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center flex-shrink-0">
+              <SearchIcon className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-sm font-semibold text-white mb-1">Analyze this page with AI</h3>
