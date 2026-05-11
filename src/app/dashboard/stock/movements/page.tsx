@@ -8,6 +8,7 @@ import {
   SearchIcon, FilterIcon, CloseIcon,
 } from '@/components/ui/icons';
 import { useFilterPanel } from '@/contexts/FilterPanelContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   getStockMovements,
   getProducts,
@@ -18,6 +19,7 @@ import {
 const LIMIT = 30;
 
 export default function MovementsPage() {
+  const { t } = useTranslation();
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
@@ -109,25 +111,25 @@ export default function MovementsPage() {
       case 'in':
         return (
           <Badge variant="success">
-            <ArrowUpIcon className="w-3 h-3 mr-1 inline" /> In
+            <ArrowUpIcon className="w-3 h-3 mr-1 inline" /> {t('stock.movements.type.in')}
           </Badge>
         );
       case 'out':
         return (
           <Badge variant="error">
-            <ArrowDownIcon className="w-3 h-3 mr-1 inline" /> Out
+            <ArrowDownIcon className="w-3 h-3 mr-1 inline" /> {t('stock.movements.type.out')}
           </Badge>
         );
       case 'adjustment':
         return (
           <Badge variant="info">
-            <RefreshIcon className="w-3 h-3 mr-1 inline" /> Adjustment
+            <RefreshIcon className="w-3 h-3 mr-1 inline" /> {t('stock.movements.type.adjustment')}
           </Badge>
         );
       case 'return':
         return (
           <Badge variant="warning">
-            <ArrowUpIcon className="w-3 h-3 mr-1 inline" /> Return
+            <ArrowUpIcon className="w-3 h-3 mr-1 inline" /> {t('stock.movements.type.return')}
           </Badge>
         );
       default:
@@ -141,8 +143,8 @@ export default function MovementsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Stock Movements</h1>
-          <p className="text-sm text-zinc-400 mt-1">Audit trail of all stock changes</p>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('stock.movements.title')}</h1>
+          <p className="text-sm text-zinc-400 mt-1">{t('stock.movements.subtitle')}</p>
         </div>
         <button
           onClick={toggleFilters}
@@ -155,7 +157,7 @@ export default function MovementsPage() {
           }`}
         >
           <FilterIcon className="w-4 h-4" />
-          Filters
+          {t('stock.common.filters')}
           {activeFilterCount > 0 && (
             <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
               {activeFilterCount}
@@ -172,8 +174,8 @@ export default function MovementsPage() {
 
       {/* Date filters */}
       <div className="flex flex-wrap items-center gap-3">
-        <DatePicker value={draftStartDate} onChange={(v) => { setDraftStartDate(v); setAppliedStartDate(v); setOffset(0); setFilterTrigger(t => t + 1); }} placeholder="From date" />
-        <DatePicker value={draftEndDate} onChange={(v) => { setDraftEndDate(v); setAppliedEndDate(v); setOffset(0); setFilterTrigger(t => t + 1); }} placeholder="To date" />
+        <DatePicker value={draftStartDate} onChange={(v) => { setDraftStartDate(v); setAppliedStartDate(v); setOffset(0); setFilterTrigger(n => n + 1); }} placeholder={t('stock.common.fromDate')} />
+        <DatePicker value={draftEndDate} onChange={(v) => { setDraftEndDate(v); setAppliedEndDate(v); setOffset(0); setFilterTrigger(n => n + 1); }} placeholder={t('stock.common.toDate')} />
       </div>
 
       {/* Table */}
@@ -185,12 +187,12 @@ export default function MovementsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/10">
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Date / Time</th>
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Product</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Type</th>
-                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Quantity</th>
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Reference</th>
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Reason</th>
+                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.movements.col.date')}</th>
+                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.movements.col.product')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.movements.col.type')}</th>
+                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.movements.col.quantity')}</th>
+                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.reference')}</th>
+                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.movements.col.reason')}</th>
                 </tr>
               </thead>
               <tbody>

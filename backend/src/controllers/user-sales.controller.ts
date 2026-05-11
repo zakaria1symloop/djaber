@@ -454,12 +454,24 @@ export const getSalesStats = async (req: Request, res: Response): Promise<void> 
       saleDate: { gte: startDate },
     };
 
+    // Cancelled / returned orders must not count towards revenue — they're not
+    // money the merchant earned. Same for the totalSales counter.
+    const orderWhere = {
+      userId: req.user.userId,
+      orderDate: { gte: startDate },
+      status: { notIn: ['cancelled', 'returned'] },
+    };
+
     const [
       totalSales,
       totalRevenue,
       paidSales,
       pendingSales,
       topProducts,
+      totalOrders,
+      orderRevenue,
+      paidOrders,
+      pendingOrders,
     ] = await Promise.all([
       prisma.sale.count({ where }),
       prisma.sale.aggregate({
@@ -477,18 +489,30 @@ export const getSalesStats = async (req: Request, res: Response): Promise<void> 
         orderBy: { _sum: { total: 'desc' } },
         take: 5,
       }),
+      prisma.order.count({ where: orderWhere }),
+      prisma.order.aggregate({
+        where: orderWhere,
+        _sum: { total: true },
+      }),
+      prisma.order.count({ where: { ...orderWhere, paymentStatus: 'paid' } }),
+      prisma.order.count({ where: { ...orderWhere, paymentStatus: 'pending' } }),
     ]);
 
-    const averageOrderValue = totalSales > 0
-      ? (Number(totalRevenue._sum.total) || 0) / totalSales
-      : 0;
+    // "Chiffre d'affaires" should reflect ALL revenue: walk-in sales + online
+    // and manual orders combined. The bug report explicitly called out that
+    // online/manual orders were being excluded.
+    const saleRevenueNum = Number(totalRevenue._sum.total) || 0;
+    const orderRevenueNum = Number(orderRevenue._sum.total) || 0;
+    const combinedRevenue = saleRevenueNum + orderRevenueNum;
+    const combinedCount = totalSales + totalOrders;
+    const averageOrderValue = combinedCount > 0 ? combinedRevenue / combinedCount : 0;
 
     res.json({
       stats: {
-        totalSales,
-        totalRevenue: totalRevenue._sum.total || 0,
-        paidSales,
-        pendingSales,
+        totalSales: combinedCount,
+        totalRevenue: combinedRevenue,
+        paidSales: paidSales + paidOrders,
+        pendingSales: pendingSales + pendingOrders,
         averageOrderValue,
       },
       topProducts,

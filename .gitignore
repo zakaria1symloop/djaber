@@ -66,3 +66,7 @@ nul
 # backend uploads (user-generated content)
 /backend/uploads/
 /.deploy-secrets
+.tmp_ssh_run.py
+.tmp_ssh_runfile.py
+.tmp_run_ssh.ps1
+.deploy-secrets-vps

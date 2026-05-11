@@ -16,6 +16,7 @@ import {
   EditIcon,
 } from '@/components/ui/icons';
 import { addOrderCall, updateOrder, type Order } from '@/lib/user-stock-api';
+import { getWilayas, type Wilaya } from '@/lib/delivery-api';
 import { useToast } from '@/components/ui/Toast';
 
 interface ConfirmOrderModalProps {
@@ -46,6 +47,9 @@ const OUTCOMES: Array<{
 
 const STEP_LABELS = ['Review', 'Call outcome', 'Result'];
 
+// Module-level cache so we only hit /wilayas once across renders of the modal
+let wilayaCache: Wilaya[] | null = null;
+
 export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }: ConfirmOrderModalProps) {
   const toast = useToast();
   const [step, setStep] = useState<0 | 1 | 2>(0);
@@ -55,6 +59,21 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
   const [editAddress, setEditAddress] = useState('');
   const [editingContact, setEditingContact] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [wilayas, setWilayas] = useState<Wilaya[]>(wilayaCache || []);
+
+  // Wilayas are static reference data — fetch once, cache forever.
+  useEffect(() => {
+    if (!isOpen || wilayaCache) return;
+    let cancelled = false;
+    getWilayas()
+      .then((r) => {
+        if (cancelled) return;
+        wilayaCache = r.wilayas;
+        setWilayas(r.wilayas);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   useEffect(() => {
     if (order && isOpen) {
@@ -84,6 +103,19 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
   const remaining = Math.max(0, Number(order.total) - Number(order.amountPaid));
   const selectedOutcome = OUTCOMES.find((o) => o.value === outcome);
   const isAlreadyConfirmed = order.confirmationStatus === 'confirmed';
+
+  // Build a human-readable region line: "Commune, Wilaya — Stopdesk".
+  // Falls back gracefully when only some pieces are present.
+  const wilayaRow = order.wilayaId
+    ? wilayas.find((w) => w.id === order.wilayaId) || null
+    : null;
+  const wilayaLabel = wilayaRow
+    ? `${String(wilayaRow.code).padStart(2, '0')} — ${wilayaRow.name}`
+    : null;
+  const regionParts: string[] = [];
+  if (order.communeName) regionParts.push(order.communeName);
+  if (wilayaLabel) regionParts.push(wilayaLabel);
+  const regionLine = regionParts.join(', ');
 
   const goConfirm = async () => {
     if (!outcome || !selectedOutcome) return;
@@ -261,9 +293,29 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-0.5">Address</p>
-                      <p className="text-sm text-white">
-                        {order.clientAddress || <span className="text-zinc-600 italic">no address</span>}
-                      </p>
+                      {/*
+                        Show the full delivery destination, not just the raw
+                        clientAddress string. Region (commune + wilaya) and the
+                        Stopdesk flag were previously hidden — see
+                        FullAdressMissing.png in the bug report.
+                      */}
+                      {order.clientAddress || regionLine || order.isStopdesk ? (
+                        <div className="space-y-0.5">
+                          {order.clientAddress && (
+                            <p className="text-sm text-white">{order.clientAddress}</p>
+                          )}
+                          {regionLine && (
+                            <p className="text-xs text-zinc-400">{regionLine}</p>
+                          )}
+                          {order.isStopdesk && (
+                            <p className="text-[10px] inline-block px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                              Stopdesk (agency pickup)
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-zinc-600 italic">no address</p>
+                      )}
                     </div>
                   </div>
                 )}

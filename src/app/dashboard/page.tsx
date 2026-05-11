@@ -382,15 +382,15 @@ function DashboardPageInner() {
 
             {/* Tips / next steps (1/3 width) */}
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6">
-              <h3 className="text-sm font-semibold text-white mb-4">Get Started</h3>
+              <h3 className="text-sm font-semibold text-white mb-4">{t('dash.getStarted.title')}</h3>
               <ul className="space-y-3 text-sm">
                 <li className="flex items-start gap-3">
                   <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${pages.length > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-zinc-500'}`}>
                     {pages.length > 0 ? '✓' : '1'}
                   </div>
                   <div>
-                    <p className={pages.length > 0 ? 'text-zinc-500 line-through' : 'text-white'}>Connect a page</p>
-                    <p className="text-[11px] text-zinc-600">Link Facebook to start chatting</p>
+                    <p className={pages.length > 0 ? 'text-zinc-500 line-through' : 'text-white'}>{t('dash.getStarted.connectPage')}</p>
+                    <p className="text-[11px] text-zinc-600">{t('dash.getStarted.connectPageHint')}</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -398,8 +398,8 @@ function DashboardPageInner() {
                     {(dashboard?.stats.totalProducts ?? 0) > 0 ? '✓' : '2'}
                   </div>
                   <div>
-                    <p className={(dashboard?.stats.totalProducts ?? 0) > 0 ? 'text-zinc-500 line-through' : 'text-white'}>Add products</p>
-                    <p className="text-[11px] text-zinc-600">Build your catalog</p>
+                    <p className={(dashboard?.stats.totalProducts ?? 0) > 0 ? 'text-zinc-500 line-through' : 'text-white'}>{t('dash.getStarted.addProducts')}</p>
+                    <p className="text-[11px] text-zinc-600">{t('dash.getStarted.addProductsHint')}</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -407,8 +407,8 @@ function DashboardPageInner() {
                     {pages.length > 0 && (dashboard?.stats.totalProducts ?? 0) > 0 ? '✓' : '3'}
                   </div>
                   <div>
-                    <p className={pages.length > 0 && (dashboard?.stats.totalProducts ?? 0) > 0 ? 'text-zinc-500 line-through' : 'text-white'}>Configure your AI agent</p>
-                    <p className="text-[11px] text-zinc-600">Personalize tone and behavior</p>
+                    <p className={pages.length > 0 && (dashboard?.stats.totalProducts ?? 0) > 0 ? 'text-zinc-500 line-through' : 'text-white'}>{t('dash.getStarted.configureAgent')}</p>
+                    <p className="text-[11px] text-zinc-600">{t('dash.getStarted.configureAgentHint')}</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -416,8 +416,8 @@ function DashboardPageInner() {
                     {(salesStats?.stats.totalSales ?? 0) > 0 ? '✓' : '4'}
                   </div>
                   <div>
-                    <p className={(salesStats?.stats.totalSales ?? 0) > 0 ? 'text-zinc-500 line-through' : 'text-white'}>Make your first sale</p>
-                    <p className="text-[11px] text-zinc-600">Watch the AI handle inquiries</p>
+                    <p className={(salesStats?.stats.totalSales ?? 0) > 0 ? 'text-zinc-500 line-through' : 'text-white'}>{t('dash.getStarted.firstSale')}</p>
+                    <p className="text-[11px] text-zinc-600">{t('dash.getStarted.firstSaleHint')}</p>
                   </div>
                 </li>
               </ul>
@@ -432,11 +432,11 @@ function DashboardPageInner() {
           <div className="mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 mb-1">Connected channels</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 mb-1">{t('pages.eyebrow')}</p>
                 <h1 className="text-3xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-                  Pages & inboxes
+                  {t('pages.title')}
                 </h1>
-                <p className="text-sm text-zinc-400">Each connected page has its own inbox, stock and tailored AI agent.</p>
+                <p className="text-sm text-zinc-400">{t('pages.subtitle')}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -444,7 +444,7 @@ function DashboardPageInner() {
                   loading={pagesLoading}
                   icon={<FacebookIcon className="w-4 h-4" />}
                 >
-                  Connect Facebook
+                  {t('pages.connectFacebook')}
                 </Button>
                 <Button
                   onClick={handleConnectInstagram}
@@ -452,7 +452,7 @@ function DashboardPageInner() {
                   variant="outline"
                   icon={<InstagramIcon className="w-4 h-4" />}
                 >
-                  Connect Instagram
+                  {t('pages.connectInstagram')}
                 </Button>
               </div>
             </div>
@@ -461,26 +461,26 @@ function DashboardPageInner() {
           {/* Quick channel summary strip */}
           {pages.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-              <ChannelStat label="Total pages" value={pages.length} icon={<ChatIcon className="w-4 h-4 text-zinc-400" />} />
+              <ChannelStat label={t('pages.stat.totalPages')} value={pages.length} icon={<ChatIcon className="w-4 h-4 text-zinc-400" />} />
               <ChannelStat
-                label="Facebook"
+                label={t('pages.stat.facebook')}
                 value={pages.filter((p) => p.platform === 'facebook').length}
                 icon={<FacebookIcon className="w-4 h-4 text-[#1877F2]" />}
               />
               <ChannelStat
-                label="Instagram"
+                label={t('pages.stat.instagram')}
                 value={pages.filter((p) => p.platform === 'instagram').length}
                 icon={<InstagramIcon className="w-4 h-4 text-pink-400" />}
               />
-              <ChannelStat label="Plan limit" value={`${pages.length}/∞`} icon={<BoltIcon className="w-4 h-4 text-amber-400" />} />
+              <ChannelStat label={t('pages.stat.planLimit')} value={`${pages.length}/∞`} icon={<BoltIcon className="w-4 h-4 text-amber-400" />} />
             </div>
           )}
 
           <Tabs defaultValue="all" value={activePlatformTab} onValueChange={setActivePlatformTab}>
             <TabsList className="mb-6">
-              <TabsTrigger value="all">All Platforms</TabsTrigger>
-              <TabsTrigger value="facebook" icon={<FacebookIcon className="w-4 h-4" />}>Facebook</TabsTrigger>
-              <TabsTrigger value="instagram" icon={<InstagramIcon className="w-4 h-4" />}>Instagram</TabsTrigger>
+              <TabsTrigger value="all">{t('pages.filter.all')}</TabsTrigger>
+              <TabsTrigger value="facebook" icon={<FacebookIcon className="w-4 h-4" />}>{t('pages.filter.facebook')}</TabsTrigger>
+              <TabsTrigger value="instagram" icon={<InstagramIcon className="w-4 h-4" />}>{t('pages.filter.instagram')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value={activePlatformTab}>
@@ -511,10 +511,10 @@ function DashboardPageInner() {
                     action={
                       <div className="flex flex-wrap gap-2 justify-center">
                         <Button onClick={handleConnectFacebook} loading={pagesLoading} icon={<FacebookIcon className="w-4 h-4" />}>
-                          Connect Facebook
+                          {t('pages.connectFacebook')}
                         </Button>
                         <Button onClick={handleConnectInstagram} loading={pagesLoading} variant="outline" icon={<InstagramIcon className="w-4 h-4" />}>
-                          Connect Instagram
+                          {t('pages.connectInstagram')}
                         </Button>
                       </div>
                     }
@@ -1081,11 +1081,11 @@ function DashboardPageInner() {
             </div>
 
             <div>
-              <h2 className="text-xl font-bold text-white mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>Facebook API Permissions</h2>
+              <h2 className="text-xl font-bold text-white mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>{t('settings.fb.title')}</h2>
               <Card>
                 <div className="space-y-4">
                   <div>
-                    <h3 className="text-white font-semibold mb-2">Currently Active Permissions</h3>
+                    <h3 className="text-white font-semibold mb-2">{t('settings.fb.activeTitle')}</h3>
                     <div className="flex flex-wrap gap-2">
                       <Badge variant="success">pages_show_list</Badge>
                       <Badge variant="success">pages_manage_metadata</Badge>
@@ -1093,7 +1093,7 @@ function DashboardPageInner() {
                     </div>
                   </div>
                   <div className="pt-4 border-t border-white/10">
-                    <h3 className="text-white font-semibold mb-2">Available Advanced Permissions</h3>
+                    <h3 className="text-white font-semibold mb-2">{t('settings.fb.availableTitle')}</h3>
                     <div className="flex flex-wrap gap-2 mb-3">
                       <Badge variant="info">pages_read_engagement</Badge>
                       <Badge variant="info">pages_read_user_content</Badge>
@@ -1101,21 +1101,21 @@ function DashboardPageInner() {
                       <Badge variant="info">pages_manage_engagement</Badge>
                       <Badge variant="info">read_insights</Badge>
                     </div>
-                    <p className="text-sm text-zinc-400">These permissions require Facebook App Review approval.</p>
+                    <p className="text-sm text-zinc-400">{t('settings.fb.reviewHint')}</p>
                   </div>
                 </div>
               </Card>
             </div>
 
             <div>
-              <h2 className="text-xl font-bold text-red-400 mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>Danger Zone</h2>
+              <h2 className="text-xl font-bold text-red-400 mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>{t('settings.danger.title')}</h2>
               <Card className="border-red-500/20 bg-red-500/5">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
-                    <h3 className="text-red-400 font-semibold mb-1">Delete Account</h3>
-                    <p className="text-red-300/80 text-sm">Permanently delete your account and all associated data.</p>
+                    <h3 className="text-red-400 font-semibold mb-1">{t('settings.danger.deleteAccount')}</h3>
+                    <p className="text-red-300/80 text-sm">{t('settings.danger.deleteHelp')}</p>
                   </div>
-                  <Button variant="danger">Delete Account</Button>
+                  <Button variant="danger">{t('settings.danger.deleteAccount')}</Button>
                 </div>
               </Card>
             </div>

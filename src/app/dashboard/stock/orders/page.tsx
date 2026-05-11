@@ -9,6 +9,7 @@ import {
   PhoneIcon, FilterIcon, CloseIcon,
 } from '@/components/ui/icons';
 import { useFilterPanel } from '@/contexts/FilterPanelContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   getOrders, deleteOrder, updateOrder,
   type Order,
@@ -28,6 +29,7 @@ export default function OrdersPage() {
 
 function OrdersPageInner() {
   const router = useRouter();
+  const { t } = useTranslation();
   const searchParams = useSearchParams();
   const initialClientId = searchParams.get('clientId') || '';
   const [orders, setOrders] = useState<Order[]>([]);
@@ -164,14 +166,14 @@ function OrdersPageInner() {
   };
 
   const ORDER_STATUSES = [
-    { value: '', label: 'All', color: 'text-zinc-400' },
-    { value: 'pending', label: 'New', color: 'text-amber-400' },
-    { value: 'confirmed', label: 'Confirmed', color: 'text-blue-400' },
-    { value: 'preparing', label: 'Preparing', color: 'text-violet-400' },
-    { value: 'shipped', label: 'Shipped', color: 'text-cyan-400' },
-    { value: 'delivered', label: 'Delivered', color: 'text-emerald-400' },
-    { value: 'cancelled', label: 'Cancelled', color: 'text-red-400' },
-    { value: 'returned', label: 'Returned', color: 'text-orange-400' },
+    { value: '', label: t('stock.common.all'), color: 'text-zinc-400' },
+    { value: 'pending', label: t('stock.common.new'), color: 'text-amber-400' },
+    { value: 'confirmed', label: t('stock.common.confirmed'), color: 'text-blue-400' },
+    { value: 'preparing', label: t('stock.common.preparing'), color: 'text-violet-400' },
+    { value: 'shipped', label: t('stock.common.shipped'), color: 'text-cyan-400' },
+    { value: 'delivered', label: t('stock.common.delivered'), color: 'text-emerald-400' },
+    { value: 'cancelled', label: t('stock.common.cancelled'), color: 'text-red-400' },
+    { value: 'returned', label: t('stock.common.returned'), color: 'text-orange-400' },
   ];
 
   // statusTab moved to top of component (before loadOrders callback)
@@ -247,10 +249,10 @@ function OrdersPageInner() {
 
   const getConfirmLabel = (status: string): string => {
     switch (status) {
-      case 'confirmed': return 'Confirmed';
-      case 'no_answer': return 'No Answer';
-      case 'rejected': return 'Rejected';
-      default: return 'Not Called';
+      case 'confirmed': return t('stock.orders.confirm.confirmed');
+      case 'no_answer': return t('stock.orders.confirm.noAnswer');
+      case 'rejected': return t('stock.orders.confirm.rejected');
+      default: return t('stock.orders.confirm.notCalled');
     }
   };
 
@@ -322,8 +324,8 @@ function OrdersPageInner() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Orders</h1>
-          <p className="text-sm text-zinc-400 mt-1">{total} orders</p>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('stock.orders.title')}</h1>
+          <p className="text-sm text-zinc-400 mt-1">{t('stock.orders.count').replace('{n}', String(total))}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -337,7 +339,7 @@ function OrdersPageInner() {
             }`}
           >
             <FilterIcon className="w-4 h-4" />
-            Filters
+            {t('stock.common.filters')}
             {activeFilterCount > 0 && (
               <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
                 {activeFilterCount}
@@ -345,7 +347,7 @@ function OrdersPageInner() {
             )}
           </button>
           <Button onClick={() => router.push('/dashboard/stock/orders/new')} icon={<PlusIcon className="w-4 h-4" />}>
-            New Order
+            {t('stock.orders.new')}
           </Button>
         </div>
       </div>
@@ -373,19 +375,19 @@ function OrdersPageInner() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
-          <p className="text-xs text-zinc-500">Total Orders</p>
+          <p className="text-xs text-zinc-500">{t('stock.orders.stat.totalOrders')}</p>
           <p className="text-2xl font-bold text-white mt-1">{stats.total}</p>
         </div>
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
-          <p className="text-xs text-zinc-500">Pending</p>
+          <p className="text-xs text-zinc-500">{t('stock.orders.stat.pending')}</p>
           <p className="text-2xl font-bold text-amber-400 mt-1">{stats.pending}</p>
         </div>
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
-          <p className="text-xs text-zinc-500">Need Calling</p>
+          <p className="text-xs text-zinc-500">{t('stock.orders.stat.needCalling')}</p>
           <p className="text-2xl font-bold text-red-400 mt-1">{stats.notCalled}</p>
         </div>
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
-          <p className="text-xs text-zinc-500">Total Value</p>
+          <p className="text-xs text-zinc-500">{t('stock.orders.stat.totalValue')}</p>
           <p className="text-2xl font-bold text-emerald-400 mt-1">{stats.totalValue.toLocaleString()} <span className="text-sm text-zinc-400">DA</span></p>
         </div>
       </div>
@@ -419,14 +421,14 @@ function OrdersPageInner() {
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
             type="text"
-            placeholder="Search by order #, client, phone, product..."
+            placeholder={t('stock.orders.search')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
           />
         </div>
-        <DatePicker value={draftStartDate} onChange={(v) => { setDraftStartDate(v); setAppliedStartDate(v); setOffset(0); setFilterTrigger(t => t + 1); }} placeholder="From date" />
-        <DatePicker value={draftEndDate} onChange={(v) => { setDraftEndDate(v); setAppliedEndDate(v); setOffset(0); setFilterTrigger(t => t + 1); }} placeholder="To date" />
+        <DatePicker value={draftStartDate} onChange={(v) => { setDraftStartDate(v); setAppliedStartDate(v); setOffset(0); setFilterTrigger(n => n + 1); }} placeholder={t('stock.common.fromDate')} />
+        <DatePicker value={draftEndDate} onChange={(v) => { setDraftEndDate(v); setAppliedEndDate(v); setOffset(0); setFilterTrigger(n => n + 1); }} placeholder={t('stock.common.toDate')} />
       </div>
 
       {/* Table */}
@@ -507,16 +509,16 @@ function OrdersPageInner() {
                       className="w-4 h-4 rounded border-white/20 bg-black/60 text-white focus:ring-1 focus:ring-white/30"
                     />
                   </th>
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Order #</th>
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Client</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Items</th>
-                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Total</th>
-                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Paid</th>
-                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Remaining</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Status</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Confirmation</th>
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Date</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Actions</th>
+                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.orders.col.number')}</th>
+                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.client')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.items')}</th>
+                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.total')}</th>
+                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.paid')}</th>
+                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.remaining')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.status')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.orders.col.confirmation')}</th>
+                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.date')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.actions')}</th>
                 </tr>
               </thead>
               <tbody>

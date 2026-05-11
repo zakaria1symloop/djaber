@@ -12,6 +12,9 @@ import {
   type Category,
 } from '@/lib/user-stock-api';
 import { useFilterPanel } from '@/contexts/FilterPanelContext';
+import { validateName } from '@/lib/validation';
+import { useToast } from '@/components/ui/Toast';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 const PRESET_COLORS = [
   '#EF4444', '#F97316', '#EAB308', '#22C55E', '#14B8A6',
@@ -21,9 +24,12 @@ const PRESET_COLORS = [
 const DEFAULT_PRODUCTS_MAX = 1000;
 
 export default function CategoriesPage() {
+  const toast = useToast();
+  const { t } = useTranslation();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
 
@@ -145,6 +151,7 @@ export default function CategoriesPage() {
   const openAdd = () => {
     setFiltersOpen(false);
     setEditing(null);
+    setModalError(null);
     setForm({ name: '', description: '', color: '#6B7280' });
     setShowModal(true);
   };
@@ -152,24 +159,32 @@ export default function CategoriesPage() {
   const openEdit = (cat: Category) => {
     setFiltersOpen(false);
     setEditing(cat);
+    setModalError(null);
     setForm({ name: cat.name, description: cat.description || '', color: cat.color || '#6B7280' });
     setShowModal(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setModalError(null);
+
+    const nameErr = validateName(form.name, 'Name');
+    if (nameErr) { setModalError(nameErr); return; }
+
     try {
-      setError(null);
       setSaving(true);
+      const payload = { ...form, name: form.name.trim(), description: form.description.trim() };
       if (editing) {
-        await updateCategory(editing.id, form);
+        await updateCategory(editing.id, payload);
+        toast.success('Category updated');
       } else {
-        await createCategory(form);
+        await createCategory(payload);
+        toast.success('Category added');
       }
       setShowModal(false);
       loadCategories();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save category');
+      setModalError(err instanceof Error ? err.message : 'Failed to save category');
     } finally {
       setSaving(false);
     }
@@ -178,13 +193,13 @@ export default function CategoriesPage() {
   const handleDelete = async () => {
     if (!deleteConfirm) return;
     try {
-      setError(null);
       setDeleting(true);
       await deleteCategory(deleteConfirm.id);
+      toast.success('Category deleted');
       setDeleteConfirm(null);
       loadCategories();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete category');
+      toast.error(err instanceof Error ? err.message : 'Failed to delete category');
     } finally {
       setDeleting(false);
     }
@@ -206,8 +221,8 @@ export default function CategoriesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Categories</h1>
-          <p className="text-sm text-zinc-400 mt-1">{categories.length} categories</p>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('stock.categories.title')}</h1>
+          <p className="text-sm text-zinc-400 mt-1">{t('stock.categories.count').replace('{n}', String(categories.length))}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -221,7 +236,7 @@ export default function CategoriesPage() {
             }`}
           >
             <FilterIcon className="w-4 h-4" />
-            Filters
+            {t('stock.common.filters')}
             {activeFilterCount > 0 && (
               <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
                 {activeFilterCount}
@@ -229,7 +244,7 @@ export default function CategoriesPage() {
             )}
           </button>
           <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>
-            Add Category
+            {t('stock.categories.add')}
           </Button>
         </div>
       </div>
@@ -245,7 +260,7 @@ export default function CategoriesPage() {
         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
         <input
           type="text"
-          placeholder="Search categories..."
+          placeholder={t('stock.categories.search')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full pl-10 pr-4 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
@@ -295,13 +310,13 @@ export default function CategoriesPage() {
           <div className="text-zinc-600 mb-4 flex justify-center">
             <TagIcon className="w-16 h-16" />
           </div>
-          <h3 className="text-lg font-medium text-zinc-300 mb-1">No Categories</h3>
+          <h3 className="text-lg font-medium text-zinc-300 mb-1">{t('stock.categories.empty.title')}</h3>
           <p className="text-sm text-zinc-500 mb-4">
-            {searchDebounced || activeFilterCount > 0 ? 'No categories match your filters' : 'Create categories to organize your products'}
+            {searchDebounced || activeFilterCount > 0 ? 'No categories match your filters' : t('stock.categories.empty.hint')}
           </p>
           {!searchDebounced && activeFilterCount === 0 && (
             <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>
-              Add Category
+              {t('stock.categories.add')}
             </Button>
           )}
         </div>
@@ -427,12 +442,18 @@ export default function CategoriesPage() {
         title={editing ? 'Edit Category' : 'Add Category'}
         size="md"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          {modalError && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-2.5 text-sm text-red-400">
+              {modalError}
+            </div>
+          )}
           <Input
             label="Name *"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             required
+            minLength={2}
             placeholder="e.g., Electronics"
           />
           <Input

@@ -7,6 +7,7 @@ import {
   PlusIcon, DollarIcon, TrashIcon, EditIcon, SearchIcon, FilterIcon, CloseIcon,
 } from '@/components/ui/icons';
 import { useFilterPanel } from '@/contexts/FilterPanelContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   getCaisseTransactions,
   getCaisseStats,
@@ -54,6 +55,7 @@ const categoryColor: Record<string, string> = {
 };
 
 export default function CaissePage() {
+  const { t } = useTranslation();
   const [transactions, setTransactions] = useState<CaisseTransaction[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -251,8 +253,8 @@ export default function CaissePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Caisse</h1>
-          <p className="text-sm text-zinc-400 mt-1">Cash register &amp; treasury management</p>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('stock.caisse.title')}</h1>
+          <p className="text-sm text-zinc-400 mt-1">{t('stock.caisse.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -266,7 +268,7 @@ export default function CaissePage() {
             }`}
           >
             <FilterIcon className="w-4 h-4" />
-            Filters
+            {t('stock.common.filters')}
             {activeFilterCount > 0 && (
               <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
                 {activeFilterCount}
@@ -275,7 +277,7 @@ export default function CaissePage() {
           </button>
           <Button onClick={openAdd}>
             <PlusIcon className="w-4 h-4 mr-2" />
-            Add Transaction
+            {t('stock.caisse.add')}
           </Button>
         </div>
       </div>
@@ -299,17 +301,17 @@ export default function CaissePage() {
                 : 'bg-zinc-800 text-zinc-400 hover:text-white'
             }`}
           >
-            {p === 'today' ? 'Today' : p === 'week' ? 'This Week' : p === 'month' ? 'This Month' : 'This Year'}
+            {p === 'today' ? t('stock.period.today') : p === 'week' ? t('stock.period.thisWeek') : p === 'month' ? t('stock.period.thisMonth') : t('stock.period.thisYear')}
           </button>
         ))}
       </div>
 
       {stats && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatsCard title="Balance" value={`${stats.balance.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-blue-400" />
-          <StatsCard title="Total Income" value={`${stats.totalIncome.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-emerald-400" />
-          <StatsCard title="Total Expenses" value={`${stats.totalExpense.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-red-400" />
-          <StatsCard title="Transactions" value={stats.transactionCount.toString()} icon={<DollarIcon className="w-5 h-5" />} />
+          <StatsCard title={t('stock.caisse.stat.balance')} value={`${stats.balance.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-blue-400" />
+          <StatsCard title={t('stock.caisse.stat.income')} value={`${stats.totalIncome.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-emerald-400" />
+          <StatsCard title={t('stock.caisse.stat.expense')} value={`${stats.totalExpense.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-red-400" />
+          <StatsCard title={t('stock.caisse.stat.transactions')} value={stats.transactionCount.toString()} icon={<DollarIcon className="w-5 h-5" />} />
         </div>
       )}
 
@@ -319,14 +321,14 @@ export default function CaissePage() {
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
             type="text"
-            placeholder="Search reference or description..."
+            placeholder={t('stock.caisse.search')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
           />
         </div>
-        <DatePicker value={draftDateFrom} onChange={(v) => { setDraftDateFrom(v); setAppliedDateFrom(v); setOffset(0); setFilterTrigger(t => t + 1); }} placeholder="From date" />
-        <DatePicker value={draftDateTo} onChange={(v) => { setDraftDateTo(v); setAppliedDateTo(v); setOffset(0); setFilterTrigger(t => t + 1); }} placeholder="To date" />
+        <DatePicker value={draftDateFrom} onChange={(v) => { setDraftDateFrom(v); setAppliedDateFrom(v); setOffset(0); setFilterTrigger(n => n + 1); }} placeholder={t('stock.common.fromDate')} />
+        <DatePicker value={draftDateTo} onChange={(v) => { setDraftDateTo(v); setAppliedDateTo(v); setOffset(0); setFilterTrigger(n => n + 1); }} placeholder={t('stock.common.toDate')} />
       </div>
 
       {/* Table */}
@@ -335,14 +337,14 @@ export default function CaissePage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/10 text-left">
-                <th className="px-4 py-3 text-zinc-400 font-medium">Date</th>
-                <th className="px-4 py-3 text-zinc-400 font-medium">Type</th>
-                <th className="px-4 py-3 text-zinc-400 font-medium">Category</th>
-                <th className="px-4 py-3 text-zinc-400 font-medium">Description</th>
-                <th className="px-4 py-3 text-zinc-400 font-medium">Reference</th>
-                <th className="px-4 py-3 text-zinc-400 font-medium text-right">Amount</th>
-                <th className="px-4 py-3 text-zinc-400 font-medium">Source</th>
-                <th className="px-4 py-3 text-zinc-400 font-medium text-right">Actions</th>
+                <th className="px-4 py-3 text-zinc-400 font-medium">{t('stock.common.date')}</th>
+                <th className="px-4 py-3 text-zinc-400 font-medium">{t('stock.common.type')}</th>
+                <th className="px-4 py-3 text-zinc-400 font-medium">{t('stock.common.category')}</th>
+                <th className="px-4 py-3 text-zinc-400 font-medium">{t('stock.common.description')}</th>
+                <th className="px-4 py-3 text-zinc-400 font-medium">{t('stock.common.reference')}</th>
+                <th className="px-4 py-3 text-zinc-400 font-medium text-right">{t('stock.common.amount')}</th>
+                <th className="px-4 py-3 text-zinc-400 font-medium">{t('stock.common.source')}</th>
+                <th className="px-4 py-3 text-zinc-400 font-medium text-right">{t('stock.common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -350,59 +352,59 @@ export default function CaissePage() {
                 <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-500">Loading...</td></tr>
               ) : transactions.length === 0 ? (
                 <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-500">No transactions found</td></tr>
-              ) : transactions.map((t) => (
-                <tr key={t.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+              ) : transactions.map((tx) => (
+                <tr key={tx.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                   <td className="px-4 py-3 text-zinc-300">
-                    {new Date(t.date).toLocaleDateString()}
+                    {new Date(tx.date).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      t.type === 'income'
+                      tx.type === 'income'
                         ? 'bg-emerald-500/20 text-emerald-400'
                         : 'bg-red-500/20 text-red-400'
                     }`}>
-                      {t.type === 'income' ? '+' : '-'} {t.type}
+                      {tx.type === 'income' ? '+' : '-'} {tx.type === 'income' ? t('stock.caisse.type.income') : t('stock.caisse.type.expense')}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      categoryColor[t.category] || categoryColor.other
+                      categoryColor[tx.category] || categoryColor.other
                     }`}>
-                      {t.category}
+                      {t(`stock.caisse.cat.${tx.category}`) || tx.category}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-zinc-300 max-w-[200px] truncate">
-                    {t.description || '-'}
+                    {tx.description || '-'}
                   </td>
                   <td className="px-4 py-3 text-zinc-400 text-xs font-mono">
-                    {t.reference || '-'}
+                    {tx.reference || '-'}
                   </td>
                   <td className={`px-4 py-3 text-right font-semibold ${
-                    t.type === 'income' ? 'text-emerald-400' : 'text-red-400'
+                    tx.type === 'income' ? 'text-emerald-400' : 'text-red-400'
                   }`}>
-                    {t.type === 'income' ? '+' : '-'}{Number(t.amount).toLocaleString()} DA
+                    {tx.type === 'income' ? '+' : '-'}{Number(tx.amount).toLocaleString()} DA
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                      t.isAutomatic
+                      tx.isAutomatic
                         ? 'bg-blue-500/20 text-blue-400'
                         : 'bg-zinc-500/20 text-zinc-400'
                     }`}>
-                      {t.isAutomatic ? 'Auto' : 'Manual'}
+                      {tx.isAutomatic ? t('stock.caisse.source.auto') : t('stock.caisse.source.manual')}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {!t.isAutomatic && (
+                    {!tx.isAutomatic && (
                       <div className="flex items-center justify-end gap-1">
                         <button
-                          onClick={() => openEdit(t)}
+                          onClick={() => openEdit(tx)}
                           className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
                           title="Edit"
                         >
                           <EditIcon className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => setDeleteConfirm(t)}
+                          onClick={() => setDeleteConfirm(tx)}
                           className="p-1.5 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
                           title="Delete"
                         >

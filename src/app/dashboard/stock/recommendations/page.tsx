@@ -14,8 +14,10 @@ import {
   type ProductRecommendation,
   type RecommendationStats,
 } from '@/lib/user-stock-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function RecommendationsPage() {
+  const { t } = useTranslation();
   const [recommendations, setRecommendations] = useState<ProductRecommendation[]>([]);
   const [stats, setStats] = useState<RecommendationStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,10 +104,10 @@ export default function RecommendationsPage() {
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center gap-2">
             <BoltIcon className="w-7 h-7 text-amber-400" />
-            Cross-Sell / Up-Sell
+            {t('stock.reco.title')}
           </h1>
           <p className="text-zinc-400 mt-1">
-            AI-powered product recommendations to boost sales
+            {t('stock.reco.subtitle')}
           </p>
         </div>
         <Button
@@ -114,7 +116,7 @@ export default function RecommendationsPage() {
           className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-medium px-5 py-2.5 rounded-lg flex items-center gap-2 transition-all disabled:opacity-60"
         >
           <RefreshIcon className={`w-4 h-4 ${generating ? 'animate-spin' : ''}`} />
-          {generating ? 'Analyzing...' : 'Generate Recommendations'}
+          {generating ? 'Analyzing...' : t('stock.reco.generate')}
         </Button>
       </div>
 
@@ -134,34 +136,34 @@ export default function RecommendationsPage() {
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <div className="flex items-center gap-2 text-zinc-400 text-sm mb-1">
               <BoltIcon className="w-4 h-4" />
-              Total Rules
+              {t('stock.reco.stat.rules')}
             </div>
             <div className="text-2xl font-bold text-white">{stats.total}</div>
-            <div className="text-xs text-zinc-500 mt-1">{stats.active} active</div>
+            <div className="text-xs text-zinc-500 mt-1">{t('stock.reco.stat.rulesHint').replace('{n}', String(stats.active))}</div>
           </div>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <div className="flex items-center gap-2 text-zinc-400 text-sm mb-1">
               <EyeIcon className="w-4 h-4" />
-              Impressions
+              {t('stock.reco.stat.impressions')}
             </div>
             <div className="text-2xl font-bold text-white">{stats.totalImpressions.toLocaleString()}</div>
-            <div className="text-xs text-zinc-500 mt-1">times shown</div>
+            <div className="text-xs text-zinc-500 mt-1">{t('stock.reco.stat.impressionsHint')}</div>
           </div>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <div className="flex items-center gap-2 text-zinc-400 text-sm mb-1">
               <ShoppingCartIcon className="w-4 h-4" />
-              Conversions
+              {t('stock.reco.stat.conversions')}
             </div>
             <div className="text-2xl font-bold text-white">{stats.totalConversions.toLocaleString()}</div>
-            <div className="text-xs text-zinc-500 mt-1">{stats.conversionRate}% rate</div>
+            <div className="text-xs text-zinc-500 mt-1">{t('stock.reco.stat.conversionsHint').replace('{pct}', String(stats.conversionRate))}</div>
           </div>
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <div className="flex items-center gap-2 text-zinc-400 text-sm mb-1">
               <ChartIcon className="w-4 h-4" />
-              Revenue
+              {t('stock.reco.stat.revenue')}
             </div>
             <div className="text-2xl font-bold text-emerald-400">{formatPrice(stats.totalRevenue)} DA</div>
-            <div className="text-xs text-zinc-500 mt-1">from cross-sell</div>
+            <div className="text-xs text-zinc-500 mt-1">{t('stock.reco.stat.revenueHint')}</div>
           </div>
         </div>
       )}
@@ -172,7 +174,7 @@ export default function RecommendationsPage() {
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
             type="text"
-            placeholder="Search products..."
+            placeholder={t('stock.products.search')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
@@ -180,9 +182,9 @@ export default function RecommendationsPage() {
         </div>
         <div className="flex rounded-lg overflow-hidden border border-zinc-700">
           {[
-            { value: '', label: 'All Types' },
-            { value: 'cross_sell', label: 'Cross-Sell' },
-            { value: 'up_sell', label: 'Up-Sell' },
+            { value: '', label: t('stock.common.allTypes') },
+            { value: 'cross_sell', label: t('stock.reco.filter.crossSell') },
+            { value: 'up_sell', label: t('stock.reco.filter.upSell') },
           ].map(opt => (
             <button
               key={opt.value}
@@ -199,9 +201,9 @@ export default function RecommendationsPage() {
         </div>
         <div className="flex rounded-lg overflow-hidden border border-zinc-700">
           {[
-            { value: '', label: 'All' },
-            { value: 'true', label: 'Active' },
-            { value: 'false', label: 'Inactive' },
+            { value: '', label: t('stock.common.all') },
+            { value: 'true', label: t('stock.reco.filter.active') },
+            { value: 'false', label: t('stock.reco.filter.inactive') },
           ].map(opt => (
             <button
               key={opt.value}
@@ -226,10 +228,9 @@ export default function RecommendationsPage() {
       ) : recommendations.length === 0 ? (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center">
           <BoltIcon className="w-16 h-16 text-zinc-700 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-white mb-2">No recommendations yet</h3>
+          <h3 className="text-xl font-semibold text-white mb-2">{t('stock.reco.empty.title')}</h3>
           <p className="text-zinc-400 mb-6 max-w-md mx-auto">
-            Click "Generate Recommendations" to analyze your products and order history.
-            The AI will find cross-sell and up-sell opportunities automatically.
+            {t('stock.reco.empty.hint')}
           </p>
           <Button
             onClick={handleGenerate}
@@ -286,7 +287,7 @@ export default function RecommendationsPage() {
                             ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
                             : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                         }`}>
-                          {rec.type === 'up_sell' ? 'Up-Sell' : 'Cross-Sell'}
+                          {rec.type === 'up_sell' ? t('stock.reco.filter.upSell') : t('stock.reco.filter.crossSell')}
                         </span>
                       </td>
                       {/* Score */}

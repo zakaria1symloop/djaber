@@ -9,6 +9,7 @@ import {
   SearchIcon, FilterIcon, CloseIcon,
 } from '@/components/ui/icons';
 import { useFilterPanel } from '@/contexts/FilterPanelContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   getSales,
   getSalesStats,
@@ -23,6 +24,7 @@ const DEFAULT_TOTAL_MAX = 1000000;
 
 export default function SalesPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [sales, setSales] = useState<Sale[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -200,8 +202,8 @@ export default function SalesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Sales</h1>
-          <p className="text-sm text-zinc-400 mt-1">{total} sales</p>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('stock.sales.title')}</h1>
+          <p className="text-sm text-zinc-400 mt-1">{t('stock.sales.count').replace('{n}', String(total))}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -215,7 +217,7 @@ export default function SalesPage() {
             }`}
           >
             <FilterIcon className="w-4 h-4" />
-            Filters
+            {t('stock.common.filters')}
             {activeFilterCount > 0 && (
               <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
                 {activeFilterCount}
@@ -223,7 +225,7 @@ export default function SalesPage() {
             )}
           </button>
           <Button onClick={() => router.push('/dashboard/stock/sales/new')} icon={<PlusIcon className="w-4 h-4" />}>
-            New Sale
+            {t('stock.sales.new')}
           </Button>
         </div>
       </div>
@@ -237,10 +239,10 @@ export default function SalesPage() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatsCard title="Total Sales" value={stats.totalSales} icon={<ShoppingCartIcon className="w-5 h-5" />} />
-          <StatsCard title="Revenue" value={`${stats.totalRevenue.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-emerald-400" />
-          <StatsCard title="Avg Order Value" value={`${stats.averageOrderValue.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} />
-          <StatsCard title="Pending" value={stats.pendingSales} icon={<AlertIcon className="w-5 h-5" />} iconColor="text-amber-400" />
+          <StatsCard title={t('stock.sales.stat.totalSales')} value={stats.totalSales} icon={<ShoppingCartIcon className="w-5 h-5" />} />
+          <StatsCard title={t('stock.sales.stat.revenue')} value={`${stats.totalRevenue.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-emerald-400" />
+          <StatsCard title={t('stock.sales.stat.avgOrderValue')} value={`${stats.averageOrderValue.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} />
+          <StatsCard title={t('stock.sales.stat.pending')} value={stats.pendingSales} icon={<AlertIcon className="w-5 h-5" />} iconColor="text-amber-400" />
         </div>
       )}
 
@@ -250,20 +252,20 @@ export default function SalesPage() {
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
             type="text"
-            placeholder="Search sales..."
+            placeholder={t('stock.sales.search')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
           />
         </div>
-        <DatePicker value={draftStartDate} onChange={(v) => { setDraftStartDate(v); setAppliedStartDate(v); setOffset(0); setFilterTrigger(t => t + 1); }} placeholder="From date" />
-        <DatePicker value={draftEndDate} onChange={(v) => { setDraftEndDate(v); setAppliedEndDate(v); setOffset(0); setFilterTrigger(t => t + 1); }} placeholder="To date" />
+        <DatePicker value={draftStartDate} onChange={(v) => { setDraftStartDate(v); setAppliedStartDate(v); setOffset(0); setFilterTrigger(n => n + 1); }} placeholder={t('stock.common.fromDate')} />
+        <DatePicker value={draftEndDate} onChange={(v) => { setDraftEndDate(v); setAppliedEndDate(v); setOffset(0); setFilterTrigger(n => n + 1); }} placeholder={t('stock.common.toDate')} />
         {/* Payment quick filter */}
         <div className="flex gap-1">
           {([
-            { value: 'all', label: 'All' },
-            { value: 'paid', label: 'Paid' },
-            { value: 'remaining', label: 'Remaining' },
+            { value: 'all', label: t('stock.common.all') },
+            { value: 'paid', label: t('stock.sales.filter.paid') },
+            { value: 'remaining', label: t('stock.sales.filter.remaining') },
           ] as const).map(opt => {
             const isActive = opt.value === 'paid' ? (appliedPayment === 'paid' && !appliedHasRemaining)
               : opt.value === 'remaining' ? appliedHasRemaining
@@ -282,7 +284,7 @@ export default function SalesPage() {
                     setDraftPayment(''); setAppliedPayment('');
                     setDraftHasRemaining(false); setAppliedHasRemaining(false);
                   }
-                  setOffset(0); setFilterTrigger(t => t + 1);
+                  setOffset(0); setFilterTrigger(n => n + 1);
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   isActive
@@ -309,7 +311,7 @@ export default function SalesPage() {
                   : 'bg-zinc-800 text-zinc-400 hover:text-white'
               }`}
             >
-              {p === 'today' ? 'Today' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Year'}
+              {p === 'today' ? t('stock.period.today') : p === 'week' ? t('stock.period.week') : p === 'month' ? t('stock.period.month') : t('stock.period.year')}
             </button>
           ))}
         </div>
@@ -393,9 +395,9 @@ export default function SalesPage() {
       ) : (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-12 text-center">
           <div className="text-zinc-600 mb-4 flex justify-center"><ShoppingCartIcon className="w-16 h-16" /></div>
-          <h3 className="text-lg font-medium text-zinc-300 mb-1">No Sales</h3>
-          <p className="text-sm text-zinc-500 mb-4">Record your first sale</p>
-          <Button onClick={() => router.push('/dashboard/stock/sales/new')} icon={<PlusIcon className="w-4 h-4" />}>New Sale</Button>
+          <h3 className="text-lg font-medium text-zinc-300 mb-1">{t('stock.sales.empty.title')}</h3>
+          <p className="text-sm text-zinc-500 mb-4">{t('stock.sales.empty.hint')}</p>
+          <Button onClick={() => router.push('/dashboard/stock/sales/new')} icon={<PlusIcon className="w-4 h-4" />}>{t('stock.sales.new')}</Button>
         </div>
       )}
 

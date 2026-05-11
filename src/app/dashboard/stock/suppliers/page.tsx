@@ -17,15 +17,21 @@ import {
   type Supplier,
 } from '@/lib/user-stock-api';
 import { useFilterPanel } from '@/contexts/FilterPanelContext';
+import { validateName, validateEmailOptional, validatePhoneOptional } from '@/lib/validation';
+import { useToast } from '@/components/ui/Toast';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 const DEFAULT_PURCHASES_MAX = 1000;
 const DEFAULT_SPENT_MAX = 10000000;
 
 export default function SuppliersPage() {
   const router = useRouter();
+  const toast = useToast();
+  const { t } = useTranslation();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
 
@@ -166,12 +172,14 @@ export default function SuppliersPage() {
   const openAdd = () => {
     setFiltersOpen(false);
     setEditing(null);
+    setModalError(null);
     setForm({ name: '', email: '', phone: '', address: '', notes: '', isActive: true });
     setShowModal(true);
   };
 
   const openEdit = (supplier: Supplier) => {
     setFiltersOpen(false);
+    setModalError(null);
     setEditing(supplier);
     setForm({
       name: supplier.name,
@@ -186,31 +194,43 @@ export default function SuppliersPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setModalError(null);
+
+    // Client-side validation — show inline inside the modal, not on the page.
+    const nameErr = validateName(form.name, 'Name');
+    if (nameErr) { setModalError(nameErr); return; }
+    const emailErr = validateEmailOptional(form.email);
+    if (emailErr) { setModalError(emailErr); return; }
+    const phoneErr = validatePhoneOptional(form.phone);
+    if (phoneErr) { setModalError(phoneErr); return; }
+
     try {
-      setError(null);
       setSaving(true);
       if (editing) {
         await updateSupplier(editing.id, {
-          name: form.name,
-          email: form.email || undefined,
-          phone: form.phone || undefined,
-          address: form.address || undefined,
-          notes: form.notes || undefined,
+          name: form.name.trim(),
+          email: form.email.trim() || undefined,
+          phone: form.phone.trim() || undefined,
+          address: form.address.trim() || undefined,
+          notes: form.notes.trim() || undefined,
           isActive: form.isActive,
         });
+        toast.success('Supplier updated');
       } else {
         await createSupplier({
-          name: form.name,
-          email: form.email || undefined,
-          phone: form.phone || undefined,
-          address: form.address || undefined,
-          notes: form.notes || undefined,
+          name: form.name.trim(),
+          email: form.email.trim() || undefined,
+          phone: form.phone.trim() || undefined,
+          address: form.address.trim() || undefined,
+          notes: form.notes.trim() || undefined,
         });
+        toast.success('Supplier added');
       }
       setShowModal(false);
       loadSuppliers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save supplier');
+      const msg = err instanceof Error ? err.message : 'Failed to save supplier';
+      setModalError(msg);
     } finally {
       setSaving(false);
     }
@@ -219,14 +239,14 @@ export default function SuppliersPage() {
   const handleDelete = async () => {
     if (!deleteConfirm) return;
     try {
-      setError(null);
       setDeleting(true);
       await deleteSupplier(deleteConfirm.id);
+      toast.success('Supplier deleted');
       setDeleteConfirm(null);
       setViewing(null);
       loadSuppliers();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete supplier');
+      toast.error(err instanceof Error ? err.message : 'Failed to delete supplier');
     } finally {
       setDeleting(false);
     }
@@ -253,8 +273,8 @@ export default function SuppliersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Suppliers</h1>
-          <p className="text-sm text-zinc-400 mt-1">{suppliers.length} suppliers</p>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('stock.suppliers.title')}</h1>
+          <p className="text-sm text-zinc-400 mt-1">{t('stock.suppliers.count').replace('{n}', String(suppliers.length))}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -268,7 +288,7 @@ export default function SuppliersPage() {
             }`}
           >
             <FilterIcon className="w-4 h-4" />
-            Filters
+            {t('stock.common.filters')}
             {activeFilterCount > 0 && (
               <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
                 {activeFilterCount}
@@ -276,22 +296,23 @@ export default function SuppliersPage() {
             )}
           </button>
           <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>
-            Add Supplier
+            {t('stock.suppliers.add')}
           </Button>
         </div>
       </div>
 
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-400">
+          {/* Only used for non-modal failures (e.g. list-load errors). Modal errors render inside the modal. */}
           {error}
         </div>
       )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <StatsCard title="Total Suppliers" value={stats.total} icon={<UsersIcon className="w-5 h-5" />} iconColor="text-blue-400" />
-        <StatsCard title="Active" value={stats.active} icon={<CheckCircleIcon className="w-5 h-5" />} iconColor="text-emerald-400" />
-        <StatsCard title="With Purchases" value={stats.withPurchases} icon={<TruckIcon className="w-5 h-5" />} iconColor="text-amber-400" />
+        <StatsCard title={t('stock.suppliers.stat.total')} value={stats.total} icon={<UsersIcon className="w-5 h-5" />} iconColor="text-blue-400" />
+        <StatsCard title={t('stock.suppliers.stat.active')} value={stats.active} icon={<CheckCircleIcon className="w-5 h-5" />} iconColor="text-emerald-400" />
+        <StatsCard title={t('stock.suppliers.stat.withPurchases')} value={stats.withPurchases} icon={<TruckIcon className="w-5 h-5" />} iconColor="text-amber-400" />
       </div>
 
       {/* Search + Date filters */}
@@ -300,14 +321,14 @@ export default function SuppliersPage() {
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
             type="text"
-            placeholder="Search suppliers..."
+            placeholder={t('stock.suppliers.search')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
           />
         </div>
-        <DatePicker value={draftStartDate} onChange={(v) => { setDraftStartDate(v); appliedFiltersRef.current.startDate = v; setFilterTrigger(t => t + 1); }} placeholder="From date" />
-        <DatePicker value={draftEndDate} onChange={(v) => { setDraftEndDate(v); appliedFiltersRef.current.endDate = v; setFilterTrigger(t => t + 1); }} placeholder="To date" />
+        <DatePicker value={draftStartDate} onChange={(v) => { setDraftStartDate(v); appliedFiltersRef.current.startDate = v; setFilterTrigger(n => n + 1); }} placeholder={t('stock.common.fromDate')} />
+        <DatePicker value={draftEndDate} onChange={(v) => { setDraftEndDate(v); appliedFiltersRef.current.endDate = v; setFilterTrigger(n => n + 1); }} placeholder={t('stock.common.toDate')} />
       </div>
 
       {/* Table */}
@@ -410,7 +431,7 @@ export default function SuppliersPage() {
           <div className="text-zinc-600 mb-4 flex justify-center">
             <UsersIcon className="w-16 h-16" />
           </div>
-          <h3 className="text-lg font-medium text-zinc-300 mb-1">No Suppliers</h3>
+          <h3 className="text-lg font-medium text-zinc-300 mb-1">{t('stock.suppliers.empty.title')}</h3>
           <p className="text-sm text-zinc-500 max-w-sm mx-auto mb-4">
             {searchDebounced || activeFilterCount > 0 ? 'No suppliers match your filters' : 'Add suppliers to manage your purchases'}
           </p>
@@ -618,7 +639,13 @@ export default function SuppliersPage() {
         title={editing ? 'Edit Supplier' : 'Add Supplier'}
         size="md"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          {modalError && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-2.5 text-sm text-red-400">
+              {modalError}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">Name *</label>
             <div className="relative">
@@ -628,6 +655,7 @@ export default function SuppliersPage() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
+                minLength={2}
                 placeholder="Supplier name"
                 className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
               />
@@ -644,6 +672,7 @@ export default function SuppliersPage() {
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   placeholder="email@example.com"
+                  autoComplete="email"
                   className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
                 />
               </div>
@@ -653,10 +682,13 @@ export default function SuppliersPage() {
               <div className="relative">
                 <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
-                  type="text"
+                  type="tel"
+                  inputMode="tel"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  placeholder="Phone number"
+                  placeholder="0555 12 34 56"
+                  autoComplete="tel"
+                  pattern="^\+?[0-9\s\-().]{8,20}$"
                   className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
                 />
               </div>

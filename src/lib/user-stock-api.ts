@@ -865,6 +865,11 @@ export interface Order {
   deliveryProvider: string | null;
   deliveryFee: number;
   deliverySentAt: string | null;
+  // Delivery destination — needed to display Région + Wilaya on the order
+  // detail modal (was previously missing per FullAdressMissing.png).
+  wilayaId: number | null;
+  communeName: string | null;
+  isStopdesk: boolean;
   source: 'manual' | 'ai';
   notes: string | null;
   orderDate: string;

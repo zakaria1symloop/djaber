@@ -38,6 +38,9 @@ import {
 } from '@/lib/user-stock-api';
 import { API_BASE_URL } from '@/lib/api-config';
 import { useFilterPanel } from '@/contexts/FilterPanelContext';
+import { hasAlphanumeric } from '@/lib/validation';
+import { useToast } from '@/components/ui/Toast';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 const LIMIT = 20;
 
@@ -51,6 +54,8 @@ const DEFAULT_MARGIN_MIN = -100;
 const DEFAULT_MARGIN_MAX = 100;
 
 export default function ProductsPage() {
+  const toast = useToast();
+  const { t } = useTranslation();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
@@ -58,6 +63,7 @@ export default function ProductsPage() {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // Sorting — newest first by default
   const [sortBy, setSortBy] = useState<string>('createdAt');
@@ -270,6 +276,7 @@ export default function ProductsPage() {
   const openAdd = () => {
     setFiltersOpen(false);
     setEditing(null);
+    setModalError(null);
     setForm({ sku: '', name: '', description: '', categoryId: '', costPrice: '', sellingPrice: '', quantity: '', minQuantity: '', unitId: '' });
     setFieldErrors({});
     setExistingImages([]);
@@ -281,6 +288,7 @@ export default function ProductsPage() {
 
   const openEdit = (product: Product) => {
     setFiltersOpen(false);
+    setModalError(null);
     setEditing(product);
     setFieldErrors({});
     setForm({
@@ -314,7 +322,10 @@ export default function ProductsPage() {
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
     if (!form.sku.trim()) errors.sku = 'SKU is required';
+    else if (!hasAlphanumeric(form.sku)) errors.sku = 'SKU must contain at least one letter or number';
     if (!form.name.trim()) errors.name = 'Product name is required';
+    else if (form.name.trim().length < 2) errors.name = 'Product name is too short';
+    else if (!hasAlphanumeric(form.name)) errors.name = 'Product name must contain at least one letter or number';
     if (!editing) {
       if (!form.costPrice || parseFloat(form.costPrice) <= 0) errors.costPrice = 'Cost price is required';
       if (!form.sellingPrice || parseFloat(form.sellingPrice) <= 0) errors.sellingPrice = 'Selling price is required';
@@ -343,6 +354,7 @@ export default function ProductsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setModalError(null);
     if (!validateForm()) return;
     try {
       setError(null);
@@ -432,10 +444,13 @@ export default function ProductsPage() {
         await uploadProductImages(productId, newImageFiles);
       }
 
+      toast.success(editing ? 'Product updated' : 'Product added');
       setShowModal(false);
       loadProducts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save product');
+      const msg = err instanceof Error ? err.message : 'Failed to save product';
+      setModalError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -703,8 +718,8 @@ export default function ProductsPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Products</h1>
-            <p className="text-sm text-zinc-400 mt-1">{total} products</p>
+            <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('stock.products.title')}</h1>
+            <p className="text-sm text-zinc-400 mt-1">{t('stock.products.count').replace('{n}', String(total))}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -718,7 +733,7 @@ export default function ProductsPage() {
               }`}
             >
               <FilterIcon className="w-4 h-4" />
-              Filters
+              {t('stock.common.filters')}
               {activeFilterCount > 0 && (
                 <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
                   {activeFilterCount}
@@ -726,7 +741,7 @@ export default function ProductsPage() {
               )}
             </button>
             <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>
-              Add Product
+              {t('stock.products.add')}
             </Button>
           </div>
         </div>
@@ -744,7 +759,7 @@ export default function ProductsPage() {
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
             <input
               type="text"
-              placeholder="Search products..."
+              placeholder={t('stock.products.search')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
@@ -757,7 +772,7 @@ export default function ProductsPage() {
                 onChange={(e) => { setCategoryFilter(e.target.value); setOffset(0); }}
                 className="w-auto min-w-[160px]"
               >
-                <option value="">All Categories</option>
+                <option value="">{t('stock.products.allCategories')}</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -771,7 +786,7 @@ export default function ProductsPage() {
                 }`}
               >
                 <AlertIcon className="w-4 h-4" />
-                Low Stock
+                {t('stock.products.lowStock')}
               </button>
             </>
           )}
@@ -790,15 +805,15 @@ export default function ProductsPage() {
                   <tr className="border-b border-white/10">
                     <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3 w-20"></th>
                     {[
-                      { key: 'name', label: 'Product', cls: 'text-left' },
-                      { key: 'sku', label: 'SKU', cls: 'text-left' },
-                      { key: '', label: 'Category', cls: 'text-left' },
-                      { key: 'costPrice', label: 'Cost', cls: 'text-right' },
-                      { key: 'sellingPrice', label: 'Price', cls: 'text-right' },
-                      { key: '', label: 'Profit', cls: 'text-right' },
-                      { key: '', label: 'Margin', cls: 'text-center' },
-                      { key: 'quantity', label: 'Qty', cls: 'text-center' },
-                      { key: '', label: 'Unit', cls: 'text-center' },
+                      { key: 'name', label: t('stock.products.col.product'), cls: 'text-left' },
+                      { key: 'sku', label: t('stock.products.col.sku'), cls: 'text-left' },
+                      { key: '', label: t('stock.products.col.category'), cls: 'text-left' },
+                      { key: 'costPrice', label: t('stock.products.col.cost'), cls: 'text-right' },
+                      { key: 'sellingPrice', label: t('stock.products.col.price'), cls: 'text-right' },
+                      { key: '', label: t('stock.products.col.profit'), cls: 'text-right' },
+                      { key: '', label: t('stock.products.col.margin'), cls: 'text-center' },
+                      { key: 'quantity', label: t('stock.products.col.qty'), cls: 'text-center' },
+                      { key: '', label: t('stock.products.col.unit'), cls: 'text-center' },
                     ].map((col) => {
                       const sortable = !!col.key;
                       const isSorted = sortable && sortBy === col.key;
@@ -829,7 +844,7 @@ export default function ProductsPage() {
                         </th>
                       );
                     })}
-                    <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Actions</th>
+                    <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1423,6 +1438,11 @@ export default function ProductsPage() {
         size="xl"
       >
         <form onSubmit={handleSubmit} noValidate className="space-y-4 max-h-[75vh] overflow-y-auto pr-1" ref={formRef}>
+          {modalError && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-2.5 text-sm text-red-400">
+              {modalError}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <Input label="SKU *" value={form.sku} onChange={(e) => { setForm({ ...form, sku: e.target.value }); setFieldErrors(prev => { const { sku, ...rest } = prev; return rest; }); }} error={fieldErrors.sku} placeholder="e.g., PRD-001" />
             <Input label="Name *" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setFieldErrors(prev => { const { name, ...rest } = prev; return rest; }); }} error={fieldErrors.name} placeholder="Product name" />

@@ -21,12 +21,17 @@ import {
   type ClientConversation,
 } from '@/lib/user-stock-api';
 import { useFilterPanel } from '@/contexts/FilterPanelContext';
+import { validateName, validateEmailOptional, validatePhoneRequired } from '@/lib/validation';
+import { useToast } from '@/components/ui/Toast';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 const DEFAULT_ORDERS_MAX = 1000;
 const DEFAULT_SPENT_MAX = 1000000;
 
 export default function ClientsPage() {
   const router = useRouter();
+  const toast = useToast();
+  const { t } = useTranslation();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -34,6 +39,7 @@ export default function ClientsPage() {
   const [searchDebounced, setSearchDebounced] = useState('');
   const [phoneSearchDebounced, setPhoneSearchDebounced] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // Filter panel state — shared with layout via context
   const { filterPanelOpen: filtersOpen, setFilterPanelOpen: setFiltersOpen } = useFilterPanel();
@@ -218,12 +224,14 @@ export default function ClientsPage() {
   const openAdd = () => {
     setFiltersOpen(false);
     setEditing(null);
+    setModalError(null);
     setForm({ name: '', phone: '', email: '', address: '', notes: '' });
     setShowModal(true);
   };
 
   const openEdit = (client: Client) => {
     setFiltersOpen(false);
+    setModalError(null);
     setEditing(client);
     setForm({
       name: client.name,
@@ -237,30 +245,53 @@ export default function ClientsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setModalError(null);
+
+    const nameErr = validateName(form.name, 'Name');
+    if (nameErr) { setModalError(nameErr); return; }
+    // Phone is required for a client (they need to receive their order).
+    const phoneErr = validatePhoneRequired(form.phone);
+    if (phoneErr) { setModalError(phoneErr); return; }
+    const emailErr = validateEmailOptional(form.email);
+    if (emailErr) { setModalError(emailErr); return; }
+
+    // Prevent in-list duplicates on the client side too — backend has its own
+    // unique index on phone, but we want to fail fast with a clearer message.
+    const phoneClean = form.phone.replace(/\s|-|\(|\)/g, '');
+    const dup = clients.find((c) => {
+      if (editing && c.id === editing.id) return false;
+      return (c.phone || '').replace(/\s|-|\(|\)/g, '') === phoneClean;
+    });
+    if (dup) {
+      setModalError(`A client already exists with this phone (${dup.name}). Use a different number.`);
+      return;
+    }
+
     try {
-      setError(null);
       setSaving(true);
       if (editing) {
         await updateClient(editing.id, {
-          name: form.name,
-          phone: form.phone || undefined,
-          email: form.email || undefined,
-          address: form.address || undefined,
-          notes: form.notes || undefined,
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim() || undefined,
+          address: form.address.trim() || undefined,
+          notes: form.notes.trim() || undefined,
         });
+        toast.success('Client updated');
       } else {
         await createClient({
-          name: form.name,
-          phone: form.phone || undefined,
-          email: form.email || undefined,
-          address: form.address || undefined,
-          notes: form.notes || undefined,
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim() || undefined,
+          address: form.address.trim() || undefined,
+          notes: form.notes.trim() || undefined,
         });
+        toast.success('Client added');
       }
       setShowModal(false);
       loadClients();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save client');
+      setModalError(err instanceof Error ? err.message : 'Failed to save client');
     } finally {
       setSaving(false);
     }
@@ -269,14 +300,14 @@ export default function ClientsPage() {
   const handleDelete = async () => {
     if (!deleteConfirm) return;
     try {
-      setError(null);
       setDeleting(true);
       await deleteClientApi(deleteConfirm.id);
+      toast.success('Client deleted');
       setDeleteConfirm(null);
       setViewing(null);
       loadClients();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete client');
+      toast.error(err instanceof Error ? err.message : 'Failed to delete client');
     } finally {
       setDeleting(false);
     }
@@ -303,9 +334,9 @@ export default function ClientsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Clients</h1>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('stock.clients.title')}</h1>
           <p className="text-sm text-zinc-400 mt-1">
-            Customers saved from AI conversations and confirmed orders
+            {t('stock.clients.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -320,7 +351,7 @@ export default function ClientsPage() {
             }`}
           >
             <FilterIcon className="w-4 h-4" />
-            Filters
+            {t('stock.common.filters')}
             {activeFilterCount > 0 && (
               <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
                 {activeFilterCount}
@@ -328,7 +359,7 @@ export default function ClientsPage() {
             )}
           </button>
           <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>
-            Add Client
+            {t('stock.clients.add')}
           </Button>
         </div>
       </div>
@@ -341,10 +372,10 @@ export default function ClientsPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard title="Total Clients" value={stats.total} icon={<UsersIcon className="w-5 h-5" />} iconColor="text-blue-400" />
-        <StatsCard title="Active" value={stats.active} icon={<CheckCircleIcon className="w-5 h-5" />} iconColor="text-emerald-400" />
-        <StatsCard title="With Orders" value={stats.withOrders} icon={<ClipboardIcon className="w-5 h-5" />} iconColor="text-amber-400" />
-        <StatsCard title="Total Spent" value={`${stats.totalSpent.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-emerald-400" />
+        <StatsCard title={t('stock.clients.stat.total')} value={stats.total} icon={<UsersIcon className="w-5 h-5" />} iconColor="text-blue-400" />
+        <StatsCard title={t('stock.clients.stat.active')} value={stats.active} icon={<CheckCircleIcon className="w-5 h-5" />} iconColor="text-emerald-400" />
+        <StatsCard title={t('stock.clients.stat.withOrders')} value={stats.withOrders} icon={<ClipboardIcon className="w-5 h-5" />} iconColor="text-amber-400" />
+        <StatsCard title={t('stock.clients.stat.totalSpent')} value={`${stats.totalSpent.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-emerald-400" />
       </div>
 
       {/* Search + Date filters */}
@@ -353,7 +384,7 @@ export default function ClientsPage() {
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
             type="text"
-            placeholder="Search by name or email..."
+            placeholder={t('stock.clients.searchName')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
@@ -363,14 +394,14 @@ export default function ClientsPage() {
           <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
             type="text"
-            placeholder="Search by phone..."
+            placeholder={t('stock.clients.searchPhone')}
             value={phoneSearch}
             onChange={(e) => setPhoneSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
           />
         </div>
-        <DatePicker value={draftStartDate} onChange={(v) => { setDraftStartDate(v); appliedFiltersRef.current.startDate = v; setFilterTrigger(t => t + 1); }} placeholder="From date" />
-        <DatePicker value={draftEndDate} onChange={(v) => { setDraftEndDate(v); appliedFiltersRef.current.endDate = v; setFilterTrigger(t => t + 1); }} placeholder="To date" />
+        <DatePicker value={draftStartDate} onChange={(v) => { setDraftStartDate(v); appliedFiltersRef.current.startDate = v; setFilterTrigger(n => n + 1); }} placeholder={t('stock.common.fromDate')} />
+        <DatePicker value={draftEndDate} onChange={(v) => { setDraftEndDate(v); appliedFiltersRef.current.endDate = v; setFilterTrigger(n => n + 1); }} placeholder={t('stock.common.toDate')} />
       </div>
 
       {/* Table / Empty State */}
@@ -380,12 +411,12 @@ export default function ClientsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/10">
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Client</th>
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Contact</th>
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Address</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Conversations</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Orders</th>
-                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Total Spent</th>
+                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.client')}</th>
+                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.clients.col.contact')}</th>
+                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.clients.col.address')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.clients.col.conversations')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.clients.col.orders')}</th>
+                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.clients.col.totalSpent')}</th>
                   <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Source</th>
                   <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Actions</th>
                 </tr>
@@ -448,7 +479,7 @@ export default function ClientsPage() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <Badge variant={client.source === 'ai' ? 'info' : 'default'}>
-                        {client.source === 'ai' ? 'AI Chat' : 'Manual'}
+                        {client.source === 'ai' ? t('stock.clients.source.ai') : t('stock.clients.source.manual')}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -794,7 +825,13 @@ export default function ClientsPage() {
 
       {/* Add/Edit Modal */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editing ? 'Edit Client' : 'Add Client'} size="md">
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          {modalError && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-2.5 text-sm text-red-400">
+              {modalError}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-zinc-300 mb-1.5">Name *</label>
             <div className="relative">
@@ -804,26 +841,15 @@ export default function ClientsPage() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
+                minLength={2}
                 placeholder="Client name"
                 className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
               />
             </div>
           </div>
 
+          {/* Field order mirrors the Supplier modal (Email → Phone) for consistency. */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Phone</label>
-              <div className="relative">
-                <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <input
-                  type="text"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  placeholder="Phone number"
-                  className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
-                />
-              </div>
-            </div>
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-1.5">Email</label>
               <div className="relative">
@@ -833,6 +859,24 @@ export default function ClientsPage() {
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   placeholder="email@example.com"
+                  autoComplete="email"
+                  className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Phone *</label>
+              <div className="relative">
+                <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  required
+                  placeholder="0555 12 34 56"
+                  autoComplete="tel"
+                  pattern="^\+?[0-9\s\-().]{8,20}$"
                   className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
                 />
               </div>

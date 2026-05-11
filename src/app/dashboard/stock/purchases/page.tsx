@@ -8,6 +8,7 @@ import {
   PlusIcon, TruckIcon, DollarIcon, AlertIcon, BoxIcon, EyeIcon, TrashIcon, SearchIcon, FilterIcon, CloseIcon,
 } from '@/components/ui/icons';
 import { useFilterPanel } from '@/contexts/FilterPanelContext';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   getPurchases,
   getPurchaseStats,
@@ -32,6 +33,7 @@ export default function PurchasesPage() {
 }
 
 function PurchasesPageInner() {
+  const { t } = useTranslation();
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialSupplierId = searchParams.get('supplierId') || '';
@@ -263,8 +265,8 @@ function PurchasesPageInner() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Purchases</h1>
-          <p className="text-sm text-zinc-400 mt-1">{total} purchase orders</p>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('stock.purchases.title')}</h1>
+          <p className="text-sm text-zinc-400 mt-1">{t('stock.purchases.count').replace('{n}', String(total))}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -278,7 +280,7 @@ function PurchasesPageInner() {
             }`}
           >
             <FilterIcon className="w-4 h-4" />
-            Filters
+            {t('stock.common.filters')}
             {activeFilterCount > 0 && (
               <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
                 {activeFilterCount}
@@ -286,7 +288,7 @@ function PurchasesPageInner() {
             )}
           </button>
           <Button onClick={() => router.push('/dashboard/stock/purchases/new')} icon={<PlusIcon className="w-4 h-4" />}>
-            New Purchase
+            {t('stock.purchases.new')}
           </Button>
         </div>
       </div>
@@ -300,10 +302,10 @@ function PurchasesPageInner() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatsCard title="Total Purchases" value={stats.totalPurchases} icon={<TruckIcon className="w-5 h-5" />} />
-          <StatsCard title="Total Spent" value={`${stats.totalSpent.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-red-400" />
-          <StatsCard title="Pending" value={stats.pendingPurchases} icon={<AlertIcon className="w-5 h-5" />} iconColor="text-amber-400" />
-          <StatsCard title="Received" value={stats.receivedPurchases} icon={<BoxIcon className="w-5 h-5" />} iconColor="text-emerald-400" />
+          <StatsCard title={t('stock.purchases.stat.totalPurchases')} value={stats.totalPurchases} icon={<TruckIcon className="w-5 h-5" />} />
+          <StatsCard title={t('stock.purchases.stat.totalSpent')} value={`${stats.totalSpent.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-red-400" />
+          <StatsCard title={t('stock.purchases.stat.pending')} value={stats.pendingPurchases} icon={<AlertIcon className="w-5 h-5" />} iconColor="text-amber-400" />
+          <StatsCard title={t('stock.purchases.stat.received')} value={stats.receivedPurchases} icon={<BoxIcon className="w-5 h-5" />} iconColor="text-emerald-400" />
         </div>
       )}
 
@@ -313,20 +315,20 @@ function PurchasesPageInner() {
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
             type="text"
-            placeholder="Search purchases..."
+            placeholder={t('stock.purchases.search')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
           />
         </div>
-        <DatePicker value={draftStartDate} onChange={(v) => { setDraftStartDate(v); setAppliedStartDate(v); setOffset(0); setFilterTrigger(t => t + 1); }} placeholder="From date" />
-        <DatePicker value={draftEndDate} onChange={(v) => { setDraftEndDate(v); setAppliedEndDate(v); setOffset(0); setFilterTrigger(t => t + 1); }} placeholder="To date" />
+        <DatePicker value={draftStartDate} onChange={(v) => { setDraftStartDate(v); setAppliedStartDate(v); setOffset(0); setFilterTrigger(n => n + 1); }} placeholder={t('stock.common.fromDate')} />
+        <DatePicker value={draftEndDate} onChange={(v) => { setDraftEndDate(v); setAppliedEndDate(v); setOffset(0); setFilterTrigger(n => n + 1); }} placeholder={t('stock.common.toDate')} />
         {/* Payment quick filter */}
         <div className="flex gap-1 ml-auto">
           {([
-            { value: 'all', label: 'All' },
-            { value: 'paid', label: 'Paid' },
-            { value: 'remaining', label: 'Remaining' },
+            { value: 'all', label: t('stock.common.all') },
+            { value: 'paid', label: t('stock.purchases.filter.paid') },
+            { value: 'remaining', label: t('stock.purchases.filter.remaining') },
           ] as const).map(opt => {
             const isActive = opt.value === 'paid' ? (appliedPayment === 'paid' && !appliedHasRemaining)
               : opt.value === 'remaining' ? appliedHasRemaining
@@ -452,9 +454,9 @@ function PurchasesPageInner() {
       ) : (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-12 text-center">
           <div className="text-zinc-600 mb-4 flex justify-center"><TruckIcon className="w-16 h-16" /></div>
-          <h3 className="text-lg font-medium text-zinc-300 mb-1">No Purchases</h3>
-          <p className="text-sm text-zinc-500 mb-4">Create your first purchase order</p>
-          <Button onClick={() => router.push('/dashboard/stock/purchases/new')} icon={<PlusIcon className="w-4 h-4" />}>New Purchase</Button>
+          <h3 className="text-lg font-medium text-zinc-300 mb-1">{t('stock.purchases.empty.title')}</h3>
+          <p className="text-sm text-zinc-500 mb-4">{t('stock.purchases.empty.hint')}</p>
+          <Button onClick={() => router.push('/dashboard/stock/purchases/new')} icon={<PlusIcon className="w-4 h-4" />}>{t('stock.purchases.new')}</Button>
         </div>
       )}
 

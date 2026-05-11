@@ -381,6 +381,7 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
 
     const existing = await prisma.order.findFirst({
       where: { id: orderId, userId: req.user.userId },
+      include: { items: true },
     });
 
     if (!existing) {
@@ -406,7 +407,55 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
     if (amountPaid !== undefined) updateData.amountPaid = Number(amountPaid);
     if (notes !== undefined) updateData.notes = notes?.trim() || null;
 
+    // A status transition to "cancelled" or "returned" should:
+    //   - put the reserved stock back on the shelf
+    //   - wipe automatic caisse income tied to this order
+    // Without this, cancelled orders inflate revenue and leave stock missing.
+    const becameInvalid =
+      status !== undefined &&
+      (status === 'cancelled' || status === 'returned') &&
+      existing.status !== 'cancelled' &&
+      existing.status !== 'returned';
+
     const order = await prisma.$transaction(async (tx) => {
+      if (becameInvalid) {
+        for (const item of existing.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { quantity: { increment: item.quantity } },
+          });
+          await tx.stockMovement.create({
+            data: {
+              userId: req.user!.userId,
+              productId: item.productId,
+              type: 'return',
+              quantity: item.quantity,
+              reference: existing.id,
+              reason: `${status === 'returned' ? 'Returned' : 'Cancelled'} order ${existing.orderNumber}`,
+            },
+          });
+        }
+        // Wipe the automatic income rows tied to this order so the caisse
+        // balance no longer counts revenue that never landed.
+        await tx.caisseTransaction.deleteMany({
+          where: { userId: req.user!.userId, sourceId: orderId, isAutomatic: true },
+        });
+        // Roll back the client's lifetime stats too.
+        if (existing.clientId) {
+          await tx.client.update({
+            where: { id: existing.clientId },
+            data: {
+              totalOrders: { decrement: 1 },
+              totalSpent: { decrement: Number(existing.total) },
+            },
+          });
+        }
+        // Force amountPaid to zero on cancellation — caller can't have paid a
+        // cancelled order; if they did, refund it manually via a caisse expense.
+        updateData.amountPaid = 0;
+        updateData.paymentStatus = 'pending';
+      }
+
       const updated = await tx.order.update({
         where: { id: orderId },
         data: updateData,
@@ -417,9 +466,12 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
       });
 
       // Auto caisse entry if amountPaid increased (manual or auto via delivery)
-      const effectiveDelta = amountPaid !== undefined
-        ? Number(amountPaid) - Number(existing.amountPaid)
-        : (autoPayAmount && autoPayAmount > 0 ? autoPayAmount : 0);
+      // Skip when the order is being cancelled — the caisse rows were just wiped.
+      const effectiveDelta = becameInvalid
+        ? 0
+        : amountPaid !== undefined
+          ? Number(amountPaid) - Number(existing.amountPaid)
+          : (autoPayAmount && autoPayAmount > 0 ? autoPayAmount : 0);
 
       if (effectiveDelta > 0) {
         await tx.caisseTransaction.create({

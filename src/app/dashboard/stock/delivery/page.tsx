@@ -31,13 +31,18 @@ import {
   type Wilaya,
   type DeliveryRates,
 } from '@/lib/delivery-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 type DeliveryFilter = 'all' | 'not_sent' | 'sent' | 'in_transit' | 'delivered';
 
 export default function DeliveryDashboardPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
+  // Unfiltered view, used to compute the stat cards. Otherwise switching to
+  // e.g. the "Sent" tab would zero out the other stats.
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [total, setTotal] = useState(0);
   const [providers, setProviders] = useState<DeliveryProvider[]>([]);
   const [wilayaList, setWilayaList] = useState<Wilaya[]>([]);
@@ -84,6 +89,7 @@ export default function DeliveryDashboardPage() {
       }
 
       setOrders(filteredOrders);
+      setAllOrders(ordersRes.orders);
       setTotal(filteredOrders.length);
       setProviders(provsRes.providers);
       setWilayaList(wilRes.wilayas);
@@ -98,15 +104,22 @@ export default function DeliveryDashboardPage() {
     loadData();
   }, [loadData]);
 
-  // Stats
+  // Stats — compute from `allOrders` (the unfiltered list) so switching
+  // delivery tabs doesn't zero out the other counters. We also drop
+  // cancelled/returned orders from the "Ready to Ship" count since you can't
+  // ship something that's no longer a live order.
   const stats = {
-    readyToShip: orders.filter(o =>
+    readyToShip: allOrders.filter(o =>
       o.deliveryStatus === 'not_sent' &&
-      (o.status === 'confirmed' || o.status === 'pending')
+      // The Order.status type omits "cancelled"/"returned" in this client
+      // model, so coerce to a generic string compare to keep them excluded
+      // when the backend does set those values.
+      (o.status as string) !== 'cancelled' &&
+      (o.status as string) !== 'returned'
     ).length,
-    shipped: orders.filter(o => o.deliveryStatus === 'sent').length,
-    inTransit: orders.filter(o => o.deliveryStatus === 'in_transit').length,
-    delivered: orders.filter(o => o.deliveryStatus === 'delivered').length,
+    shipped: allOrders.filter(o => o.deliveryStatus === 'sent').length,
+    inTransit: allOrders.filter(o => o.deliveryStatus === 'in_transit').length,
+    delivered: allOrders.filter(o => o.deliveryStatus === 'delivered').length,
   };
 
   // Fetch rates when provider + wilaya selected
@@ -204,10 +217,10 @@ export default function DeliveryDashboardPage() {
       delivered: 'bg-green-500/20 text-green-400',
     };
     const labels: Record<string, string> = {
-      not_sent: 'Not Sent',
-      sent: 'Sent',
-      in_transit: 'In Transit',
-      delivered: 'Delivered',
+      not_sent: t('stock.delivery.notSent'),
+      sent: t('stock.delivery.filter.sent'),
+      in_transit: t('stock.delivery.filter.inTransit'),
+      delivered: t('stock.delivery.filter.delivered'),
     };
     return (
       <span className={`text-xs px-2 py-0.5 rounded-full ${map[status] || map.not_sent}`}>
@@ -229,17 +242,17 @@ export default function DeliveryDashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Delivery</h1>
-          <p className="text-zinc-400 text-sm mt-1">Send orders to delivery companies and track shipments</p>
+          <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('stock.delivery.title')}</h1>
+          <p className="text-zinc-400 text-sm mt-1">{t('stock.delivery.subtitle')}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => router.push('/dashboard/stock/delivery/fees')}>
             <DollarIcon className="w-4 h-4 mr-2" />
-            Fees
+            {t('stock.delivery.fees')}
           </Button>
           <Button variant="secondary" onClick={() => router.push('/dashboard/stock/delivery/settings')}>
             <SettingsIcon className="w-4 h-4 mr-2" />
-            Providers
+            {t('stock.delivery.providers')}
           </Button>
           <Button variant="secondary" onClick={loadData}>
             <RefreshIcon className="w-4 h-4" />
@@ -256,10 +269,10 @@ export default function DeliveryDashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard title="Ready to Ship" value={stats.readyToShip} icon={<BoxIcon className="w-5 h-5" />} iconColor="text-zinc-400" />
-        <StatsCard title="Shipped" value={stats.shipped} icon={<TruckIcon className="w-5 h-5" />} iconColor="text-blue-400" />
-        <StatsCard title="In Transit" value={stats.inTransit} icon={<TruckIcon className="w-5 h-5" />} iconColor="text-yellow-400" />
-        <StatsCard title="Delivered" value={stats.delivered} icon={<CheckCircleIcon className="w-5 h-5" />} iconColor="text-green-400" />
+        <StatsCard title={t('stock.delivery.stat.readyToShip')} value={stats.readyToShip} icon={<BoxIcon className="w-5 h-5" />} iconColor="text-zinc-400" />
+        <StatsCard title={t('stock.delivery.stat.shipped')} value={stats.shipped} icon={<TruckIcon className="w-5 h-5" />} iconColor="text-blue-400" />
+        <StatsCard title={t('stock.delivery.stat.inTransit')} value={stats.inTransit} icon={<TruckIcon className="w-5 h-5" />} iconColor="text-yellow-400" />
+        <StatsCard title={t('stock.delivery.stat.delivered')} value={stats.delivered} icon={<CheckCircleIcon className="w-5 h-5" />} iconColor="text-green-400" />
       </div>
 
       {/* Filters */}
@@ -270,7 +283,7 @@ export default function DeliveryDashboardPage() {
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search orders..."
+            placeholder={t('stock.delivery.search')}
             className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm
               focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30
               placeholder:text-zinc-500"
@@ -287,7 +300,7 @@ export default function DeliveryDashboardPage() {
                   : 'text-zinc-400 hover:text-white hover:bg-white/5'
               }`}
             >
-              {f === 'all' ? 'All' : f === 'not_sent' ? 'Ready' : f === 'in_transit' ? 'In Transit' : f.charAt(0).toUpperCase() + f.slice(1)}
+              {f === 'all' ? t('stock.common.all') : f === 'not_sent' ? t('stock.delivery.filter.ready') : f === 'sent' ? t('stock.delivery.filter.sent') : f === 'in_transit' ? t('stock.delivery.filter.inTransit') : t('stock.delivery.filter.delivered')}
             </button>
           ))}
         </div>
@@ -299,13 +312,13 @@ export default function DeliveryDashboardPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/10">
-                <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Order</th>
-                <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Client</th>
-                <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Address</th>
-                <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Total</th>
-                <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Provider</th>
-                <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Tracking</th>
-                <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Status</th>
+                <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.delivery.col.order')}</th>
+                <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.client')}</th>
+                <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.delivery.col.address')}</th>
+                <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.total')}</th>
+                <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.delivery.col.provider')}</th>
+                <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.delivery.col.tracking')}</th>
+                <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.status')}</th>
                 <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Actions</th>
               </tr>
             </thead>

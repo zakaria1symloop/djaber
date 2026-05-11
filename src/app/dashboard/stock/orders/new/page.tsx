@@ -10,6 +10,8 @@ import {
 } from '@/components/ui/icons';
 import { getProducts, getClients, createOrder, quoteDeliveryFee, type Product, type Client } from '@/lib/user-stock-api';
 import { getWilayas, type Wilaya } from '@/lib/delivery-api';
+import { isValidPhone, hasAlphanumeric } from '@/lib/validation';
+import { useToast } from '@/components/ui/Toast';
 
 // ── Keyboard-navigable Client Autocomplete ──
 function ClientAutocomplete({
@@ -265,6 +267,7 @@ function ProductAutocomplete({
 // ── Main Page ──
 export default function NewOrderPage() {
   const router = useRouter();
+  const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -392,8 +395,31 @@ export default function NewOrderPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Order-level validation: an order without contact + delivery info can't
+    // actually be delivered. Block at the form level instead of letting the
+    // backend create a half-broken order.
     if (orderItems.length === 0) { setError('Add at least one product'); return; }
-    if (!customerName) { setError('Client name is required'); return; }
+    const trimmedName = (customerName || '').trim();
+    if (!trimmedName || !hasAlphanumeric(trimmedName)) {
+      setError('Client name is required (must contain at least one letter or number)');
+      return;
+    }
+    if (!customerPhone || !isValidPhone(customerPhone)) {
+      setError('A valid phone number is required to contact the client');
+      return;
+    }
+    if (!wilayaId) {
+      setError('Wilaya (delivery region) is required');
+      return;
+    }
+    // For home delivery (non-stopdesk), the courier needs a street address.
+    // Stopdesk pickups use the agency, so address is optional in that case.
+    if (!isStopdesk && (!deliveryAddress || !deliveryAddress.trim())) {
+      setError('Delivery address is required for home delivery (or pick Stopdesk for agency pickup)');
+      return;
+    }
+
     try {
       setError(null);
       setSaving(true);
@@ -419,9 +445,12 @@ export default function NewOrderPage() {
         isStopdesk,
         deliveryFee,
       });
+      toast.success('Order created');
       router.push('/dashboard/stock/orders');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create order');
+      const msg = err instanceof Error ? err.message : 'Failed to create order';
+      setError(msg);
+      toast.error(msg);
       setSaving(false);
     }
   };
