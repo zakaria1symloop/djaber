@@ -5,6 +5,19 @@ import { UploadIcon, TrashIcon, StarIcon, CloseIcon } from '@/components/ui/icon
 import { API_BASE_URL } from '@/lib/api-config';
 import type { ProductImage } from '@/lib/user-stock-api';
 
+// Product image URLs come in two flavours:
+//   - Relative path uploaded via /api/user-stock/products/:id/images
+//     ("/uploads/products/xxx.jpg") — needs API_BASE_URL prepended
+//   - Absolute URL rehosted from FB analyzer or GCS
+//     ("https://.../uploads/products/xxx.jpg") — already a full URL
+// Blindly prepending in both cases produces "https://api/https://api/..."
+// which 404s and leaves the thumbnail black (imageProblem.png in v2 report).
+function resolveImageUrl(url: string): string {
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
+  return `${API_BASE_URL}${url}`;
+}
+
 interface ImageUploaderProps {
   existingImages: ProductImage[];
   newFiles: File[];
@@ -67,7 +80,7 @@ export function ImageUploader({
           {existingImages.map((img) => (
             <div key={img.id} className="relative group w-20 h-20 rounded-lg overflow-hidden border border-white/10">
               <img
-                src={`${API_BASE_URL}${img.url}`}
+                src={resolveImageUrl(img.url)}
                 alt=""
                 className="w-full h-full object-cover"
               />

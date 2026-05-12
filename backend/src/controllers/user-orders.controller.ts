@@ -2,9 +2,68 @@ import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { computeDeliveryFee } from './user-delivery-fees.controller';
 
+type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+/**
+ * Roll back the side-effects of a confirmed/pending order when it transitions
+ * to `cancelled` or `returned`. Idempotent for the actual cancellation, but
+ * the caller must ensure this only fires once per transition (the bug we keep
+ * hitting: this fires zero or many times depending on which controller path
+ * the user took to cancel).
+ *
+ * What it does inside the supplied transaction:
+ *   1. Re-increments product stock for every order line
+ *   2. Logs a `return` movement per line (audit trail visible on /movements)
+ *   3. Wipes automatic caisse income rows tied to this order so revenue +
+ *      caisse balance no longer count phantom money
+ *   4. Rolls back the linked Client's lifetime `totalOrders` / `totalSpent`
+ *   5. Zeroes the order's `amountPaid` and resets payment to `pending`
+ */
+export async function rollbackOrderSideEffects(
+  tx: TxClient,
+  userId: string,
+  order: {
+    id: string;
+    orderNumber: string;
+    total: any;
+    clientId: string | null;
+    items: { productId: string; quantity: number }[];
+  },
+  reason: 'cancelled' | 'returned'
+): Promise<void> {
+  for (const item of order.items) {
+    await tx.product.update({
+      where: { id: item.productId },
+      data: { quantity: { increment: item.quantity } },
+    });
+    await tx.stockMovement.create({
+      data: {
+        userId,
+        productId: item.productId,
+        type: 'return',
+        quantity: item.quantity,
+        reference: order.id,
+        reason: `${reason === 'returned' ? 'Returned' : 'Cancelled'} order ${order.orderNumber}`,
+      },
+    });
+  }
+  await tx.caisseTransaction.deleteMany({
+    where: { userId, sourceId: order.id, isAutomatic: true },
+  });
+  if (order.clientId) {
+    await tx.client.update({
+      where: { id: order.clientId },
+      data: {
+        totalOrders: { decrement: 1 },
+        totalSpent: { decrement: Number(order.total) },
+      },
+    });
+  }
+}
+
 // Generate order number inside a transaction to avoid race conditions
 const generateOrderNumber = async (
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  tx: TxClient,
   userId: string
 ): Promise<string> => {
   const today = new Date();
@@ -419,37 +478,12 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
 
     const order = await prisma.$transaction(async (tx) => {
       if (becameInvalid) {
-        for (const item of existing.items) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { quantity: { increment: item.quantity } },
-          });
-          await tx.stockMovement.create({
-            data: {
-              userId: req.user!.userId,
-              productId: item.productId,
-              type: 'return',
-              quantity: item.quantity,
-              reference: existing.id,
-              reason: `${status === 'returned' ? 'Returned' : 'Cancelled'} order ${existing.orderNumber}`,
-            },
-          });
-        }
-        // Wipe the automatic income rows tied to this order so the caisse
-        // balance no longer counts revenue that never landed.
-        await tx.caisseTransaction.deleteMany({
-          where: { userId: req.user!.userId, sourceId: orderId, isAutomatic: true },
-        });
-        // Roll back the client's lifetime stats too.
-        if (existing.clientId) {
-          await tx.client.update({
-            where: { id: existing.clientId },
-            data: {
-              totalOrders: { decrement: 1 },
-              totalSpent: { decrement: Number(existing.total) },
-            },
-          });
-        }
+        await rollbackOrderSideEffects(
+          tx,
+          req.user!.userId,
+          existing,
+          status as 'cancelled' | 'returned',
+        );
         // Force amountPaid to zero on cancellation — caller can't have paid a
         // cancelled order; if they did, refund it manually via a caisse expense.
         updateData.amountPaid = 0;
@@ -527,39 +561,45 @@ export const deleteOrder = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Delete order and restore stock
+    // Delete order. If the order is still "alive" (not already cancelled or
+    // returned) we need to roll back stock + caisse + client stats. If it
+    // was already cancelled, those side-effects were rolled back at
+    // cancellation time, so doing it again would double-credit the stock.
+    const alreadyRolledBack =
+      order.status === 'cancelled' || order.status === 'returned';
+
     await prisma.$transaction(async (tx) => {
-      // Restore product quantities
-      for (const item of order.items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { quantity: { increment: item.quantity } },
-        });
-
-        await tx.stockMovement.create({
-          data: {
-            userId: req.user!.userId,
-            productId: item.productId,
-            type: 'return',
-            quantity: item.quantity,
-            reference: order.id,
-            reason: `Deleted order ${order.orderNumber}`,
-          },
-        });
+      if (!alreadyRolledBack) {
+        for (const item of order.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { quantity: { increment: item.quantity } },
+          });
+          await tx.stockMovement.create({
+            data: {
+              userId: req.user!.userId,
+              productId: item.productId,
+              type: 'return',
+              quantity: item.quantity,
+              reference: order.id,
+              reason: `Deleted order ${order.orderNumber}`,
+            },
+          });
+        }
+        if (order.clientId) {
+          await tx.client.update({
+            where: { id: order.clientId },
+            data: {
+              totalOrders: { decrement: 1 },
+              totalSpent: { decrement: Number(order.total) },
+            },
+          });
+        }
       }
 
-      // Revert client stats if linked
-      if (order.clientId) {
-        await tx.client.update({
-          where: { id: order.clientId },
-          data: {
-            totalOrders: { decrement: 1 },
-            totalSpent: { decrement: Number(order.total) },
-          },
-        });
-      }
-
-      // Delete related caisse transactions
+      // Always wipe caisse rows tied to this order, manual or not — the
+      // order row itself is about to vanish, so referencing rows would
+      // become orphaned.
       await tx.caisseTransaction.deleteMany({
         where: { userId: req.user!.userId, sourceId: orderId },
       });
@@ -602,6 +642,7 @@ export const addOrderCall = async (req: Request, res: Response): Promise<void> =
 
     const order = await prisma.order.findFirst({
       where: { id: orderId, userId: req.user.userId },
+      include: { items: true },
     });
 
     if (!order) {
@@ -619,16 +660,29 @@ export const addOrderCall = async (req: Request, res: Response): Promise<void> =
       confirmationStatus = 'no_answer';
     }
 
-    // Create call record and update order in transaction
-    const [call, updatedOrder] = await prisma.$transaction([
-      prisma.orderCall.create({
+    // If the rejection auto-cancels the order, we need the same rollback
+    // (stock + caisse + client stats) that `updateOrder` performs. Without
+    // this, the tester sees the order go to "cancelled" but stock stays
+    // deducted — see StockDontIncreaseWhenOrderCancel.png in v2 bug report.
+    const willCancel =
+      result === 'rejected' &&
+      order.status !== 'cancelled' &&
+      order.status !== 'returned';
+
+    const updatedOrder = await prisma.$transaction(async (tx) => {
+      await tx.orderCall.create({
         data: {
           orderId,
           result,
           notes: notes?.trim() || null,
         },
-      }),
-      prisma.order.update({
+      });
+
+      if (willCancel) {
+        await rollbackOrderSideEffects(tx, req.user!.userId, order, 'cancelled');
+      }
+
+      return tx.order.update({
         where: { id: orderId },
         data: {
           confirmationStatus,
@@ -638,15 +692,16 @@ export const addOrderCall = async (req: Request, res: Response): Promise<void> =
             ? { status: 'confirmed' }
             : {}),
           // Auto-cancel if rejected
-          ...(result === 'rejected' ? { status: 'cancelled' } : {}),
+          ...(willCancel ? { status: 'cancelled', amountPaid: 0, paymentStatus: 'pending' } : {}),
         },
         include: {
           items: true,
           calls: { orderBy: { calledAt: 'desc' } },
         },
-      }),
-    ]);
+      });
+    });
 
+    const call = updatedOrder.calls[0];
     res.json({ call, order: updatedOrder });
   } catch (error) {
     console.error('Add order call error:', error);

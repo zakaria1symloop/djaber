@@ -1231,7 +1231,7 @@ export default function ProductsPage() {
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
           {/* Category chips */}
           <div>
-            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">Category</label>
+            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">{t('stock.filter.category')}</label>
             <div className="flex flex-wrap gap-1.5">
               {categories.map((cat) => {
                 const isSelected = draftCategories.includes(cat.id);
@@ -1255,7 +1255,7 @@ export default function ProductsPage() {
                 );
               })}
               {categories.length === 0 && (
-                <p className="text-xs text-zinc-500">No categories yet</p>
+                <p className="text-xs text-zinc-500">{t('stock.filter.noCategories')}</p>
               )}
             </div>
           </div>
@@ -1263,7 +1263,7 @@ export default function ProductsPage() {
           {/* Price Range */}
           <div>
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
-              Selling Price (DA)
+              {t('stock.filter.sellingPrice')}
               {(draftPriceRange[0] > 0 || draftPriceRange[1] < DEFAULT_PRICE_MAX) && (
                 <span className="ml-1.5 text-blue-400 font-normal normal-case">
                   {draftPriceRange[0].toLocaleString()} - {draftPriceRange[1].toLocaleString()}
@@ -1283,7 +1283,7 @@ export default function ProductsPage() {
           {/* Cost Range */}
           <div>
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
-              Cost Price (DA)
+              {t('stock.filter.costPrice')}
               {(draftCostRange[0] > 0 || draftCostRange[1] < DEFAULT_COST_MAX) && (
                 <span className="ml-1.5 text-blue-400 font-normal normal-case">
                   {draftCostRange[0].toLocaleString()} - {draftCostRange[1].toLocaleString()}
@@ -1303,7 +1303,7 @@ export default function ProductsPage() {
           {/* Quantity Range */}
           <div>
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
-              Quantity
+              {t('stock.filter.quantity')}
               {(draftQtyRange[0] > 0 || draftQtyRange[1] < DEFAULT_QTY_MAX) && (
                 <span className="ml-1.5 text-blue-400 font-normal normal-case">
                   {draftQtyRange[0].toLocaleString()} - {draftQtyRange[1].toLocaleString()}
@@ -1323,7 +1323,7 @@ export default function ProductsPage() {
           {/* Net Profit Range */}
           <div>
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
-              Net Profit (DA)
+              {t('stock.filter.netProfit')}
               {(draftProfitRange[0] > DEFAULT_PROFIT_MIN || draftProfitRange[1] < DEFAULT_PROFIT_MAX) && (
                 <span className="ml-1.5 text-blue-400 font-normal normal-case">
                   {draftProfitRange[0] >= 0 ? '+' : ''}{draftProfitRange[0].toLocaleString()} - {draftProfitRange[1] >= 0 ? '+' : ''}{draftProfitRange[1].toLocaleString()}
@@ -1343,7 +1343,7 @@ export default function ProductsPage() {
           {/* Margin % Range */}
           <div>
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
-              Margin (%)
+              {t('stock.filter.margin')}
               {(draftMarginRange[0] > DEFAULT_MARGIN_MIN || draftMarginRange[1] < DEFAULT_MARGIN_MAX) && (
                 <span className="ml-1.5 text-blue-400 font-normal normal-case">
                   {draftMarginRange[0]}% - {draftMarginRange[1]}%
@@ -1362,7 +1362,7 @@ export default function ProductsPage() {
 
           {/* Low Stock Toggle */}
           <div>
-            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">Stock Level</label>
+            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">{t('stock.filter.stockLevel')}</label>
             <button
               onClick={() => setDraftLowStock(!draftLowStock)}
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all duration-150 ${
@@ -1373,22 +1373,22 @@ export default function ProductsPage() {
             >
               <div className="flex items-center gap-2">
                 <AlertIcon className={`w-4 h-4 ${draftLowStock ? 'text-amber-400' : 'text-zinc-500'}`} />
-                <span className={`text-sm ${draftLowStock ? 'text-amber-400' : 'text-zinc-400'}`}>Low Stock Only</span>
+                <span className={`text-sm ${draftLowStock ? 'text-amber-400' : 'text-zinc-400'}`}>{t('stock.products.lowStockOnly')}</span>
               </div>
-              <div className={`w-9 h-5 rounded-full transition-colors duration-200 relative ${draftLowStock ? 'bg-amber-500' : 'bg-zinc-600'}`}>
-                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${draftLowStock ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              <div className={`w-9 h-5 rounded-full transition-colors duration-200 flex items-center p-0.5 ${draftLowStock ? 'bg-amber-500 justify-end' : 'bg-zinc-600 justify-start'}`}>
+                <div className="w-4 h-4 rounded-full bg-white shadow transition-transform duration-200" />
               </div>
             </button>
           </div>
 
           {/* Active/Inactive Toggle */}
           <div>
-            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">Status</label>
+            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">{t('stock.filter.status')}</label>
             <div className="flex gap-1.5">
               {[
-                { value: '' as const, label: 'All' },
-                { value: 'true' as const, label: 'Active' },
-                { value: 'false' as const, label: 'Inactive' },
+                { value: '' as const, label: t('stock.common.all') },
+                { value: 'true' as const, label: t('stock.filter.active') },
+                { value: 'false' as const, label: t('stock.filter.inactive') },
               ].map((opt) => (
                 <button
                   key={opt.value}
@@ -1417,14 +1417,14 @@ export default function ProductsPage() {
             disabled={!draftDirty}
             className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-500 text-white"
           >
-            Apply Filters
+            {t('stock.filter.applyFilters')}
           </button>
           <button
             onClick={clearAllFilters}
             disabled={activeFilterCount === 0 && !draftDirty}
             className="w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700"
           >
-            Clear All{activeFilterCount > 0 && ` (${activeFilterCount})`}
+            {t('stock.filter.clearAll')}{activeFilterCount > 0 && ` (${activeFilterCount})`}
           </button>
         </div>
       </div>

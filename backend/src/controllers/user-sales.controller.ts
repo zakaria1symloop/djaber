@@ -454,12 +454,16 @@ export const getSalesStats = async (req: Request, res: Response): Promise<void> 
       saleDate: { gte: startDate },
     };
 
-    // Cancelled / returned orders must not count towards revenue — they're not
-    // money the merchant earned. Same for the totalSales counter.
+    // CA / chiffre d'affaires represents revenue ACTUALLY earned. Per v2 bug
+    // report (CD.png / CD2.png) only `delivered` orders should be included —
+    // pending / confirmed / shipped haven't reached the customer yet and could
+    // still be cancelled, so counting them would inflate the merchant's
+    // reported revenue. Walk-in `Sale` rows are always immediate-revenue, so
+    // they stay in the count unconditionally.
     const orderWhere = {
       userId: req.user.userId,
       orderDate: { gte: startDate },
-      status: { notIn: ['cancelled', 'returned'] },
+      status: 'delivered',
     };
 
     const [

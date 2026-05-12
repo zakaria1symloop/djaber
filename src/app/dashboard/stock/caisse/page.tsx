@@ -289,12 +289,32 @@ export default function CaissePage() {
         </div>
       )}
 
-      {/* Period selector + Stats */}
+      {/* Period selector. Drives both the stat cards (via getCaisseStats)
+          and the transaction table (via dateFrom/dateTo). Previously only
+          the stats reacted to it — see dateFilter.png in v2 bug report. */}
       <div className="flex gap-2">
         {(['today', 'week', 'month', 'year'] as const).map(p => (
           <button
             key={p}
-            onClick={() => setPeriodFilter(p)}
+            onClick={() => {
+              setPeriodFilter(p);
+              // Derive a date window matching `getCaisseStats`'s server-side
+              // logic and push it into the table query so the two views agree.
+              const now = new Date();
+              const from = (() => {
+                if (p === 'today') return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                if (p === 'week') return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                if (p === 'month') return new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+                return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+              })();
+              const fromStr = from.toISOString().slice(0, 10);
+              setDraftDateFrom(fromStr);
+              setDraftDateTo('');
+              setAppliedDateFrom(fromStr);
+              setAppliedDateTo('');
+              setOffset(0);
+              setFilterTrigger(n => n + 1);
+            }}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
               periodFilter === p
                 ? 'bg-white text-black'

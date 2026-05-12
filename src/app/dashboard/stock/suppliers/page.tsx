@@ -721,6 +721,10 @@ export default function SuppliersPage() {
           </div>
 
           {editing && (
+            // Flexbox-based toggle so it mirrors correctly in RTL (Arabic).
+            // The previous implementation used `translate-x-5` which is a
+            // physical right-shift and didn't flip in RTL — the handle ended
+            // up disconnected from the track (StatusBtn.png in v2 report).
             <label className="flex items-center gap-3 cursor-pointer">
               <div className="relative">
                 <input
@@ -729,11 +733,15 @@ export default function SuppliersPage() {
                   onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
                   className="sr-only"
                 />
-                <div className={`w-10 h-6 rounded-full transition-colors ${form.isActive ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
-                  <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform mt-1 ${form.isActive ? 'translate-x-5' : 'translate-x-1'}`} />
+                <div
+                  className={`w-10 h-6 rounded-full flex items-center p-1 transition-colors ${
+                    form.isActive ? 'bg-emerald-500 justify-end' : 'bg-zinc-700 justify-start'
+                  }`}
+                >
+                  <div className="w-4 h-4 bg-white rounded-full shadow-sm transition-transform" />
                 </div>
               </div>
-              <span className="text-sm text-zinc-300">{form.isActive ? 'Active' : 'Inactive'}</span>
+              <span className="text-sm text-zinc-300">{form.isActive ? t('dash.pageCard.active') : t('dash.pageCard.inactive')}</span>
             </label>
           )}
 

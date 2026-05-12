@@ -31,7 +31,16 @@ export const getCaisseTransactions = async (req: Request, res: Response): Promis
     if (dateFrom || dateTo) {
       where.date = {};
       if (dateFrom) where.date.gte = new Date(dateFrom as string);
-      if (dateTo) where.date.lte = new Date(dateTo as string);
+      if (dateTo) {
+        // Treat a bare date as the whole day (inclusive). Otherwise
+        // `new Date('2026-05-12')` becomes midnight UTC and a transaction
+        // logged at 10:00 AM that same day is excluded.
+        const to = new Date(dateTo as string);
+        if (!(dateTo as string).includes('T')) {
+          to.setHours(23, 59, 59, 999);
+        }
+        where.date.lte = to;
+      }
     }
     if (search) {
       const s = search as string;

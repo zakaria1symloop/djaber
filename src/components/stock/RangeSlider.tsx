@@ -136,8 +136,11 @@ export function RangeSlider({
         />
       </div>
 
-      {/* Number inputs */}
-      <div className="flex items-center gap-2">
+      {/* Number inputs — forced LTR so "min to max" reads left-to-right
+          even in Arabic. Otherwise the flex row reverses and the user sees
+          "100000 to 0" instead of "0 to 100000" (see traduction12+ltr in
+          v2 bug report). The slider track above is already LTR-positioned. */}
+      <div className="flex items-center gap-2" dir="ltr">
         <input
           type="number"
           value={localMin}
@@ -163,8 +166,8 @@ export function RangeSlider({
         />
       </div>
 
-      {/* Range labels */}
-      <div className="flex justify-between text-[10px] text-zinc-500">
+      {/* Range labels — same LTR lock so MIN-label is always on the left. */}
+      <div className="flex justify-between text-[10px] text-zinc-500" dir="ltr">
         <span>{formatLabel(min)}</span>
         <span>{formatLabel(max)}</span>
       </div>
