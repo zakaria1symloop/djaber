@@ -59,6 +59,7 @@ model Conversation {
   clientId   String?  // Link conversation to a Client
   agentId    String?  // Which AI agent handled this conversation
   status     String   @default("active") // active, resolved, archived
+  aiPaused   Boolean  @default(false) // true = human takeover, AI must not auto-reply (set by HANDOFF/UNCLEAR/UNKNOWN)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

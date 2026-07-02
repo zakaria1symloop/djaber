@@ -8,11 +8,38 @@ import { StringOutputParser } from '@langchain/core/output_parsers';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
+import axios from 'axios';
 import prisma from '../config/database';
 import { createNotification } from './notification.service';
 import { getRecommendationsMap, trackConversion } from './recommendation.service';
 import { computeDeliveryFee } from '../controllers/user-delivery-fees.controller';
+import { rollbackOrderSideEffects } from '../controllers/user-orders.controller';
 import { wilayas } from '../data/wilayas';
+
+// ============================================================================
+// Image fetching — LLM providers can't download Facebook CDN URLs themselves
+// (OpenAI returns "invalid_image_url"), so we download and inline as base64.
+// ============================================================================
+
+const MAX_INLINE_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
+
+async function fetchImageAsDataUrl(url: string): Promise<string | null> {
+  // Already inline
+  if (url.startsWith('data:')) return url;
+  try {
+    const res = await axios.get<ArrayBuffer>(url, {
+      responseType: 'arraybuffer',
+      timeout: 20_000,
+      maxContentLength: MAX_INLINE_IMAGE_BYTES,
+    });
+    const contentType = String(res.headers['content-type'] || 'image/jpeg').split(';')[0];
+    const base64 = Buffer.from(res.data).toString('base64');
+    return `data:${contentType};base64,${base64}`;
+  } catch (err: any) {
+    console.error(`Failed to fetch image for vision (${url.slice(0, 80)}…):`, err.message || err);
+    return null;
+  }
+}
 
 // ============================================================================
 // Types
@@ -712,6 +739,133 @@ function makeCreateOrderTool(userId: string, products: ProductInfo[], agentName?
 }
 
 // ============================================================================
+// Cancel Order Tool — lets the AI cancel a customer's own open order
+// ============================================================================
+
+const CANCELLABLE_STATUSES = ['pending', 'confirmed', 'preparing'];
+
+function makeCancelOrderTool(userId: string, agentName?: string, conversationId?: string) {
+  return tool(
+    async (input) => {
+      try {
+        // The customer can only cancel orders linked to THEIR client record
+        let clientId: string | null = null;
+        if (conversationId) {
+          const conv = await prisma.conversation.findUnique({
+            where: { id: conversationId },
+            select: { clientId: true },
+          });
+          clientId = conv?.clientId || null;
+        }
+        if (!clientId) {
+          return JSON.stringify({
+            success: false,
+            error: 'No orders found for this customer in this conversation.',
+          });
+        }
+
+        const openOrders = await prisma.order.findMany({
+          // deliveryStatus 'not_sent' guard: an order already handed to the courier
+          // (even while status is still pending/preparing) cannot be cancelled in chat
+          where: { userId, clientId, status: { in: CANCELLABLE_STATUSES }, deliveryStatus: 'not_sent' },
+          orderBy: { orderDate: 'desc' },
+          include: { items: true },
+          take: 5,
+        });
+
+        if (openOrders.length === 0) {
+          return JSON.stringify({
+            success: false,
+            error: 'This customer has no open orders to cancel. Orders already shipped or delivered cannot be cancelled in chat — tell the customer a team member will help.',
+          });
+        }
+
+        let target = openOrders[0];
+        if (input.orderNumber) {
+          const wanted = input.orderNumber.trim().toLowerCase();
+          const found = openOrders.find((o) => o.orderNumber.toLowerCase() === wanted);
+          if (!found) {
+            return JSON.stringify({
+              success: false,
+              error: `Order "${input.orderNumber}" is not among this customer's open orders.`,
+              openOrders: openOrders.map((o) => ({
+                orderNumber: o.orderNumber,
+                total: Number(o.total),
+                status: o.status,
+                items: o.items.map((i) => `${i.productName} x${i.quantity}`),
+              })),
+            });
+          }
+          target = found;
+        } else if (openOrders.length > 1) {
+          return JSON.stringify({
+            success: false,
+            needsOrderNumber: true,
+            error: 'Customer has multiple open orders — ask which one to cancel.',
+            openOrders: openOrders.map((o) => ({
+              orderNumber: o.orderNumber,
+              total: Number(o.total),
+              status: o.status,
+              items: o.items.map((i) => `${i.productName} x${i.quantity}`),
+            })),
+          });
+        }
+
+        // Cancel with full side-effect rollback (stock restore, caisse wipe, client stats)
+        await prisma.$transaction(async (tx) => {
+          await rollbackOrderSideEffects(tx, userId, target, 'cancelled');
+          await tx.order.update({
+            where: { id: target.id },
+            data: {
+              status: 'cancelled',
+              amountPaid: 0,
+              paymentStatus: 'pending',
+              notes: `${target.notes ? `${target.notes}\n` : ''}Cancelled by customer via AI chat${input.reason ? ` — ${input.reason}` : ''}`,
+            },
+          });
+        });
+
+        await createNotification({
+          userId,
+          type: 'ai_order',
+          title: 'Order Cancelled by Customer',
+          message: `Agent "${agentName || 'AI'}" cancelled order ${target.orderNumber} at the customer's request${input.reason ? ` — ${input.reason}` : ''}`,
+          metadata: {
+            orderId: target.id,
+            orderNumber: target.orderNumber,
+            agentName: agentName || 'AI',
+            action: 'cancelled',
+            reason: input.reason || null,
+          },
+        });
+
+        return JSON.stringify({
+          success: true,
+          cancelledOrderNumber: target.orderNumber,
+          total: Number(target.total),
+          message: 'Order cancelled and stock restored.',
+        });
+      } catch (error) {
+        console.error('Cancel order tool error:', error);
+        return JSON.stringify({ success: false, error: 'Failed to cancel the order. Please try again.' });
+      }
+    },
+    {
+      name: 'cancel_order',
+      description:
+        "Cancel one of THIS customer's open orders (pending/confirmed/preparing) when they ask to cancel, delete, or undo an order. NEVER use create_order for a cancellation request. If the customer has several open orders the tool returns the list — ask which order number to cancel. Always confirm with the customer before calling this tool.",
+      schema: z.object({
+        orderNumber: z
+          .string()
+          .optional()
+          .describe('The order number to cancel (e.g. ORD-20260702-0001). Omit if the customer has only one open order.'),
+        reason: z.string().optional().describe('Why the customer wants to cancel (optional).'),
+      }),
+    }
+  );
+}
+
+// ============================================================================
 // Agent-based response (LangChain — multi-provider + tool calling)
 // ============================================================================
 
@@ -758,6 +912,7 @@ RULES:
 - Ask whether they prefer home delivery or stopdesk (agency pickup — cheaper).
 - Once the customer confirms the order AND provides their name, phone, wilaya, and address, call create_order with wilayaId or wilayaName so shipping is included in the total.
 - After placing an order, confirm the order number, subtotal, shipping fee, and grand total to the customer.
+- ORDER CANCELLATION: if the customer asks to cancel, delete, or undo an order (e.g. "أريد إلغاء الطلب", "annuler ma commande", "cancel my order"), use the cancel_order tool — NEVER create_order. First confirm with the customer that they really want to cancel; if the tool reports several open orders, list them and ask which one. After a successful cancellation, confirm it clearly to the customer.
 - Use prices in "DA" (Algerian Dinar) currency.
 - Keep responses concise — this is a chat conversation, not an email.
 - If asked about something not in the catalog, politely say you don't have that product.
@@ -796,19 +951,20 @@ ${agent.closingInstructions ? `CONVERSATION CLOSING:\n${agent.closingInstruction
 - If the customer says goodbye, thanks, or indicates they're done, respond with a brief friendly closing message.
 - If the conversation seems finished (customer got their answer, order placed), close naturally — don't keep pushing.
 `}
-${agent.humanHandoffRules ? `HUMAN INTERVENTION (CUSTOM RULES):\n${agent.humanHandoffRules}` : `HUMAN INTERVENTION:
-- If you cannot help the customer (complaint, refund request, technical issue, angry customer), tell them a human team member will follow up shortly.
-- If the customer asks about something completely outside your scope (not products, not ordering), use [STATUS:UNKNOWN].
-- If the customer seems frustrated or repeats the same question 3+ times, use [STATUS:UNCLEAR].`}
-- Use [STATUS:UNCLEAR] or [STATUS:UNKNOWN] tags so the system notifies the business owner.
+${agent.humanHandoffRules ? `HUMAN INTERVENTION (CUSTOM RULES — set by the business owner):
+${agent.humanHandoffRules}
+- Whenever ANY of the rules above match the situation, tell the customer a human team member will follow up shortly, and end your response with [STATUS:HANDOFF:which rule matched]. This pauses you and hands the conversation to a human.` : `HUMAN INTERVENTION:
+- If you cannot help the customer (complaint, refund request, technical issue, angry customer), tell them a human team member will follow up shortly and end with [STATUS:HANDOFF:reason].
+- If the customer asks about something completely outside your scope (not products, not ordering), use [STATUS:UNKNOWN:topic].`}
 - Do NOT flag normal greetings (slm, cava, hi, bonjour, wsh, cv) as unclear — those are normal conversation starters. Respond naturally.
 
 STATUS (REQUIRED — YOU MUST ALWAYS ADD THIS):
 - At the VERY END of your response, on a NEW line by itself, add exactly one status tag:
-  [STATUS:OK] — ONLY if you clearly understood the customer AND gave a helpful answer about products/ordering
-  [STATUS:UNCLEAR:reason] — if the message is gibberish, unclear, or you're not confident you understood. This pauses the AI and alerts the owner. Use this MORE often — when in doubt, flag it.
-  [STATUS:UNKNOWN:topic] — if the customer asked about something NOT in your catalog or outside your scope. This also alerts the owner.
-- When in doubt between OK and UNCLEAR, choose UNCLEAR. It's better to ask for human help than give a wrong answer.`;
+  [STATUS:OK] — you understood the customer and gave a helpful answer about products/ordering
+  [STATUS:UNCLEAR:reason] — the message is gibberish or you're not confident you understood. In that case your reply text MUST politely say you didn't understand and ask the customer to rephrase (in THEIR language, e.g. "ما فهمتش قصدك، ممكن توضح؟" / "Désolé, je n'ai pas compris — pouvez-vous reformuler ?"). You will keep handling the conversation.
+  [STATUS:UNKNOWN:topic] — the customer asked about something NOT in your catalog or outside your scope. This alerts the owner and pauses you so a human can take over.
+  [STATUS:HANDOFF:reason] — a human intervention rule matched or the customer clearly needs a human (complaint, refund, anger). This alerts the owner and pauses you.
+- Never invent an answer: if unsure whether a product/detail exists, prefer UNCLEAR (ask to rephrase) or UNKNOWN (out of scope) over guessing.`;
 
     // Build messages
     const messages: any[] = [
@@ -818,28 +974,59 @@ STATUS (REQUIRED — YOU MUST ALWAYS ADD THIS):
       ),
     ];
 
-    // Build the current user message — multimodal if images are present
+    // Build the current user message — multimodal if images are present.
+    // All images are downloaded server-side and inlined as base64 data URLs:
+    // LLM providers cannot fetch Facebook CDN URLs (expiring, bot-blocked) and
+    // may be blocked from our own uploads host too.
     if (imageUrls && imageUrls.length > 0) {
       const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
 
-      // When customer sends an image, also inject product images for visual comparison
-      const productsWithImages = products.filter(p => p.primaryImageUrl);
-      if (productsWithImages.length > 0 && productsWithImages.length <= 20) {
-        content.push({ type: 'text', text: 'PRODUCT CATALOG IMAGES (for visual comparison with customer image):' });
-        for (const p of productsWithImages) {
-          content.push({ type: 'text', text: `Product: ${p.name} [ID: ${p.id}]` });
-          content.push({ type: 'image_url', image_url: { url: p.primaryImageUrl! } });
-        }
-        content.push({ type: 'text', text: '\nCUSTOMER IMAGE(S) — Compare with catalog images above to identify the product:' });
-      }
+      // Download the customer's images FIRST — everything else depends on
+      // whether we actually have them.
+      const customerImages = (
+        await Promise.all(imageUrls.map((url) => fetchImageAsDataUrl(url)))
+      ).filter((u): u is string => Boolean(u));
 
-      if (userMessage) {
-        content.push({ type: 'text', text: userMessage });
+      if (customerImages.length === 0) {
+        // All downloads failed (expired CDN URL, timeout, oversized). Do NOT let
+        // the model pretend it saw something — instruct it to ask for a resend.
+        if (userMessage) {
+          content.push({ type: 'text', text: userMessage });
+        }
+        content.push({
+          type: 'text',
+          text: 'SYSTEM NOTE: The customer attached an image but it could NOT be downloaded, so you cannot see it. Do not describe or guess its content. Politely ask the customer to resend the photo or describe what they are looking for.',
+        });
+        messages.push(new HumanMessage({ content }));
+      } else {
+        // When customer sends an image, also inject product images for visual comparison
+        const productsWithImages = products.filter(p => p.primaryImageUrl);
+        if (productsWithImages.length > 0 && productsWithImages.length <= 20) {
+          const catalogImages = await Promise.all(
+            productsWithImages.map(async (p) => ({
+              product: p,
+              dataUrl: await fetchImageAsDataUrl(p.primaryImageUrl!),
+            }))
+          );
+          const usable = catalogImages.filter((c) => c.dataUrl);
+          if (usable.length > 0) {
+            content.push({ type: 'text', text: 'PRODUCT CATALOG IMAGES (for visual comparison with customer image):' });
+            for (const c of usable) {
+              content.push({ type: 'text', text: `Product: ${c.product.name} [ID: ${c.product.id}]` });
+              content.push({ type: 'image_url', image_url: { url: c.dataUrl! } });
+            }
+            content.push({ type: 'text', text: '\nCUSTOMER IMAGE(S) — Compare with catalog images above to identify the product:' });
+          }
+        }
+
+        if (userMessage) {
+          content.push({ type: 'text', text: userMessage });
+        }
+        for (const dataUrl of customerImages) {
+          content.push({ type: 'image_url', image_url: { url: dataUrl } });
+        }
+        messages.push(new HumanMessage({ content }));
       }
-      for (const url of imageUrls) {
-        content.push({ type: 'image_url', image_url: { url } });
-      }
-      messages.push(new HumanMessage({ content }));
     } else {
       messages.push(new HumanMessage(userMessage));
     }
@@ -847,8 +1034,9 @@ STATUS (REQUIRED — YOU MUST ALWAYS ADD THIS):
     // Create tools
     const orderTool = makeCreateOrderTool(userId, products, agent.name, conversationId);
     const shippingTool = makeShippingFeeTool(userId);
+    const cancelTool = makeCancelOrderTool(userId, agent.name, conversationId);
     // All our providers (OpenAI, Anthropic, Google, Groq) support bindTools
-    const llmWithTools = (llm as any).bindTools([orderTool, shippingTool]);
+    const llmWithTools = (llm as any).bindTools([orderTool, shippingTool, cancelTool]);
 
     // Invoke with tool calling loop (max 3 iterations)
     let response = await llmWithTools.invoke(messages);
@@ -868,6 +1056,9 @@ STATUS (REQUIRED — YOU MUST ALWAYS ADD THIS):
           result = typeof toolResult === 'string' ? toolResult : String(toolResult);
         } else if (tc.name === 'get_shipping_fee') {
           const toolResult = await shippingTool.invoke(tc.args as any);
+          result = typeof toolResult === 'string' ? toolResult : String(toolResult);
+        } else if (tc.name === 'cancel_order') {
+          const toolResult = await cancelTool.invoke(tc.args as any);
           result = typeof toolResult === 'string' ? toolResult : String(toolResult);
         } else {
           result = JSON.stringify({ error: 'Unknown tool' });

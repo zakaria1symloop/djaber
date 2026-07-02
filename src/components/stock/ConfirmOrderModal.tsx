@@ -127,8 +127,21 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
       });
       let updated = callRes.order;
 
+      // Contact edits from the Review step ("Edits are saved when you log the
+      // call outcome") — send whatever differs from the order's current values.
+      const contactEdits: { clientPhone?: string; clientAddress?: string } = {};
+      if (editPhone.trim() !== (order.clientPhone || '')) contactEdits.clientPhone = editPhone.trim();
+      if (editAddress.trim() !== (order.clientAddress || '')) contactEdits.clientAddress = editAddress.trim();
+      const hasContactEdits = Object.keys(contactEdits).length > 0;
+
       if (selectedOutcome.nextStatus) {
-        const upd = await updateOrder(order.id, { status: selectedOutcome.nextStatus });
+        // Merge edits into the status update — one call instead of two
+        const upd = await updateOrder(order.id, { status: selectedOutcome.nextStatus, ...contactEdits });
+        updated = upd.order;
+      } else if (hasContactEdits) {
+        // Outcome doesn't change status (no answer / busy / voicemail) —
+        // still persist the edited contact details.
+        const upd = await updateOrder(order.id, contactEdits);
         updated = upd.order;
       }
 
@@ -444,7 +457,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                 />
               </div>
 
-              {outcome === 'confirmed' && !order.clientAddress && (
+              {outcome === 'confirmed' && !order.clientAddress && !editAddress.trim() && (
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2">
                   <AlertIcon className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-amber-200">
@@ -523,7 +536,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                 <Button
                   size="sm"
                   onClick={goConfirm}
-                  disabled={!outcome || saving || (outcome === 'confirmed' && !order.clientAddress)}
+                  disabled={!outcome || saving || (outcome === 'confirmed' && !order.clientAddress && !editAddress.trim())}
                   loading={saving}
                   icon={<CheckCircleIcon className="w-3.5 h-3.5" />}
                 >

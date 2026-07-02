@@ -857,7 +857,7 @@ export interface Order {
   amountPaid: number;
   paymentMethod: string;
   paymentStatus: 'paid' | 'pending' | 'partial';
-  status: 'pending' | 'confirmed' | 'dispatched' | 'delivered' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'preparing' | 'shipped' | 'dispatched' | 'delivered' | 'cancelled' | 'returned';
   deliveryStatus: 'not_sent' | 'sent' | 'in_transit' | 'delivered';
   confirmationStatus: 'not_called' | 'no_answer' | 'confirmed' | 'rejected';
   callAttempts: number;
@@ -1054,6 +1054,8 @@ export async function updateOrder(
     deliveryStatus?: string;
     amountPaid?: number;
     notes?: string;
+    clientPhone?: string;
+    clientAddress?: string;
   }
 ): Promise<{ order: Order }> {
   return apiRequest(`/api/user-stock/orders/${orderId}`, {

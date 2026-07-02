@@ -5,6 +5,15 @@ import fs from 'fs';
 
 const IS_PROD = process.env.NODE_ENV === 'production';
 const GCS_BUCKET = process.env.GCS_BUCKET || 'djaber-prod-uploads';
+// GCS is opt-in: only used when Google credentials are actually configured.
+// The production VPS has no GCS credentials — files are stored on local disk
+// and served from BACKEND_URL/uploads (see server.ts express.static).
+const USE_GCS = IS_PROD && Boolean(process.env.GOOGLE_APPLICATION_CREDENTIALS);
+
+function localUrl(filename: string): string {
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:6001';
+  return `${backendUrl}/uploads/products/${filename}`;
+}
 
 const uploadDir = path.join(__dirname, '../../uploads/products');
 
@@ -48,13 +57,12 @@ export const uploadProductImages = multer({
  * In dev mode, returns a local URL.
  */
 export async function uploadToCloud(localPath: string, filename: string): Promise<string> {
-  if (!IS_PROD) {
-    // Dev: return local URL
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:6001';
-    return `${backendUrl}/uploads/products/${filename}`;
+  if (!USE_GCS) {
+    // No GCS configured (dev, or VPS without Google credentials): serve from local disk
+    return localUrl(filename);
   }
 
-  // Production: upload to GCS
+  // GCS explicitly configured: upload to bucket
   const { Storage } = require('@google-cloud/storage');
   const gcs = new Storage();
   const bucket = gcs.bucket(GCS_BUCKET);
@@ -80,9 +88,8 @@ export async function uploadToCloud(localPath: string, filename: string): Promis
  * In dev mode, returns local URL. In prod, returns GCS URL.
  */
 export function getImageUrl(filename: string): string {
-  if (!IS_PROD) {
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:6001';
-    return `${backendUrl}/uploads/products/${filename}`;
+  if (!USE_GCS) {
+    return localUrl(filename);
   }
   return `https://storage.googleapis.com/${GCS_BUCKET}/products/${filename}`;
 }

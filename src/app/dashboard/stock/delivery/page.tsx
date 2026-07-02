@@ -111,11 +111,8 @@ export default function DeliveryDashboardPage() {
   const stats = {
     readyToShip: allOrders.filter(o =>
       o.deliveryStatus === 'not_sent' &&
-      // The Order.status type omits "cancelled"/"returned" in this client
-      // model, so coerce to a generic string compare to keep them excluded
-      // when the backend does set those values.
-      (o.status as string) !== 'cancelled' &&
-      (o.status as string) !== 'returned'
+      o.status !== 'cancelled' &&
+      o.status !== 'returned'
     ).length,
     shipped: allOrders.filter(o => o.deliveryStatus === 'sent').length,
     inTransit: allOrders.filter(o => o.deliveryStatus === 'in_transit').length,

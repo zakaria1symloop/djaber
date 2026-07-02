@@ -998,6 +998,7 @@ const en: Dict = {
   'stock.orders.confirm.noAnswer': 'No Answer',
   'stock.orders.confirm.confirmed': 'Confirmed',
   'stock.orders.confirm.rejected': 'Rejected',
+  'stock.orders.action.markReturned': 'Mark returned',
   'stock.orders.source.ai': 'AI',
   'stock.orders.source.manual': 'Manual',
   // ─────────────────────────────────────────────────────────────
@@ -2010,6 +2011,7 @@ const fr: Dict = {
   'stock.orders.confirm.noAnswer': 'Sans réponse',
   'stock.orders.confirm.confirmed': 'Confirmé',
   'stock.orders.confirm.rejected': 'Rejeté',
+  'stock.orders.action.markReturned': 'Marquer comme retournée',
   'stock.orders.source.ai': 'IA',
   'stock.orders.source.manual': 'Manuel',
   // Livraison
@@ -3014,6 +3016,7 @@ const ar: Dict = {
   'stock.orders.confirm.noAnswer': 'لا يوجد رد',
   'stock.orders.confirm.confirmed': 'مؤكد',
   'stock.orders.confirm.rejected': 'مرفوض',
+  'stock.orders.action.markReturned': 'تحديد كمرتجع',
   'stock.orders.source.ai': 'ذكاء اصطناعي',
   'stock.orders.source.manual': 'يدوي',
   // التوصيل

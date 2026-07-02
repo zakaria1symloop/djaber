@@ -436,7 +436,7 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
     }
 
     const orderId = req.params.orderId as string;
-    const { status, paymentStatus, paymentMethod, deliveryStatus, amountPaid, notes } = req.body;
+    const { status, paymentStatus, paymentMethod, deliveryStatus, amountPaid, notes, clientPhone, clientAddress } = req.body;
 
     const existing = await prisma.order.findFirst({
       where: { id: orderId, userId: req.user.userId },
@@ -465,6 +465,9 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
     if (deliveryStatus !== undefined) updateData.deliveryStatus = deliveryStatus;
     if (amountPaid !== undefined) updateData.amountPaid = Number(amountPaid);
     if (notes !== undefined) updateData.notes = notes?.trim() || null;
+    // Contact corrections from the call-confirmation modal
+    if (clientPhone !== undefined) updateData.clientPhone = String(clientPhone).trim() || null;
+    if (clientAddress !== undefined) updateData.clientAddress = String(clientAddress).trim() || null;
 
     // A status transition to "cancelled" or "returned" should:
     //   - put the reserved stock back on the shelf

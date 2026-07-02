@@ -519,6 +519,7 @@ function PlanFormModal({
     maxProducts: plan?.maxProducts ?? 50,
     maxConversations: plan?.maxConversations ?? 100,
     maxTeamMembers: plan?.maxTeamMembers ?? 1,
+    monthlyCredits: plan?.monthlyCredits ?? 500,
     features: plan?.features || [],
     isActive: plan?.isActive ?? true,
     isFeatured: plan?.isFeatured ?? false,
@@ -659,6 +660,9 @@ function PlanFormModal({
               </Field>
               <Field label="Team members">
                 <input type="number" value={form.maxTeamMembers} onChange={(e) => update('maxTeamMembers', Number(e.target.value))} className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none" />
+              </Field>
+              <Field label="Monthly credits">
+                <input type="number" value={form.monthlyCredits} onChange={(e) => update('monthlyCredits', Number(e.target.value))} className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none" />
               </Field>
               <Field label="Sort order">
                 <input type="number" value={form.sortOrder} onChange={(e) => update('sortOrder', Number(e.target.value))} className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none" />

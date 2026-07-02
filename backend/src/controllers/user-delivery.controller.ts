@@ -381,9 +381,13 @@ export const sendOrderToDelivery = async (req: Request, res: Response): Promise<
         trackingNumber: result.tracking || null,
         deliveryProvider: providerConfig.provider,
         deliveryStatus: 'sent',
-        deliveryFee: 0, // Will be updated when rates are fetched
+        // Keep the deliveryFee quoted at order creation — the customer was
+        // already told this amount; do not reset it here.
         deliverySentAt: new Date(),
-        status: order.status === 'confirmed' ? 'dispatched' : order.status,
+        // 'shipped' is part of the canonical status lifecycle (pending →
+        // confirmed → preparing → shipped → delivered); the old 'dispatched'
+        // value was invisible to the orders tabs and stats.
+        status: order.status === 'confirmed' ? 'shipped' : order.status,
       },
       include: {
         items: true,

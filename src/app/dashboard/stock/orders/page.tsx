@@ -72,6 +72,8 @@ function OrdersPageInner() {
   const [confirmingOrder, setConfirmingOrder] = useState<Order | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Order | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [returnConfirm, setReturnConfirm] = useState<Order | null>(null);
+  const [returning, setReturning] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -161,6 +163,7 @@ function OrdersPageInner() {
     if (!filtersOpen) {
       setConfirmingOrder(null);
       setDeleteConfirm(null);
+      setReturnConfirm(null);
     }
     setFiltersOpen(!filtersOpen);
   };
@@ -280,16 +283,30 @@ function OrdersPageInner() {
     }
   };
 
+  const handleReturn = async () => {
+    if (!returnConfirm) return;
+    try {
+      setError(null);
+      setReturning(true);
+      // Backend restores stock + rolls back the caisse entry on this transition
+      await updateOrder(returnConfirm.id, { status: 'returned' });
+      setReturnConfirm(null);
+      loadOrders();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to mark order as returned');
+    } finally {
+      setReturning(false);
+    }
+  };
+
   const handleConfirmModalChange = (updated: Order) => {
     setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
     setConfirmingOrder(updated);
   };
 
   // Decide a row's left-border accent — gives a quick at-a-glance "what to do next"
-  // Cast to string because the Order type is narrower than the runtime statuses
-  // ('preparing', 'shipped', 'returned' exist in the DB but not in the TS type)
   const rowAccent = (order: Order): string => {
-    const s = order.status as string;
+    const s = order.status;
     if (s === 'cancelled' || s === 'returned') return 'border-l-rose-500/40';
     if (s === 'delivered') return 'border-l-emerald-500/40';
     if (s === 'shipped' || s === 'dispatched') return 'border-l-cyan-500/40';
@@ -301,7 +318,7 @@ function OrdersPageInner() {
   };
 
   const primaryAction = (order: Order): { label: string; tone: 'emerald' | 'blue' | 'amber' | 'zinc' } => {
-    const s = order.status as string;
+    const s = order.status;
     if (s === 'pending' && order.confirmationStatus === 'not_called') return { label: 'Call & confirm', tone: 'blue' };
     if (s === 'pending' && order.confirmationStatus === 'no_answer') return { label: 'Try again', tone: 'amber' };
     if (s === 'confirmed') return { label: 'Prepare', tone: 'emerald' };
@@ -598,6 +615,15 @@ function OrdersPageInner() {
                           >
                             {action.label}
                           </button>
+                          {order.status === 'delivered' && (
+                            <button
+                              onClick={() => setReturnConfirm(order)}
+                              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold whitespace-nowrap text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 transition-colors"
+                              title={t('stock.orders.action.markReturned')}
+                            >
+                              {t('stock.orders.action.markReturned')}
+                            </button>
+                          )}
                           {order.status !== 'delivered' && order.status !== 'cancelled' && (
                             <button
                               onClick={() => setDeleteConfirm(order)}
@@ -639,6 +665,22 @@ function OrdersPageInner() {
         onClose={() => setConfirmingOrder(null)}
         onChanged={handleConfirmModalChange}
       />
+
+      {/* Return Confirm Modal */}
+      <Modal isOpen={!!returnConfirm} onClose={() => setReturnConfirm(null)} title={t('stock.orders.action.markReturned')} size="sm">
+        <p className="text-zinc-400 mb-2">
+          Are you sure you want to mark order <span className="text-white font-medium">{returnConfirm?.orderNumber}</span> as returned?
+          Stock will be restored and the payment rolled back.
+        </p>
+        <div className="flex gap-3 pt-4">
+          <Button type="button" variant="outline" className="flex-1" onClick={() => setReturnConfirm(null)} disabled={returning}>
+            Cancel
+          </Button>
+          <Button type="button" variant="danger" className="flex-1" onClick={handleReturn} disabled={returning}>
+            {returning ? 'Saving...' : t('stock.orders.action.markReturned')}
+          </Button>
+        </div>
+      </Modal>
 
       {/* Delete Confirm Modal */}
       <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="Delete Order" size="sm">

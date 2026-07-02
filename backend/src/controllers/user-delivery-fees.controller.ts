@@ -215,8 +215,9 @@ export async function computeDeliveryFee(
         wilayaId
       );
       if (rates?.success && rates.rates) {
-        const r = rates.rates as { home?: number; stopdesk?: number; desk?: number };
-        const fee = isStopdesk ? (r.stopdesk ?? r.desk ?? 0) : (r.home ?? 0);
+        // delivery.service returns { home_delivery, stopdesk } (DeliveryRates)
+        const r = rates.rates;
+        const fee = Number(isStopdesk ? (r.stopdesk ?? 0) : (r.home_delivery ?? 0));
         if (fee > 0) return { fee, source: 'provider', currency: 'DA' };
       }
     } catch {

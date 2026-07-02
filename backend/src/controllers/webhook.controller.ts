@@ -9,8 +9,8 @@ import { hasCredits, consumeCredits, CREDIT_COSTS } from '../services/credits.se
 import { transcribeAudio } from '../services/transcription.service';
 import prisma from '../config/database';
 
-// Regex to extract [STATUS:OK|UNCLEAR|UNKNOWN:detail] from end of AI response
-const STATUS_TAG_RE = /\[STATUS:(OK|UNCLEAR|UNKNOWN)(?::([^\]]*))?\]\s*$/;
+// Regex to extract [STATUS:OK|UNCLEAR|UNKNOWN|HANDOFF:detail] from end of AI response
+const STATUS_TAG_RE = /\[STATUS:(OK|UNCLEAR|UNKNOWN|HANDOFF)(?::([^\]]*))?\]\s*$/;
 // Regex to extract [RECOMMEND:sourceId:recommendedId] tags
 const RECOMMEND_TAG_RE = /\[RECOMMEND:([^\]:]+):([^\]]+)\]/g;
 
@@ -143,8 +143,8 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       : unsupportedType || (message.attachments?.[0]?.type ?? null);
     const attachmentUrl = imageUrls[0] || audioUrls[0] || message.attachments?.[0]?.payload?.url || null;
 
-    // Skip if nothing usable
-    if (!messageText && imageUrls.length === 0 && !unsupportedType) {
+    // Skip if nothing usable (audio counts — it may be transcribed below)
+    if (!messageText && imageUrls.length === 0 && audioUrls.length === 0 && !unsupportedType) {
       return;
     }
 
@@ -313,7 +313,7 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
                     images: {
                       where: { isPrimary: true },
                       take: 1,
-                      select: { filename: true },
+                      select: { filename: true, url: true },
                     },
                   },
                 },
@@ -325,7 +325,15 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
     });
 
     if (agentPage && agentPage.agent.isActive) {
-      // Auto-reopen paused conversations when customer sends a new message
+      // Human takeover: when aiPaused is set (HANDOFF/UNCLEAR/UNKNOWN), the AI
+      // stays silent no matter how many new messages arrive. The merchant
+      // resumes the AI by setting the conversation back to "active" in the UI.
+      if ((conversation as any).aiPaused) {
+        console.log(`Conversation ${conversation.id} is paused for human takeover — AI will not reply`);
+        return;
+      }
+
+      // Auto-reopen resolved conversations when customer sends a new message
       // (customer is trying again — let the AI handle it)
       if (conversation.status !== 'active') {
         console.log(`Auto-reopening conversation ${conversation.id} (was "${conversation.status}") — customer sent new message`);
@@ -433,13 +441,17 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         messageText,
         imageUrls,
         responseDelay,
-        async (_combinedText: string, _combinedImages: string[]) => {
+        async (combinedText: string, combinedImages: string[]) => {
           // Re-fetch conversation to get latest messages (user may have sent more)
           const freshConvo = await prisma.conversation.findUnique({
             where: { id: conversation.id },
             include: { messages: { orderBy: { timestamp: 'desc' }, take: 30 } },
           });
-          if (!freshConvo || freshConvo.status !== 'active') return;
+          if (!freshConvo || freshConvo.status !== 'active' || (freshConvo as any).aiPaused) return;
+
+          // Use the full batch: all texts joined + all images across the burst
+          const batchText = combinedText || messageText || '';
+          const batchImages = combinedImages.length > 0 ? combinedImages : imageUrls;
 
           const conversationHistory = freshConvo.messages.reverse().map((msg: any) => ({
             role: msg.isFromPage ? 'assistant' as const : 'user' as const,
@@ -460,7 +472,7 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
             images: {
               where: { isPrimary: true },
               take: 1,
-              select: { filename: true },
+              select: { filename: true, url: true },
             },
           },
         });
@@ -504,8 +516,8 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         },
         products: productInfos,
         conversationHistory,
-        userMessage: messageText || (imageUrls.length > 0 ? 'The customer sent an image.' : ''),
-        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+        userMessage: batchText || (batchImages.length > 0 ? 'The customer sent an image.' : ''),
+        imageUrls: batchImages.length > 0 ? batchImages : undefined,
         userId: page.userId,
         conversationId: conversation.id,
       });
@@ -587,7 +599,7 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       }
 
       // Consume credits after successful AI response
-      const action = imageUrls.length > 0 ? 'image_recognition' : voiceTranscribed ? 'voice_transcription' : 'text_message';
+      const action = batchImages.length > 0 ? 'image_recognition' : voiceTranscribed ? 'voice_transcription' : 'text_message';
       await consumeCredits(page.userId, creditCost, action);
 
       // Save AI response (clean text, no tags)
@@ -614,24 +626,42 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         } catch {}
       }
 
-      // UNCLEAR/UNKNOWN → pause AI on this conversation so human takes over
-      if (statusType === 'UNCLEAR' || statusType === 'UNKNOWN') {
-        // Mark conversation as needing human attention — AI won't auto-reply anymore
+      // UNCLEAR → the AI already answered "I didn't get it, please rephrase" and keeps
+      // handling the conversation. UNKNOWN/HANDOFF → pause AI so a human takes over.
+      // aiPaused persists across new customer messages; the merchant resumes the AI
+      // by reopening the conversation (status -> active) in the dashboard.
+      if (statusType === 'UNCLEAR' || statusType === 'UNKNOWN' || statusType === 'HANDOFF') {
+        if (statusType === 'UNKNOWN' || statusType === 'HANDOFF') {
+          try {
+            await prisma.conversation.update({
+              where: { id: conversation.id },
+              data: { status: 'resolved', aiPaused: true },
+            });
+          } catch {}
+        }
+
         try {
-          await prisma.conversation.update({
-            where: { id: conversation.id },
-            data: { status: 'resolved' }, // 'resolved' pauses AI auto-reply
-          });
-        } catch {}
-      }
-      if (statusType === 'UNCLEAR' || statusType === 'UNKNOWN') {
-        try {
+          const insightType =
+            statusType === 'UNCLEAR' ? 'unclear'
+            : statusType === 'UNKNOWN' ? 'unknown_topic'
+            : 'handoff';
+          const titles: Record<string, string> = {
+            UNCLEAR: 'Agent Couldn\'t Understand',
+            UNKNOWN: 'Unknown Question Detected',
+            HANDOFF: 'Human Intervention Requested',
+          };
+          const fallbackDetails: Record<string, string> = {
+            UNCLEAR: 'Couldn\'t understand the customer',
+            UNKNOWN: 'Customer asked about something unknown',
+            HANDOFF: 'Customer needs a human team member',
+          };
+
           await prisma.agentInsight.create({
             data: {
               agentId: agent.id,
               conversationId: conversation.id,
-              type: statusType === 'UNCLEAR' ? 'unclear' : 'unknown_topic',
-              customerMessage: messageText || '[image/attachment]',
+              type: insightType,
+              customerMessage: batchText || '[image/attachment]',
               aiResponse: textResponse,
               detail: statusDetail,
             },
@@ -640,8 +670,8 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
           await createNotification({
             userId: page.userId,
             type: 'agent_insight',
-            title: statusType === 'UNCLEAR' ? 'Agent Couldn\'t Understand' : 'Unknown Question Detected',
-            message: `Agent "${agent.name}" flagged: ${statusDetail || (statusType === 'UNCLEAR' ? 'Couldn\'t understand the customer' : 'Customer asked about something unknown')}`,
+            title: titles[statusType],
+            message: `Agent "${agent.name}" flagged: ${statusDetail || fallbackDetails[statusType]}`,
             metadata: {
               agentId: agent.id,
               agentName: agent.name,

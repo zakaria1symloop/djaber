@@ -50,7 +50,8 @@ const navigationItemsBase = [
 const serviceSubItemsBase = [
   { id: 'products', labelKey: 'nav.dash.products', icon: BoxIcon, href: '/dashboard/stock', active: true },
   { id: 'agents', labelKey: 'nav.dash.agents', icon: BotIcon, href: '/dashboard/agents', active: true },
-  { id: 'sales', labelKey: 'nav.dash.sales', icon: ShoppingCartIcon, href: null, active: false },
+  // 'sales' intentionally omitted here — Sales lives in the stock sub-sidebar
+  // (/dashboard/stock/sales); listing it here too showed a duplicate "Ventes" tab.
   { id: 'commercial', labelKey: 'nav.dash.commercial', icon: MegaphoneIcon, href: null, active: false },
 ] as const;
 
@@ -279,7 +280,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
       <aside
         onMouseEnter={() => sidebarCollapsed && setSidebarHovered(true)}
         onMouseLeave={() => setSidebarHovered(false)}
-        className={`fixed top-0 start-0 h-full bg-black border-e border-white/10 z-50 transition-all duration-300 ease-in-out ${
+        className={`fixed top-0 start-0 h-full bg-black border-e border-white/10 z-50 flex flex-col transition-all duration-300 ease-in-out ${
           filterPanelOpen
             ? 'rtl:translate-x-full -translate-x-full'
             : sidebarOpen
@@ -301,7 +302,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
           </div>
         </div>
 
-        <nav className={`p-3 space-y-1 ${isCollapsedMode ? 'px-2' : ''}`}>
+        <nav className={`p-3 space-y-1 min-h-0 flex-1 overflow-y-auto ${isCollapsedMode ? 'px-2' : ''}`}>
           {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = item.id === activeNavId;
@@ -389,7 +390,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
         </nav>
 
         {!isCollapsedMode && (
-          <div className="absolute bottom-0 start-0 end-0 p-4 border-t border-white/10">
+          <div className="p-4 border-t border-white/10">
             <Card variant="default" padding="sm">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-zinc-400">{t('dash.yourPlan')}</span>
@@ -430,7 +431,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
           </button>
           <h2 className="text-sm font-semibold text-white">{t('nav.dash.products')}</h2>
         </div>
-        <nav className="p-2 space-y-0.5 flex-1">
+        <nav className="p-2 space-y-0.5 min-h-0 flex-1 overflow-y-auto">
           {filteredStockNavItems.map((item) => {
             const isActiveStock = pathname === item.href || (item.href !== '/dashboard/stock' && pathname?.startsWith(item.href));
             const Icon = item.icon;

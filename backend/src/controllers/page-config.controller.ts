@@ -429,6 +429,11 @@ export const updateConversationController = async (req: Request, res: Response):
     const conversationId = req.params.conversationId as string;
     const { status } = req.body; // active, resolved, archived
 
+    if (!['active', 'resolved', 'archived'].includes(status)) {
+      res.status(400).json({ error: 'Invalid status. Must be active, resolved, or archived.' });
+      return;
+    }
+
     const conversation = await prisma.conversation.findFirst({
       where: {
         id: conversationId,
@@ -446,7 +451,8 @@ export const updateConversationController = async (req: Request, res: Response):
 
     const updated = await prisma.conversation.update({
       where: { id: conversationId },
-      data: { status },
+      // Reopening a conversation resumes the AI (clears the human-takeover pause)
+      data: status === 'active' ? { status, aiPaused: false } : { status },
     });
 
     res.json({ conversation: updated });

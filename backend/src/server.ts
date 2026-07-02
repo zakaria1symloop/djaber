@@ -60,6 +60,12 @@ if (!fs.existsSync(uploadsDir)) {
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+// Explicit robots.txt — Meta's crawler checks it before downloading product-card
+// images from /uploads; without it Messenger rejects image sends (error 2018388).
+app.get('/robots.txt', (_req: Request, res: Response) => {
+  res.type('text/plain').send('User-agent: *\nAllow: /\n');
+});
+
 // Serve legal documents
 app.get('/privacy-policy.html', (_req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, '../public/privacy-policy.html'));
