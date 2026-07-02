@@ -66,13 +66,16 @@ app.get('/robots.txt', (_req: Request, res: Response) => {
   res.type('text/plain').send('User-agent: *\nAllow: /\n');
 });
 
-// Serve legal documents
+// Serve legal documents (Meta app review requires public policy URLs).
+// The HTML files live at the REPO root, two levels up from backend/dist
+// (or backend/src in dev) — backend/public never existed.
+const repoRoot = path.join(__dirname, '../..');
 app.get('/privacy-policy.html', (_req: Request, res: Response) => {
-  res.sendFile(path.join(__dirname, '../public/privacy-policy.html'));
+  res.sendFile(path.join(repoRoot, 'privacy-policy.html'));
 });
 
 app.get('/terms-of-service.html', (_req: Request, res: Response) => {
-  res.sendFile(path.join(__dirname, '../public/terms-of-service.html'));
+  res.sendFile(path.join(repoRoot, 'terms-of-service.html'));
 });
 
 // Health check endpoint
