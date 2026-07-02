@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Badge, Button } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { BotIcon, EditIcon, AlertIcon } from '@/components/ui/icons';
 import { useTranslation } from '@/contexts/LanguageContext';
 
@@ -65,10 +65,10 @@ export default function AISettingsSection({ pageId }: AISettingsSectionProps) {
   };
 
   const personalityLabels: Record<string, { label: string; color: string }> = {
-    professional: { label: t('aiSettings.personality.professional'), color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-    friendly: { label: t('aiSettings.personality.friendly'), color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-    casual: { label: t('aiSettings.personality.casual'), color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-    technical: { label: t('aiSettings.personality.technical'), color: 'bg-violet-500/10 text-violet-400 border-violet-500/20' },
+    professional: { label: t('aiSettings.personality.professional'), color: 'bg-white/5 text-zinc-400 border-white/10' },
+    friendly: { label: t('aiSettings.personality.friendly'), color: 'bg-white/5 text-zinc-400 border-white/10' },
+    casual: { label: t('aiSettings.personality.casual'), color: 'bg-white/5 text-zinc-400 border-white/10' },
+    technical: { label: t('aiSettings.personality.technical'), color: 'bg-white/5 text-zinc-400 border-white/10' },
   };
 
   if (loading) {
@@ -100,7 +100,7 @@ export default function AISettingsSection({ pageId }: AISettingsSectionProps) {
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                  agent.isActive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-zinc-500/10 text-zinc-400'
+                  agent.isActive ? 'bg-white/5 text-zinc-300' : 'bg-white/5 text-zinc-500'
                 }`}>
                   <BotIcon className="w-5 h-5" />
                 </div>
@@ -112,9 +112,10 @@ export default function AISettingsSection({ pageId }: AISettingsSectionProps) {
                     }`}>
                       {personalityLabels[agent.personality]?.label || agent.personality}
                     </span>
-                    <Badge variant={agent.isActive ? 'success' : 'default'} size="sm">
+                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] ${agent.isActive ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                      {agent.isActive && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                       {agent.isActive ? t('aiSettings.active') : t('aiSettings.inactive')}
-                    </Badge>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -158,13 +159,13 @@ export default function AISettingsSection({ pageId }: AISettingsSectionProps) {
             </div>
           </div>
 
-          <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-3">
-            <p className="text-xs text-blue-400/80">{t('aiSettings.help')}</p>
+          <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3">
+            <p className="text-xs text-zinc-500">{t('aiSettings.help')}</p>
           </div>
         </div>
       ) : (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-8 text-center">
-          <div className="w-14 h-14 rounded-xl bg-yellow-500/10 text-yellow-400 flex items-center justify-center mx-auto mb-3">
+          <div className="w-14 h-14 rounded-xl bg-white/5 text-zinc-300 flex items-center justify-center mx-auto mb-3">
             <AlertIcon className="w-6 h-6" />
           </div>
           <h3 className="text-base font-semibold text-white mb-1">{t('aiSettings.empty.title')}</h3>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button, Badge } from '@/components/ui';
+import { Button } from '@/components/ui';
 import {
   PhoneIcon,
   BoxIcon,
@@ -174,13 +174,12 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="bg-zinc-950 border border-white/10 rounded-2xl w-full max-w-3xl my-8 shadow-2xl flex flex-col max-h-[92vh]">
-        {/* Header — gradient banner with icon chip */}
+        {/* Header — subtle banner with icon chip */}
         <div className="relative px-6 py-5 border-b border-white/10 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-emerald-500/5 pointer-events-none" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_30%,rgba(16,185,129,0.08),transparent_50%)] pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-br from-white/[0.04] via-transparent to-transparent pointer-events-none" />
           <div className="relative flex items-start justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 text-zinc-300 flex items-center justify-center flex-shrink-0">
                 <ClipboardIcon className="w-4 h-4" />
               </div>
               <div className="min-w-0">
@@ -197,9 +196,11 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
             </div>
             <div className="flex items-start gap-2">
               <div className="flex flex-col items-end gap-1">
-                <Badge variant={statusVariant(order.status)} size="md">
-                  {prettyStatus(order.status)}
-                </Badge>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+                  {statusVariant(order.status) === 'good' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  {statusVariant(order.status) === 'progress' && <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />}
+                  <span className={statusVariant(order.status) === 'dead' ? 'text-zinc-600' : ''}>{prettyStatus(order.status)}</span>
+                </span>
                 {order.callAttempts > 0 && (
                   <span className="text-[10px] text-zinc-500">
                     {order.callAttempts} call{order.callAttempts === 1 ? '' : 's'}
@@ -223,7 +224,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                 <div
                   className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors ${
                     i < step
-                      ? 'bg-emerald-500 text-white'
+                      ? 'bg-white text-black'
                       : i === step
                       ? 'bg-white text-black ring-2 ring-white/30'
                       : 'bg-white/5 text-zinc-500'
@@ -258,7 +259,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                 action={
                   <button
                     onClick={() => setEditingContact((v) => !v)}
-                    className="text-[11px] text-blue-400 hover:text-blue-300 transition-colors inline-flex items-center gap-1"
+                    className="text-[11px] text-zinc-400 hover:text-white transition-colors inline-flex items-center gap-1"
                   >
                     <EditIcon className="w-3 h-3" />
                     {editingContact ? 'Done' : 'Edit'}
@@ -296,7 +297,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                       {order.clientPhone ? (
                         <a
                           href={`tel:${order.clientPhone}`}
-                          className="text-sm text-blue-400 hover:text-blue-300 transition-colors font-mono"
+                          className="text-sm text-zinc-300 hover:text-white transition-colors font-mono"
                         >
                           {order.clientPhone}
                         </a>
@@ -321,7 +322,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                             <p className="text-xs text-zinc-400">{regionLine}</p>
                           )}
                           {order.isStopdesk && (
-                            <p className="text-[10px] inline-block px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                            <p className="text-[10px] inline-block px-1.5 py-0.5 rounded bg-white/[0.03] text-zinc-300 border border-white/10">
                               Stopdesk (agency pickup)
                             </p>
                           )}
@@ -363,19 +364,19 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
               {/* Totals */}
               <div className="grid grid-cols-3 gap-2">
                 <Tile label="Total" value={`${Number(order.total).toLocaleString()} DA`} />
-                <Tile label="Paid" value={`${Number(order.amountPaid).toLocaleString()} DA`} valueColor="text-emerald-300" />
+                <Tile label="Paid" value={`${Number(order.amountPaid).toLocaleString()} DA`} valueColor="text-zinc-300" />
                 <Tile
                   label="Remaining"
                   value={`${remaining.toLocaleString()} DA`}
-                  valueColor={remaining > 0 ? 'text-rose-300' : 'text-emerald-300'}
+                  valueColor={remaining > 0 ? 'text-white' : 'text-zinc-300'}
                 />
               </div>
 
               {order.notes && (
-                <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 flex items-start gap-2">
-                  <AlertIcon className="w-3.5 h-3.5 text-amber-400 mt-0.5 flex-shrink-0" />
+                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 flex items-start gap-2">
+                  <AlertIcon className="w-3.5 h-3.5 text-zinc-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1">
-                    <p className="text-[10px] uppercase tracking-wider text-amber-300 mb-1">Notes</p>
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Notes</p>
                     <p className="text-xs text-zinc-300">{order.notes}</p>
                   </div>
                 </div>
@@ -458,10 +459,11 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
               </div>
 
               {outcome === 'confirmed' && !order.clientAddress && !editAddress.trim() && (
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2">
-                  <AlertIcon className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-200">
-                    This order has no delivery address yet. Go back to <em>Review</em> and edit the customer card before confirming.
+                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 flex items-start gap-2">
+                  <AlertIcon className="w-4 h-4 text-zinc-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs">
+                    <span className="text-white font-semibold">This order has no delivery address yet.</span>{' '}
+                    <span className="text-zinc-500">Go back to <em>Review</em> and edit the customer card before confirming.</span>
                   </p>
                 </div>
               )}
@@ -628,20 +630,16 @@ function ResultBanner({
   );
 }
 
-function statusVariant(status: string): 'success' | 'warning' | 'info' | 'error' | 'default' {
+function statusVariant(status: string): 'good' | 'progress' | 'dead' {
   switch (status) {
     case 'confirmed':
-    case 'preparing':
-    case 'shipped':
-    case 'dispatched':
-      return 'info';
     case 'delivered':
-      return 'success';
+      return 'good';
     case 'cancelled':
     case 'returned':
-      return 'error';
+      return 'dead';
     default:
-      return 'warning';
+      return 'progress';
   }
 }
 
@@ -649,39 +647,20 @@ function prettyStatus(status: string): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+// Neutral palettes — selection/state is expressed with white borders and
+// filled chips, never hue. The outcome word carries the meaning.
 function outcomePalette(color: OutcomeColor, selected: boolean) {
   switch (color) {
     case 'emerald':
-      return {
-        card: selected
-          ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/15'
-          : 'border-emerald-500/15 hover:border-emerald-500/40 bg-white/[0.02]',
-        iconBg: selected ? 'bg-emerald-500 text-white' : 'bg-emerald-500/10 text-emerald-400',
-        label: selected ? 'text-emerald-200' : 'text-white',
-      };
     case 'red':
-      return {
-        card: selected
-          ? 'border-rose-500 bg-rose-500/10 ring-2 ring-rose-500/15'
-          : 'border-rose-500/15 hover:border-rose-500/40 bg-white/[0.02]',
-        iconBg: selected ? 'bg-rose-500 text-white' : 'bg-rose-500/10 text-rose-400',
-        label: selected ? 'text-rose-200' : 'text-white',
-      };
     case 'amber':
-      return {
-        card: selected
-          ? 'border-amber-500 bg-amber-500/10 ring-2 ring-amber-500/15'
-          : 'border-amber-500/15 hover:border-amber-500/40 bg-white/[0.02]',
-        iconBg: selected ? 'bg-amber-500 text-white' : 'bg-amber-500/10 text-amber-400',
-        label: selected ? 'text-amber-100' : 'text-white',
-      };
     default:
       return {
         card: selected
-          ? 'border-zinc-400 bg-zinc-500/10 ring-2 ring-zinc-500/15'
+          ? 'border-white/60 bg-white/[0.06] ring-2 ring-white/15'
           : 'border-white/10 hover:border-white/30 bg-white/[0.02]',
-        iconBg: selected ? 'bg-zinc-300 text-zinc-900' : 'bg-white/5 text-zinc-300',
-        label: selected ? 'text-white' : 'text-white',
+        iconBg: selected ? 'bg-white text-black' : 'bg-white/5 text-zinc-300',
+        label: 'text-white',
       };
   }
 }
@@ -689,11 +668,8 @@ function outcomePalette(color: OutcomeColor, selected: boolean) {
 function resultPalette(color: OutcomeColor) {
   switch (color) {
     case 'emerald':
-      return { bg: 'bg-emerald-500/8 border-emerald-500/25', iconBg: 'bg-emerald-500/15 text-emerald-300' };
     case 'red':
-      return { bg: 'bg-rose-500/8 border-rose-500/25', iconBg: 'bg-rose-500/15 text-rose-300' };
     case 'amber':
-      return { bg: 'bg-amber-500/8 border-amber-500/25', iconBg: 'bg-amber-500/15 text-amber-300' };
     default:
       return { bg: 'bg-white/[0.02] border-white/10', iconBg: 'bg-white/5 text-zinc-300' };
   }

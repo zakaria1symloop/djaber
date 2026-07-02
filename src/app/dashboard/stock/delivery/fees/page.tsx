@@ -138,7 +138,7 @@ export default function DeliveryFeesPage() {
         <div
           className={`rounded-xl p-3 text-sm border ${
             toast.type === 'success'
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+              ? 'bg-white/[0.03] border-white/10 text-zinc-300'
               : 'bg-red-500/10 border-red-500/20 text-red-400'
           }`}
         >
@@ -213,13 +213,12 @@ export default function DeliveryFeesPage() {
                         />
                       </td>
                       <td className="px-4 py-2 text-right">
-                        <span
-                          className={`text-[10px] uppercase px-2 py-0.5 rounded-full ${
-                            r.isCustom
-                              ? 'bg-emerald-500/20 text-emerald-400'
-                              : 'bg-zinc-700/40 text-zinc-400'
-                          }`}
-                        >
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[10px] uppercase text-zinc-300">
+                          {r.isCustom ? (
+                            <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                          ) : (
+                            <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
+                          )}
                           {r.isCustom ? 'Custom' : 'Default'}
                         </span>
                       </td>

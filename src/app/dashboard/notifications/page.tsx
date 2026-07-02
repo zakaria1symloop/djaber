@@ -21,9 +21,9 @@ const NOTIFICATION_TYPES: Record<string, {
   color: string;
   labelKey: string;
 }> = {
-  ai_order: { icon: BotIcon, color: 'text-blue-400 bg-blue-500/10', labelKey: 'page.notif.type.aiOrder' },
-  agent_insight: { icon: AlertIcon, color: 'text-red-400 bg-red-500/10', labelKey: 'page.notif.type.humanNeeded' },
-  stock_alert: { icon: AlertIcon, color: 'text-amber-400 bg-amber-500/10', labelKey: 'page.notif.type.stockAlert' },
+  ai_order: { icon: BotIcon, color: 'text-zinc-300 bg-white/5', labelKey: 'page.notif.type.aiOrder' },
+  agent_insight: { icon: AlertIcon, color: 'text-zinc-300 bg-white/5', labelKey: 'page.notif.type.humanNeeded' },
+  stock_alert: { icon: AlertIcon, color: 'text-zinc-300 bg-white/5', labelKey: 'page.notif.type.stockAlert' },
 };
 
 function timeAgo(dateStr: string): string {
@@ -148,9 +148,9 @@ export default function NotificationsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: t('page.notif.stats.total'), value: total, color: 'text-white' },
-          { label: t('page.notif.stats.unread'), value: unreadCount, color: 'text-blue-400' },
-          { label: t('page.notif.stats.aiOrders'), value: aiOrderCount, color: 'text-emerald-400' },
-          { label: t('page.notif.stats.humanNeeded'), value: humanNeededCount, color: 'text-red-400' },
+          { label: t('page.notif.stats.unread'), value: unreadCount, color: 'text-white' },
+          { label: t('page.notif.stats.aiOrders'), value: aiOrderCount, color: 'text-white' },
+          { label: t('page.notif.stats.humanNeeded'), value: humanNeededCount, color: 'text-white' },
         ].map((stat) => (
           <div key={stat.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
             <p className="text-xs text-zinc-500 uppercase tracking-wider">{stat.label}</p>
@@ -224,7 +224,7 @@ export default function NotificationsPage() {
                 className={`w-full text-start rounded-xl p-4 transition-all hover:bg-zinc-800/80 ${
                   notification.isRead
                     ? 'bg-zinc-900/30 border border-zinc-800/50'
-                    : 'bg-zinc-900 border border-zinc-800 border-l-2 border-l-blue-500'
+                    : 'bg-zinc-900 border border-white/20'
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -233,9 +233,12 @@ export default function NotificationsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <h3 className={`text-sm font-medium truncate ${
+                      <h3 className={`text-sm font-medium truncate flex items-center gap-2 ${
                         notification.isRead ? 'text-zinc-400' : 'text-white'
                       }`}>
+                        {!notification.isRead && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-white shrink-0" />
+                        )}
                         {notification.title}
                       </h3>
                       <span className="text-xs text-zinc-600 shrink-0">
@@ -248,7 +251,8 @@ export default function NotificationsPage() {
                       {notification.message}
                     </p>
                     <div className="flex items-center gap-2 mt-2">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${typeConfig.color}`}>
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+                        <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
                         {typeLabel}
                       </span>
                       {notification.isRead && (

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Button, Badge } from '@/components/ui';
+import { Button } from '@/components/ui';
 import {
   BotIcon, ChevronLeftIcon, ChatIcon, EditIcon, AlertIcon,
   CheckCircleIcon, ClockIcon, ShoppingCartIcon, MessageIcon,
@@ -88,7 +88,7 @@ export default function AgentDetailPage() {
   if (loading && !agent) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-blue-500" />
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-white" />
       </div>
     );
   }
@@ -102,13 +102,6 @@ export default function AgentDetailPage() {
     );
   }
 
-  const personalityColors: Record<string, string> = {
-    professional: 'bg-blue-500/20 text-blue-400',
-    friendly: 'bg-emerald-500/20 text-emerald-400',
-    casual: 'bg-amber-500/20 text-amber-400',
-    technical: 'bg-violet-500/20 text-violet-400',
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -121,19 +114,27 @@ export default function AgentDetailPage() {
         </button>
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-              <BotIcon className="w-5 h-5 text-blue-400" />
+            <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+              <BotIcon className="w-5 h-5 text-zinc-300" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-white">{agent.name}</h1>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className={`text-xs px-2 py-0.5 rounded-full ${personalityColors[agent.personality] || 'bg-zinc-700 text-zinc-300'}`}>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
                   {agent.personality}
                 </span>
                 <span className="text-xs text-zinc-500">{agent.aiModel}</span>
-                <Badge variant={agent.isActive ? 'success' : 'default'}>
-                  {agent.isActive ? 'Active' : 'Inactive'}
-                </Badge>
+                {agent.isActive ? (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                    Active
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-500">
+                    <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
+                    Inactive
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -153,7 +154,7 @@ export default function AgentDetailPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-zinc-900 border border-white/10 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <ChatIcon className="w-4 h-4 text-blue-400" />
+              <ChatIcon className="w-4 h-4 text-zinc-400" />
               <span className="text-xs text-zinc-500">Conversations</span>
             </div>
             <p className="text-2xl font-bold text-white">{metrics.conversationCount}</p>
@@ -161,7 +162,7 @@ export default function AgentDetailPage() {
           </div>
           <div className="bg-zinc-900 border border-white/10 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <MessageIcon className="w-4 h-4 text-emerald-400" />
+              <MessageIcon className="w-4 h-4 text-zinc-400" />
               <span className="text-xs text-zinc-500">Total Messages</span>
             </div>
             <p className="text-2xl font-bold text-white">{metrics.totalMessages}</p>
@@ -171,14 +172,14 @@ export default function AgentDetailPage() {
           </div>
           <div className="bg-zinc-900 border border-white/10 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <ShoppingCartIcon className="w-4 h-4 text-amber-400" />
+              <ShoppingCartIcon className="w-4 h-4 text-zinc-400" />
               <span className="text-xs text-zinc-500">Orders Created</span>
             </div>
             <p className="text-2xl font-bold text-white">{metrics.ordersCreated}</p>
           </div>
           <div className="bg-zinc-900 border border-white/10 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <AlertIcon className="w-4 h-4 text-red-400" />
+              <AlertIcon className="w-4 h-4 text-zinc-400" />
               <span className="text-xs text-zinc-500">Pending Issues</span>
             </div>
             <p className="text-2xl font-bold text-white">{metrics.insightsPending}</p>
@@ -192,10 +193,13 @@ export default function AgentDetailPage() {
         <div className="p-4 border-b border-white/5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <AlertIcon className="w-4 h-4 text-amber-400" />
+              <AlertIcon className="w-4 h-4 text-zinc-500" />
               <h2 className="text-sm font-semibold text-white">Agent Insights</h2>
               {metrics && metrics.insightsPending > 0 && (
-                <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full">{metrics.insightsPending} pending</span>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[10px] text-zinc-300">
+                  <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
+                  {metrics.insightsPending} pending
+                </span>
               )}
             </div>
             <div className="flex gap-1">
@@ -224,22 +228,21 @@ export default function AgentDetailPage() {
               <div key={insight.id} className="p-4">
                 <div className="flex items-start gap-3">
                   {/* Type badge */}
-                  <div className={`flex-shrink-0 mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center ${
-                    insight.type === 'unclear' ? 'bg-amber-500/20' : 'bg-red-500/20'
-                  }`}>
+                  <div className="flex-shrink-0 mt-0.5 w-8 h-8 rounded-lg flex items-center justify-center bg-white/5">
                     {insight.type === 'unclear' ? (
-                      <AlertIcon className="w-4 h-4 text-amber-400" />
+                      <AlertIcon className="w-4 h-4 text-zinc-300" />
                     ) : (
-                      <BanIcon className="w-4 h-4 text-red-400" />
+                      <BanIcon className="w-4 h-4 text-zinc-300" />
                     )}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <Badge variant={insight.type === 'unclear' ? 'warning' : 'error'}>
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+                        <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
                         {insight.type === 'unclear' ? 'Unclear' : 'Unknown Topic'}
-                      </Badge>
-                      <FacebookIcon className="w-3.5 h-3.5 text-blue-400" />
+                      </span>
+                      <FacebookIcon className="w-3.5 h-3.5 text-zinc-500" />
                       <span className="text-[10px] text-zinc-600 ml-auto">
                         {new Date(insight.createdAt).toLocaleDateString()} {new Date(insight.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
@@ -247,7 +250,7 @@ export default function AgentDetailPage() {
 
                     {/* Detail/reason */}
                     {insight.detail && (
-                      <p className="text-xs text-amber-400/80 mb-2 italic">{insight.detail}</p>
+                      <p className="text-xs text-zinc-500 mb-2 italic">{insight.detail}</p>
                     )}
 
                     {/* Customer message */}
@@ -257,7 +260,7 @@ export default function AgentDetailPage() {
                     </div>
 
                     {/* AI response */}
-                    <div className="bg-blue-500/5 border border-blue-500/10 rounded-lg p-2.5 mb-2">
+                    <div className="bg-white/[0.03] border border-white/10 rounded-lg p-2.5 mb-2">
                       <p className="text-[10px] text-zinc-500 mb-0.5">AI Response:</p>
                       <p className="text-xs text-zinc-400">{insight.aiResponse.slice(0, 200)}{insight.aiResponse.length > 200 ? '...' : ''}</p>
                     </div>
@@ -270,7 +273,7 @@ export default function AgentDetailPage() {
                             value={newInstruction}
                             onChange={(e) => setNewInstruction(e.target.value)}
                             placeholder="Add an instruction so the agent handles this better next time... (e.g., 'When customers ask about delivery time, say 2-3 business days')"
-                            className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                            className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-white/30 resize-none"
                             rows={2}
                           />
                           <div className="flex gap-2">
@@ -316,9 +319,12 @@ export default function AgentDetailPage() {
 
                     {insight.status !== 'pending' && (
                       <div className="flex items-center gap-1.5 mt-2">
-                        <Badge variant={insight.status === 'resolved' ? 'success' : 'default'}>
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] ${
+                          insight.status === 'resolved' ? 'text-zinc-300' : 'text-zinc-600'
+                        }`}>
+                          {insight.status === 'resolved' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                           {insight.status}
-                        </Badge>
+                        </span>
                         {insight.resolvedAt && (
                           <span className="text-[10px] text-zinc-600">
                             {new Date(insight.resolvedAt).toLocaleDateString()}
@@ -374,7 +380,7 @@ export default function AgentDetailPage() {
           <textarea
             value={instructionsText}
             onChange={(e) => setInstructionsText(e.target.value)}
-            className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none min-h-[120px]"
+            className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-white/30 resize-none min-h-[120px]"
             placeholder="Add instructions for your agent..."
           />
         ) : agent.customInstructions ? (

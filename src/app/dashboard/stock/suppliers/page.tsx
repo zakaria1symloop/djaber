@@ -281,16 +281,16 @@ export default function SuppliersPage() {
             onClick={toggleFilters}
             className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-all duration-200 ${
               filtersOpen
-                ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                ? 'border-white/20 bg-white/10 text-white'
                 : activeFilterCount > 0
-                  ? 'border-blue-500/30 bg-blue-500/5 text-blue-400 hover:bg-blue-500/10'
+                  ? 'border-white/20 bg-white/5 text-zinc-300 hover:bg-white/10'
                   : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'
             }`}
           >
             <FilterIcon className="w-4 h-4" />
             {t('stock.common.filters')}
             {activeFilterCount > 0 && (
-              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
+              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white text-black text-[10px] font-bold">
                 {activeFilterCount}
               </span>
             )}
@@ -310,9 +310,9 @@ export default function SuppliersPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <StatsCard title={t('stock.suppliers.stat.total')} value={stats.total} icon={<UsersIcon className="w-5 h-5" />} iconColor="text-blue-400" />
-        <StatsCard title={t('stock.suppliers.stat.active')} value={stats.active} icon={<CheckCircleIcon className="w-5 h-5" />} iconColor="text-emerald-400" />
-        <StatsCard title={t('stock.suppliers.stat.withPurchases')} value={stats.withPurchases} icon={<TruckIcon className="w-5 h-5" />} iconColor="text-amber-400" />
+        <StatsCard title={t('stock.suppliers.stat.total')} value={stats.total} icon={<UsersIcon className="w-5 h-5" />} />
+        <StatsCard title={t('stock.suppliers.stat.active')} value={stats.active} icon={<CheckCircleIcon className="w-5 h-5" />} />
+        <StatsCard title={t('stock.suppliers.stat.withPurchases')} value={stats.withPurchases} icon={<TruckIcon className="w-5 h-5" />} />
       </div>
 
       {/* Search + Date filters */}
@@ -352,7 +352,7 @@ export default function SuppliersPage() {
                   <tr key={supplier.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-violet-500/20 text-violet-400 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                        <div className="w-9 h-9 rounded-full bg-white/5 text-zinc-300 flex items-center justify-center text-sm font-bold flex-shrink-0">
                           {getInitials(supplier.name)}
                         </div>
                         <span className="text-sm text-white font-medium">{supplier.name}</span>
@@ -396,9 +396,13 @@ export default function SuppliersPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <Badge variant={supplier.isActive !== false ? 'success' : 'error'}>
-                        {supplier.isActive !== false ? 'Active' : 'Inactive'}
-                      </Badge>
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+                        {supplier.isActive !== false ? (
+                          <><span className="w-1.5 h-1.5 rounded-full bg-white" />Active</>
+                        ) : (
+                          <span className="text-zinc-600">Inactive</span>
+                        )}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1">
@@ -407,7 +411,7 @@ export default function SuppliersPage() {
                         </button>
                         <button
                           onClick={() => router.push(`/dashboard/stock/purchases?supplierId=${supplier.id}`)}
-                          className="p-1.5 text-zinc-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                          className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                           title="View Purchases"
                         >
                           <TruckIcon className="w-4 h-4" />
@@ -415,7 +419,7 @@ export default function SuppliersPage() {
                         <button onClick={() => openEdit(supplier)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Edit">
                           <EditIcon className="w-4 h-4" />
                         </button>
-                        <button onClick={() => setDeleteConfirm(supplier)} className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors" title="Delete">
+                        <button onClick={() => setDeleteConfirm(supplier)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Delete">
                           <TrashIcon className="w-4 h-4" />
                         </button>
                       </div>
@@ -450,10 +454,10 @@ export default function SuppliersPage() {
         {/* Panel header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
           <div className="flex items-center gap-2">
-            <FilterIcon className="w-4 h-4 text-blue-400" />
+            <FilterIcon className="w-4 h-4 text-zinc-500" />
             <h2 className="text-sm font-semibold text-white">Filters</h2>
             {activeFilterCount > 0 && (
-              <span className="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-full font-medium">
+              <span className="text-[10px] text-zinc-300 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-full font-medium">
                 {activeFilterCount} active
               </span>
             )}
@@ -482,11 +486,7 @@ export default function SuppliersPage() {
                   onClick={() => setDraftActiveFilter(opt.value)}
                   className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 ${
                     draftActiveFilter === opt.value
-                      ? opt.value === 'true'
-                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                        : opt.value === 'false'
-                          ? 'bg-red-500/15 text-red-400 border border-red-500/30'
-                          : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                      ? 'bg-white/10 text-white border border-white/20'
                       : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-700'
                   }`}
                 >
@@ -501,7 +501,7 @@ export default function SuppliersPage() {
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
               Purchase Count
               {(draftPurchasesRange[0] > 0 || draftPurchasesRange[1] < DEFAULT_PURCHASES_MAX) && (
-                <span className="ml-1.5 text-blue-400 font-normal normal-case">
+                <span className="ml-1.5 text-zinc-400 font-normal normal-case">
                   {draftPurchasesRange[0].toLocaleString()} - {draftPurchasesRange[1].toLocaleString()}
                 </span>
               )}
@@ -521,7 +521,7 @@ export default function SuppliersPage() {
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
               Total Spent (DA)
               {(draftSpentRange[0] > 0 || draftSpentRange[1] < DEFAULT_SPENT_MAX) && (
-                <span className="ml-1.5 text-blue-400 font-normal normal-case">
+                <span className="ml-1.5 text-zinc-400 font-normal normal-case">
                   {draftSpentRange[0].toLocaleString()} - {draftSpentRange[1].toLocaleString()}
                 </span>
               )}
@@ -543,7 +543,7 @@ export default function SuppliersPage() {
           <button
             onClick={applyFilters}
             disabled={!draftDirty}
-            className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-500 text-white"
+            className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-white hover:bg-zinc-200 text-black"
           >
             Apply Filters
           </button>
@@ -562,14 +562,18 @@ export default function SuppliersPage() {
         {viewing && (
           <div className="space-y-5">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-violet-500/20 text-violet-400 flex items-center justify-center text-xl font-bold">
+              <div className="w-14 h-14 rounded-full bg-white/5 text-zinc-300 flex items-center justify-center text-xl font-bold">
                 {getInitials(viewing.name)}
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-white">{viewing.name}</h3>
-                <Badge variant={viewing.isActive !== false ? 'success' : 'error'}>
-                  {viewing.isActive !== false ? 'Active' : 'Inactive'}
-                </Badge>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+                  {viewing.isActive !== false ? (
+                    <><span className="w-1.5 h-1.5 rounded-full bg-white" />Active</>
+                  ) : (
+                    <span className="text-zinc-600">Inactive</span>
+                  )}
+                </span>
               </div>
             </div>
 
@@ -607,7 +611,7 @@ export default function SuppliersPage() {
               </div>
               <div className="bg-zinc-800/50 rounded-lg p-4 text-center">
                 <p className="text-xs text-zinc-500 mb-1">Total Spent</p>
-                <p className="text-2xl font-bold text-emerald-400">{(viewing.totalSpent || 0).toLocaleString()} <span className="text-sm text-zinc-400">DA</span></p>
+                <p className="text-2xl font-bold text-white">{(viewing.totalSpent || 0).toLocaleString()} <span className="text-sm text-zinc-400">DA</span></p>
               </div>
               <div className="bg-zinc-800/50 rounded-lg p-4 text-center">
                 <p className="text-xs text-zinc-500 mb-1">Member Since</p>
@@ -735,10 +739,10 @@ export default function SuppliersPage() {
                 />
                 <div
                   className={`w-10 h-6 rounded-full flex items-center p-1 transition-colors ${
-                    form.isActive ? 'bg-emerald-500 justify-end' : 'bg-zinc-700 justify-start'
+                    form.isActive ? 'bg-white justify-end' : 'bg-zinc-700 justify-start'
                   }`}
                 >
-                  <div className="w-4 h-4 bg-white rounded-full shadow-sm transition-transform" />
+                  <div className={`w-4 h-4 rounded-full shadow-sm transition-transform ${form.isActive ? 'bg-black' : 'bg-white'}`} />
                 </div>
               </div>
               <span className="text-sm text-zinc-300">{form.isActive ? t('dash.pageCard.active') : t('dash.pageCard.inactive')}</span>
@@ -767,15 +771,15 @@ export default function SuppliersPage() {
           Are you sure you want to delete <span className="text-white font-medium">{deleteConfirm?.name}</span>?
         </p>
         {(deleteConfirm?._count?.purchases || 0) > 0 && (
-          <p className="text-amber-400 text-sm mb-4">
-            This supplier has {deleteConfirm?._count?.purchases} purchases linked.
-          </p>
+          <div className="border border-white/10 bg-white/[0.03] rounded-lg p-2.5 mb-4">
+            <p className="text-white text-sm font-semibold">This supplier has {deleteConfirm?._count?.purchases} purchases linked.</p>
+          </div>
         )}
         <div className="flex gap-3 pt-4">
           <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>
             Cancel
           </Button>
-          <Button type="button" variant="danger" className="flex-1" onClick={handleDelete} disabled={deleting}>
+          <Button type="button" className="flex-1" onClick={handleDelete} disabled={deleting}>
             {deleting ? 'Deleting...' : 'Delete'}
           </Button>
         </div>

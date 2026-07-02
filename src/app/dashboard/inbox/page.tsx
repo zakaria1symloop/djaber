@@ -225,7 +225,7 @@ function PageSwitcher({
 
   if (!selected) return null;
   const SelectedIcon = selected.platform === 'instagram' ? InstagramIcon : FacebookIcon;
-  const selectedColor = selected.platform === 'instagram' ? 'text-pink-400' : 'text-[#1877F2]';
+  const selectedColor = 'text-zinc-500';
   const multi = pages.length > 1;
 
   return (
@@ -291,7 +291,7 @@ function PageSwitcher({
             {pages.map((p) => {
               const active = p.id === selected.id;
               const Icon = p.platform === 'instagram' ? InstagramIcon : FacebookIcon;
-              const color = p.platform === 'instagram' ? 'text-pink-400' : 'text-[#1877F2]';
+              const color = 'text-zinc-500';
               return (
                 <li key={p.id}>
                   <button
@@ -313,7 +313,8 @@ function PageSwitcher({
                       <p className="text-[10px] text-zinc-500 capitalize">{p.platform}</p>
                     </div>
                     {active && (
-                      <span className="text-[10px] uppercase tracking-wider text-emerald-400 font-semibold flex-shrink-0">
+                      <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-zinc-400 font-semibold flex-shrink-0">
+                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
                         Active
                       </span>
                     )}

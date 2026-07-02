@@ -247,7 +247,7 @@ export default function DeliverySettingsPage() {
           {testResult && (
             <div className={`text-sm px-3 py-2 rounded-lg ${
               testResult.success
-                ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                ? 'bg-white/[0.03] text-zinc-300 border border-white/10'
                 : 'bg-red-500/10 text-red-400 border border-red-500/20'
             }`}>
               {testResult.message}
@@ -386,12 +386,12 @@ export default function DeliverySettingsPage() {
                 <div className="flex items-center gap-2">
                   <h3 className="text-lg font-semibold text-white">{p.displayName}</h3>
                   {p.isDefault && (
-                    <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">
+                    <span className="text-xs bg-white/[0.03] text-zinc-300 border border-white/10 px-2 py-0.5 rounded-full">
                       Default
                     </span>
                   )}
                 </div>
-                <div className={`w-2.5 h-2.5 rounded-full ${p.isActive ? 'bg-green-500' : 'bg-zinc-600'}`} />
+                <div className={`w-2.5 h-2.5 rounded-full ${p.isActive ? 'bg-white' : 'border border-zinc-600'}`} />
               </div>
 
               <div className="text-sm text-zinc-400 space-y-1 mb-4">
@@ -415,7 +415,7 @@ export default function DeliverySettingsPage() {
                 </Button>
                 <Button
                   variant="secondary"
-                  className="text-xs text-red-400 hover:text-red-300"
+                  className="text-xs text-zinc-400 hover:text-white"
                   onClick={() => setDeleteConfirm(p.id)}
                 >
                   <TrashIcon className="w-3.5 h-3.5" />
@@ -442,7 +442,6 @@ export default function DeliverySettingsPage() {
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
           <Button
-            className="bg-red-600 hover:bg-red-700"
             onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
           >
             Delete

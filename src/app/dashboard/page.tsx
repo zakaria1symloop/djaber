@@ -64,14 +64,11 @@ export default function DashboardPage() {
   );
 }
 
-function ChannelStat({ label, value, icon }: { label: string; value: number | string; icon: React.ReactNode }) {
+function ChannelStat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-3 flex items-center gap-3">
-      <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">{icon}</div>
-      <div>
-        <p className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</p>
-        <p className="text-lg font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{value}</p>
-      </div>
+    <div className="bg-zinc-950 px-4 py-3.5">
+      <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1">{label}</p>
+      <p className="text-xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{value}</p>
     </div>
   );
 }
@@ -220,7 +217,7 @@ function DashboardPageInner() {
     : pages.filter(page => page.platform === activePlatformTab);
 
   const getPlatformIcon = () => {
-    return <FacebookIcon className="w-6 h-6 text-[#1877F2]" />;
+    return <FacebookIcon className="w-6 h-6 text-zinc-500" />;
   };
 
   return (
@@ -253,7 +250,6 @@ function DashboardPageInner() {
               value={pages.length}
               hint={pages.length === 0 ? '' : `${pages.length}`}
               icon={<ChatIcon className="w-4 h-4" />}
-              color="blue"
             />
             <KpiCard
               label={t('page.dash.products')}
@@ -264,7 +260,6 @@ function DashboardPageInner() {
                   : ''
               }
               icon={<BoxIcon className="w-4 h-4" />}
-              color="violet"
             />
             <KpiCard
               label={t('page.dash.revenue30d')}
@@ -275,14 +270,12 @@ function DashboardPageInner() {
               })()}
               hint={`${(salesStats?.stats.totalSales ?? 0) + (orderStats?.stats.totalOrders ?? 0)}`}
               icon={<DollarIcon className="w-4 h-4" />}
-              color="emerald"
             />
             <KpiCard
               label={t('page.dash.stockValue')}
               value={dashboard ? `${Number(dashboard.stats.totalStockValue).toLocaleString(undefined, { maximumFractionDigits: 0 })} DA` : '—'}
               hint=""
               icon={<PackageIcon className="w-4 h-4" />}
-              color="orange"
             />
           </div>
 
@@ -295,7 +288,7 @@ function DashboardPageInner() {
                 className="group text-start bg-zinc-900/50 border border-white/10 hover:border-white/20 rounded-xl p-5 transition-all hover:bg-zinc-900/80"
               >
                 <div className="flex items-start justify-between mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-lg bg-white/5 text-zinc-300 flex items-center justify-center">
                     <ChatIcon className="w-5 h-5" />
                   </div>
                   <span className="text-zinc-600 group-hover:text-white transition-colors">{dir === 'rtl' ? '←' : '→'}</span>
@@ -309,7 +302,7 @@ function DashboardPageInner() {
                 className="group text-start bg-zinc-900/50 border border-white/10 hover:border-white/20 rounded-xl p-5 transition-all hover:bg-zinc-900/80"
               >
                 <div className="flex items-start justify-between mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-lg bg-white/5 text-zinc-300 flex items-center justify-center">
                     <BoxIcon className="w-5 h-5" />
                   </div>
                   <span className="text-zinc-600 group-hover:text-white transition-colors">{dir === 'rtl' ? '←' : '→'}</span>
@@ -323,7 +316,7 @@ function DashboardPageInner() {
                 className="group text-start bg-zinc-900/50 border border-white/10 hover:border-white/20 rounded-xl p-5 transition-all hover:bg-zinc-900/80"
               >
                 <div className="flex items-start justify-between mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-lg bg-white/5 text-zinc-300 flex items-center justify-center">
                     <SparklesIcon className="w-5 h-5" />
                   </div>
                   <span className="text-zinc-600 group-hover:text-white transition-colors">{dir === 'rtl' ? '←' : '→'}</span>
@@ -373,7 +366,7 @@ function DashboardPageInner() {
                         <p className="text-sm text-white truncate">{page.pageName}</p>
                         <p className="text-[11px] text-zinc-500 capitalize">{page.platform} · connected {new Date(page.createdAt).toLocaleDateString()}</p>
                       </div>
-                      <Badge variant="success">Active</Badge>
+                      <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400"><span className="w-1.5 h-1.5 rounded-full bg-white" />Active</span>
                     </div>
                   ))}
                 </div>
@@ -385,7 +378,7 @@ function DashboardPageInner() {
               <h3 className="text-sm font-semibold text-white mb-4">{t('dash.getStarted.title')}</h3>
               <ul className="space-y-3 text-sm">
                 <li className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${pages.length > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-zinc-500'}`}>
+                  <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${pages.length > 0 ? 'bg-white text-black' : 'bg-white/5 text-zinc-500'}`}>
                     {pages.length > 0 ? '✓' : '1'}
                   </div>
                   <div>
@@ -394,7 +387,7 @@ function DashboardPageInner() {
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${(dashboard?.stats.totalProducts ?? 0) > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-zinc-500'}`}>
+                  <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${(dashboard?.stats.totalProducts ?? 0) > 0 ? 'bg-white text-black' : 'bg-white/5 text-zinc-500'}`}>
                     {(dashboard?.stats.totalProducts ?? 0) > 0 ? '✓' : '2'}
                   </div>
                   <div>
@@ -403,7 +396,7 @@ function DashboardPageInner() {
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${pages.length > 0 && (dashboard?.stats.totalProducts ?? 0) > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-zinc-500'}`}>
+                  <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${pages.length > 0 && (dashboard?.stats.totalProducts ?? 0) > 0 ? 'bg-white text-black' : 'bg-white/5 text-zinc-500'}`}>
                     {pages.length > 0 && (dashboard?.stats.totalProducts ?? 0) > 0 ? '✓' : '3'}
                   </div>
                   <div>
@@ -412,7 +405,7 @@ function DashboardPageInner() {
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
-                  <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${(salesStats?.stats.totalSales ?? 0) > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-zinc-500'}`}>
+                  <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${(salesStats?.stats.totalSales ?? 0) > 0 ? 'bg-white text-black' : 'bg-white/5 text-zinc-500'}`}>
                     {(salesStats?.stats.totalSales ?? 0) > 0 ? '✓' : '4'}
                   </div>
                   <div>
@@ -460,19 +453,19 @@ function DashboardPageInner() {
 
           {/* Quick channel summary strip */}
           {pages.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-              <ChannelStat label={t('pages.stat.totalPages')} value={pages.length} icon={<ChatIcon className="w-4 h-4 text-zinc-400" />} />
-              <ChannelStat
-                label={t('pages.stat.facebook')}
-                value={pages.filter((p) => p.platform === 'facebook').length}
-                icon={<FacebookIcon className="w-4 h-4 text-[#1877F2]" />}
-              />
-              <ChannelStat
-                label={t('pages.stat.instagram')}
-                value={pages.filter((p) => p.platform === 'instagram').length}
-                icon={<InstagramIcon className="w-4 h-4 text-pink-400" />}
-              />
-              <ChannelStat label={t('pages.stat.planLimit')} value={`${pages.length}/∞`} icon={<BoltIcon className="w-4 h-4 text-amber-400" />} />
+            <div className="mb-6 rounded-xl border border-white/10 overflow-hidden">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-white/10">
+                <ChannelStat label={t('pages.stat.totalPages')} value={pages.length} />
+                <ChannelStat
+                  label={t('pages.stat.facebook')}
+                  value={pages.filter((p) => p.platform === 'facebook').length}
+                />
+                <ChannelStat
+                  label={t('pages.stat.instagram')}
+                  value={pages.filter((p) => p.platform === 'instagram').length}
+                />
+                <ChannelStat label={t('pages.stat.planLimit')} value={`${pages.length}/∞`} />
+              </div>
             </div>
           )}
 
@@ -534,7 +527,7 @@ function DashboardPageInner() {
                 </p>
                 <div className="flex gap-3">
                   <Button variant="outline" className="flex-1" onClick={() => setShowDisconnectConfirm(null)}>Cancel</Button>
-                  <Button variant="danger" className="flex-1" onClick={() => handleDisconnect(showDisconnectConfirm)}>Disconnect</Button>
+                  <Button className="flex-1" onClick={() => handleDisconnect(showDisconnectConfirm)}>Disconnect</Button>
                 </div>
               </Card>
             </div>
@@ -614,29 +607,25 @@ function DashboardPageInner() {
                       label="Revenue"
                       value={fmt(revenue)}
                       hint={`${totalCount} ${totalCount === 1 ? 'order' : 'orders'}`}
-                      icon={<DollarIcon className="w-4 h-4 text-emerald-400" />}
-                      color="emerald"
+                      icon={<DollarIcon className="w-4 h-4" />}
                     />
                     <KpiCard
                       label="Spent"
                       value={fmt(spent)}
                       hint={`${purchaseStats?.stats.totalPurchases || 0} purchases`}
-                      icon={<ShoppingCartIcon className="w-4 h-4 text-orange-400" />}
-                      color="orange"
+                      icon={<ShoppingCartIcon className="w-4 h-4" />}
                     />
                     <KpiCard
                       label="Profit"
                       value={`${profit >= 0 ? '+' : ''}${fmt(profit)}`}
                       hint={`${profitMargin.toFixed(1)}% margin`}
-                      icon={profit >= 0 ? <ArrowUpIcon className="w-4 h-4 text-blue-400" /> : <ArrowDownIcon className="w-4 h-4 text-red-400" />}
-                      color={profit >= 0 ? 'blue' : 'red'}
+                      icon={profit >= 0 ? <ArrowUpIcon className="w-4 h-4" /> : <ArrowDownIcon className="w-4 h-4" />}
                     />
                     <KpiCard
                       label="Avg Order"
                       value={fmt(aov)}
                       hint="per sale"
-                      icon={<ChartIcon className="w-4 h-4 text-violet-400" />}
-                      color="violet"
+                      icon={<ChartIcon className="w-4 h-4" />}
                     />
                   </div>
                 );
@@ -656,24 +645,24 @@ function DashboardPageInner() {
                     <div className="space-y-4">
                       <div>
                         <div className="flex items-center justify-between text-xs mb-1.5">
-                          <span className="text-emerald-400 font-medium">Income</span>
+                          <span className="text-zinc-400 font-medium">Income</span>
                           <span className="text-white font-medium">{revenue.toLocaleString()} DA</span>
                         </div>
-                        <div className="h-2.5 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-2.5 bg-white/10 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-500"
+                            className="h-full bg-white rounded-full transition-all duration-500"
                             style={{ width: `${(revenue / max) * 100}%` }}
                           />
                         </div>
                       </div>
                       <div>
                         <div className="flex items-center justify-between text-xs mb-1.5">
-                          <span className="text-orange-400 font-medium">Outflow</span>
+                          <span className="text-zinc-400 font-medium">Outflow</span>
                           <span className="text-white font-medium">{spent.toLocaleString()} DA</span>
                         </div>
-                        <div className="h-2.5 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-2.5 bg-white/10 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-gradient-to-r from-orange-500 to-orange-400 rounded-full transition-all duration-500"
+                            className="h-full bg-zinc-500 rounded-full transition-all duration-500"
                             style={{ width: `${(spent / max) * 100}%` }}
                           />
                         </div>
@@ -706,18 +695,16 @@ function DashboardPageInner() {
                             <div className="flex items-center justify-between text-xs mb-1.5">
                               <div className="flex items-center gap-2 min-w-0">
                                 <span className={`flex-shrink-0 w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center ${
-                                  i === 0 ? 'bg-yellow-500/20 text-yellow-400' :
-                                  i === 1 ? 'bg-zinc-400/20 text-zinc-300' :
-                                  i === 2 ? 'bg-orange-700/20 text-orange-400' :
+                                  i === 0 ? 'bg-white/10 text-white' :
                                   'bg-white/5 text-zinc-500'
                                 }`}>{i + 1}</span>
                                 <span className="text-zinc-300 truncate">{p.productName}</span>
                               </div>
                               <span className="text-white font-medium flex-shrink-0 ml-2">{value.toLocaleString()} DA</span>
                             </div>
-                            <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-gradient-to-r from-emerald-500/60 to-emerald-400 rounded-full transition-all duration-500"
+                                className="h-full bg-white rounded-full transition-all duration-500"
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
@@ -758,36 +745,36 @@ function DashboardPageInner() {
                     </div>
                     <div className="bg-white/[0.02] border border-white/5 rounded-lg p-3">
                       <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Retail Value</p>
-                      <p className="text-xl font-bold text-emerald-400">
+                      <p className="text-xl font-bold text-white">
                         {Number(dashboard?.stats.totalRetailValue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         <span className="text-xs text-zinc-500 ml-1">DA</span>
                       </p>
                     </div>
                   </div>
                   {(dashboard?.stats.lowStockProducts || 0) > 0 ? (
-                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
-                        <AlertIcon className="w-4 h-4 text-yellow-400" />
+                    <div className="bg-white/[0.03] border border-white/10 rounded-lg p-3 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
+                        <AlertIcon className="w-4 h-4 text-zinc-300" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-yellow-400">{dashboard?.stats.lowStockProducts} products low on stock</p>
-                        <p className="text-xs text-yellow-400/60">Restock soon to avoid shortages</p>
+                        <p className="text-sm font-semibold text-white">{dashboard?.stats.lowStockProducts} products low on stock</p>
+                        <p className="text-xs text-zinc-500">Restock soon to avoid shortages</p>
                       </div>
                       <button
                         onClick={() => router.push('/dashboard/stock/products?lowStock=true')}
-                        className="text-xs text-yellow-400 hover:text-yellow-300 font-medium whitespace-nowrap"
+                        className="text-xs text-zinc-400 hover:text-white font-medium whitespace-nowrap"
                       >
                         View →
                       </button>
                     </div>
                   ) : (
-                    <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-3 flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
-                        <BoxIcon className="w-4 h-4 text-emerald-400" />
+                    <div className="bg-white/[0.03] border border-white/10 rounded-lg p-3 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
+                        <BoxIcon className="w-4 h-4 text-zinc-300" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-emerald-400">All stock levels healthy</p>
-                        <p className="text-xs text-emerald-400/60">No products need restocking</p>
+                        <p className="text-sm font-semibold text-white">All stock levels healthy</p>
+                        <p className="text-xs text-zinc-500">No products need restocking</p>
                       </div>
                     </div>
                   )}
@@ -808,28 +795,28 @@ function DashboardPageInner() {
                   const pendingPct = (pending / total) * 100;
                   return (
                     <>
-                      <div className="h-3 bg-white/5 rounded-full overflow-hidden flex mb-3">
+                      <div className="h-3 bg-white/10 rounded-full overflow-hidden flex mb-3">
                         {paidPct > 0 && (
                           <div
-                            className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500"
+                            className="h-full bg-white transition-all duration-500"
                             style={{ width: `${paidPct}%` }}
                           />
                         )}
                         {pendingPct > 0 && (
                           <div
-                            className="h-full bg-gradient-to-r from-yellow-500 to-yellow-400 transition-all duration-500"
+                            className="h-full bg-zinc-500 transition-all duration-500"
                             style={{ width: `${pendingPct}%` }}
                           />
                         )}
                       </div>
                       <div className="flex items-center gap-6 text-xs">
                         <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                          <div className="w-2 h-2 rounded-full bg-white" />
                           <span className="text-zinc-400">Paid</span>
                           <span className="text-white font-medium">{paid}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-yellow-400" />
+                          <div className="w-2 h-2 rounded-full bg-zinc-500" />
                           <span className="text-zinc-400">Pending</span>
                           <span className="text-white font-medium">{pending}</span>
                         </div>
@@ -858,10 +845,9 @@ function DashboardPageInner() {
                     {(['facebook'] as const).map((platform) => {
                       const count = pages.filter(p => p.platform === platform).length;
                       const Icon = FacebookIcon;
-                      const color = '#1877F2';
                       return (
                         <div key={platform} className="bg-white/[0.02] border border-white/5 rounded-lg p-4 flex items-center gap-3">
-                          <span style={{ color }}>
+                          <span className="text-zinc-500">
                             <Icon className="w-6 h-6" />
                           </span>
                           <div>
@@ -909,7 +895,7 @@ function DashboardPageInner() {
                     <div>
                       <h3 className="text-white font-semibold">Simple</h3>
                       {stockMode === 'simple' && (
-                        <span className="text-[10px] font-medium text-emerald-400 uppercase tracking-wider">Active</span>
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-zinc-400 uppercase tracking-wider"><span className="w-1.5 h-1.5 rounded-full bg-white" />Active</span>
                       )}
                     </div>
                   </div>
@@ -934,7 +920,7 @@ function DashboardPageInner() {
                     <div>
                       <h3 className="text-white font-semibold">Advanced</h3>
                       {stockMode === 'advanced' && (
-                        <span className="text-[10px] font-medium text-emerald-400 uppercase tracking-wider">Active</span>
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-zinc-400 uppercase tracking-wider"><span className="w-1.5 h-1.5 rounded-full bg-white" />Active</span>
                       )}
                     </div>
                   </div>
@@ -983,7 +969,7 @@ function DashboardPageInner() {
                   <p className="text-xs text-zinc-500 uppercase tracking-wider mb-0.5">Current plan</p>
                   <p className="text-white font-semibold capitalize">{user?.plan || 'Free'}</p>
                 </div>
-                <Badge variant="info" size="md">{user?.plan || 'Free'}</Badge>
+                <Badge variant="default" size="md">{user?.plan || 'Free'}</Badge>
               </div>
 
               {/* Plan cards */}
@@ -998,12 +984,12 @@ function DashboardPageInner() {
                       key={plan.id}
                       className={`bg-zinc-900/50 border rounded-xl p-5 flex flex-col transition-colors ${
                         plan.isFeatured ? 'border-white/30' : 'border-white/10'
-                      } ${isCurrent ? 'ring-1 ring-emerald-500/30' : ''}`}
+                      } ${isCurrent ? 'ring-1 ring-white/30' : ''}`}
                     >
                       {/* Header */}
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="text-base font-semibold text-white">{plan.name}</h3>
-                        {isCurrent && <Badge variant="success" size="sm">Current</Badge>}
+                        {isCurrent && <Badge variant="default" size="sm">Current</Badge>}
                         {plan.isFeatured && !isCurrent && (
                           <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white font-medium uppercase tracking-wider">Popular</span>
                         )}
@@ -1026,7 +1012,7 @@ function DashboardPageInner() {
                       <ul className="space-y-1.5 mb-5 flex-1">
                         {(plan.features || []).slice(0, 6).map((f, i) => (
                           <li key={i} className="flex items-start gap-2 text-xs text-zinc-300">
-                            <svg className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <svg className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                             {f}
@@ -1036,7 +1022,7 @@ function DashboardPageInner() {
 
                       {/* Action */}
                       {isCurrent ? (
-                        <div className="px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-center text-xs font-medium text-emerald-400">
+                        <div className="px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-center text-xs font-medium text-zinc-300">
                           Your current plan
                         </div>
                       ) : isFree ? (
@@ -1087,19 +1073,19 @@ function DashboardPageInner() {
                   <div>
                     <h3 className="text-white font-semibold mb-2">{t('settings.fb.activeTitle')}</h3>
                     <div className="flex flex-wrap gap-2">
-                      <Badge variant="success">pages_show_list</Badge>
-                      <Badge variant="success">pages_manage_metadata</Badge>
-                      <Badge variant="success">pages_messaging</Badge>
+                      <Badge variant="default">pages_show_list</Badge>
+                      <Badge variant="default">pages_manage_metadata</Badge>
+                      <Badge variant="default">pages_messaging</Badge>
                     </div>
                   </div>
                   <div className="pt-4 border-t border-white/10">
                     <h3 className="text-white font-semibold mb-2">{t('settings.fb.availableTitle')}</h3>
                     <div className="flex flex-wrap gap-2 mb-3">
-                      <Badge variant="info">pages_read_engagement</Badge>
-                      <Badge variant="info">pages_read_user_content</Badge>
-                      <Badge variant="info">pages_manage_posts</Badge>
-                      <Badge variant="info">pages_manage_engagement</Badge>
-                      <Badge variant="info">read_insights</Badge>
+                      <Badge variant="default">pages_read_engagement</Badge>
+                      <Badge variant="default">pages_read_user_content</Badge>
+                      <Badge variant="default">pages_manage_posts</Badge>
+                      <Badge variant="default">pages_manage_engagement</Badge>
+                      <Badge variant="default">read_insights</Badge>
                     </div>
                     <p className="text-sm text-zinc-400">{t('settings.fb.reviewHint')}</p>
                   </div>
@@ -1108,14 +1094,14 @@ function DashboardPageInner() {
             </div>
 
             <div>
-              <h2 className="text-xl font-bold text-red-400 mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>{t('settings.danger.title')}</h2>
-              <Card className="border-red-500/20 bg-red-500/5">
+              <h2 className="text-xl font-bold text-white mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>{t('settings.danger.title')}</h2>
+              <Card className="border-white/10 bg-white/[0.03]">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
-                    <h3 className="text-red-400 font-semibold mb-1">{t('settings.danger.deleteAccount')}</h3>
-                    <p className="text-red-300/80 text-sm">{t('settings.danger.deleteHelp')}</p>
+                    <h3 className="text-white font-semibold mb-1">{t('settings.danger.deleteAccount')}</h3>
+                    <p className="text-zinc-500 text-sm">{t('settings.danger.deleteHelp')}</p>
                   </div>
-                  <Button variant="danger">{t('settings.danger.deleteAccount')}</Button>
+                  <Button>{t('settings.danger.deleteAccount')}</Button>
                 </div>
               </Card>
             </div>

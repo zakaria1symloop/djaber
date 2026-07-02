@@ -42,16 +42,18 @@ const MANUAL_CATEGORIES = [
   { value: 'other', label: 'Other' },
 ];
 
+// All categories share the neutral pill scheme — the word carries the meaning.
+const NEUTRAL_PILL = 'border border-white/10 bg-white/[0.03] text-zinc-300';
 const categoryColor: Record<string, string> = {
-  sale: 'bg-emerald-500/20 text-emerald-400',
-  order: 'bg-blue-500/20 text-blue-400',
-  purchase: 'bg-orange-500/20 text-orange-400',
-  rent: 'bg-purple-500/20 text-purple-400',
-  salary: 'bg-pink-500/20 text-pink-400',
-  utilities: 'bg-yellow-500/20 text-yellow-400',
-  marketing: 'bg-cyan-500/20 text-cyan-400',
-  shipping: 'bg-indigo-500/20 text-indigo-400',
-  other: 'bg-zinc-500/20 text-zinc-400',
+  sale: NEUTRAL_PILL,
+  order: NEUTRAL_PILL,
+  purchase: NEUTRAL_PILL,
+  rent: NEUTRAL_PILL,
+  salary: NEUTRAL_PILL,
+  utilities: NEUTRAL_PILL,
+  marketing: NEUTRAL_PILL,
+  shipping: NEUTRAL_PILL,
+  other: NEUTRAL_PILL,
 };
 
 export default function CaissePage() {
@@ -261,16 +263,16 @@ export default function CaissePage() {
             onClick={toggleFilters}
             className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-all duration-200 ${
               filtersOpen
-                ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                ? 'border-white/20 bg-white/10 text-white'
                 : activeFilterCount > 0
-                  ? 'border-blue-500/30 bg-blue-500/5 text-blue-400 hover:bg-blue-500/10'
+                  ? 'border-white/20 bg-white/5 text-zinc-300 hover:bg-white/10'
                   : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'
             }`}
           >
             <FilterIcon className="w-4 h-4" />
             {t('stock.common.filters')}
             {activeFilterCount > 0 && (
-              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
+              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white text-black text-[10px] font-bold">
                 {activeFilterCount}
               </span>
             )}
@@ -328,9 +330,9 @@ export default function CaissePage() {
 
       {stats && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatsCard title={t('stock.caisse.stat.balance')} value={`${stats.balance.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-blue-400" />
-          <StatsCard title={t('stock.caisse.stat.income')} value={`${stats.totalIncome.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-emerald-400" />
-          <StatsCard title={t('stock.caisse.stat.expense')} value={`${stats.totalExpense.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-red-400" />
+          <StatsCard title={t('stock.caisse.stat.balance')} value={`${stats.balance.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} />
+          <StatsCard title={t('stock.caisse.stat.income')} value={`${stats.totalIncome.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} />
+          <StatsCard title={t('stock.caisse.stat.expense')} value={`${stats.totalExpense.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} />
           <StatsCard title={t('stock.caisse.stat.transactions')} value={stats.transactionCount.toString()} icon={<DollarIcon className="w-5 h-5" />} />
         </div>
       )}
@@ -378,12 +380,13 @@ export default function CaissePage() {
                     {new Date(tx.date).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      tx.type === 'income'
-                        ? 'bg-emerald-500/20 text-emerald-400'
-                        : 'bg-red-500/20 text-red-400'
-                    }`}>
-                      {tx.type === 'income' ? '+' : '-'} {tx.type === 'income' ? t('stock.caisse.type.income') : t('stock.caisse.type.expense')}
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+                      {tx.type === 'income' ? (
+                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
+                      )}
+                      {tx.type === 'income' ? t('stock.caisse.type.income') : t('stock.caisse.type.expense')}
                     </span>
                   </td>
                   <td className="px-4 py-3">
@@ -400,16 +403,12 @@ export default function CaissePage() {
                     {tx.reference || '-'}
                   </td>
                   <td className={`px-4 py-3 text-right font-semibold ${
-                    tx.type === 'income' ? 'text-emerald-400' : 'text-red-400'
+                    tx.type === 'income' ? 'text-zinc-300' : 'text-zinc-500'
                   }`}>
                     {tx.type === 'income' ? '+' : '-'}{Number(tx.amount).toLocaleString()} DA
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                      tx.isAutomatic
-                        ? 'bg-blue-500/20 text-blue-400'
-                        : 'bg-zinc-500/20 text-zinc-400'
-                    }`}>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/5 text-zinc-400">
                       {tx.isAutomatic ? t('stock.caisse.source.auto') : t('stock.caisse.source.manual')}
                     </span>
                   </td>
@@ -425,7 +424,7 @@ export default function CaissePage() {
                         </button>
                         <button
                           onClick={() => setDeleteConfirm(tx)}
-                          className="p-1.5 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                          className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
                           title="Delete"
                         >
                           <TrashIcon className="w-3.5 h-3.5" />
@@ -497,7 +496,7 @@ export default function CaissePage() {
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-          <Button variant="danger" onClick={handleDelete} disabled={deleting}>
+          <Button onClick={handleDelete} disabled={deleting}>
             {deleting ? 'Deleting...' : 'Delete'}
           </Button>
         </div>
@@ -549,7 +548,7 @@ export default function CaissePage() {
             <button
               onClick={applyFilters}
               disabled={!draftDirty}
-              className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded-lg transition-colors"
+              className="w-full px-4 py-2.5 bg-white hover:bg-zinc-200 disabled:bg-zinc-700 disabled:text-zinc-500 text-black text-sm font-medium rounded-lg transition-colors"
             >
               Apply Filters
             </button>

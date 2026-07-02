@@ -5,7 +5,7 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePages } from '@/contexts/PagesContext';
 import { PageConfigProvider } from '@/contexts/PageConfigContext';
-import { Button, Badge } from '@/components/ui';
+import { Button } from '@/components/ui';
 import {
   HomeIcon,
   ChatIcon,
@@ -72,7 +72,6 @@ function PageConfigContent() {
   }
 
   const PlatformIcon = FacebookIcon;
-  const platformColor = '#1877F2';
 
   return (
     <div className="space-y-6">
@@ -92,10 +91,7 @@ function PageConfigContent() {
       <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div
-              className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0"
-              style={{ color: platformColor }}
-            >
+            <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 text-zinc-500 flex items-center justify-center flex-shrink-0">
               <PlatformIcon className="w-7 h-7" />
             </div>
             <div className="min-w-0">
@@ -103,7 +99,10 @@ function PageConfigContent() {
                 <h1 className="text-xl sm:text-2xl font-bold text-white truncate" style={{ fontFamily: 'Syne, sans-serif' }}>
                   {currentPage.pageName}
                 </h1>
-                <Badge variant="success">{t('pageDetail.status.active')}</Badge>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                  {t('pageDetail.status.active')}
+                </span>
               </div>
               <p className="text-xs text-zinc-500 capitalize">
                 {currentPage.platform} · {t('pageDetail.connected')} {new Date(currentPage.createdAt).toLocaleDateString()}

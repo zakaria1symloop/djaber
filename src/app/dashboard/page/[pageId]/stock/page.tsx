@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePages } from '@/contexts/PagesContext';
-import { Button, Badge } from '@/components/ui';
+import { Button } from '@/components/ui';
 import {
   BoxIcon,
   SearchIcon,
@@ -176,11 +176,11 @@ export default function PageStockPage() {
 
       {/* Agent status */}
       {!loading && !agent && (
-        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 flex items-center gap-3">
-          <BotIcon className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+        <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 flex items-center gap-3">
+          <BotIcon className="w-5 h-5 text-zinc-500 flex-shrink-0" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-yellow-400">No AI agent linked to this page</p>
-            <p className="text-xs text-yellow-400/60">Create an agent and assign it to this page first.</p>
+            <p className="text-sm font-semibold text-white">No AI agent linked to this page</p>
+            <p className="text-xs text-zinc-500">Create an agent and assign it to this page first.</p>
           </div>
           <Button size="sm" onClick={() => router.push('/dashboard/agents')}>Go to Agents</Button>
         </div>
@@ -192,7 +192,7 @@ export default function PageStockPage() {
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${sellAll ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/5 text-zinc-400'}`}>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${sellAll ? 'bg-white/5 text-zinc-300' : 'bg-white/5 text-zinc-500'}`}>
                   <BoxIcon className="w-5 h-5" />
                 </div>
                 <div>
@@ -206,9 +206,9 @@ export default function PageStockPage() {
               </div>
               <button
                 onClick={() => setSellAll(!sellAll)}
-                className={`relative w-12 h-7 rounded-full transition-colors ${sellAll ? 'bg-emerald-500' : 'bg-white/10'}`}
+                className={`relative w-12 h-7 rounded-full transition-colors ${sellAll ? 'bg-white' : 'bg-white/10'}`}
               >
-                <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white transition-transform ${sellAll ? 'translate-x-5' : ''}`} />
+                <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full transition-transform ${sellAll ? 'translate-x-5 bg-black' : 'bg-white'}`} />
               </button>
             </div>
           </div>
@@ -256,7 +256,7 @@ export default function PageStockPage() {
                         onClick={() => toggleProduct(product.id)}
                         className={`group text-left rounded-xl border p-3 transition-all ${
                           selected
-                            ? 'bg-emerald-500/5 border-emerald-500/30 hover:border-emerald-500/50'
+                            ? 'bg-white/[0.05] border-white/30 hover:border-white/40'
                             : 'bg-zinc-900/50 border-white/10 hover:border-white/20'
                         }`}
                       >
@@ -275,19 +275,20 @@ export default function PageStockPage() {
                           {/* Info */}
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-white truncate">{product.name}</p>
-                            <p className="text-xs text-emerald-400 mt-0.5">{Number(product.sellingPrice).toLocaleString()} DA</p>
+                            <p className="text-xs text-zinc-400 mt-0.5">{Number(product.sellingPrice).toLocaleString()} DA</p>
                             <div className="flex items-center gap-2 mt-1">
-                              <Badge variant={product.quantity > 0 ? 'success' : 'warning'} size="sm">
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] ${product.quantity > 0 ? 'text-zinc-300' : 'text-zinc-500'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${product.quantity > 0 ? 'bg-white' : 'border border-zinc-600'}`} />
                                 {product.quantity} in stock
-                              </Badge>
+                              </span>
                             </div>
                           </div>
 
                           {/* Checkbox */}
                           <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 mt-1 transition-all ${
-                            selected ? 'bg-emerald-500 border-emerald-500' : 'border-zinc-600'
+                            selected ? 'bg-white border-white' : 'border-zinc-600'
                           }`}>
-                            {selected && <CheckCircleIcon className="w-3 h-3 text-white" />}
+                            {selected && <CheckCircleIcon className="w-3 h-3 text-black" />}
                           </div>
                         </div>
                       </button>

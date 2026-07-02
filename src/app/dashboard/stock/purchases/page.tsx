@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Modal, Select, Pagination, StatsCard, DatePicker, RangeSlider } from '@/components/stock';
-import { Button, Badge } from '@/components/ui';
+import { Button } from '@/components/ui';
 import {
   PlusIcon, TruckIcon, DollarIcon, AlertIcon, BoxIcon, EyeIcon, TrashIcon, SearchIcon, FilterIcon, CloseIcon,
 } from '@/components/ui/icons';
@@ -23,6 +23,18 @@ import {
 
 const LIMIT = 20;
 const DEFAULT_TOTAL_MAX = 1000000;
+
+// Neutral status pill — filled dot = terminal-good, hollow = in-progress,
+// no dot + dim text = dead state.
+function StatusPill({ label, kind }: { label: string; kind: 'good' | 'progress' | 'dead' }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+      {kind === 'good' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+      {kind === 'progress' && <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />}
+      <span className={kind === 'dead' ? 'text-zinc-600' : ''}>{label}</span>
+    </span>
+  );
+}
 
 export default function PurchasesPage() {
   return (
@@ -273,16 +285,16 @@ function PurchasesPageInner() {
             onClick={toggleFilters}
             className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-all duration-200 ${
               filtersOpen
-                ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                ? 'border-white/20 bg-white/10 text-white'
                 : activeFilterCount > 0
-                  ? 'border-blue-500/30 bg-blue-500/5 text-blue-400 hover:bg-blue-500/10'
+                  ? 'border-white/20 bg-white/5 text-white hover:bg-white/10'
                   : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'
             }`}
           >
             <FilterIcon className="w-4 h-4" />
             {t('stock.common.filters')}
             {activeFilterCount > 0 && (
-              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
+              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white text-black text-[10px] font-bold">
                 {activeFilterCount}
               </span>
             )}
@@ -303,9 +315,9 @@ function PurchasesPageInner() {
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatsCard title={t('stock.purchases.stat.totalPurchases')} value={stats.totalPurchases} icon={<TruckIcon className="w-5 h-5" />} />
-          <StatsCard title={t('stock.purchases.stat.totalSpent')} value={`${stats.totalSpent.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-red-400" />
-          <StatsCard title={t('stock.purchases.stat.pending')} value={stats.pendingPurchases} icon={<AlertIcon className="w-5 h-5" />} iconColor="text-amber-400" />
-          <StatsCard title={t('stock.purchases.stat.received')} value={stats.receivedPurchases} icon={<BoxIcon className="w-5 h-5" />} iconColor="text-emerald-400" />
+          <StatsCard title={t('stock.purchases.stat.totalSpent')} value={`${stats.totalSpent.toLocaleString()} DA`} icon={<DollarIcon className="w-5 h-5" />} iconColor="text-zinc-400" />
+          <StatsCard title={t('stock.purchases.stat.pending')} value={stats.pendingPurchases} icon={<AlertIcon className="w-5 h-5" />} iconColor="text-zinc-400" />
+          <StatsCard title={t('stock.purchases.stat.received')} value={stats.receivedPurchases} icon={<BoxIcon className="w-5 h-5" />} iconColor="text-zinc-400" />
         </div>
       )}
 
@@ -351,9 +363,7 @@ function PurchasesPageInner() {
                 }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   isActive
-                    ? opt.value === 'paid' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                      : opt.value === 'remaining' ? 'bg-red-500/15 text-red-400 border border-red-500/30'
-                      : 'bg-white/10 text-white border border-white/20'
+                    ? 'bg-white/10 text-white border border-white/20'
                     : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-700'
                 }`}
               >
@@ -392,29 +402,30 @@ function PurchasesPageInner() {
                     <td className="px-4 py-3 text-sm text-zinc-400">{purchase.supplier?.name || '-'}</td>
                     <td className="px-4 py-3 text-sm text-center text-zinc-400">{purchase.items.length}</td>
                     <td className="px-4 py-3 text-sm text-right text-white font-medium">{Number(purchase.total).toLocaleString()} DA</td>
-                    {/* Paid column - green */}
-                    <td className="px-4 py-3 text-sm text-right font-medium text-emerald-400">
+                    {/* Paid column */}
+                    <td className="px-4 py-3 text-sm text-right font-medium text-zinc-400">
                       {purchase.paymentStatus === 'paid'
                         ? `${Number(purchase.total).toLocaleString()} DA`
                         : purchase.paymentStatus === 'partial'
-                          ? <span className="text-emerald-400/70">Partial</span>
+                          ? <span className="text-zinc-500">Partial</span>
                           : '0 DA'}
                     </td>
-                    {/* Remaining column - red */}
-                    <td className="px-4 py-3 text-sm text-right font-medium text-red-400">
+                    {/* Remaining column */}
+                    <td className="px-4 py-3 text-sm text-right font-medium text-zinc-400">
                       {purchase.paymentStatus === 'paid'
                         ? '0 DA'
                         : purchase.paymentStatus === 'partial'
-                          ? <span className="text-red-400/70">Partial</span>
+                          ? <span className="text-zinc-500">Partial</span>
                           : `${Number(purchase.total).toLocaleString()} DA`}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <Badge variant={purchase.paymentStatus === 'paid' ? 'success' : 'warning'}>{purchase.paymentStatus}</Badge>
+                      <StatusPill label={purchase.paymentStatus} kind={purchase.paymentStatus === 'paid' ? 'good' : 'progress'} />
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <Badge variant={purchase.status === 'received' ? 'success' : purchase.status === 'cancelled' ? 'error' : 'warning'}>
-                        {purchase.status}
-                      </Badge>
+                      <StatusPill
+                        label={purchase.status}
+                        kind={purchase.status === 'received' ? 'good' : purchase.status === 'cancelled' ? 'dead' : 'progress'}
+                      />
                     </td>
                     <td className="px-4 py-3 text-sm text-zinc-500">{new Date(purchase.purchaseDate).toLocaleDateString()}</td>
                     <td className="px-4 py-3">
@@ -429,7 +440,7 @@ function PurchasesPageInner() {
                         {purchase.status !== 'received' && purchase.status !== 'cancelled' && (
                           <button
                             onClick={() => openReceive(purchase)}
-                            className="px-2 py-1 text-xs text-zinc-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors"
+                            className="px-2 py-1 text-xs text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors"
                           >
                             Receive
                           </button>
@@ -437,7 +448,7 @@ function PurchasesPageInner() {
                         {canDelete(purchase) && (
                           <button
                             onClick={() => setDeleteConfirm(purchase)}
-                            className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                            className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                             title="Delete"
                           >
                             <TrashIcon className="w-4 h-4" />
@@ -477,11 +488,14 @@ function PurchasesPageInner() {
               </div>
               <div>
                 <p className="text-xs text-zinc-500">Status</p>
-                <Badge variant={viewingPurchase.status === 'received' ? 'success' : 'warning'}>{viewingPurchase.status}</Badge>
+                <StatusPill
+                  label={viewingPurchase.status}
+                  kind={viewingPurchase.status === 'received' ? 'good' : viewingPurchase.status === 'cancelled' ? 'dead' : 'progress'}
+                />
               </div>
               <div>
                 <p className="text-xs text-zinc-500">Payment</p>
-                <Badge variant={viewingPurchase.paymentStatus === 'paid' ? 'success' : 'warning'}>{viewingPurchase.paymentStatus}</Badge>
+                <StatusPill label={viewingPurchase.paymentStatus} kind={viewingPurchase.paymentStatus === 'paid' ? 'good' : 'progress'} />
               </div>
             </div>
 
@@ -502,7 +516,7 @@ function PurchasesPageInner() {
                       <td className="px-4 py-2 text-sm text-white">{item.productName}</td>
                       <td className="px-4 py-2 text-sm text-center text-white">{item.quantity}</td>
                       <td className="px-4 py-2 text-sm text-center">
-                        <span className={item.receivedQty >= item.quantity ? 'text-emerald-400' : 'text-amber-400'}>
+                        <span className={item.receivedQty >= item.quantity ? 'text-white' : 'text-zinc-400'}>
                           {item.receivedQty}
                         </span>
                       </td>
@@ -605,14 +619,14 @@ function PurchasesPageInner() {
         <p className="text-zinc-400 mb-2">
           Are you sure you want to delete purchase <span className="text-white font-medium">{deleteConfirm?.purchaseNumber}</span>?
         </p>
-        <p className="text-amber-400 text-sm mb-4">
+        <p className="text-zinc-500 text-sm mb-4">
           This action cannot be undone.
         </p>
         <div className="flex gap-3 pt-4">
           <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>
             Cancel
           </Button>
-          <Button type="button" variant="danger" className="flex-1" onClick={handleDelete} disabled={deleting}>
+          <Button type="button" className="flex-1" onClick={handleDelete} disabled={deleting}>
             {deleting ? 'Deleting...' : 'Delete'}
           </Button>
         </div>
@@ -689,15 +703,15 @@ function PurchasesPageInner() {
                 onClick={() => setDraftHasRemaining(!draftHasRemaining)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-sm transition-all ${
                   draftHasRemaining
-                    ? 'border-red-500/40 bg-red-500/10 text-red-400'
+                    ? 'border-white/20 bg-white/5 text-white'
                     : 'border-white/10 text-zinc-400 hover:border-white/20 hover:text-zinc-300'
                 }`}
               >
                 <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                  draftHasRemaining ? 'border-red-500 bg-red-500' : 'border-zinc-600'
+                  draftHasRemaining ? 'border-white bg-white' : 'border-zinc-600'
                 }`}>
                   {draftHasRemaining && (
-                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <svg className="w-2.5 h-2.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   )}
@@ -711,7 +725,7 @@ function PurchasesPageInner() {
               <label className="block text-xs font-medium text-zinc-400 mb-1.5">
                 Total Amount (DA)
                 {(draftTotalRange[0] > 0 || draftTotalRange[1] < DEFAULT_TOTAL_MAX) && (
-                  <span className="ml-1.5 text-blue-400 font-normal">
+                  <span className="ml-1.5 text-zinc-300 font-normal">
                     {draftTotalRange[0].toLocaleString()} - {draftTotalRange[1].toLocaleString()}
                   </span>
                 )}
@@ -731,7 +745,7 @@ function PurchasesPageInner() {
             <button
               onClick={applyFilters}
               disabled={!draftDirty}
-              className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded-lg transition-colors"
+              className="w-full px-4 py-2.5 bg-white hover:bg-zinc-200 disabled:bg-zinc-700 disabled:text-zinc-500 text-black text-sm font-medium rounded-lg transition-colors"
             >
               Apply Filters
             </button>

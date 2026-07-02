@@ -229,16 +229,16 @@ export default function CategoriesPage() {
             onClick={toggleFilters}
             className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-all duration-200 ${
               filtersOpen
-                ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                ? 'border-white/20 bg-white/10 text-white'
                 : activeFilterCount > 0
-                  ? 'border-blue-500/30 bg-blue-500/5 text-blue-400 hover:bg-blue-500/10'
+                  ? 'border-white/20 bg-white/5 text-zinc-300 hover:bg-white/10'
                   : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'
             }`}
           >
             <FilterIcon className="w-4 h-4" />
             {t('stock.common.filters')}
             {activeFilterCount > 0 && (
-              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
+              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white text-black text-[10px] font-bold">
                 {activeFilterCount}
               </span>
             )}
@@ -278,7 +278,7 @@ export default function CategoriesPage() {
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <div
-                    className="w-4 h-4 rounded-full shrink-0"
+                    className="w-2 h-2 rounded-full shrink-0"
                     style={{ backgroundColor: cat.color || '#6B7280' }}
                   />
                   <h3 className="text-white font-semibold">{cat.name}</h3>
@@ -292,7 +292,7 @@ export default function CategoriesPage() {
                   </button>
                   <button
                     onClick={() => setDeleteConfirm(cat)}
-                    className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                    className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                   >
                     <TrashIcon className="w-4 h-4" />
                   </button>
@@ -331,10 +331,10 @@ export default function CategoriesPage() {
         {/* Panel header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
           <div className="flex items-center gap-2">
-            <FilterIcon className="w-4 h-4 text-blue-400" />
+            <FilterIcon className="w-4 h-4 text-zinc-500" />
             <h2 className="text-sm font-semibold text-white">Filters</h2>
             {activeFilterCount > 0 && (
-              <span className="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-full font-medium">
+              <span className="text-[10px] text-zinc-300 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-full font-medium">
                 {activeFilterCount} active
               </span>
             )}
@@ -378,11 +378,7 @@ export default function CategoriesPage() {
                   onClick={() => setDraftHasDescription(opt.value)}
                   className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 ${
                     draftHasDescription === opt.value
-                      ? opt.value === 'true'
-                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                        : opt.value === 'false'
-                          ? 'bg-red-500/15 text-red-400 border border-red-500/30'
-                          : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                      ? 'bg-white/10 text-white border border-white/20'
                       : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-700'
                   }`}
                 >
@@ -421,7 +417,7 @@ export default function CategoriesPage() {
           <button
             onClick={applyFilters}
             disabled={!draftDirty}
-            className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-500 text-white"
+            className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-white hover:bg-zinc-200 text-black"
           >
             Apply Filters
           </button>
@@ -506,15 +502,16 @@ export default function CategoriesPage() {
           Are you sure you want to delete <span className="text-white font-medium">{deleteConfirm?.name}</span>?
         </p>
         {(deleteConfirm?._count?.products || 0) > 0 && (
-          <p className="text-amber-400 text-sm mb-4">
-            This category has {deleteConfirm?._count?.products} products. They will become uncategorized.
-          </p>
+          <div className="border border-white/10 bg-white/[0.03] rounded-lg p-2.5 mb-4">
+            <p className="text-white text-sm font-semibold">This category has {deleteConfirm?._count?.products} products.</p>
+            <p className="text-zinc-500 text-xs mt-0.5">They will become uncategorized.</p>
+          </div>
         )}
         <div className="flex gap-3 pt-4">
           <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>
             Cancel
           </Button>
-          <Button type="button" variant="danger" className="flex-1" onClick={handleDelete} disabled={deleting}>
+          <Button type="button" className="flex-1" onClick={handleDelete} disabled={deleting}>
             {deleting ? 'Deleting...' : 'Delete'}
           </Button>
         </div>

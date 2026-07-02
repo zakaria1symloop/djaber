@@ -9,7 +9,6 @@ import {
 } from '@/lib/page-config-api';
 import type { ConversationSummary } from '@/lib/page-config-api';
 import { RefreshIcon, ChatIcon, BotIcon, CheckCircleIcon, CloseIcon, SearchIcon } from '@/components/ui/icons';
-import { Badge } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useTranslation } from '@/contexts/LanguageContext';
 
@@ -284,7 +283,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                 {conversations?.conversations.length === 0 && !search && (
                   <button
                     onClick={handleRefresh}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-black bg-white hover:bg-zinc-100 rounded-lg"
                   >
                     <RefreshIcon className="w-3.5 h-3.5" />
                     {t('msg.empty.pullCta')}
@@ -307,7 +306,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                       {(conv.senderName || '?')[0].toUpperCase()}
                     </div>
                     {unread && (
-                      <span className="absolute -top-0.5 -end-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-zinc-900 rounded-full" />
+                      <span className="absolute -top-0.5 -end-0.5 w-2.5 h-2.5 bg-white border-2 border-zinc-900 rounded-full" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -352,18 +351,10 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-white truncate">{selectedConv.senderName || selectedConv.senderId}</p>
                     <div className="flex items-center gap-2">
-                      <Badge
-                        variant={
-                          selectedConv.status === 'active'
-                            ? 'success'
-                            : selectedConv.status === 'resolved'
-                            ? 'info'
-                            : 'default'
-                        }
-                        size="sm"
-                      >
+                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] ${selectedConv.status === 'archived' ? 'text-zinc-600' : 'text-zinc-300'}`}>
+                        {selectedConv.status !== 'archived' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                         {selectedConv.status}
-                      </Badge>
+                      </span>
                       <span className="text-[10px] text-zinc-600">{t('msg.thread.via')} {page.platform === 'instagram' ? t('inbox.platform.instagram') : t('inbox.platform.messenger')}</span>
                     </div>
                   </div>
@@ -376,7 +367,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                         toast.success(t('msg.toast.markedResolved'));
                         fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {});
                       }}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-400 rounded-lg shadow-sm transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-black bg-white hover:bg-zinc-100 rounded-lg shadow-sm transition-colors"
                       title={t('msg.thread.markResolved')}
                     >
                       <CheckCircleIcon className="w-4 h-4" />
@@ -390,7 +381,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                         toast.success('Reopened');
                         fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {});
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-300 hover:text-white bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-lg transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors"
                     >
                       Reopen
                     </button>
@@ -403,7 +394,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                         setSelectedConv(null);
                         fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {});
                       }}
-                      className="inline-flex items-center justify-center w-8 h-8 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                      className="inline-flex items-center justify-center w-8 h-8 text-zinc-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
                       title={t('msg.thread.archive')}
                     >
                       <CloseIcon className="w-4 h-4" />
@@ -453,7 +444,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                                 href={msg.attachmentUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 rounded-2xl text-xs text-blue-400 hover:text-blue-300"
+                                className="inline-flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 rounded-2xl text-xs text-zinc-300 hover:text-white"
                               >
                                 <span>📎</span> {msg.attachmentType}
                               </a>
@@ -463,7 +454,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                             <div
                               className={`px-3.5 py-2 text-sm whitespace-pre-wrap leading-relaxed ${
                                 msg.isFromPage
-                                  ? 'bg-blue-500 text-white rounded-2xl rounded-br-md shadow-sm'
+                                  ? 'bg-white text-black rounded-2xl rounded-br-md shadow-sm'
                                   : 'bg-white/[0.07] border border-white/10 text-zinc-100 rounded-2xl rounded-bl-md'
                               }`}
                             >
@@ -530,7 +521,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                   <button
                     onClick={() => handleSendReply()}
                     disabled={!replyText.trim() || sending || selectedConv.status !== 'active'}
-                    className="px-4 py-2.5 bg-blue-500 hover:bg-blue-400 text-white rounded-xl text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="px-4 py-2.5 bg-white hover:bg-zinc-100 text-black rounded-xl text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
                     {sending ? t('msg.reply.sending') : t('msg.reply.send')}
                   </button>

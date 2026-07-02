@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Pagination, DatePicker } from '@/components/stock';
 import { Badge } from '@/components/ui';
 import {
-  HistoryIcon, ArrowUpIcon, ArrowDownIcon, RefreshIcon, BoxIcon,
+  HistoryIcon, BoxIcon,
   SearchIcon, FilterIcon, CloseIcon,
 } from '@/components/ui/icons';
 import { useFilterPanel } from '@/contexts/FilterPanelContext';
@@ -107,30 +107,33 @@ export default function MovementsPage() {
   };
 
   const getTypeBadge = (type: string) => {
+    const pillCls = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300';
+    const filledDot = <span className="w-1.5 h-1.5 rounded-full bg-white" />;
+    const hollowDot = <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />;
     switch (type) {
       case 'in':
         return (
-          <Badge variant="success">
-            <ArrowUpIcon className="w-3 h-3 mr-1 inline" /> {t('stock.movements.type.in')}
-          </Badge>
+          <span className={pillCls}>
+            {filledDot} {t('stock.movements.type.in')}
+          </span>
         );
       case 'out':
         return (
-          <Badge variant="error">
-            <ArrowDownIcon className="w-3 h-3 mr-1 inline" /> {t('stock.movements.type.out')}
-          </Badge>
+          <span className={pillCls}>
+            {hollowDot} {t('stock.movements.type.out')}
+          </span>
         );
       case 'adjustment':
         return (
-          <Badge variant="info">
-            <RefreshIcon className="w-3 h-3 mr-1 inline" /> {t('stock.movements.type.adjustment')}
-          </Badge>
+          <span className={pillCls}>
+            {hollowDot} {t('stock.movements.type.adjustment')}
+          </span>
         );
       case 'return':
         return (
-          <Badge variant="warning">
-            <ArrowUpIcon className="w-3 h-3 mr-1 inline" /> {t('stock.movements.type.return')}
-          </Badge>
+          <span className={pillCls}>
+            {filledDot} {t('stock.movements.type.return')}
+          </span>
         );
       default:
         return <Badge variant="default">{type}</Badge>;
@@ -150,16 +153,16 @@ export default function MovementsPage() {
           onClick={toggleFilters}
           className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-all duration-200 ${
             filtersOpen
-              ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+              ? 'border-white/20 bg-white/10 text-white'
               : activeFilterCount > 0
-                ? 'border-blue-500/30 bg-blue-500/5 text-blue-400 hover:bg-blue-500/10'
+                ? 'border-white/20 bg-white/5 text-zinc-300 hover:bg-white/10'
                 : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'
           }`}
         >
           <FilterIcon className="w-4 h-4" />
           {t('stock.common.filters')}
           {activeFilterCount > 0 && (
-            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
+            <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white text-black text-[10px] font-bold">
               {activeFilterCount}
             </span>
           )}
@@ -212,8 +215,8 @@ export default function MovementsPage() {
                       {getTypeBadge(mv.type)}
                     </td>
                     <td className={`px-4 py-3 text-sm text-right font-medium ${
-                      mv.type === 'in' || mv.type === 'return' ? 'text-emerald-400' :
-                      mv.type === 'out' ? 'text-red-400' :
+                      mv.type === 'in' || mv.type === 'return' ? 'text-zinc-300' :
+                      mv.type === 'out' ? 'text-zinc-500' :
                       'text-white'
                     }`}>
                       {mv.type === 'in' || mv.type === 'return' ? '+' : mv.type === 'out' ? '-' : ''}{mv.quantity}
@@ -285,7 +288,7 @@ export default function MovementsPage() {
             <button
               onClick={applyFilters}
               disabled={!draftDirty}
-              className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded-lg transition-colors"
+              className="w-full px-4 py-2.5 bg-white hover:bg-zinc-200 disabled:bg-zinc-700 disabled:text-zinc-500 text-black text-sm font-medium rounded-lg transition-colors"
             >
               Apply Filters
             </button>

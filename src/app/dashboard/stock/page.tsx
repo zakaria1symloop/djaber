@@ -11,8 +11,6 @@ import {
   ShoppingCartIcon,
   TruckIcon,
   RefreshIcon,
-  ArrowUpIcon,
-  ArrowDownIcon,
 } from '@/components/ui/icons';
 import { Button } from '@/components/ui';
 import {
@@ -115,13 +113,11 @@ export default function StockOverviewPage() {
               title={t('page.stock.lowStock')}
               value={dashboard.stats.lowStockProducts}
               icon={<AlertIcon className="w-5 h-5" />}
-              iconColor="text-amber-400"
             />
             <StatsCard
               title={t('page.stock.stockValue')}
               value={`${dashboard.stats.totalStockValue.toLocaleString()} DA`}
               icon={<DollarIcon className="w-5 h-5" />}
-              iconColor="text-emerald-400"
             />
             <StatsCard
               title={t('page.stock.retailValue')}
@@ -165,19 +161,16 @@ export default function StockOverviewPage() {
               title={t('page.stock.revenue')}
               value={`${salesStats.totalRevenue.toLocaleString()} DA`}
               icon={<DollarIcon className="w-5 h-5" />}
-              iconColor="text-emerald-400"
             />
             <StatsCard
               title={t('page.stock.paid')}
               value={salesStats.paidSales}
               icon={<DollarIcon className="w-5 h-5" />}
-              iconColor="text-emerald-400"
             />
             <StatsCard
               title={t('page.stock.pending')}
               value={salesStats.pendingSales}
               icon={<AlertIcon className="w-5 h-5" />}
-              iconColor="text-amber-400"
             />
           </div>
         </div>
@@ -197,19 +190,16 @@ export default function StockOverviewPage() {
               title={t('page.stock.totalSpent')}
               value={`${purchaseStats.totalSpent.toLocaleString()} DA`}
               icon={<DollarIcon className="w-5 h-5" />}
-              iconColor="text-red-400"
             />
             <StatsCard
               title={t('page.stock.pending')}
               value={purchaseStats.pendingPurchases}
               icon={<AlertIcon className="w-5 h-5" />}
-              iconColor="text-amber-400"
             />
             <StatsCard
               title={t('page.stock.received')}
               value={purchaseStats.receivedPurchases}
               icon={<BoxIcon className="w-5 h-5" />}
-              iconColor="text-emerald-400"
             />
           </div>
         </div>
@@ -242,19 +232,18 @@ export default function StockOverviewPage() {
                           {mv.product?.name || '-'}
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                            mv.type === 'in' ? 'bg-emerald-500/10 text-emerald-400' :
-                            mv.type === 'out' ? 'bg-red-500/10 text-red-400' :
-                            'bg-blue-500/10 text-blue-400'
-                          }`}>
-                            {mv.type === 'in' && <ArrowUpIcon className="w-3 h-3" />}
-                            {mv.type === 'out' && <ArrowDownIcon className="w-3 h-3" />}
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+                            {mv.type === 'in' ? (
+                              <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                            ) : (
+                              <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
+                            )}
                             {mv.type}
                           </span>
                         </td>
                         <td className={`px-4 py-3 text-sm text-right font-medium ${
-                          mv.type === 'in' ? 'text-emerald-400' :
-                          mv.type === 'out' ? 'text-red-400' :
+                          mv.type === 'in' ? 'text-zinc-300' :
+                          mv.type === 'out' ? 'text-zinc-500' :
                           'text-white'
                         }`}>
                           {mv.type === 'in' ? '+' : mv.type === 'out' ? '-' : ''}{mv.quantity}

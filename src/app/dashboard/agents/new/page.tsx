@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AgentForm from '../_components/AgentForm';
 import { getAgents } from '@/lib/user-stock-api';
@@ -35,5 +35,9 @@ export default function NewAgentPage() {
     );
   }
 
-  return <AgentForm />;
+  return (
+    <Suspense fallback={<div className="max-w-6xl mx-auto text-zinc-400 text-sm">Loading…</div>}>
+      <AgentForm />
+    </Suspense>
+  );
 }

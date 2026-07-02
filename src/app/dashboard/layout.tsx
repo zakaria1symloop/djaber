@@ -330,7 +330,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                   {!isCollapsedMode && badge !== undefined && (
                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                       item.id === 'notifications'
-                        ? 'bg-red-500 text-white'
+                        ? 'bg-white text-black'
                         : isActive ? 'bg-black/10' : 'bg-white/10'
                     }`}>
                       {badge}
@@ -489,7 +489,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                     credits.percentage >= 100
                       ? 'bg-red-500/10 text-red-400 border-red-500/20'
                       : credits.percentage >= 80
-                        ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                        ? 'bg-white/[0.03] text-zinc-300 border-white/10'
                         : 'bg-white/5 text-zinc-400 border-white/10'
                   }`}
                   title={`${credits.used} / ${credits.limit} credits used`}
@@ -499,7 +499,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                 </div>
               )}
 
-              {/* Bell icon with urgent alert orbs */}
+              {/* Bell icon with unread indicator */}
               <button
                 onClick={() => {
                   setUrgentAlert(false);
@@ -507,17 +507,9 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                 }}
                 className="relative p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
               >
-                <BellIcon className={`w-5 h-5 ${urgentAlert ? 'text-red-400' : ''}`} />
+                <BellIcon className={`w-5 h-5 ${urgentAlert ? 'text-white' : ''}`} />
                 {unreadCount > 0 && (
-                  <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ${urgentAlert ? 'animate-ping' : ''}`} />
-                )}
-                {/* Urgent red orbs */}
-                {urgentAlert && (
-                  <>
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500/40 blur-sm animate-ping" />
-                    <span className="absolute -top-0.5 -left-0.5 w-3 h-3 rounded-full bg-red-500/30 blur-sm animate-ping" style={{ animationDelay: '0.3s' }} />
-                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-500/20 blur-sm animate-ping" style={{ animationDelay: '0.6s' }} />
-                  </>
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-white animate-pulse" />
                 )}
               </button>
 
@@ -538,7 +530,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                   <div className="p-4 border-b border-white/10">
                     <p className="text-sm font-semibold text-white">{user?.firstName} {user?.lastName}</p>
                     <p className="text-xs text-zinc-400 mt-1">{user?.email}</p>
-                    <Badge variant="info" size="sm" className="mt-2">
+                    <Badge variant="default" size="sm" className="mt-2">
                       {user?.plan || t('pricing.free')} {t('menu.plan')}
                     </Badge>
                   </div>
@@ -567,7 +559,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                         logout();
                         router.push('/login');
                       }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-all"
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-all"
                     >
                       <LogoutIcon className="w-4 h-4" />
                       {t('menu.signout')}
@@ -606,20 +598,20 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
             </div>
             <button
               onClick={() => router.push('/dashboard?section=settings')}
-              className="px-3 py-1 bg-red-500 text-white text-xs font-semibold rounded-lg hover:bg-red-600 transition-colors"
+              className="px-3 py-1 bg-white text-black text-xs font-semibold rounded-lg hover:bg-zinc-200 transition-colors"
             >
               {t('dash.upgradePlan')}
             </button>
           </div>
         )}
         {credits && credits.percentage >= 80 && credits.percentage < 100 && (
-          <div className="mb-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 flex items-center justify-between">
+          <div className="mb-4 bg-white/[0.03] border border-white/10 rounded-xl p-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-yellow-400 text-sm font-medium">⚡ {credits.remaining} {t('dash.creditsRemaining')}</span>
+              <span className="text-white text-sm font-semibold">⚡ {credits.remaining} {t('dash.creditsRemaining')}</span>
             </div>
             <button
               onClick={() => router.push('/dashboard?section=settings')}
-              className="px-3 py-1 bg-yellow-500 text-black text-xs font-semibold rounded-lg hover:bg-yellow-400 transition-colors"
+              className="px-3 py-1 bg-white text-black text-xs font-semibold rounded-lg hover:bg-zinc-200 transition-colors"
             >
               {t('dash.upgrade')}
             </button>

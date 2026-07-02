@@ -207,20 +207,21 @@ export default function DeliveryDashboardPage() {
   };
 
   const statusBadge = (status: string) => {
-    const map: Record<string, string> = {
-      not_sent: 'bg-zinc-600/20 text-zinc-400',
-      sent: 'bg-blue-500/20 text-blue-400',
-      in_transit: 'bg-yellow-500/20 text-yellow-400',
-      delivered: 'bg-green-500/20 text-green-400',
-    };
     const labels: Record<string, string> = {
       not_sent: t('stock.delivery.notSent'),
       sent: t('stock.delivery.filter.sent'),
       in_transit: t('stock.delivery.filter.inTransit'),
       delivered: t('stock.delivery.filter.delivered'),
     };
+    // Neutral pill — filled dot only for the terminal-good "delivered" state,
+    // hollow dot for everything still in motion.
     return (
-      <span className={`text-xs px-2 py-0.5 rounded-full ${map[status] || map.not_sent}`}>
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+        {status === 'delivered' ? (
+          <span className="w-1.5 h-1.5 rounded-full bg-white" />
+        ) : (
+          <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
+        )}
         {labels[status] || status}
       </span>
     );
@@ -267,9 +268,9 @@ export default function DeliveryDashboardPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard title={t('stock.delivery.stat.readyToShip')} value={stats.readyToShip} icon={<BoxIcon className="w-5 h-5" />} iconColor="text-zinc-400" />
-        <StatsCard title={t('stock.delivery.stat.shipped')} value={stats.shipped} icon={<TruckIcon className="w-5 h-5" />} iconColor="text-blue-400" />
-        <StatsCard title={t('stock.delivery.stat.inTransit')} value={stats.inTransit} icon={<TruckIcon className="w-5 h-5" />} iconColor="text-yellow-400" />
-        <StatsCard title={t('stock.delivery.stat.delivered')} value={stats.delivered} icon={<CheckCircleIcon className="w-5 h-5" />} iconColor="text-green-400" />
+        <StatsCard title={t('stock.delivery.stat.shipped')} value={stats.shipped} icon={<TruckIcon className="w-5 h-5" />} iconColor="text-zinc-400" />
+        <StatsCard title={t('stock.delivery.stat.inTransit')} value={stats.inTransit} icon={<TruckIcon className="w-5 h-5" />} iconColor="text-zinc-400" />
+        <StatsCard title={t('stock.delivery.stat.delivered')} value={stats.delivered} icon={<CheckCircleIcon className="w-5 h-5" />} iconColor="text-zinc-400" />
       </div>
 
       {/* Filters */}

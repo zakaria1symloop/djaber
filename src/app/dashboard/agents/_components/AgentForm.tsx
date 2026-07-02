@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button, Badge } from '@/components/ui';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Button } from '@/components/ui';
+import { getAgentTemplate } from '@/lib/agent-templates';
 import {
   BotIcon,
   ChevronLeftIcon,
@@ -25,19 +26,11 @@ import {
 } from '@/lib/user-stock-api';
 
 const personalities = [
-  { value: 'professional', label: 'Professional', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30', desc: 'Formal and business-focused' },
-  { value: 'friendly', label: 'Friendly', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', desc: 'Warm and approachable' },
-  { value: 'casual', label: 'Casual', color: 'bg-amber-500/20 text-amber-400 border-amber-500/30', desc: 'Relaxed and conversational' },
-  { value: 'technical', label: 'Technical', color: 'bg-violet-500/20 text-violet-400 border-violet-500/30', desc: 'Detailed and precise' },
+  { value: 'professional', label: 'Professional', desc: 'Formal and business-focused' },
+  { value: 'friendly', label: 'Friendly', desc: 'Warm and approachable' },
+  { value: 'casual', label: 'Casual', desc: 'Relaxed and conversational' },
+  { value: 'technical', label: 'Technical', desc: 'Detailed and precise' },
 ];
-
-// Provider display config (color mapping)
-const providerColors: Record<string, string> = {
-  openai: 'text-emerald-400',
-  anthropic: 'text-orange-400',
-  google: 'text-blue-400',
-  groq: 'text-cyan-400',
-};
 
 // Friendly model labels
 const modelLabels: Record<string, { label: string; desc: string }> = {
@@ -63,8 +56,11 @@ interface AgentFormProps {
 
 export default function AgentForm({ agentId }: AgentFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { pages } = usePages();
   const isEdit = !!agentId;
+  const templateKey = !agentId ? searchParams.get('template') : null;
+  const [appliedTemplate, setAppliedTemplate] = useState<string | null>(null);
 
   // Form state
   const [name, setName] = useState('');
@@ -129,6 +125,28 @@ export default function AgentForm({ agentId }: AgentFormProps) {
       }
     })();
   }, [agentId]);
+
+  // Pre-fill from a ready-to-use template (new-agent flow only, once on mount)
+  useEffect(() => {
+    if (isEdit || !templateKey) return;
+    const tpl = getAgentTemplate(templateKey);
+    if (!tpl) return;
+    setName(tpl.name);
+    setDescription(tpl.tagline);
+    setPersonality(tpl.personality);
+    setCustomInstructions(tpl.customInstructions);
+    setProductTemplate(tpl.productTemplate);
+    setClosingInstructions(tpl.closingInstructions);
+    setHumanHandoffRules(tpl.humanHandoffRules);
+    setImageRecognition(tpl.imageRecognition);
+    setVoiceTranscription(tpl.voiceTranscription);
+    setResponseDelay(tpl.responseDelay);
+    setAiModel(tpl.aiModel);
+    setTemperature(tpl.temperature);
+    setMaxTokens(tpl.maxTokens);
+    setAppliedTemplate(tpl.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templateKey, isEdit]);
 
   // Load products + active AI providers
   useEffect(() => {
@@ -214,18 +232,20 @@ export default function AgentForm({ agentId }: AgentFormProps) {
 
   if (loadingAgent) {
     return (
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="animate-pulse space-y-6">
           <div className="h-8 bg-zinc-800 rounded w-48" />
-          <div className="h-64 bg-zinc-800 rounded-xl" />
-          <div className="h-48 bg-zinc-800 rounded-xl" />
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="h-96 bg-zinc-800 rounded-xl" />
+            <div className="h-96 bg-zinc-800 rounded-xl" />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <button
@@ -234,12 +254,16 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         >
           <ChevronLeftIcon className="w-5 h-5" />
         </button>
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
             {isEdit ? 'Edit Agent' : 'Create Agent'}
           </h1>
           <p className="text-sm text-zinc-400 mt-0.5">
-            {isEdit ? 'Update your AI agent configuration' : 'Set up a new AI agent to handle conversations'}
+            {isEdit
+              ? 'Update your AI agent configuration'
+              : appliedTemplate
+                ? `Starting from the ${appliedTemplate} template — tune anything below.`
+                : 'Set up a new AI agent to handle conversations'}
           </p>
         </div>
       </div>
@@ -252,6 +276,9 @@ export default function AgentForm({ agentId }: AgentFormProps) {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+        {/* ── Left column: behavior & prompt ── */}
+        <div className="space-y-6">
         {/* Basic Info */}
         <section className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 space-y-5">
           <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Basic Information</h2>
@@ -294,11 +321,11 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                   type="button"
                   onClick={() => setIsActive(!isActive)}
                   className={`relative w-11 h-6 rounded-full transition-colors ${
-                    isActive ? 'bg-emerald-500' : 'bg-zinc-700'
+                    isActive ? 'bg-white' : 'bg-white/10'
                   }`}
                 >
-                  <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                    isActive ? 'translate-x-5' : 'translate-x-0'
+                  <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-transform ${
+                    isActive ? 'translate-x-5 bg-black' : 'translate-x-0 bg-white'
                   }`} />
                 </button>
               </div>
@@ -317,7 +344,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                 onClick={() => setPersonality(p.value)}
                 className={`relative p-4 rounded-xl border text-left transition-all ${
                   personality === p.value
-                    ? `${p.color} border-current`
+                    ? 'bg-white/5 border-white/40 text-white'
                     : 'bg-black/30 border-white/10 text-zinc-400 hover:border-white/20'
                 }`}
               >
@@ -325,7 +352,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                   <CheckCircleIcon className="absolute top-3 right-3 w-4 h-4" />
                 )}
                 <p className="font-medium text-sm">{p.label}</p>
-                <p className={`text-xs mt-0.5 ${personality === p.value ? 'opacity-80' : 'text-zinc-500'}`}>
+                <p className={`text-xs mt-0.5 ${personality === p.value ? 'text-zinc-400' : 'text-zinc-500'}`}>
                   {p.desc}
                 </p>
               </button>
@@ -394,10 +421,10 @@ export default function AgentForm({ agentId }: AgentFormProps) {
             {/* Clickable tag chips */}
             <div className="flex flex-wrap gap-2 mb-3">
               {[
-                { tag: '[PRODUCT_CARD]', label: '🖼 Product Image Card', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' },
-                { tag: '{name}', label: 'Product Name', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20' },
-                { tag: '{price}', label: 'Price (DA)', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20' },
-                { tag: '{description}', label: 'Description', color: 'bg-violet-500/10 text-violet-400 border-violet-500/20 hover:bg-violet-500/20' },
+                { tag: '[PRODUCT_CARD]', label: '🖼 Product Image Card', color: 'bg-white/5 text-zinc-300 border-white/10 hover:bg-white/10' },
+                { tag: '{name}', label: 'Product Name', color: 'bg-white/5 text-zinc-300 border-white/10 hover:bg-white/10' },
+                { tag: '{price}', label: 'Price (DA)', color: 'bg-white/5 text-zinc-300 border-white/10 hover:bg-white/10' },
+                { tag: '{description}', label: 'Description', color: 'bg-white/5 text-zinc-300 border-white/10 hover:bg-white/10' },
                 { tag: '{stock}', label: 'Stock Qty', color: 'bg-white/5 text-zinc-400 border-white/10 hover:bg-white/10' },
                 { tag: '\\n', label: '↵ New Line', color: 'bg-white/5 text-zinc-500 border-white/10 hover:bg-white/10' },
               ].map((chip) => (
@@ -453,8 +480,8 @@ export default function AgentForm({ agentId }: AgentFormProps) {
 
               {/* Agent response based on template */}
               <div className="flex gap-2 flex-row-reverse">
-                <div className="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                  <BotIcon className="w-3.5 h-3.5 text-emerald-400" />
+                <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+                  <BotIcon className="w-3.5 h-3.5 text-zinc-300" />
                 </div>
                 <div className="max-w-[80%] space-y-2">
                   {(() => {
@@ -480,7 +507,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                         {parts.map((part, i) => (
                           <div key={i}>
                             {part.trim() && (
-                              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl rounded-tr-sm px-3 py-2">
+                              <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tr-sm px-3 py-2">
                                 <p className="text-sm text-zinc-100 whitespace-pre-wrap">{part.trim()}</p>
                               </div>
                             )}
@@ -495,7 +522,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                                 </div>
                                 <div className="p-3">
                                   <p className="text-sm font-medium text-white truncate">{sampleName}</p>
-                                  <p className="text-xs text-emerald-400 mt-0.5">{samplePrice} DA</p>
+                                  <p className="text-xs text-zinc-400 mt-0.5">{samplePrice} DA</p>
                                 </div>
                               </div>
                             )}
@@ -515,7 +542,10 @@ export default function AgentForm({ agentId }: AgentFormProps) {
             </div>
           </div>
         </section>
+        </div>
 
+        {/* ── Right column: model, pages & products ── */}
+        <div className="space-y-6">
         {/* AI Model Config */}
         <section className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 space-y-5">
           <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">AI Model Configuration</h2>
@@ -526,7 +556,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
                 {activeProviders.map((group) => (
                   <div key={group.provider}>
-                    <p className={`text-xs font-semibold uppercase tracking-wider mb-2 ${providerColors[group.provider] || 'text-zinc-400'}`}>
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-2 text-zinc-500">
                       {group.displayName}
                     </p>
                     <div className="grid grid-cols-2 gap-2">
@@ -575,7 +605,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               step="0.1"
               value={temperature}
               onChange={(e) => setTemperature(parseFloat(e.target.value))}
-              className="w-full accent-white h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+              className="w-full accent-white h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
             />
             <div className="flex justify-between text-xs text-zinc-600 mt-1">
               <span>Precise</span>
@@ -607,9 +637,9 @@ export default function AgentForm({ agentId }: AgentFormProps) {
             <button
               type="button"
               onClick={() => setImageRecognition(!imageRecognition)}
-              className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 ${imageRecognition ? 'bg-emerald-500' : 'bg-white/10'}`}
+              className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 ${imageRecognition ? 'bg-white' : 'bg-white/10'}`}
             >
-              <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white transition-transform ${imageRecognition ? 'translate-x-5' : ''}`} />
+              <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full transition-transform ${imageRecognition ? 'translate-x-5 bg-black' : 'bg-white'}`} />
             </button>
           </div>
 
@@ -624,9 +654,9 @@ export default function AgentForm({ agentId }: AgentFormProps) {
             <button
               type="button"
               onClick={() => setVoiceTranscription(!voiceTranscription)}
-              className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 ${voiceTranscription ? 'bg-emerald-500' : 'bg-white/10'}`}
+              className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 ${voiceTranscription ? 'bg-white' : 'bg-white/10'}`}
             >
-              <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white transition-transform ${voiceTranscription ? 'translate-x-5' : ''}`} />
+              <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full transition-transform ${voiceTranscription ? 'translate-x-5 bg-black' : 'bg-white'}`} />
             </button>
           </div>
 
@@ -642,7 +672,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               step={1}
               value={responseDelay}
               onChange={(e) => setResponseDelay(parseInt(e.target.value))}
-              className="w-full accent-white h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+              className="w-full accent-white h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
             />
             <div className="flex justify-between text-[10px] text-zinc-600 mt-1">
               <span>Instant</span>
@@ -665,7 +695,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
             </div>
             {pages.length > 0 && (
               <span className="text-[11px] text-zinc-500">
-                <span className="text-emerald-400 font-semibold">{selectedPageIds.length}</span> of {pages.length} selected
+                <span className="text-white font-semibold">{selectedPageIds.length}</span> of {pages.length} selected
               </span>
             )}
           </div>
@@ -698,10 +728,8 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                   const isSelected = selectedPageIds.includes(page.id);
                   const isInstagram = page.platform === 'instagram';
                   const Icon = isInstagram ? InstagramIcon : FacebookIcon;
-                  const platformBg = isInstagram
-                    ? 'bg-gradient-to-br from-pink-500/10 to-amber-500/10'
-                    : 'bg-gradient-to-br from-blue-500/10 to-blue-700/10';
-                  const platformIconColor = isInstagram ? 'text-pink-400' : 'text-[#1877F2]';
+                  const platformBg = 'bg-white/[0.03]';
+                  const platformIconColor = 'text-zinc-500';
                   const pictureUrl = !isInstagram
                     ? `https://graph.facebook.com/v18.0/${page.pageId}/picture?type=large`
                     : null;
@@ -713,7 +741,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                       onClick={() => togglePage(page.id)}
                       className={`group relative text-start rounded-xl border-2 overflow-hidden transition-all ${
                         isSelected
-                          ? 'border-emerald-500/50 bg-emerald-500/5 ring-2 ring-emerald-500/15'
+                          ? 'border-white/40 bg-white/5 ring-2 ring-white/10'
                           : 'border-white/10 bg-black/30 hover:border-white/25 hover:bg-white/[0.02]'
                       }`}
                     >
@@ -724,12 +752,12 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                         <div
                           className={`absolute top-2 end-2 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                             isSelected
-                              ? 'bg-emerald-500 border-emerald-400 shadow-lg shadow-emerald-500/30'
+                              ? 'bg-white border-white'
                               : 'bg-black/50 border-white/30 group-hover:border-white/60'
                           }`}
                         >
                           {isSelected && (
-                            <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.5}>
+                            <svg className="w-3.5 h-3.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                           )}
@@ -755,9 +783,15 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                             <span className="text-[11px] text-zinc-500 capitalize">{page.platform}</span>
                             <span className="text-zinc-700">·</span>
                             {page.isActive ? (
-                              <span className="text-[10px] text-emerald-400 font-medium">Active</span>
+                              <span className="inline-flex items-center gap-1 text-[10px] text-zinc-400 font-medium">
+                                <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                                Active
+                              </span>
                             ) : (
-                              <span className="text-[10px] text-zinc-600 font-medium">Inactive</span>
+                              <span className="inline-flex items-center gap-1 text-[10px] text-zinc-500 font-medium">
+                                <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
+                                Inactive
+                              </span>
                             )}
                           </div>
                           <p className="text-[10px] text-zinc-600 mt-1">
@@ -803,11 +837,11 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               type="button"
               onClick={() => setSellAllProducts(!sellAllProducts)}
               className={`relative w-11 h-6 rounded-full transition-colors ${
-                sellAllProducts ? 'bg-emerald-500' : 'bg-zinc-700'
+                sellAllProducts ? 'bg-white' : 'bg-white/10'
               }`}
             >
-              <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
-                sellAllProducts ? 'translate-x-5' : 'translate-x-0'
+              <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-transform ${
+                sellAllProducts ? 'translate-x-5 bg-black' : 'translate-x-0 bg-white'
               }`} />
             </button>
           </div>
@@ -832,7 +866,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                   <button
                     type="button"
                     onClick={() => setSelectedProductIds([])}
-                    className="text-red-400 hover:text-red-300 underline"
+                    className="text-zinc-400 hover:text-white underline"
                   >
                     clear
                   </button>
@@ -856,7 +890,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                         onClick={() => toggleProduct(product.id)}
                         className={`w-full flex items-center justify-between p-2.5 rounded-lg border transition-all ${
                           isSelected
-                            ? 'bg-emerald-500/10 border-emerald-500/30'
+                            ? 'bg-white/5 border-white/40'
                             : 'bg-black/30 border-white/5 hover:border-white/15'
                         }`}
                       >
@@ -879,11 +913,11 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                         </div>
                         <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
                           isSelected
-                            ? 'bg-emerald-500 border-emerald-500'
+                            ? 'bg-white border-white'
                             : 'border-zinc-600'
                         }`}>
                           {isSelected && (
-                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <svg className="w-3 h-3 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                           )}
@@ -902,6 +936,8 @@ export default function AgentForm({ agentId }: AgentFormProps) {
             </div>
           )}
         </section>
+        </div>
+        </div>
 
         {/* Actions */}
         <div className="flex items-center justify-between pt-2 pb-4">

@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Modal, DatePicker, Pagination, RangeSlider } from '@/components/stock';
-import { Button, Badge } from '@/components/ui';
+import { Button } from '@/components/ui';
 import {
   ClipboardIcon, SearchIcon, TrashIcon, PlusIcon,
   PhoneIcon, FilterIcon, CloseIcon,
@@ -18,6 +18,18 @@ import ConfirmOrderModal from '@/components/stock/ConfirmOrderModal';
 
 const LIMIT = 30;
 const DEFAULT_TOTAL_MAX = 1000000;
+
+// Neutral status pill — the word carries the meaning, the dot marks state:
+// filled = terminal-good, hollow = in-progress, none = dead state.
+function StatusPill({ label, kind }: { label: string; kind: 'good' | 'progress' | 'dead' }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+      {kind === 'good' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+      {kind === 'progress' && <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />}
+      <span className={kind === 'dead' ? 'text-zinc-600' : ''}>{label}</span>
+    </span>
+  );
+}
 
 export default function OrdersPage() {
   return (
@@ -170,13 +182,13 @@ function OrdersPageInner() {
 
   const ORDER_STATUSES = [
     { value: '', label: t('stock.common.all'), color: 'text-zinc-400' },
-    { value: 'pending', label: t('stock.common.new'), color: 'text-amber-400' },
-    { value: 'confirmed', label: t('stock.common.confirmed'), color: 'text-blue-400' },
-    { value: 'preparing', label: t('stock.common.preparing'), color: 'text-violet-400' },
-    { value: 'shipped', label: t('stock.common.shipped'), color: 'text-cyan-400' },
-    { value: 'delivered', label: t('stock.common.delivered'), color: 'text-emerald-400' },
-    { value: 'cancelled', label: t('stock.common.cancelled'), color: 'text-red-400' },
-    { value: 'returned', label: t('stock.common.returned'), color: 'text-orange-400' },
+    { value: 'pending', label: t('stock.common.new'), color: 'text-zinc-400' },
+    { value: 'confirmed', label: t('stock.common.confirmed'), color: 'text-zinc-400' },
+    { value: 'preparing', label: t('stock.common.preparing'), color: 'text-zinc-400' },
+    { value: 'shipped', label: t('stock.common.shipped'), color: 'text-zinc-400' },
+    { value: 'delivered', label: t('stock.common.delivered'), color: 'text-zinc-400' },
+    { value: 'cancelled', label: t('stock.common.cancelled'), color: 'text-zinc-400' },
+    { value: 'returned', label: t('stock.common.returned'), color: 'text-zinc-400' },
   ];
 
   // statusTab moved to top of component (before loadOrders callback)
@@ -304,17 +316,16 @@ function OrdersPageInner() {
     setConfirmingOrder(updated);
   };
 
-  // Decide a row's left-border accent — gives a quick at-a-glance "what to do next"
+  // Decide a row's start-border accent — a single neutral marker for rows that
+  // still need a call, nothing otherwise.
   const rowAccent = (order: Order): string => {
-    const s = order.status;
-    if (s === 'cancelled' || s === 'returned') return 'border-l-rose-500/40';
-    if (s === 'delivered') return 'border-l-emerald-500/40';
-    if (s === 'shipped' || s === 'dispatched') return 'border-l-cyan-500/40';
-    if (s === 'preparing') return 'border-l-violet-500/40';
-    if (order.confirmationStatus === 'confirmed') return 'border-l-emerald-500/40';
-    if (order.confirmationStatus === 'no_answer') return 'border-l-amber-500/40';
-    if (order.confirmationStatus === 'rejected') return 'border-l-rose-500/40';
-    return 'border-l-blue-500/40'; // not_called yet
+    if (
+      order.status === 'pending' &&
+      (order.confirmationStatus === 'not_called' || order.confirmationStatus === 'no_answer')
+    ) {
+      return 'border-s-2 border-s-white/20';
+    }
+    return '';
   };
 
   const primaryAction = (order: Order): { label: string; tone: 'emerald' | 'blue' | 'amber' | 'zinc' } => {
@@ -349,16 +360,16 @@ function OrdersPageInner() {
             onClick={toggleFilters}
             className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-all duration-200 ${
               filtersOpen
-                ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                ? 'border-white/20 bg-white/10 text-white'
                 : activeFilterCount > 0
-                  ? 'border-blue-500/30 bg-blue-500/5 text-blue-400 hover:bg-blue-500/10'
+                  ? 'border-white/20 bg-white/5 text-white hover:bg-white/10'
                   : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'
             }`}
           >
             <FilterIcon className="w-4 h-4" />
             {t('stock.common.filters')}
             {activeFilterCount > 0 && (
-              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
+              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white text-black text-[10px] font-bold">
                 {activeFilterCount}
               </span>
             )}
@@ -377,11 +388,11 @@ function OrdersPageInner() {
 
       {/* Client filter banner */}
       {appliedClientId && (
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-          <span className="text-sm text-blue-400">Filtered by client</span>
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-white/[0.03] border border-white/10 rounded-xl">
+          <span className="text-sm text-zinc-400">Filtered by client</span>
           <button
             onClick={clearClientFilter}
-            className="ml-auto flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+            className="ml-auto flex items-center gap-1 text-xs text-zinc-400 hover:text-white transition-colors"
           >
             <CloseIcon className="w-3 h-3" />
             Clear
@@ -397,15 +408,15 @@ function OrdersPageInner() {
         </div>
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
           <p className="text-xs text-zinc-500">{t('stock.orders.stat.pending')}</p>
-          <p className="text-2xl font-bold text-amber-400 mt-1">{stats.pending}</p>
+          <p className="text-2xl font-bold text-white mt-1">{stats.pending}</p>
         </div>
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
           <p className="text-xs text-zinc-500">{t('stock.orders.stat.needCalling')}</p>
-          <p className="text-2xl font-bold text-red-400 mt-1">{stats.notCalled}</p>
+          <p className="text-2xl font-bold text-white mt-1">{stats.notCalled}</p>
         </div>
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
           <p className="text-xs text-zinc-500">{t('stock.orders.stat.totalValue')}</p>
-          <p className="text-2xl font-bold text-emerald-400 mt-1">{stats.totalValue.toLocaleString()} <span className="text-sm text-zinc-400">DA</span></p>
+          <p className="text-2xl font-bold text-white mt-1">{stats.totalValue.toLocaleString()} <span className="text-sm text-zinc-400">DA</span></p>
         </div>
       </div>
 
@@ -464,7 +475,7 @@ function OrdersPageInner() {
                 <button
                   onClick={() => handleBulkStatus('confirmed')}
                   disabled={bulkProcessing}
-                  className="px-3 py-1.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 text-xs font-medium bg-white text-black hover:bg-zinc-200 rounded-lg transition-colors disabled:opacity-50"
                 >
                   {bulkProcessing ? 'Processing…' : 'Confirm all'}
                 </button>
@@ -473,7 +484,7 @@ function OrdersPageInner() {
                 <button
                   onClick={() => handleBulkStatus('preparing')}
                   disabled={bulkProcessing}
-                  className="px-3 py-1.5 text-xs font-medium text-violet-400 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 rounded-lg transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 text-xs font-medium bg-white text-black hover:bg-zinc-200 rounded-lg transition-colors disabled:opacity-50"
                 >
                   {bulkProcessing ? 'Processing…' : 'Start preparing all'}
                 </button>
@@ -482,7 +493,7 @@ function OrdersPageInner() {
                 <button
                   onClick={() => handleBulkStatus('shipped')}
                   disabled={bulkProcessing}
-                  className="px-3 py-1.5 text-xs font-medium text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 rounded-lg transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 text-xs font-medium bg-white text-black hover:bg-zinc-200 rounded-lg transition-colors disabled:opacity-50"
                 >
                   {bulkProcessing ? 'Processing…' : 'Ship all'}
                 </button>
@@ -491,7 +502,7 @@ function OrdersPageInner() {
                 <button
                   onClick={() => handleBulkStatus('delivered')}
                   disabled={bulkProcessing}
-                  className="px-3 py-1.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors disabled:opacity-50"
+                  className="px-3 py-1.5 text-xs font-medium bg-white text-black hover:bg-zinc-200 rounded-lg transition-colors disabled:opacity-50"
                 >
                   {bulkProcessing ? 'Processing…' : 'Mark all delivered'}
                 </button>
@@ -499,7 +510,7 @@ function OrdersPageInner() {
               <button
                 onClick={() => handleBulkStatus('cancelled')}
                 disabled={bulkProcessing}
-                className="px-3 py-1.5 text-xs font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg transition-colors disabled:opacity-50"
+                className="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white border border-white/10 hover:border-white/20 rounded-lg transition-colors disabled:opacity-50"
               >
                 Cancel all
               </button>
@@ -545,14 +556,13 @@ function OrdersPageInner() {
                   const next = getNextStatus(order.status);
                   const accent = rowAccent(order);
                   const toneClasses =
-                    action.tone === 'emerald' ? 'bg-emerald-500 hover:bg-emerald-400 text-white'
-                      : action.tone === 'blue' ? 'bg-blue-500 hover:bg-blue-400 text-white'
-                      : action.tone === 'amber' ? 'bg-amber-500 hover:bg-amber-400 text-white'
-                      : 'bg-white/10 hover:bg-white/20 text-zinc-200';
+                    action.tone === 'zinc'
+                      ? 'bg-white/10 hover:bg-white/20 text-zinc-200'
+                      : 'bg-white hover:bg-zinc-200 text-black';
                   return (
                     <tr
                       key={order.id}
-                      className={`border-b border-white/5 hover:bg-white/[0.04] transition-colors border-l-[3px] ${accent} ${
+                      className={`border-b border-white/5 hover:bg-white/[0.04] transition-colors ${accent} ${
                         selectedIds.has(order.id) ? 'bg-white/[0.03]' : ''
                       }`}
                     >
@@ -570,7 +580,7 @@ function OrdersPageInner() {
                       >
                         {order.orderNumber}
                         {order.source === 'ai' && (
-                          <span className="ms-1.5 text-[9px] text-violet-300 bg-violet-500/15 border border-violet-500/30 px-1.5 py-0.5 rounded uppercase tracking-wider">AI</span>
+                          <span className="ms-1.5 text-[9px] text-zinc-400 bg-white/[0.03] border border-white/10 px-1.5 py-0.5 rounded uppercase tracking-wider">AI</span>
                         )}
                       </td>
                       <td className="px-4 py-3 cursor-pointer" onClick={() => setConfirmingOrder(order)}>
@@ -581,20 +591,35 @@ function OrdersPageInner() {
                       <td className="px-4 py-3 text-sm text-right text-white font-medium whitespace-nowrap">
                         {Number(order.total).toLocaleString()} DA
                       </td>
-                      <td className="px-4 py-3 text-sm text-right text-emerald-400 whitespace-nowrap">
+                      <td className="px-4 py-3 text-sm text-right text-zinc-400 whitespace-nowrap">
                         {Number(order.amountPaid).toLocaleString()} DA
                       </td>
-                      <td className="px-4 py-3 text-sm text-right text-red-400 whitespace-nowrap">
+                      <td className="px-4 py-3 text-sm text-right text-zinc-400 whitespace-nowrap">
                         {remaining > 0 ? `${remaining.toLocaleString()} DA` : '–'}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <Badge variant={getStatusVariant(order.status)}>{order.status}</Badge>
+                        <StatusPill
+                          label={order.status}
+                          kind={
+                            order.status === 'delivered' || order.status === 'confirmed'
+                              ? 'good'
+                              : order.status === 'cancelled' || order.status === 'returned'
+                                ? 'dead'
+                                : 'progress'
+                          }
+                        />
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <Badge variant={getConfirmVariant(order.confirmationStatus)}>
-                          {getConfirmLabel(order.confirmationStatus)}
-                          {order.callAttempts > 0 && ` (${order.callAttempts})`}
-                        </Badge>
+                        <StatusPill
+                          label={`${getConfirmLabel(order.confirmationStatus)}${order.callAttempts > 0 ? ` (${order.callAttempts})` : ''}`}
+                          kind={
+                            order.confirmationStatus === 'confirmed'
+                              ? 'good'
+                              : order.confirmationStatus === 'rejected'
+                                ? 'dead'
+                                : 'progress'
+                          }
+                        />
                       </td>
                       <td className="px-4 py-3 text-xs text-zinc-500 whitespace-nowrap">
                         {new Date(order.orderDate).toLocaleDateString()}
@@ -618,7 +643,7 @@ function OrdersPageInner() {
                           {order.status === 'delivered' && (
                             <button
                               onClick={() => setReturnConfirm(order)}
-                              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold whitespace-nowrap text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 transition-colors"
+                              className="px-3 py-1.5 rounded-lg text-[11px] font-semibold whitespace-nowrap text-zinc-400 hover:text-white border border-white/10 hover:border-white/20 transition-colors"
                               title={t('stock.orders.action.markReturned')}
                             >
                               {t('stock.orders.action.markReturned')}
@@ -627,7 +652,7 @@ function OrdersPageInner() {
                           {order.status !== 'delivered' && order.status !== 'cancelled' && (
                             <button
                               onClick={() => setDeleteConfirm(order)}
-                              className="p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                              className="p-1.5 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                               title="Delete order"
                             >
                               <TrashIcon className="w-3.5 h-3.5" />
@@ -676,7 +701,7 @@ function OrdersPageInner() {
           <Button type="button" variant="outline" className="flex-1" onClick={() => setReturnConfirm(null)} disabled={returning}>
             Cancel
           </Button>
-          <Button type="button" variant="danger" className="flex-1" onClick={handleReturn} disabled={returning}>
+          <Button type="button" className="flex-1" onClick={handleReturn} disabled={returning}>
             {returning ? 'Saving...' : t('stock.orders.action.markReturned')}
           </Button>
         </div>
@@ -692,7 +717,7 @@ function OrdersPageInner() {
           <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>
             Cancel
           </Button>
-          <Button type="button" variant="danger" className="flex-1" onClick={handleDelete} disabled={deleting}>
+          <Button type="button" className="flex-1" onClick={handleDelete} disabled={deleting}>
             {deleting ? 'Deleting...' : 'Delete'}
           </Button>
         </div>
@@ -771,15 +796,15 @@ function OrdersPageInner() {
                 onClick={() => setDraftHasRemaining(!draftHasRemaining)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-sm transition-all ${
                   draftHasRemaining
-                    ? 'border-red-500/40 bg-red-500/10 text-red-400'
+                    ? 'border-white/20 bg-white/5 text-white'
                     : 'border-white/10 text-zinc-400 hover:border-white/20 hover:text-zinc-300'
                 }`}
               >
                 <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                  draftHasRemaining ? 'border-red-500 bg-red-500' : 'border-zinc-600'
+                  draftHasRemaining ? 'border-white bg-white' : 'border-zinc-600'
                 }`}>
                   {draftHasRemaining && (
-                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <svg className="w-2.5 h-2.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   )}
@@ -793,7 +818,7 @@ function OrdersPageInner() {
               <label className="block text-xs font-medium text-zinc-400 mb-1.5">
                 Total Amount (DA)
                 {(draftTotalRange[0] > 0 || draftTotalRange[1] < DEFAULT_TOTAL_MAX) && (
-                  <span className="ml-1.5 text-blue-400 font-normal">
+                  <span className="ml-1.5 text-zinc-300 font-normal">
                     {draftTotalRange[0].toLocaleString()} - {draftTotalRange[1].toLocaleString()}
                   </span>
                 )}
@@ -812,7 +837,7 @@ function OrdersPageInner() {
             <button
               onClick={applyFilters}
               disabled={!draftDirty}
-              className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded-lg transition-colors"
+              className="w-full px-4 py-2.5 bg-white hover:bg-zinc-200 disabled:bg-zinc-700 disabled:text-zinc-500 text-black text-sm font-medium rounded-lg transition-colors"
             >
               Apply Filters
             </button>

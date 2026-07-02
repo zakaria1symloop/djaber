@@ -11,31 +11,18 @@ const servicesBase = [
   { id: 'commercial', nameKey: 'page.services.commercial.title', descKey: 'page.services.commercial.desc', icon: MegaphoneIcon, href: null, active: false, accent: 'amber' },
 ] as const;
 
+// All accent keys intentionally collapse to a single neutral scheme (accent field kept for compatibility).
+const NEUTRAL_ACCENT = {
+  border: 'border-white/10 hover:border-white/20',
+  bg: 'bg-white/5',
+  icon: 'text-zinc-300',
+  badge: 'border border-white/10 text-zinc-500',
+};
 const accentMap: Record<string, { border: string; bg: string; icon: string; badge: string }> = {
-  emerald: {
-    border: 'border-emerald-500/30 hover:border-emerald-500/60',
-    bg: 'bg-emerald-500/10',
-    icon: 'text-emerald-400',
-    badge: 'bg-emerald-500/20 text-emerald-400',
-  },
-  blue: {
-    border: 'border-blue-500/20',
-    bg: 'bg-blue-500/10',
-    icon: 'text-blue-400',
-    badge: 'bg-blue-500/20 text-blue-400',
-  },
-  purple: {
-    border: 'border-purple-500/20',
-    bg: 'bg-purple-500/10',
-    icon: 'text-purple-400',
-    badge: 'bg-purple-500/20 text-purple-400',
-  },
-  amber: {
-    border: 'border-amber-500/20',
-    bg: 'bg-amber-500/10',
-    icon: 'text-amber-400',
-    badge: 'bg-amber-500/20 text-amber-400',
-  },
+  emerald: NEUTRAL_ACCENT,
+  blue: NEUTRAL_ACCENT,
+  purple: NEUTRAL_ACCENT,
+  amber: NEUTRAL_ACCENT,
 };
 
 export default function ServicesPage() {
@@ -83,7 +70,8 @@ export default function ServicesPage() {
                   </span>
                 )}
                 {service.active && (
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${colors.badge}`}>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border border-white/10 bg-white/[0.03] text-zinc-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white" />
                     {t('page.services.active')}
                   </span>
                 )}

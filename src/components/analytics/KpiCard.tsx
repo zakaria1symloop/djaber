@@ -2,15 +2,17 @@ import React from 'react';
 
 export type KpiColor = 'violet' | 'emerald' | 'orange' | 'blue' | 'red' | 'zinc' | 'yellow' | 'pink';
 
+// All accent values intentionally collapse to a single neutral chip scheme (color prop kept for compatibility).
+const NEUTRAL_CHIP = 'bg-white/5 text-zinc-300';
 const iconAccent: Record<KpiColor, string> = {
-  violet:  'bg-violet-500/10 text-violet-400',
-  emerald: 'bg-emerald-500/10 text-emerald-400',
-  orange:  'bg-orange-500/10 text-orange-400',
-  blue:    'bg-blue-500/10 text-blue-400',
-  red:     'bg-red-500/10 text-red-400',
-  yellow:  'bg-yellow-500/10 text-yellow-400',
-  pink:    'bg-pink-500/10 text-pink-400',
-  zinc:    'bg-white/5 text-zinc-300',
+  violet:  NEUTRAL_CHIP,
+  emerald: NEUTRAL_CHIP,
+  orange:  NEUTRAL_CHIP,
+  blue:    NEUTRAL_CHIP,
+  red:     NEUTRAL_CHIP,
+  yellow:  NEUTRAL_CHIP,
+  pink:    NEUTRAL_CHIP,
+  zinc:    NEUTRAL_CHIP,
 };
 
 export interface KpiCardProps {

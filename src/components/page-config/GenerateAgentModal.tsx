@@ -96,7 +96,7 @@ export default function GenerateAgentModal({
         <div className="px-6 py-5 border-b border-white/10 flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2.5 mb-1">
-              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
+              <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 text-zinc-300 flex items-center justify-center flex-shrink-0">
                 <SparklesIcon className="w-3.5 h-3.5" />
               </div>
               <h2 className="text-lg font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
@@ -125,17 +125,17 @@ export default function GenerateAgentModal({
         <div className="p-6 space-y-4">
           {phase === 'idle' && (
             <div className="space-y-4">
-              <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4">
-                <h3 className="text-sm font-semibold text-emerald-300 mb-2">{t('agentGen.what.title')}</h3>
-                <ul className="space-y-1.5 text-xs text-zinc-300">
-                  <li className="flex gap-2"><span className="text-emerald-400">•</span> {t('agentGen.what.l1')}</li>
-                  <li className="flex gap-2"><span className="text-emerald-400">•</span> {t('agentGen.what.l2')}</li>
-                  <li className="flex gap-2"><span className="text-emerald-400">•</span> {t('agentGen.what.l3')}</li>
-                  <li className="flex gap-2"><span className="text-emerald-400">•</span> {t('agentGen.what.l4')}</li>
+              <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-white mb-2">{t('agentGen.what.title')}</h3>
+                <ul className="space-y-1.5 text-xs text-zinc-400">
+                  <li className="flex gap-2"><span className="text-zinc-600">•</span> {t('agentGen.what.l1')}</li>
+                  <li className="flex gap-2"><span className="text-zinc-600">•</span> {t('agentGen.what.l2')}</li>
+                  <li className="flex gap-2"><span className="text-zinc-600">•</span> {t('agentGen.what.l3')}</li>
+                  <li className="flex gap-2"><span className="text-zinc-600">•</span> {t('agentGen.what.l4')}</li>
                 </ul>
               </div>
               {error && (
-                <div className="bg-rose-500/10 border border-rose-500/30 rounded-lg p-3 text-sm text-rose-300">
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-400">
                   {error}
                 </div>
               )}
@@ -159,8 +159,8 @@ export default function GenerateAgentModal({
           {(phase === 'reading' || phase === 'analyzing' || phase === 'drafting') && (
             <div className="py-12">
               <div className="flex flex-col items-center text-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                  <div className="w-5 h-5 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
+                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                  <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-white mb-1">
@@ -184,9 +184,9 @@ export default function GenerateAgentModal({
           {phase === 'preview' && draft && (
             <div className="space-y-4">
               {draft.warning && (
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-300 flex items-start gap-2">
-                  <AlertIcon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                  <span>{draft.warning}</span>
+                <div className="bg-white/[0.03] border border-white/10 rounded-lg p-3 text-xs text-zinc-400 flex items-start gap-2">
+                  <AlertIcon className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-zinc-500" />
+                  <span className="text-white font-medium">{draft.warning}</span>
                 </div>
               )}
 
@@ -212,7 +212,7 @@ export default function GenerateAgentModal({
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[10px] uppercase tracking-wider text-zinc-500 me-1">{t('agentGen.preview.topQuestions')}</span>
                     {draft.topQuestions.map((q) => (
-                      <span key={q} className="text-[11px] px-2 py-0.5 bg-emerald-500/10 text-emerald-300 rounded-full">
+                      <span key={q} className="text-[11px] px-2 py-0.5 bg-white/5 text-zinc-300 rounded-full">
                         {q}
                       </span>
                     ))}
@@ -235,7 +235,7 @@ export default function GenerateAgentModal({
                   value={editedInstructions}
                   onChange={(e) => setEditedInstructions(e.target.value)}
                   rows={10}
-                  className="w-full bg-black/40 border border-white/10 focus:border-emerald-500/40 rounded-lg text-xs text-zinc-200 px-3 py-2.5 focus:outline-none font-mono leading-relaxed resize-y"
+                  className="w-full bg-black/40 border border-white/10 focus:border-white/30 rounded-lg text-xs text-zinc-200 px-3 py-2.5 focus:outline-none font-mono leading-relaxed resize-y"
                 />
                 <p className="text-[10px] text-zinc-600 mt-1">
                   {t('agentGen.preview.editHint')}
@@ -254,7 +254,7 @@ export default function GenerateAgentModal({
                 </button>
                 <button
                   onClick={applyDraft}
-                  className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-sm font-semibold transition-colors"
+                  className="px-5 py-2 bg-white hover:bg-zinc-100 text-black rounded-lg text-sm font-semibold transition-colors"
                 >
                   {t('agentGen.preview.apply').replace('{pageName}', pageName)}
                 </button>
@@ -281,12 +281,12 @@ function Step({ active, done, label }: { active: boolean; done: boolean; label: 
     <div className="flex items-center gap-1.5">
       <div
         className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors ${
-          done ? 'bg-emerald-500 text-white' : active ? 'bg-emerald-500/20 text-emerald-300 ring-2 ring-emerald-500/40' : 'bg-white/5 text-zinc-500'
+          done ? 'bg-white text-black' : active ? 'bg-white/10 text-white ring-2 ring-white/30' : 'bg-white/5 text-zinc-500'
         }`}
       >
         {done ? '✓' : ''}
       </div>
-      <span className={`text-[11px] ${active ? 'text-emerald-300' : done ? 'text-zinc-400' : 'text-zinc-600'}`}>{label}</span>
+      <span className={`text-[11px] ${active ? 'text-white' : done ? 'text-zinc-400' : 'text-zinc-600'}`}>{label}</span>
     </div>
   );
 }

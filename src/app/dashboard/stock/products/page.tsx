@@ -726,16 +726,16 @@ export default function ProductsPage() {
               onClick={toggleFilters}
               className={`relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-all duration-200 ${
                 filtersOpen
-                  ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                  ? 'border-white/20 bg-white/10 text-white'
                   : activeFilterCount > 0
-                    ? 'border-blue-500/30 bg-blue-500/5 text-blue-400 hover:bg-blue-500/10'
+                    ? 'border-white/20 bg-white/5 text-zinc-300 hover:bg-white/10'
                     : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'
               }`}
             >
               <FilterIcon className="w-4 h-4" />
               {t('stock.common.filters')}
               {activeFilterCount > 0 && (
-                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold">
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-white text-black text-[10px] font-bold">
                   {activeFilterCount}
                 </span>
               )}
@@ -781,7 +781,7 @@ export default function ProductsPage() {
                 onClick={() => { const v = !lowStockOnly; setLowStockOnly(v); setDraftLowStock(v); appliedFiltersRef.current.lowStock = v; setOffset(0); setFilterTrigger((t) => t + 1); }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-colors ${
                   lowStockOnly
-                    ? 'border-amber-500/50 bg-amber-500/10 text-amber-400'
+                    ? 'border-white/20 bg-white/10 text-white'
                     : 'border-white/10 text-zinc-400 hover:text-white hover:border-white/20'
                 }`}
               >
@@ -901,8 +901,8 @@ export default function ProductsPage() {
                           ) : (
                             <div className="relative group/cost">
                               <div className="flex items-center justify-end gap-1 cursor-help">
-                                <span className="text-orange-400 font-medium">{trueCost.toLocaleString(undefined, { maximumFractionDigits: 2 })} DA</span>
-                                <span className="text-[10px] text-orange-400/60">+</span>
+                                <span className="text-zinc-300 font-medium">{trueCost.toLocaleString(undefined, { maximumFractionDigits: 2 })} DA</span>
+                                <span className="text-[10px] text-zinc-500">+</span>
                               </div>
                               <div className="absolute right-0 top-full mt-1 z-50 hidden group-hover/cost:block w-56 bg-zinc-800 border border-white/10 rounded-lg shadow-xl p-3 space-y-1.5">
                                 <div className="flex justify-between text-xs">
@@ -912,7 +912,7 @@ export default function ProductsPage() {
                                 {exps.map((exp) => (
                                   <div key={exp.id} className="flex justify-between text-xs">
                                     <span className="text-zinc-500">{exp.category}{exp.isPerUnit ? ' /unit' : ' (fixed)'}</span>
-                                    <span className="text-orange-400">
+                                    <span className="text-zinc-300">
                                       +{exp.isPerUnit
                                         ? `${Number(exp.amount).toLocaleString()} DA/u`
                                         : `${(Number(exp.amount) / qty).toLocaleString(undefined, { maximumFractionDigits: 2 })} DA/u (${Number(exp.amount).toLocaleString()} total)`
@@ -928,28 +928,28 @@ export default function ProductsPage() {
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-emerald-400">
+                        <td className="px-4 py-3 text-sm text-right text-zinc-300">
                           {sellingPrice.toLocaleString()} DA
                         </td>
                         <td className="px-4 py-3 text-sm text-right">
-                          <span className={netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                          <span className={netProfit >= 0 ? 'text-zinc-300' : 'text-zinc-500'}>
                             {netProfit >= 0 ? '+' : ''}{netProfit.toLocaleString(undefined, { maximumFractionDigits: 2 })} DA
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-center">
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                            marginPercent >= 30 ? 'bg-emerald-500/10 text-emerald-400' :
-                            marginPercent >= 10 ? 'bg-yellow-500/10 text-yellow-400' :
-                            marginPercent >= 0 ? 'bg-orange-500/10 text-orange-400' :
-                            'bg-red-500/10 text-red-400'
-                          }`}>
+                          <span className={marginPercent >= 0 ? 'text-zinc-300' : 'text-zinc-500'}>
                             {marginPercent.toFixed(1)}%
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-center">
-                          <Badge variant={product.quantity <= product.minQuantity ? 'warning' : 'success'}>
-                            {product.quantity}
-                          </Badge>
+                          {product.quantity <= product.minQuantity ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+                              <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
+                              {product.quantity}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-300">{product.quantity}</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-sm text-center text-zinc-400">
                           {product.unitRef?.abbreviation || product.unit}
@@ -991,14 +991,14 @@ export default function ProductsPage() {
                               </button>
                               <button
                                 onClick={() => openExpensePanel(product)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors"
                               >
                                 <DollarIcon className="w-3.5 h-3.5" />
                                 Expenses
                               </button>
                               <button
                                 onClick={() => openView(product)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg transition-colors"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors"
                               >
                                 <EyeIcon className="w-3.5 h-3.5" />
                                 View
@@ -1012,7 +1012,7 @@ export default function ProductsPage() {
                               </button>
                               <button
                                 onClick={() => setDeleteConfirm(product)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-lg transition-colors"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors"
                               >
                                 <TrashIcon className="w-3.5 h-3.5" />
                                 Delete
@@ -1056,7 +1056,7 @@ export default function ProductsPage() {
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
             <div className="flex items-center gap-2 min-w-0">
-              <DollarIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+              <DollarIcon className="w-4 h-4 text-zinc-400 shrink-0" />
               <h2 className="text-sm font-semibold text-white truncate">{expenseProduct.name}</h2>
             </div>
             <button
@@ -1087,11 +1087,11 @@ export default function ProductsPage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-zinc-400">Total Expenses</span>
-                        <span className="text-orange-400">{margins.totalExpenses.toLocaleString()} DA</span>
+                        <span className="text-zinc-300">{margins.totalExpenses.toLocaleString()} DA</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-zinc-400">Expense/Unit</span>
-                        <span className="text-orange-400">{margins.expensePerUnit.toFixed(2)} DA</span>
+                        <span className="text-zinc-300">{margins.expensePerUnit.toFixed(2)} DA</span>
                       </div>
                       <div className="border-t border-white/10 pt-2 flex justify-between">
                         <span className="text-zinc-400">True Cost</span>
@@ -1099,7 +1099,7 @@ export default function ProductsPage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-zinc-400">Net Margin</span>
-                        <span className={`font-semibold ${margins.netMargin >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <span className={`font-semibold ${margins.netMargin >= 0 ? 'text-white' : 'text-zinc-500'}`}>
                           {margins.netMargin.toFixed(2)} DA ({margins.marginPercent.toFixed(1)}%)
                         </span>
                       </div>
@@ -1122,7 +1122,7 @@ export default function ProductsPage() {
                                 {exp.category}
                               </span>
                               {exp.isPerUnit && (
-                                <span className="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded font-medium">/unit</span>
+                                <span className="text-[10px] text-zinc-400 bg-white/5 px-1.5 py-0.5 rounded font-medium">/unit</span>
                               )}
                             </div>
                             {exp.description && (
@@ -1133,7 +1133,7 @@ export default function ProductsPage() {
                             <span className="text-sm font-medium text-white">{Number(exp.amount).toLocaleString()} DA</span>
                             <button
                               onClick={() => handleDeleteExpense(exp.id)}
-                              className="p-1 text-zinc-500 hover:text-red-400 transition-colors"
+                              className="p-1 text-zinc-500 hover:text-white transition-colors"
                             >
                               <TrashIcon className="w-3 h-3" />
                             </button>
@@ -1173,7 +1173,7 @@ export default function ProductsPage() {
                       onClick={() => setExpenseForm({ ...expenseForm, isPerUnit: !expenseForm.isPerUnit })}
                       className={`px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
                         expenseForm.isPerUnit
-                          ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
+                          ? 'border-white/20 bg-white/10 text-white'
                           : 'border-white/10 text-zinc-400 hover:text-white'
                       }`}
                     >
@@ -1190,7 +1190,7 @@ export default function ProductsPage() {
                   <button
                     onClick={handleAddExpense}
                     disabled={addingExpense || !expenseForm.amount}
-                    className="w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    className="w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-white text-black hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   >
                     {addingExpense ? 'Adding...' : 'Add Expense'}
                   </button>
@@ -1211,10 +1211,10 @@ export default function ProductsPage() {
         {/* Panel header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
           <div className="flex items-center gap-2">
-            <FilterIcon className="w-4 h-4 text-blue-400" />
+            <FilterIcon className="w-4 h-4 text-zinc-500" />
             <h2 className="text-sm font-semibold text-white">Filters</h2>
             {activeFilterCount > 0 && (
-              <span className="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-full font-medium">
+              <span className="text-[10px] text-zinc-300 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-full font-medium">
                 {activeFilterCount} active
               </span>
             )}
@@ -1241,13 +1241,13 @@ export default function ProductsPage() {
                     onClick={() => toggleCategoryChip(cat.id)}
                     className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-150 ${
                       isSelected
-                        ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20'
+                        ? 'bg-white text-black'
                         : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-300'
                     }`}
                   >
                     {cat.name}
                     {cat._count?.products !== undefined && (
-                      <span className={`ml-1 ${isSelected ? 'text-blue-200' : 'text-zinc-500'}`}>
+                      <span className={`ml-1 ${isSelected ? 'text-zinc-600' : 'text-zinc-500'}`}>
                         {cat._count.products}
                       </span>
                     )}
@@ -1265,7 +1265,7 @@ export default function ProductsPage() {
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
               {t('stock.filter.sellingPrice')}
               {(draftPriceRange[0] > 0 || draftPriceRange[1] < DEFAULT_PRICE_MAX) && (
-                <span className="ml-1.5 text-blue-400 font-normal normal-case">
+                <span className="ml-1.5 text-zinc-400 font-normal normal-case">
                   {draftPriceRange[0].toLocaleString()} - {draftPriceRange[1].toLocaleString()}
                 </span>
               )}
@@ -1285,7 +1285,7 @@ export default function ProductsPage() {
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
               {t('stock.filter.costPrice')}
               {(draftCostRange[0] > 0 || draftCostRange[1] < DEFAULT_COST_MAX) && (
-                <span className="ml-1.5 text-blue-400 font-normal normal-case">
+                <span className="ml-1.5 text-zinc-400 font-normal normal-case">
                   {draftCostRange[0].toLocaleString()} - {draftCostRange[1].toLocaleString()}
                 </span>
               )}
@@ -1305,7 +1305,7 @@ export default function ProductsPage() {
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
               {t('stock.filter.quantity')}
               {(draftQtyRange[0] > 0 || draftQtyRange[1] < DEFAULT_QTY_MAX) && (
-                <span className="ml-1.5 text-blue-400 font-normal normal-case">
+                <span className="ml-1.5 text-zinc-400 font-normal normal-case">
                   {draftQtyRange[0].toLocaleString()} - {draftQtyRange[1].toLocaleString()}
                 </span>
               )}
@@ -1325,7 +1325,7 @@ export default function ProductsPage() {
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
               {t('stock.filter.netProfit')}
               {(draftProfitRange[0] > DEFAULT_PROFIT_MIN || draftProfitRange[1] < DEFAULT_PROFIT_MAX) && (
-                <span className="ml-1.5 text-blue-400 font-normal normal-case">
+                <span className="ml-1.5 text-zinc-400 font-normal normal-case">
                   {draftProfitRange[0] >= 0 ? '+' : ''}{draftProfitRange[0].toLocaleString()} - {draftProfitRange[1] >= 0 ? '+' : ''}{draftProfitRange[1].toLocaleString()}
                 </span>
               )}
@@ -1345,7 +1345,7 @@ export default function ProductsPage() {
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
               {t('stock.filter.margin')}
               {(draftMarginRange[0] > DEFAULT_MARGIN_MIN || draftMarginRange[1] < DEFAULT_MARGIN_MAX) && (
-                <span className="ml-1.5 text-blue-400 font-normal normal-case">
+                <span className="ml-1.5 text-zinc-400 font-normal normal-case">
                   {draftMarginRange[0]}% - {draftMarginRange[1]}%
                 </span>
               )}
@@ -1367,16 +1367,16 @@ export default function ProductsPage() {
               onClick={() => setDraftLowStock(!draftLowStock)}
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all duration-150 ${
                 draftLowStock
-                  ? 'border-amber-500/50 bg-amber-500/10'
+                  ? 'border-white/20 bg-white/5'
                   : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'
               }`}
             >
               <div className="flex items-center gap-2">
-                <AlertIcon className={`w-4 h-4 ${draftLowStock ? 'text-amber-400' : 'text-zinc-500'}`} />
-                <span className={`text-sm ${draftLowStock ? 'text-amber-400' : 'text-zinc-400'}`}>{t('stock.products.lowStockOnly')}</span>
+                <AlertIcon className={`w-4 h-4 ${draftLowStock ? 'text-white' : 'text-zinc-500'}`} />
+                <span className={`text-sm ${draftLowStock ? 'text-white' : 'text-zinc-400'}`}>{t('stock.products.lowStockOnly')}</span>
               </div>
-              <div className={`w-9 h-5 rounded-full transition-colors duration-200 flex items-center p-0.5 ${draftLowStock ? 'bg-amber-500 justify-end' : 'bg-zinc-600 justify-start'}`}>
-                <div className="w-4 h-4 rounded-full bg-white shadow transition-transform duration-200" />
+              <div className={`w-9 h-5 rounded-full transition-colors duration-200 flex items-center p-0.5 ${draftLowStock ? 'bg-white justify-end' : 'bg-zinc-600 justify-start'}`}>
+                <div className={`w-4 h-4 rounded-full shadow transition-transform duration-200 ${draftLowStock ? 'bg-black' : 'bg-white'}`} />
               </div>
             </button>
           </div>
@@ -1395,11 +1395,7 @@ export default function ProductsPage() {
                   onClick={() => setDraftActiveFilter(opt.value)}
                   className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 ${
                     draftActiveFilter === opt.value
-                      ? opt.value === 'true'
-                        ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                        : opt.value === 'false'
-                          ? 'bg-red-500/15 text-red-400 border border-red-500/30'
-                          : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                      ? 'bg-white/10 text-white border border-white/20'
                       : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-700'
                   }`}
                 >
@@ -1415,7 +1411,7 @@ export default function ProductsPage() {
           <button
             onClick={applyFilters}
             disabled={!draftDirty}
-            className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-blue-600 hover:bg-blue-500 text-white"
+            className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-white hover:bg-zinc-200 text-black"
           >
             {t('stock.filter.applyFilters')}
           </button>
@@ -1506,10 +1502,10 @@ export default function ProductsPage() {
                   type="button"
                   onClick={handleAnalyzeImage}
                   disabled={analyzing}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white text-sm font-medium rounded-lg transition-all disabled:opacity-60"
+                  className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-zinc-200 text-black text-sm font-medium rounded-lg transition-all disabled:opacity-60"
                 >
                   {analyzing ? (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                   ) : (
                     <SparklesIcon className="w-4 h-4" />
                   )}
@@ -1529,7 +1525,7 @@ export default function ProductsPage() {
                 type="checkbox"
                 checked={hasVariants}
                 onChange={(e) => setHasVariants(e.target.checked)}
-                className="rounded border-white/20 bg-black text-emerald-500 focus:ring-emerald-500/30"
+                className="rounded border-white/20 bg-black text-white focus:ring-white/30"
               />
               <span className="text-sm text-zinc-300">This product has variants</span>
             </label>
@@ -1747,17 +1743,17 @@ export default function ProductsPage() {
                 </div>
                 <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
                   <p className="text-xs text-zinc-500">Selling Price</p>
-                  <p className="text-sm font-bold text-emerald-400 mt-0.5">{Number(viewing.sellingPrice).toLocaleString()} DA</p>
+                  <p className="text-sm font-bold text-white mt-0.5">{Number(viewing.sellingPrice).toLocaleString()} DA</p>
                 </div>
                 <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
                   <p className="text-xs text-zinc-500">Profit / Margin</p>
-                  <p className={`text-sm font-bold mt-0.5 ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <p className={`text-sm font-bold mt-0.5 ${profit >= 0 ? 'text-white' : 'text-zinc-500'}`}>
                     {profit.toLocaleString()} DA ({margin}%)
                   </p>
                 </div>
                 <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
                   <p className="text-xs text-zinc-500">In Stock</p>
-                  <p className={`text-sm font-bold mt-0.5 ${viewing.quantity <= viewing.minQuantity ? 'text-amber-400' : 'text-white'}`}>
+                  <p className="text-sm font-bold mt-0.5 text-white">
                     {viewing.quantity} {viewing.unitRef?.abbreviation || viewing.unit}
                   </p>
                 </div>
@@ -1779,9 +1775,13 @@ export default function ProductsPage() {
                 </div>
                 <div>
                   <p className="text-xs text-zinc-500">Status</p>
-                  <Badge variant={viewing.isActive ? 'success' : 'error'}>
-                    {viewing.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+                    {viewing.isActive ? (
+                      <><span className="w-1.5 h-1.5 rounded-full bg-white" />Active</>
+                    ) : (
+                      <span className="text-zinc-600">Inactive</span>
+                    )}
+                  </span>
                 </div>
               </div>
 
@@ -1807,14 +1807,25 @@ export default function ProductsPage() {
                             <td className="px-3 py-2 text-sm text-white">{v.name}</td>
                             <td className="px-3 py-2 text-xs text-zinc-500">{v.sku || '-'}</td>
                             <td className="px-3 py-2 text-sm text-right text-zinc-400">{Number(v.costPrice).toLocaleString()} DA</td>
-                            <td className="px-3 py-2 text-sm text-right text-emerald-400">{Number(v.sellingPrice).toLocaleString()} DA</td>
+                            <td className="px-3 py-2 text-sm text-right text-zinc-300">{Number(v.sellingPrice).toLocaleString()} DA</td>
                             <td className="px-3 py-2 text-sm text-center">
-                              <Badge variant={v.quantity <= v.minQuantity ? 'warning' : 'success'}>{v.quantity}</Badge>
+                              {v.quantity <= v.minQuantity ? (
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+                                  <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
+                                  {v.quantity}
+                                </span>
+                              ) : (
+                                <span className="text-zinc-300">{v.quantity}</span>
+                              )}
                             </td>
                             <td className="px-3 py-2 text-center">
-                              <Badge variant={v.isActive ? 'success' : 'error'}>
-                                {v.isActive ? 'Active' : 'Inactive'}
-                              </Badge>
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+                                {v.isActive ? (
+                                  <><span className="w-1.5 h-1.5 rounded-full bg-white" />Active</>
+                                ) : (
+                                  <span className="text-zinc-600">Inactive</span>
+                                )}
+                              </span>
                             </td>
                           </tr>
                         ))}
@@ -1859,7 +1870,7 @@ export default function ProductsPage() {
         </p>
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>Cancel</Button>
-          <Button type="button" variant="danger" className="flex-1" onClick={handleDelete} disabled={deleting}>
+          <Button type="button" className="flex-1" onClick={handleDelete} disabled={deleting}>
             {deleting ? 'Deleting...' : 'Delete'}
           </Button>
         </div>

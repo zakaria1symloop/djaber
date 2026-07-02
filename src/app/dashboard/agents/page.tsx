@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Badge } from '@/components/ui';
+import { Button } from '@/components/ui';
 import {
   PlusIcon, BotIcon, TrashIcon, EditIcon, MessageIcon,
   AlertIcon, CheckCircleIcon, CloseIcon, BanIcon,
@@ -15,6 +15,7 @@ import {
   type Agent, type AgentInsight, type AgentMetrics,
 } from '@/lib/user-stock-api';
 import { useTranslation } from '@/contexts/LanguageContext';
+import { AGENT_TEMPLATES } from '@/lib/agent-templates';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -169,16 +170,6 @@ export default function AgentsPage() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
-  const getPersonalityColor = (p: string) => {
-    switch (p) {
-      case 'professional': return 'bg-blue-500/20 text-blue-400';
-      case 'friendly': return 'bg-emerald-500/20 text-emerald-400';
-      case 'casual': return 'bg-amber-500/20 text-amber-400';
-      case 'technical': return 'bg-violet-500/20 text-violet-400';
-      default: return 'bg-zinc-500/20 text-zinc-400';
-    }
-  };
-
   return (
     <div className="space-y-6" dir={dir}>
       {/* Header */}
@@ -189,11 +180,6 @@ export default function AgentsPage() {
             {t('page.agents.subtitle')}
           </p>
         </div>
-        {agents.length === 0 && !loading && (
-          <Button onClick={() => router.push('/dashboard/agents/new')} icon={<PlusIcon className="w-4 h-4" />}>
-            {t('page.agents.new')}
-          </Button>
-        )}
       </div>
 
       {error && (
@@ -226,19 +212,27 @@ export default function AgentsPage() {
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        agent.isActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-500/20 text-zinc-400'
+                        agent.isActive ? 'bg-white/5 text-zinc-300' : 'bg-white/5 text-zinc-500'
                       }`}>
                         <BotIcon className="w-5 h-5" />
                       </div>
                       <div>
                         <h3 className="text-white font-semibold">{agent.name}</h3>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPersonalityColor(agent.personality)}`}>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
                             {agent.personality}
                           </span>
-                          <Badge variant={agent.isActive ? 'success' : 'default'} size="sm">
-                            {agent.isActive ? 'Active' : 'Inactive'}
-                          </Badge>
+                          {agent.isActive ? (
+                            <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                              Active
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-500">
+                              <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
+                              Inactive
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -248,23 +242,23 @@ export default function AgentsPage() {
                         onClick={() => toggleInsights(agent.id)}
                         className={`relative p-1.5 rounded-lg transition-colors ${
                           isExpanded
-                            ? 'text-amber-400 bg-amber-500/10'
+                            ? 'text-white bg-white/10'
                             : pendingCount > 0
-                              ? 'text-amber-400 hover:bg-amber-500/10'
+                              ? 'text-zinc-300 hover:bg-white/5'
                               : 'text-zinc-400 hover:text-zinc-300 hover:bg-white/5 opacity-0 group-hover:opacity-100'
                         }`}
                         title="Agent insights"
                       >
                         <AlertIcon className="w-4 h-4" />
                         {pendingCount > 0 && (
-                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-white text-black text-[9px] font-bold rounded-full flex items-center justify-center">
                             {pendingCount > 9 ? '9+' : pendingCount}
                           </span>
                         )}
                       </button>
                       <button
                         onClick={() => openTestChat(agent)}
-                        className="p-1.5 text-zinc-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                         title="Test chat"
                       >
                         <MessageIcon className="w-4 h-4" />
@@ -278,7 +272,7 @@ export default function AgentsPage() {
                       </button>
                       <button
                         onClick={() => setDeleteConfirm(agent)}
-                        className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                       >
                         <TrashIcon className="w-4 h-4" />
                       </button>
@@ -312,7 +306,7 @@ export default function AgentsPage() {
                   {agent.pages.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {agent.pages.map((ap) => (
-                        <span key={ap.id} className="px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded text-xs">
+                        <span key={ap.id} className="px-2 py-0.5 bg-white/5 text-zinc-400 rounded text-xs">
                           {ap.page.pageName}
                         </span>
                       ))}
@@ -329,7 +323,7 @@ export default function AgentsPage() {
                       className="w-full px-4 py-2 flex items-center justify-between text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
                     >
                       <span className="flex items-center gap-1.5">
-                        <AlertIcon className="w-3.5 h-3.5 text-amber-400" />
+                        <AlertIcon className="w-3.5 h-3.5 text-zinc-500" />
                         Pending Issues ({agentInsights.length})
                       </span>
                       <ChevronDownIcon className="w-3.5 h-3.5 rotate-180" />
@@ -345,7 +339,7 @@ export default function AgentsPage() {
                     ) : agentInsights.length === 0 ? (
                       <div className="px-4 pb-4 text-center">
                         <div className="flex items-center justify-center gap-2 py-4 text-zinc-600">
-                          <CheckCircleIcon className="w-4 h-4 text-emerald-500" />
+                          <CheckCircleIcon className="w-4 h-4 text-zinc-500" />
                           <span className="text-sm">{t('page.agents.card.noIssues')}</span>
                         </div>
                       </div>
@@ -354,12 +348,13 @@ export default function AgentsPage() {
                         {agentInsights.map(insight => (
                           <div key={insight.id} className="bg-zinc-900 border border-white/5 rounded-lg p-3">
                             <div className="flex items-center gap-2 mb-2">
-                              <Badge variant={insight.type === 'unclear' ? 'warning' : 'error'} size="sm">
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+                                <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
                                 {insight.type === 'unclear' ? 'Unclear' : 'Unknown'}
-                              </Badge>
-                              <FacebookIcon className="w-3 h-3 text-blue-400" />
+                              </span>
+                              <FacebookIcon className="w-3 h-3 text-zinc-500" />
                               {insight.detail && (
-                                <span className="text-[10px] text-amber-400/70 italic truncate">{insight.detail}</span>
+                                <span className="text-[10px] text-zinc-500 italic truncate">{insight.detail}</span>
                               )}
                               <span className="text-[10px] text-zinc-600 ml-auto flex-shrink-0">
                                 {new Date(insight.createdAt).toLocaleDateString()}
@@ -373,7 +368,7 @@ export default function AgentsPage() {
                             </div>
 
                             {/* AI response */}
-                            <div className="bg-blue-500/5 border border-blue-500/10 rounded px-2.5 py-1.5 mb-2">
+                            <div className="bg-white/[0.03] border border-white/10 rounded px-2.5 py-1.5 mb-2">
                               <p className="text-[10px] text-zinc-500 mb-0.5">AI Response</p>
                               <p className="text-xs text-zinc-400 line-clamp-2">{insight.aiResponse}</p>
                             </div>
@@ -385,7 +380,7 @@ export default function AgentsPage() {
                                   value={newInstruction}
                                   onChange={(e) => setNewInstruction(e.target.value)}
                                   placeholder="Add instruction so the agent handles this better..."
-                                  className="w-full bg-zinc-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                                  className="w-full bg-zinc-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-white/30 resize-none"
                                   rows={2}
                                   autoFocus
                                 />
@@ -403,7 +398,7 @@ export default function AgentsPage() {
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => setResolvingId(insight.id)}
-                                  className="flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 transition-colors"
+                                  className="flex items-center gap-1 text-[11px] text-zinc-300 hover:text-white transition-colors"
                                 >
                                   <CheckCircleIcon className="w-3 h-3" />
                                   Resolve
@@ -429,17 +424,62 @@ export default function AgentsPage() {
           })}
         </div>
       ) : (
-        <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-12 text-center">
-          <div className="text-zinc-600 mb-4 flex justify-center">
-            <BotIcon className="w-16 h-16" />
+        <div className="space-y-5">
+          <div className="max-w-2xl">
+            <h3 className="text-base font-semibold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
+              Start with a ready-made agent
+            </h3>
+            <p className="text-sm text-zinc-500">
+              Each one is fully configured for Algerian selling — Darija, Arabic and French, delivery quoting,
+              and order handling. Pick one to launch in seconds, then fine-tune anything.
+            </p>
           </div>
-          <h3 className="text-lg font-medium text-zinc-300 mb-1">{t('page.agents.empty.title')}</h3>
-          <p className="text-sm text-zinc-500 max-w-md mx-auto mb-4">
-            {t('page.agents.empty.desc')}
-          </p>
-          <Button onClick={() => router.push('/dashboard/agents/new')} icon={<PlusIcon className="w-4 h-4" />}>
-            {t('page.agents.empty.cta')}
-          </Button>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {AGENT_TEMPLATES.map((tpl) => (
+              <button
+                key={tpl.key}
+                onClick={() => router.push(`/dashboard/agents/new?template=${tpl.key}`)}
+                className="group text-start bg-zinc-900/50 border border-white/10 rounded-xl p-5 hover:border-white/25 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
+                    <BotIcon className="w-5 h-5 text-zinc-300" />
+                  </div>
+                  <span className="text-[10px] uppercase tracking-[0.15em] text-zinc-600 pt-1">
+                    {tpl.imageRecognition && tpl.voiceTranscription
+                      ? 'Vision + Voice'
+                      : tpl.voiceTranscription
+                        ? 'Voice'
+                        : 'Text'}
+                  </span>
+                </div>
+                <h4 className="text-base font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
+                  {tpl.name}
+                </h4>
+                <p className="text-xs text-zinc-500 mb-3">{tpl.tagline}</p>
+                <ul className="space-y-1.5 mb-4">
+                  {tpl.highlights.map((h) => (
+                    <li key={h} className="flex items-start gap-2 text-[13px] text-zinc-400">
+                      <span className="mt-1.5 w-1 h-1 rounded-full bg-zinc-500 flex-shrink-0" />
+                      {h}
+                    </li>
+                  ))}
+                </ul>
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white group-hover:gap-2.5 transition-all">
+                  Use this agent
+                  <span aria-hidden>→</span>
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3 pt-1">
+            <span className="text-xs text-zinc-600">Prefer to build your own?</span>
+            <Button variant="outline" onClick={() => router.push('/dashboard/agents/new')} icon={<PlusIcon className="w-4 h-4" />}>
+              Start from scratch
+            </Button>
+          </div>
         </div>
       )}
 
@@ -451,7 +491,7 @@ export default function AgentsPage() {
         </p>
         <div className="flex gap-3 pt-4">
           <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>Cancel</Button>
-          <Button type="button" variant="danger" className="flex-1" onClick={handleDelete} disabled={deleting}>
+          <Button type="button" className="flex-1" onClick={handleDelete} disabled={deleting}>
             {deleting ? 'Deleting...' : 'Delete'}
           </Button>
         </div>
@@ -464,7 +504,7 @@ export default function AgentsPage() {
           <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-1">
             {chatMessages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-3">
+                <div className="w-12 h-12 rounded-xl bg-white/5 text-zinc-300 flex items-center justify-center mb-3">
                   <BotIcon className="w-6 h-6" />
                 </div>
                 <p className="text-zinc-400 text-sm">Send a message to test <span className="text-white font-medium">{chatAgent?.name}</span></p>
@@ -492,7 +532,7 @@ export default function AgentsPage() {
                               </div>
                               <div className="p-2.5">
                                 <p className="text-xs font-medium text-white truncate">Product</p>
-                                <p className="text-[11px] text-emerald-400">ID: {part.slice(0, 8)}…</p>
+                                <p className="text-[11px] text-zinc-500">ID: {part.slice(0, 8)}…</p>
                               </div>
                             </div>
                           </div>
@@ -514,7 +554,7 @@ export default function AgentsPage() {
               }
               return (
                 <div key={i} className="flex justify-end">
-                  <div className="max-w-[80%] rounded-xl px-4 py-2.5 text-sm whitespace-pre-wrap bg-blue-600 text-white rounded-br-sm">
+                  <div className="max-w-[80%] rounded-xl px-4 py-2.5 text-sm whitespace-pre-wrap bg-white text-black rounded-br-sm">
                     {msg.content}
                   </div>
                 </div>
@@ -542,14 +582,14 @@ export default function AgentsPage() {
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTestMessage(); } }}
               placeholder="Type a message..."
-              className="flex-1 bg-zinc-800 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500/50"
+              className="flex-1 bg-zinc-800 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-white/30"
               disabled={chatSending}
               autoFocus
             />
             <button
               onClick={sendTestMessage}
               disabled={chatSending || !chatInput.trim()}
-              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded-xl transition-colors"
+              className="px-4 py-2.5 bg-white hover:bg-zinc-200 disabled:bg-zinc-700 disabled:text-zinc-500 text-black text-sm font-medium rounded-xl transition-colors"
             >
               Send
             </button>

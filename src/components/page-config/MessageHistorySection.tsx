@@ -183,15 +183,15 @@ export default function MessageHistorySection({ pageId }: MessageHistorySectionP
 
       {/* Error */}
       {error && (
-        <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 flex items-start gap-3">
-          <AlertIcon className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start gap-3">
+          <AlertIcon className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-rose-300">{t('history.error.title')}</p>
-            <p className="text-xs text-rose-400/80 mt-0.5">{error}</p>
+            <p className="text-sm font-medium text-red-400">{t('history.error.title')}</p>
+            <p className="text-xs text-red-400/80 mt-0.5">{error}</p>
             <Button
               size="sm"
               variant="ghost"
-              className="mt-2 text-rose-300"
+              className="mt-2"
               onClick={() => {
                 clearError();
                 load();
@@ -244,12 +244,12 @@ export default function MessageHistorySection({ pageId }: MessageHistorySectionP
                   </span>
                   <span>
                     {m.isFromPage ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-white/[0.03] text-zinc-300 border border-white/10">
                         <ArrowUpIcon className="w-3 h-3" />
                         {t('history.tag.out')}
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-white/[0.03] text-zinc-300 border border-white/10">
                         <ArrowDownIcon className="w-3 h-3" />
                         {t('history.tag.in')}
                       </span>
@@ -266,12 +266,12 @@ export default function MessageHistorySection({ pageId }: MessageHistorySectionP
                       {m.senderName || `${m.senderId.substring(0, 12)}…`}
                     </span>
                     {m.isFromPage ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-white/[0.03] text-zinc-300 border border-white/10">
                         <ArrowUpIcon className="w-3 h-3" />
                         {t('history.tag.out')}
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-white/[0.03] text-zinc-300 border border-white/10">
                         <ArrowDownIcon className="w-3 h-3" />
                         {t('history.tag.in')}
                       </span>

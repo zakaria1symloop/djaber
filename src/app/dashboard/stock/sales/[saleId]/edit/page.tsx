@@ -126,7 +126,7 @@ export default function EditSalePage() {
           </div>
           <div className="flex justify-between">
             <span className="text-zinc-400">{t('stock.common.total')}</span>
-            <span className="text-emerald-400 font-semibold">
+            <span className="text-white font-semibold">
               {Number(sale.total).toLocaleString()} DA
             </span>
           </div>
@@ -149,11 +149,7 @@ export default function EditSalePage() {
                 onClick={() => setPaymentStatus(s)}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                   paymentStatus === s
-                    ? s === 'paid'
-                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                      : s === 'pending'
-                        ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                        : 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                    ? 'bg-white text-black border border-transparent'
                     : 'bg-zinc-800 text-zinc-400 border border-transparent hover:bg-zinc-700'
                 }`}
               >

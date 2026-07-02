@@ -125,18 +125,18 @@ export default function AnalyzePage() {
 
       {phase === 'idle' && (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 sm:p-8 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 mx-auto mb-4 flex items-center justify-center">
+          <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 text-zinc-300 mx-auto mb-4 flex items-center justify-center">
             <SearchIcon className="w-6 h-6" />
           </div>
           <h3 className="text-lg font-semibold text-white mb-1">{t('analyze.idle.title')}</h3>
           <p className="text-sm text-zinc-500 max-w-md mx-auto mb-6">{t('analyze.idle.desc')}</p>
           {needsReconnect && (
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 max-w-md mx-auto mb-4 text-start">
-              <p className="text-sm font-semibold text-amber-300 mb-1">{t('analyze.reconnect.title')}</p>
-              <p className="text-xs text-amber-200/80 mb-2">{t('analyze.reconnect.desc')}</p>
+            <div className="bg-white/[0.03] border border-white/10 rounded-lg p-3 max-w-md mx-auto mb-4 text-start">
+              <p className="text-sm font-semibold text-white mb-1">{t('analyze.reconnect.title')}</p>
+              <p className="text-xs text-zinc-500 mb-2">{t('analyze.reconnect.desc')}</p>
               <button
                 onClick={() => router.push('/dashboard?section=pages')}
-                className="text-xs font-semibold text-amber-300 hover:text-amber-200 underline"
+                className="px-3 py-1.5 bg-white hover:bg-zinc-100 text-black rounded-lg text-xs font-semibold transition-colors"
               >
                 {t('analyze.reconnect.cta')}
               </button>
@@ -166,7 +166,7 @@ export default function AnalyzePage() {
             <div className="text-sm">
               <span className="text-white font-semibold">{pageName}</span>
               <span className="text-zinc-500"> · {t('analyze.review.scanned').replace('{n}', String(scanned))} · </span>
-              <span className="text-emerald-400">{t('analyze.review.detected').replace('{n}', String(items.length))}</span>
+              <span className="text-zinc-300">{t('analyze.review.detected').replace('{n}', String(items.length))}</span>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -185,7 +185,7 @@ export default function AnalyzePage() {
                 onClick={importToStock}
                 disabled={!canImport}
                 title={!canImport && invalidCount > 0 ? t('analyze.btn.importHint').replace('{n}', String(invalidCount)).replace(/\{plural\}/g, invalidCount > 1 ? 's' : '') : undefined}
-                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-white rounded-lg text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-white hover:bg-zinc-100 text-black rounded-lg text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 {t('analyze.btn.import').replace('{n}', String(selectedCount))}
               </button>
@@ -193,14 +193,14 @@ export default function AnalyzePage() {
           </div>
 
           {warning && (
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-sm text-amber-300">
+            <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-sm text-white font-medium">
               {warning}
             </div>
           )}
 
           {invalidCount > 0 && (
-            <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 text-sm text-rose-300 flex items-center gap-2">
-              <AlertIcon className="w-4 h-4 flex-shrink-0" />
+            <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 text-sm text-white font-medium flex items-center gap-2">
+              <AlertIcon className="w-4 h-4 flex-shrink-0 text-zinc-500" />
               <span>
                 {t('analyze.invalid.message')
                   .replace('{n}', String(invalidCount))
@@ -225,8 +225,8 @@ export default function AnalyzePage() {
                       !item.selected
                         ? 'border-white/10 opacity-60'
                         : showErrors
-                        ? 'border-rose-500/40 ring-1 ring-rose-500/20'
-                        : 'border-emerald-500/40 ring-1 ring-emerald-500/20'
+                        ? 'border-white/20 ring-1 ring-white/10'
+                        : 'border-white/30 ring-1 ring-white/10'
                     }`}
                   >
                     <div
@@ -246,7 +246,7 @@ export default function AnalyzePage() {
                         </div>
                       )}
                       {/* Translucent dim on hover so the user knows the card is clickable */}
-                      <div className={`absolute inset-0 transition-colors ${item.selected ? 'bg-emerald-500/0' : 'bg-black/0 group-hover:bg-black/20'}`} />
+                      <div className={`absolute inset-0 transition-colors ${item.selected ? 'bg-black/0' : 'bg-black/0 group-hover:bg-black/20'}`} />
                       {/* Select check — always rendered, regardless of image */}
                       <button
                         type="button"
@@ -254,7 +254,7 @@ export default function AnalyzePage() {
                         aria-label={item.selected ? 'Deselect' : 'Select'}
                         className={`absolute top-2 end-2 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
                           item.selected
-                            ? 'bg-emerald-500 border-emerald-400 text-white shadow-lg shadow-emerald-500/30'
+                            ? 'bg-white border-white text-black shadow-lg shadow-black/30'
                             : 'bg-black/70 border-white/30 text-transparent group-hover:text-white/40 group-hover:border-white/60'
                         }`}
                       >
@@ -271,7 +271,7 @@ export default function AnalyzePage() {
                         placeholder={t('analyze.field.namePh')}
                         className={`w-full bg-transparent border-b text-sm font-semibold text-white px-1 py-1 focus:outline-none ${
                           showErrors && errs.includes('name')
-                            ? 'border-rose-500/60 focus:border-rose-400'
+                            ? 'border-white/40 focus:border-white/60'
                             : 'border-white/10 focus:border-white/30'
                         }`}
                       />
@@ -286,7 +286,7 @@ export default function AnalyzePage() {
                         <div>
                           <label className="text-[10px] uppercase tracking-wider text-zinc-500 flex items-center gap-1">
                             {t('analyze.field.price')}
-                            <span className="text-rose-400">*</span>
+                            <span className="text-zinc-500">*</span>
                           </label>
                           <input
                             type="number"
@@ -296,7 +296,7 @@ export default function AnalyzePage() {
                             placeholder="0"
                             className={`w-full mt-1 bg-black/30 border rounded-md text-xs text-white px-2 py-1.5 focus:outline-none ${
                               showErrors && errs.includes('price')
-                                ? 'border-rose-500/60 focus:border-rose-400'
+                                ? 'border-white/40 focus:border-white/60'
                                 : 'border-white/10 focus:border-white/30'
                             }`}
                           />
@@ -304,7 +304,7 @@ export default function AnalyzePage() {
                         <div>
                           <label className="text-[10px] uppercase tracking-wider text-zinc-500 flex items-center gap-1">
                             {t('analyze.field.stock')}
-                            <span className="text-rose-400">*</span>
+                            <span className="text-zinc-500">*</span>
                           </label>
                           <input
                             type="number"
@@ -314,15 +314,15 @@ export default function AnalyzePage() {
                             placeholder="0"
                             className={`w-full mt-1 bg-black/30 border rounded-md text-xs text-white px-2 py-1.5 focus:outline-none ${
                               showErrors && errs.includes('stock')
-                                ? 'border-rose-500/60 focus:border-rose-400'
+                                ? 'border-white/40 focus:border-white/60'
                                 : 'border-white/10 focus:border-white/30'
                             }`}
                           />
                         </div>
                       </div>
                       {showErrors && (
-                        <p className="text-[11px] text-rose-300 flex items-center gap-1">
-                          <AlertIcon className="w-3 h-3 flex-shrink-0" />
+                        <p className="text-[11px] text-zinc-300 flex items-center gap-1">
+                          <AlertIcon className="w-3 h-3 flex-shrink-0 text-zinc-500" />
                           <span>{t('analyze.field.errorHint').replace('{fields}', errs.join(', '))}</span>
                         </p>
                       )}
@@ -350,8 +350,8 @@ export default function AnalyzePage() {
       )}
 
       {phase === 'done' && importResult && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-6 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-400 mx-auto mb-3 flex items-center justify-center">
+        <div className="bg-zinc-900/40 border border-white/10 rounded-xl p-6 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-white/5 text-zinc-300 mx-auto mb-3 flex items-center justify-center">
             <CheckCircleIcon className="w-7 h-7" />
           </div>
           <h3 className="text-lg font-semibold text-white mb-1">{t('analyze.done.title').replace('{n}', String(importResult.created))}</h3>

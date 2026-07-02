@@ -87,7 +87,7 @@ function SupplierAutocomplete({
           onKeyDown={handleKeyDown}
           placeholder="Search supplier by name or phone..."
           className={`w-full pl-10 pr-4 py-2.5 bg-black border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-white/20 ${
-            selectedSupplier ? 'border-violet-500/40 text-violet-400' : 'border-white/10 text-white placeholder-zinc-500'
+            selectedSupplier ? 'border-white/30 text-white' : 'border-white/10 text-white placeholder-zinc-500'
           }`}
         />
         {selectedSupplier && (
@@ -118,7 +118,7 @@ function SupplierAutocomplete({
                   setOpen(false);
                 }}
               >
-                <div className="w-8 h-8 rounded-full bg-violet-500/20 text-violet-400 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-white/5 text-zinc-300 flex items-center justify-center text-xs font-bold flex-shrink-0">
                   {s.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -434,7 +434,7 @@ export default function NewPurchasePage() {
                             {(item.quantity * item.unitCost).toLocaleString()} DA
                           </td>
                           <td className="px-2 py-2.5">
-                            <button type="button" onClick={() => removeItem(idx)} className="p-1 text-zinc-500 hover:text-red-400 transition-colors">
+                            <button type="button" onClick={() => removeItem(idx)} className="p-1 text-zinc-500 hover:text-white transition-colors">
                               <TrashIcon className="w-4 h-4" />
                             </button>
                           </td>
@@ -496,28 +496,27 @@ export default function NewPurchasePage() {
 
               {/* Remaining / Debt */}
               {remaining > 0 && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-center">
-                  <p className="text-xs text-red-400 mb-0.5">Remaining (Debt)</p>
-                  <p className="text-xl font-bold text-red-400">{remaining.toLocaleString()} DA</p>
+                <div className="bg-white/[0.03] border border-white/10 rounded-lg p-3 text-center">
+                  <p className="text-xs text-zinc-500 mb-0.5">Remaining (Debt)</p>
+                  <p className="text-xl font-bold text-white">{remaining.toLocaleString()} DA</p>
                 </div>
               )}
               {remaining <= 0 && purchaseTotal > 0 && (
-                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-center">
-                  <p className="text-xs text-emerald-400 mb-0.5">Fully Paid</p>
-                  <p className="text-xl font-bold text-emerald-400">0 DA</p>
+                <div className="bg-white/[0.03] border border-white/10 rounded-lg p-3 text-center">
+                  <p className="text-xs text-zinc-500 mb-0.5">Fully Paid</p>
+                  <p className="text-xl font-bold text-white">0 DA</p>
                 </div>
               )}
 
               {/* Status indicator */}
               <div className="flex items-center justify-between text-sm">
                 <span className="text-zinc-400">Status</span>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                  paymentStatus === 'paid'
-                    ? 'bg-emerald-500/20 text-emerald-400'
-                    : paymentStatus === 'partial'
-                      ? 'bg-amber-500/20 text-amber-400'
-                      : 'bg-red-500/20 text-red-400'
-                }`}>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
+                  {paymentStatus === 'paid' ? (
+                    <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                  ) : (
+                    <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
+                  )}
                   {paymentStatus === 'paid' ? 'Paid' : paymentStatus === 'partial' ? 'Partial' : 'Pending'}
                 </span>
               </div>
