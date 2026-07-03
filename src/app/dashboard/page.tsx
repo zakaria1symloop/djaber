@@ -86,6 +86,7 @@ function DashboardPageInner() {
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState<string | null>(null);
   const [activePlatformTab, setActivePlatformTab] = useState('all');
   const [generateAgentFor, setGenerateAgentFor] = useState<{ id: string; name: string } | null>(null);
+  const [cardsRefreshToken, setCardsRefreshToken] = useState(0);
   const [stockMode, setStockMode] = useState<'simple' | 'advanced'>('simple');
   const activeSection = searchParams.get('section') || 'overview';
 
@@ -484,7 +485,7 @@ function DashboardPageInner() {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {filteredPages.map((page) => (
                     <PageDashboardCard
-                      key={page.id}
+                      key={`${page.id}-${cardsRefreshToken}`}
                       page={page}
                       onConfigure={() => router.push(`/dashboard/page/${page.id}`)}
                       onStock={() => router.push(`/dashboard/page/${page.id}/stock`)}
@@ -543,7 +544,11 @@ function DashboardPageInner() {
               pageName={generateAgentFor.name}
               isOpen={!!generateAgentFor}
               onClose={() => setGenerateAgentFor(null)}
-              onApplied={() => setGenerateAgentFor(null)}
+              onApplied={() => {
+                setGenerateAgentFor(null);
+                // Remount the cards so the new agent shows without a manual reload
+                setCardsRefreshToken((n) => n + 1);
+              }}
             />
           )}
         </>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { FacebookIcon, InstagramIcon, BoxIcon, SettingsIcon, ChatIcon, CloseIcon } from '@/components/ui';
 import { SparklesIcon, RefreshIcon } from '@/components/ui/icons';
 import { getPageSummary, type PageSummary } from '@/lib/page-config-api';
@@ -17,6 +18,7 @@ interface Props {
 
 export default function PageDashboardCard({ page, onConfigure, onStock, onInbox, onGenerateAgent, onDisconnect }: Props) {
   const { t } = useTranslation();
+  const router = useRouter();
   const [summary, setSummary] = useState<PageSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [imgError, setImgError] = useState(false);
@@ -143,12 +145,22 @@ export default function PageDashboardCard({ page, onConfigure, onStock, onInbox,
               </>
             )}
           </div>
-          <button
-            onClick={onGenerateAgent}
-            className="text-[11px] font-semibold px-2.5 py-1.5 bg-white text-black hover:bg-zinc-200 rounded-lg whitespace-nowrap transition-colors"
-          >
-            {agent?.enabled && agent.hasInstructions ? t('pageCard.agent.regenerate') : t('pageCard.agent.generate')}
-          </button>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {agent?.id && (
+              <button
+                onClick={() => router.push(`/dashboard/agents/${agent.id}/edit`)}
+                className="text-[11px] font-semibold px-2.5 py-1.5 border border-white/10 hover:border-white/25 text-zinc-300 hover:text-white rounded-lg whitespace-nowrap transition-colors"
+              >
+                {t('pageCard.agent.edit', 'Edit')}
+              </button>
+            )}
+            <button
+              onClick={onGenerateAgent}
+              className="text-[11px] font-semibold px-2.5 py-1.5 bg-white text-black hover:bg-zinc-200 rounded-lg whitespace-nowrap transition-colors"
+            >
+              {agent?.enabled && agent.hasInstructions ? t('pageCard.agent.regenerate') : t('pageCard.agent.generate')}
+            </button>
+          </div>
         </div>
 
         {/* Action row */}

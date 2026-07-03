@@ -207,7 +207,7 @@ export interface PageSummary {
   conversations: { total: number; active: number; resolved: number; archived: number; unread: number };
   messages: { last7d: number; last24h: number; incoming7d: number; outgoing7d: number };
   products: number;
-  agent: { enabled: boolean; autoReply: boolean; personality: string | null; hasInstructions: boolean };
+  agent: { id: string | null; name: string | null; enabled: boolean; autoReply: boolean; personality: string | null; hasInstructions: boolean };
   lastActivity: string | null;
 }
 

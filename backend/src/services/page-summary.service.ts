@@ -25,6 +25,8 @@ export interface PageSummary {
   };
   products: number;
   agent: {
+    id: string | null;
+    name: string | null;
     enabled: boolean;
     autoReply: boolean;
     personality: string | null;
@@ -94,6 +96,13 @@ export async function getPageSummary(pageId: string, userId: string): Promise<Pa
     }),
   ]);
 
+  // The REAL agent for this page (AgentPage link) — this is what the webhook
+  // actually uses. PageAISettings is the legacy mirror, kept as fallback.
+  const agentPage = await prisma.agentPage.findUnique({
+    where: { pageId },
+    include: { agent: { select: { id: true, name: true, isActive: true, personality: true, customInstructions: true } } },
+  });
+
   const unread = activeConversations.filter((c) => c.messages[0] && !c.messages[0].isFromPage).length;
 
   // FB page picture URL — `redirect=false` would require an extra Graph call,
@@ -126,12 +135,23 @@ export async function getPageSummary(pageId: string, userId: string): Promise<Pa
       outgoing7d,
     },
     products: productCount,
-    agent: {
-      enabled: page.aiSettings?.aiEnabled ?? false,
-      autoReply: page.aiSettings?.autoReply ?? false,
-      personality: page.aiSettings?.aiPersonality ?? null,
-      hasInstructions: !!(page.aiSettings?.customInstructions && page.aiSettings.customInstructions.trim().length > 0),
-    },
+    agent: agentPage?.agent
+      ? {
+          id: agentPage.agent.id,
+          name: agentPage.agent.name,
+          enabled: agentPage.agent.isActive,
+          autoReply: agentPage.agent.isActive,
+          personality: agentPage.agent.personality,
+          hasInstructions: !!(agentPage.agent.customInstructions && agentPage.agent.customInstructions.trim().length > 0),
+        }
+      : {
+          id: null,
+          name: null,
+          enabled: page.aiSettings?.aiEnabled ?? false,
+          autoReply: page.aiSettings?.autoReply ?? false,
+          personality: page.aiSettings?.aiPersonality ?? null,
+          hasInstructions: !!(page.aiSettings?.customInstructions && page.aiSettings.customInstructions.trim().length > 0),
+        },
     lastActivity: latestMessage?.timestamp ?? null,
   };
 }
