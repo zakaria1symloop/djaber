@@ -7,7 +7,7 @@ import AgentForm from '../../_components/AgentForm';
 export default function EditAgentPage() {
   const params = useParams();
   return (
-    <Suspense fallback={<div className="max-w-6xl mx-auto text-zinc-400 text-sm">Loading…</div>}>
+    <Suspense fallback={<div className="w-full text-zinc-400 text-sm">Loading…</div>}>
       <AgentForm agentId={params.agentId as string} />
     </Suspense>
   );

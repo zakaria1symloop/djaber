@@ -66,7 +66,10 @@ export default function DashboardPage() {
 
 function ChannelStat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="bg-zinc-950 px-4 py-3.5">
+    // Solid #0c0c0e = zinc-900/50 composited over the black page background,
+    // so the band matches every other card surface (translucency would let
+    // the hairline gap color bleed through).
+    <div className="bg-[#0c0c0e] px-4 py-3.5">
       <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1">{label}</p>
       <p className="text-xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{value}</p>
     </div>

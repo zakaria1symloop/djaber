@@ -47,7 +47,7 @@ export default function PageDashboardCard({ page, onConfigure, onStock, onInbox,
   const lastActivity = summary?.lastActivity ? formatRelative(new Date(summary.lastActivity), t) : t('pageCard.lastActivity.none');
 
   return (
-    <div className="bg-zinc-900/40 border border-white/10 rounded-2xl hover:border-white/20 transition-colors">
+    <div className="bg-zinc-900/50 border border-white/10 rounded-2xl hover:border-white/20 transition-colors">
       <div className="p-5">
         {/* Identity row */}
         <div className="flex items-start justify-between gap-3 mb-5">

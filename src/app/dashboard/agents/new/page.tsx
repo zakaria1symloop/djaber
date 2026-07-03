@@ -36,7 +36,7 @@ export default function NewAgentPage() {
   }
 
   return (
-    <Suspense fallback={<div className="max-w-6xl mx-auto text-zinc-400 text-sm">Loading…</div>}>
+    <Suspense fallback={<div className="w-full text-zinc-400 text-sm">Loading…</div>}>
       <AgentForm />
     </Suspense>
   );

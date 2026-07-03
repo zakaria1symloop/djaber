@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui';
 import { getAgentTemplate } from '@/lib/agent-templates';
+import { costPer1000Label } from '@/lib/model-pricing';
 import {
   BotIcon,
   ChevronLeftIcon,
@@ -232,7 +233,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
 
   if (loadingAgent) {
     return (
-      <div className="max-w-6xl mx-auto">
+      <div className="w-full">
         <div className="animate-pulse space-y-6">
           <div className="h-8 bg-zinc-800 rounded w-48" />
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -245,7 +246,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <button
@@ -562,6 +563,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                     <div className="grid grid-cols-2 gap-2">
                       {group.models.map((modelId) => {
                         const info = modelLabels[modelId] || { label: modelId, desc: '' };
+                        const priceLabel = costPer1000Label(modelId);
                         return (
                           <button
                             key={modelId}
@@ -573,7 +575,14 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                                 : 'bg-black/30 border-white/5 text-zinc-400 hover:border-white/15'
                             }`}
                           >
-                            <p className="font-medium text-sm">{info.label}</p>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="font-medium text-sm">{info.label}</p>
+                              {priceLabel && (
+                                <span className="text-[10px] font-mono text-zinc-500 whitespace-nowrap pt-0.5">
+                                  {priceLabel}
+                                </span>
+                              )}
+                            </div>
                             {info.desc && <p className="text-xs text-zinc-500 mt-0.5">{info.desc}</p>}
                           </button>
                         );
