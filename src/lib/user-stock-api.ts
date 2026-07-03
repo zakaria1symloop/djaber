@@ -887,7 +887,7 @@ export async function getCreditStatus(): Promise<{ used: number; limit: number; 
   return apiRequest('/api/credits');
 }
 
-export async function getPublicPlans(): Promise<{ plans: Array<{ id: string; slug: string; name: string; description: string | null; priceMonthly: string; priceYearly: string; currency: string; maxPages: number; maxAgents: number; maxProducts: number; maxConversations: number; maxTeamMembers: number; features: string[]; isFeatured: boolean }> }> {
+export async function getPublicPlans(): Promise<{ plans: Array<{ id: string; slug: string; name: string; description: string | null; priceMonthly: string; priceYearly: string; currency: string; maxPages: number; maxAgents: number; maxProducts: number; maxConversations: number; maxTeamMembers: number; monthlyCredits?: number; features: string[]; isFeatured: boolean }> }> {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:6001';
   const res = await fetch(`${API_URL}/api/plans`);
   if (!res.ok) throw new Error('Failed to fetch plans');

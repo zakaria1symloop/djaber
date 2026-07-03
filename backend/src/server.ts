@@ -220,6 +220,7 @@ app.get('/api/plans', async (_req: Request, res: Response) => {
         priceMonthly: true, priceYearly: true, currency: true,
         maxPages: true, maxAgents: true, maxProducts: true,
         maxConversations: true, maxTeamMembers: true,
+        monthlyCredits: true,
         features: true, isFeatured: true,
       },
     });

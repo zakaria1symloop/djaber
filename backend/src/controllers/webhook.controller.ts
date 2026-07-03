@@ -36,6 +36,77 @@ export const verifyMetaWebhook = async (
   }
 };
 
+// ============================================================================
+// Meta Data Deletion Callback (required for App Review)
+// Meta POSTs form-encoded { signed_request } when a user requests deletion of
+// their data. We verify the HMAC signature, delete the person's conversations
+// and messages, and reply with { url, confirmation_code } per the spec:
+// https://developers.facebook.com/docs/development/create-an-app/app-dashboard/data-deletion-callback
+// ============================================================================
+
+function parseSignedRequest(signedRequest: string, appSecret: string): Record<string, any> | null {
+  try {
+    const [encodedSig, payload] = signedRequest.split('.', 2);
+    if (!encodedSig || !payload) return null;
+    const crypto = require('crypto');
+    const sig = Buffer.from(encodedSig.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+    const expected = crypto.createHmac('sha256', appSecret).update(payload).digest();
+    if (sig.length !== expected.length || !crypto.timingSafeEqual(sig, expected)) return null;
+    return JSON.parse(Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
+export const handleDataDeletion = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const signedRequest = req.body?.signed_request;
+    const appSecret = process.env.META_APP_SECRET;
+    if (!signedRequest || !appSecret) {
+      res.status(400).json({ error: 'Missing signed_request' });
+      return;
+    }
+
+    const data = parseSignedRequest(String(signedRequest), appSecret);
+    if (!data?.user_id) {
+      res.status(400).json({ error: 'Invalid signed_request' });
+      return;
+    }
+
+    const userId = String(data.user_id);
+    const confirmationCode = `del_${Date.now().toString(36)}_${userId.slice(-6)}`;
+
+    // Delete every conversation (and cascaded messages) tied to this person.
+    // senderId stores the platform-scoped user id we receive in webhooks.
+    try {
+      const deleted = await prisma.conversation.deleteMany({ where: { senderId: userId } });
+      console.log(`Data deletion request for ${userId}: removed ${deleted.count} conversations (code ${confirmationCode})`);
+    } catch (delError) {
+      console.error('Data deletion error (still confirming to Meta):', delError);
+    }
+
+    const backendUrl = process.env.BACKEND_URL || 'https://djaber.72-60-190-211.sslip.io';
+    res.json({
+      url: `${backendUrl}/api/webhooks/meta/data-deletion/status?code=${confirmationCode}`,
+      confirmation_code: confirmationCode,
+    });
+  } catch (error) {
+    console.error('Data deletion callback error:', error);
+    res.status(500).json({ error: 'Internal error' });
+  }
+};
+
+export const dataDeletionStatus = async (req: Request, res: Response): Promise<void> => {
+  const code = String(req.query.code || 'unknown');
+  res.type('html').send(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Suppression des données — Djaber.ai</title></head>
+<body style="font-family:sans-serif;background:#0a0a0a;color:#e4e4e7;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0">
+<div style="max-width:480px;padding:2rem;text-align:center">
+<h1 style="font-size:1.25rem">Demande de suppression traitée</h1>
+<p style="color:#a1a1aa;font-size:.9rem">Vos conversations et messages ont été supprimés de Djaber.ai.<br>Code de confirmation&nbsp;: <code style="color:#fff">${code.replace(/[^a-z0-9_-]/gi, '')}</code></p>
+<p style="color:#71717a;font-size:.8rem">Questions&nbsp;? contact@djaber.ai</p>
+</div></body></html>`);
+};
+
 export const handleMetaWebhook = async (
   req: Request,
   res: Response

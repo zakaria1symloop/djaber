@@ -33,6 +33,8 @@ import {
 } from '@/components/ui';
 import { getUnreadCount } from '@/lib/notifications-api';
 import { getCreditStatus } from '@/lib/user-stock-api';
+import { CalculatorIcon } from '@/components/ui/icons';
+import CreditCalculator from '@/components/CreditCalculator';
 import { FilterPanelProvider, useFilterPanel } from '@/contexts/FilterPanelContext';
 import { useTranslation } from '@/contexts/LanguageContext';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
@@ -105,6 +107,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [urgentAlert, setUrgentAlert] = useState(false);
+  const [showCalculator, setShowCalculator] = useState(false);
   const prevUnreadRef = useRef(0);
   const [stockMode, setStockMode] = useState<'simple' | 'advanced'>('simple');
   const [credits, setCredits] = useState<{ used: number; limit: number; remaining: number; percentage: number } | null>(null);
@@ -499,6 +502,15 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                 </div>
               )}
 
+              {/* Credit calculator */}
+              <button
+                onClick={() => setShowCalculator(true)}
+                className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
+                title="Credit calculator"
+              >
+                <CalculatorIcon className="w-5 h-5" />
+              </button>
+
               {/* Bell icon with unread indicator */}
               <button
                 onClick={() => {
@@ -572,6 +584,9 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
+
+      {/* Credit calculator modal */}
+      <CreditCalculator isOpen={showCalculator} onClose={() => setShowCalculator(false)} />
 
       {/* Click-outside overlay to close filter panel */}
       {filterPanelOpen && (
