@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePages } from '@/contexts/PagesContext';
@@ -564,6 +565,12 @@ function DashboardPageInner() {
               <p className="text-zinc-400">Performance overview for your business</p>
             </div>
             <div className="flex items-center gap-2">
+              <Link
+                href="/dashboard/analytics"
+                className="px-3 py-2 text-xs font-medium text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors whitespace-nowrap"
+              >
+                Deep analytics
+              </Link>
               <PeriodSelector value={analyticsPeriod} onChange={setAnalyticsPeriod} />
               <button
                 onClick={loadAnalytics}

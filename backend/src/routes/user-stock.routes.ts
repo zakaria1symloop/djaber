@@ -138,6 +138,12 @@ import {
   updateRecommendation,
   deleteRecommendation,
 } from '../controllers/user-cross-sell.controller';
+import {
+  getProductsAnalytics,
+  getChannelsAnalytics,
+  getAgentsAnalytics,
+  getOrdersAnalytics,
+} from '../controllers/user-analytics.controller';
 import { uploadProductImages } from '../config/upload';
 
 const router = Router();
@@ -295,6 +301,14 @@ router.get('/cross-sell/product/:productId', getProductRecommendations);
 router.post('/cross-sell/generate', generateRecommendationsEndpoint);
 router.put('/cross-sell/:id', updateRecommendation);
 router.delete('/cross-sell/:id', deleteRecommendation);
+
+// ============================================================================
+// Deep Analytics (contract: src/lib/analytics-api.ts)
+// ============================================================================
+router.get('/analytics/products', getProductsAnalytics);
+router.get('/analytics/channels', getChannelsAnalytics);
+router.get('/analytics/agents', getAgentsAnalytics);
+router.get('/analytics/orders', getOrdersAnalytics);
 
 // ============================================================================
 // Caisse (Cash Register)
