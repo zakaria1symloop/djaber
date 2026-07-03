@@ -8,6 +8,9 @@ import path from 'path';
 // Validation helpers
 // ============================================================================
 
+// Thrown inside stock transactions and mapped to a 400 response
+class StockAdjustError extends Error {}
+
 function validateNonNegativeNumber(value: any, name: string): number | null {
   if (value === undefined || value === null || value === '') return null;
   const num = Number(value);
@@ -194,7 +197,7 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
     }
 
     const {
-      categoryId, search, lowStock, limit = '50', offset = '0',
+      categoryId, categoryIds, search, lowStock, limit = '50', offset = '0',
       minPrice, maxPrice, minCost, maxCost, minQty, maxQty, isActive,
       minProfit, maxProfit, minMargin, maxMargin,
       sortBy = 'createdAt', sortOrder = 'desc',
@@ -209,7 +212,13 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       where.isActive = false;
     }
 
-    if (categoryId) {
+    // Multi-category filter (CSV) takes precedence over the single categoryId
+    if (categoryIds) {
+      const ids = String(categoryIds).split(',').map((s) => s.trim()).filter(Boolean);
+      if (ids.length > 0) {
+        where.categoryId = { in: ids };
+      }
+    } else if (categoryId) {
       where.categoryId = categoryId as string;
     }
 
@@ -272,6 +281,14 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       unitRef: { select: { id: true, name: true, abbreviation: true } },
       images: { orderBy: { sortOrder: 'asc' as const }, take: 1, where: { isPrimary: true } },
       expenses: { select: { id: true, amount: true, isPerUnit: true, category: true, description: true } },
+      // Active variant rows are required by the order/sale variant pickers —
+      // without them hasVariants products are unsellable (backend rejects
+      // variant-less lines per the P2 stock policy).
+      variants: {
+        where: { isActive: true },
+        select: { id: true, name: true, sku: true, sellingPrice: true, costPrice: true, quantity: true, minQuantity: true, isActive: true },
+        orderBy: { name: 'asc' as const },
+      },
       _count: { select: { variants: true } },
     };
 
@@ -624,41 +641,77 @@ export const adjustStock = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Calculate new quantity
-    let newQuantity = product.quantity;
-    if (type === 'in') {
-      newQuantity += quantity;
-    } else if (type === 'out') {
-      newQuantity -= quantity;
-      if (newQuantity < 0) {
-        res.status(400).json({ error: 'Insufficient stock' });
-        return;
-      }
-    } else {
-      // Adjustment - set to exact quantity
-      newQuantity = quantity;
+    const numQuantity = Number(quantity);
+    if (isNaN(numQuantity) || numQuantity < 0) {
+      res.status(400).json({ error: 'Quantity must be a non-negative number' });
+      return;
     }
 
-    // Update product and create movement
-    const [updatedProduct, movement] = await prisma.$transaction([
-      prisma.product.update({
-        where: { id: productId },
-        data: { quantity: newQuantity },
-      }),
-      prisma.stockMovement.create({
+    // Apply the change atomically inside the transaction — no outside-read,
+    // so concurrent adjustments can neither oversell nor corrupt the ledger
+    // delta. The hasVariants guard is repeated in the where clauses so it
+    // cannot go stale between the check above and the write.
+    const [updatedProduct, movement] = await prisma.$transaction(async (tx) => {
+      let movementQuantity: number;
+
+      if (type === 'in') {
+        const inc = await tx.product.updateMany({
+          where: { id: productId, userId: req.user!.userId, hasVariants: false },
+          data: { quantity: { increment: numQuantity } },
+        });
+        if (inc.count === 0) {
+          throw new StockAdjustError('This product has variants. Adjust stock at the variant level.');
+        }
+        movementQuantity = numQuantity;
+      } else if (type === 'out') {
+        const dec = await tx.product.updateMany({
+          where: { id: productId, userId: req.user!.userId, hasVariants: false, quantity: { gte: numQuantity } },
+          data: { quantity: { decrement: numQuantity } },
+        });
+        if (dec.count === 0) {
+          throw new StockAdjustError('Insufficient stock');
+        }
+        movementQuantity = -numQuantity;
+      } else {
+        // adjustment — set to exact quantity; compute the ledger delta from a
+        // locked read (plain findFirst is a non-locking snapshot read on MySQL)
+        const rows = await tx.$queryRaw<Array<{ quantity: number }>>`
+          SELECT quantity FROM Product
+          WHERE id = ${productId} AND userId = ${req.user!.userId} AND hasVariants = 0
+          FOR UPDATE
+        `;
+        if (rows.length === 0) {
+          throw new StockAdjustError('This product has variants. Adjust stock at the variant level.');
+        }
+        movementQuantity = numQuantity - Number(rows[0].quantity);
+        await tx.product.update({
+          where: { id: productId },
+          data: { quantity: numQuantity },
+        });
+      }
+
+      const mv = await tx.stockMovement.create({
         data: {
-          userId: req.user.userId,
+          userId: req.user!.userId,
           productId,
           type,
-          quantity: type === 'adjustment' ? quantity - product.quantity : (type === 'out' ? -quantity : quantity),
+          quantity: movementQuantity,
           reason,
           notes,
         },
-      }),
-    ]);
+      });
+
+      const p = await tx.product.findUniqueOrThrow({ where: { id: productId } });
+
+      return [p, mv] as const;
+    });
 
     res.json({ product: updatedProduct, movement });
   } catch (error) {
+    if (error instanceof StockAdjustError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     console.error('Adjust stock error:', error);
     res.status(500).json({ error: 'Failed to adjust stock' });
   }
@@ -914,7 +967,8 @@ export const getStockDashboard = async (req: Request, res: Response): Promise<vo
       recentMovements,
       productStats,
       lowStockCount,
-      valueStats,
+      plainValueStats,
+      variantValueStats,
     ] = await Promise.all([
       prisma.product.count({ where: activeWhere }),
       prisma.category.count({ where: { userId: req.user.userId } }),
@@ -934,13 +988,22 @@ export const getStockDashboard = async (req: Request, res: Response): Promise<vo
         SELECT COUNT(*) as count FROM Product
         WHERE userId = ${req.user.userId} AND isActive = 1 AND quantity <= minQuantity
       `,
-      // Stock & retail value at DB level
+      // Stock & retail value — variant-less products at parent qty × parent prices
       prisma.$queryRaw<[{ stockValue: number; retailValue: number }]>`
         SELECT
           COALESCE(SUM(quantity * costPrice), 0) as stockValue,
           COALESCE(SUM(quantity * sellingPrice), 0) as retailValue
         FROM Product
-        WHERE userId = ${req.user.userId} AND isActive = 1
+        WHERE userId = ${req.user.userId} AND isActive = 1 AND hasVariants = 0
+      `,
+      // Variant products valued per active variant (variant qty × variant prices)
+      prisma.$queryRaw<[{ stockValue: number; retailValue: number }]>`
+        SELECT
+          COALESCE(SUM(v.quantity * v.costPrice), 0) as stockValue,
+          COALESCE(SUM(v.quantity * v.sellingPrice), 0) as retailValue
+        FROM ProductVariant v
+        JOIN Product p ON p.id = v.productId
+        WHERE p.userId = ${req.user.userId} AND p.isActive = 1 AND p.hasVariants = 1 AND v.isActive = 1
       `,
     ]);
 
@@ -950,8 +1013,10 @@ export const getStockDashboard = async (req: Request, res: Response): Promise<vo
         lowStockProducts: Number(lowStockCount[0]?.count ?? 0),
         totalCategories,
         totalSuppliers,
-        totalStockValue: Number(valueStats[0]?.stockValue ?? 0),
-        totalRetailValue: Number(valueStats[0]?.retailValue ?? 0),
+        totalStockValue:
+          Number(plainValueStats[0]?.stockValue ?? 0) + Number(variantValueStats[0]?.stockValue ?? 0),
+        totalRetailValue:
+          Number(plainValueStats[0]?.retailValue ?? 0) + Number(variantValueStats[0]?.retailValue ?? 0),
         totalItems: productStats._sum.quantity || 0,
       },
       recentMovements,

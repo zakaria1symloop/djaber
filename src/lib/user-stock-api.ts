@@ -146,6 +146,8 @@ export interface SaleItem {
   saleId: string;
   productId: string;
   productName: string;
+  variantId?: string | null;
+  variantName?: string | null;
   quantity: number;
   unitPrice: number;
   discount: number;
@@ -163,6 +165,7 @@ export interface Sale {
   discount: number;
   tax: number;
   total: number;
+  amountPaid: number;
   paymentMethod: string;
   paymentStatus: 'paid' | 'pending' | 'partial';
   notes: string | null;
@@ -176,6 +179,8 @@ export interface PurchaseItem {
   purchaseId: string;
   productId: string;
   productName: string;
+  variantId?: string | null;
+  variantName?: string | null;
   quantity: number;
   receivedQty: number;
   unitCost: number;
@@ -192,6 +197,8 @@ export interface Purchase {
   tax: number;
   shippingCost: number;
   total: number;
+  amountPaid: number;
+  paymentMethod: string;
   paymentStatus: 'paid' | 'pending' | 'partial';
   status: 'pending' | 'received' | 'partial' | 'cancelled';
   notes: string | null;
@@ -275,6 +282,8 @@ export async function deleteCategory(categoryId: string): Promise<{ success: boo
 export async function getProducts(
   params?: {
     categoryId?: string;
+    /** Comma-separated list of category ids for multi-category filtering */
+    categoryIds?: string;
     search?: string;
     lowStock?: boolean;
     limit?: number;
@@ -296,6 +305,7 @@ export async function getProducts(
 ): Promise<{ products: Product[]; total: number }> {
   const query = new URLSearchParams();
   if (params?.categoryId) query.set('categoryId', params.categoryId);
+  if (params?.categoryIds) query.set('categoryIds', params.categoryIds);
   if (params?.search) query.set('search', params.search);
   if (params?.lowStock) query.set('lowStock', 'true');
   if (params?.limit) query.set('limit', params.limit.toString());
@@ -544,11 +554,13 @@ export async function createSale(
   data: {
     customerName?: string;
     customerPhone?: string;
-    items: { productId: string; quantity: number; unitPrice?: number; discount?: number }[];
+    items: { productId: string; quantity: number; unitPrice?: number; discount?: number; variantId?: string; variantName?: string }[];
     discount?: number;
     tax?: number;
+    amountPaid?: number;
     paymentMethod?: string;
     paymentStatus?: string;
+    saleDate?: string;
     notes?: string;
   }
 ): Promise<{ sale: Sale }> {
@@ -560,7 +572,7 @@ export async function createSale(
 
 export async function updateSalePayment(
   saleId: string,
-  data: { paymentStatus?: string; paymentMethod?: string; notes?: string }
+  data: { paymentStatus?: string; paymentMethod?: string; amountPaid?: number; notes?: string }
 ): Promise<{ sale: Sale }> {
   return apiRequest(`/api/user-stock/sales/${saleId}`, {
     method: 'PUT',
@@ -618,11 +630,14 @@ export async function getPurchase(purchaseId: string): Promise<{ purchase: Purch
 export async function createPurchase(
   data: {
     supplierId?: string;
-    items: { productId: string; quantity: number; unitCost?: number }[];
+    items: { productId: string; quantity: number; unitCost?: number; variantId?: string; variantName?: string }[];
     tax?: number;
     shippingCost?: number;
+    amountPaid?: number;
+    paymentMethod?: string;
     paymentStatus?: string;
     status?: string;
+    purchaseDate?: string;
     expectedDate?: string;
     notes?: string;
   }
@@ -658,11 +673,14 @@ export async function receivePurchaseItems(
 }
 
 export async function getPurchaseStats(
-  period?: 'week' | 'month' | 'year'
+  period?: 'today' | 'week' | 'month' | 'year'
 ): Promise<{
   stats: {
     totalPurchases: number;
+    /** Cash actually paid out (SUM of amountPaid over non-cancelled purchases) */
     totalSpent: number;
+    /** Full ordered value (SUM of total over non-cancelled purchases) */
+    committedTotal: number;
     pendingPurchases: number;
     receivedPurchases: number;
   };
@@ -923,6 +941,12 @@ export async function getOrderStats(
     shipped: number;
     delivered: number;
     cancelled: number;
+    returned: number;
+    // Delivery-status breakdown (server-side counts for the delivery page)
+    notSent: number;
+    sent: number;
+    inTransit: number;
+    deliveredDelivery: number;
     averageOrderValue: number;
   };
   topProducts: any[];
@@ -936,6 +960,7 @@ export async function getOrders(
     endDate?: string;
     status?: string;
     paymentStatus?: string;
+    deliveryStatus?: string;
     confirmationStatus?: string;
     search?: string;
     minTotal?: number;
@@ -951,6 +976,7 @@ export async function getOrders(
   if (params?.endDate) query.set('endDate', params.endDate);
   if (params?.status) query.set('status', params.status);
   if (params?.paymentStatus) query.set('paymentStatus', params.paymentStatus);
+  if (params?.deliveryStatus) query.set('deliveryStatus', params.deliveryStatus);
   if (params?.confirmationStatus) query.set('confirmationStatus', params.confirmationStatus);
   if (params?.search) query.set('search', params.search);
   if (params?.minTotal !== undefined) query.set('minTotal', params.minTotal.toString());
@@ -982,6 +1008,7 @@ export async function createOrder(
     paymentStatus?: string;
     status?: string;
     source?: string;
+    orderDate?: string;
     notes?: string;
     wilayaId?: number;
     communeName?: string;

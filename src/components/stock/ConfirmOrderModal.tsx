@@ -103,6 +103,11 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
   const remaining = Math.max(0, Number(order.total) - Number(order.amountPaid));
   const selectedOutcome = OUTCOMES.find((o) => o.value === outcome);
   const isAlreadyConfirmed = order.confirmationStatus === 'confirmed';
+  // Call logging is only meaningful while the order can still be confirmed or
+  // cancelled. Cancelled/returned orders are terminal (resurrection is
+  // forbidden) and shipped/delivered orders are past the confirmation stage —
+  // for those the modal opens in read-only mode: details + call history only.
+  const canLogCall = ['pending', 'confirmed', 'preparing'].includes(order.status);
 
   // Build a human-readable region line: "Commune, Wilaya — Stopdesk".
   // Falls back gracefully when only some pieces are present.
@@ -217,7 +222,8 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
             </div>
           </div>
 
-          {/* Step indicator */}
+          {/* Step indicator — hidden in read-only mode (no call flow to step through) */}
+          {canLogCall && (
           <div className="relative flex items-center gap-1 mt-4">
             {STEP_LABELS.map((label, i) => (
               <div key={label} className="flex items-center gap-1.5 flex-1">
@@ -245,6 +251,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
               </div>
             ))}
           </div>
+          )}
         </div>
 
         {/* Body */}
@@ -252,18 +259,33 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
           {/* STEP 0 — Review */}
           {step === 0 && (
             <>
+              {/* Read-only notice — terminal or already-shipped orders */}
+              {!canLogCall && (
+                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 flex items-start gap-2">
+                  <AlertIcon className="w-3.5 h-3.5 text-zinc-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-zinc-400">
+                    This order is <span className="text-white font-semibold">{prettyStatus(order.status).toLowerCase()}</span> — call logging is disabled.
+                    {(order.status === 'cancelled' || order.status === 'returned') && (
+                      <span> Create a new order to re-sell.</span>
+                    )}
+                  </p>
+                </div>
+              )}
+
               {/* Customer */}
               <SectionCard
                 title="Customer"
                 icon={<PhoneIcon className="w-3.5 h-3.5" />}
                 action={
-                  <button
-                    onClick={() => setEditingContact((v) => !v)}
-                    className="text-[11px] text-zinc-400 hover:text-white transition-colors inline-flex items-center gap-1"
-                  >
-                    <EditIcon className="w-3 h-3" />
-                    {editingContact ? 'Done' : 'Edit'}
-                  </button>
+                  canLogCall ? (
+                    <button
+                      onClick={() => setEditingContact((v) => !v)}
+                      className="text-[11px] text-zinc-400 hover:text-white transition-colors inline-flex items-center gap-1"
+                    >
+                      <EditIcon className="w-3 h-3" />
+                      {editingContact ? 'Done' : 'Edit'}
+                    </button>
+                  ) : undefined
                 }
               >
                 <p className="text-sm font-semibold text-white mb-3">{order.clientName}</p>
@@ -384,9 +406,11 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
 
               {order.calls && order.calls.length > 0 && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Previous attempts</p>
+                  <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">
+                    {canLogCall ? 'Previous attempts' : 'Call history'}
+                  </p>
                   <div className="space-y-1.5">
-                    {order.calls.slice(0, 3).map((call) => (
+                    {(canLogCall ? order.calls.slice(0, 3) : order.calls).map((call) => (
                       <div
                         key={call.id}
                         className="flex items-center gap-2 text-xs bg-white/[0.02] border border-white/5 rounded-lg px-3 py-2"
@@ -519,7 +543,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
             Close
           </button>
           <div className="flex items-center gap-2">
-            {step === 0 && (
+            {step === 0 && canLogCall && (
               <Button
                 size="sm"
                 onClick={() => setStep(1)}

@@ -203,10 +203,12 @@ export default function ProductsPage() {
         sortOrder,
       };
 
-      // Category filter — applied categories or toolbar dropdown
-      if (f.categories.length === 1) {
-        params.categoryId = f.categories[0];
-      } else if (f.categories.length === 0 && categoryFilter) {
+      // Category filter — applied categories (multi-select, sent as a CSV of
+      // ids that the backend resolves with `{ in: [...] }`) or the toolbar
+      // dropdown fallback for a single category.
+      if (f.categories.length >= 1) {
+        params.categoryIds = f.categories.join(',');
+      } else if (categoryFilter) {
         params.categoryId = categoryFilter;
       }
 
@@ -853,12 +855,18 @@ export default function ProductsPage() {
                     const exps = product.expenses || [];
                     const fixedTotal = exps.filter(e => !e.isPerUnit).reduce((s, e) => s + Number(e.amount), 0);
                     const perUnitTotal = exps.filter(e => e.isPerUnit).reduce((s, e) => s + Number(e.amount), 0);
-                    const qty = product.quantity || 1;
-                    const expPerUnit = (fixedTotal / qty) + perUnitTotal;
-                    const trueCost = Number(product.costPrice) + expPerUnit;
+                    // Fixed expenses are allocated over CURRENT stock — an
+                    // approximation kept consistent with the backend
+                    // getProductMargins. With zero stock the per-unit
+                    // allocation is undefined, so true-cost/profit/margin
+                    // render as '—' instead of dividing by zero.
+                    const qty = product.quantity;
+                    const canAllocate = qty > 0 || fixedTotal === 0;
+                    const expPerUnit = canAllocate ? (qty > 0 ? fixedTotal / qty : 0) + perUnitTotal : null;
+                    const trueCost = expPerUnit === null ? null : Number(product.costPrice) + expPerUnit;
                     const sellingPrice = Number(product.sellingPrice);
-                    const netProfit = sellingPrice - trueCost;
-                    const marginPercent = sellingPrice > 0 ? (netProfit / sellingPrice) * 100 : 0;
+                    const netProfit = trueCost === null ? null : sellingPrice - trueCost;
+                    const marginPercent = netProfit === null ? null : sellingPrice > 0 ? (netProfit / sellingPrice) * 100 : 0;
                     return (
                       <React.Fragment key={product.id}>
                       <tr className="border-b border-white/5 hover:bg-white/5 transition-colors">
@@ -898,6 +906,8 @@ export default function ProductsPage() {
                         <td className="px-4 py-3 text-sm text-right">
                           {exps.length === 0 ? (
                             <span className="text-zinc-400">{Number(product.costPrice).toLocaleString()} DA</span>
+                          ) : trueCost === null ? (
+                            <span className="text-zinc-500" title="Out of stock — fixed expenses cannot be allocated per unit">—</span>
                           ) : (
                             <div className="relative group/cost">
                               <div className="flex items-center justify-end gap-1 cursor-help">
@@ -915,7 +925,7 @@ export default function ProductsPage() {
                                     <span className="text-zinc-300">
                                       +{exp.isPerUnit
                                         ? `${Number(exp.amount).toLocaleString()} DA/u`
-                                        : `${(Number(exp.amount) / qty).toLocaleString(undefined, { maximumFractionDigits: 2 })} DA/u (${Number(exp.amount).toLocaleString()} total)`
+                                        : `${(Number(exp.amount) / Math.max(qty, 1)).toLocaleString(undefined, { maximumFractionDigits: 2 })} DA/u (${Number(exp.amount).toLocaleString()} total)`
                                       }
                                     </span>
                                   </div>
@@ -932,14 +942,22 @@ export default function ProductsPage() {
                           {sellingPrice.toLocaleString()} DA
                         </td>
                         <td className="px-4 py-3 text-sm text-right">
-                          <span className={netProfit >= 0 ? 'text-zinc-300' : 'text-zinc-500'}>
-                            {netProfit >= 0 ? '+' : ''}{netProfit.toLocaleString(undefined, { maximumFractionDigits: 2 })} DA
-                          </span>
+                          {netProfit === null ? (
+                            <span className="text-zinc-500">—</span>
+                          ) : (
+                            <span className={netProfit >= 0 ? 'text-zinc-300' : 'text-zinc-500'}>
+                              {netProfit >= 0 ? '+' : ''}{netProfit.toLocaleString(undefined, { maximumFractionDigits: 2 })} DA
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-sm text-center">
-                          <span className={marginPercent >= 0 ? 'text-zinc-300' : 'text-zinc-500'}>
-                            {marginPercent.toFixed(1)}%
-                          </span>
+                          {marginPercent === null ? (
+                            <span className="text-zinc-500">—</span>
+                          ) : (
+                            <span className={marginPercent >= 0 ? 'text-zinc-300' : 'text-zinc-500'}>
+                              {marginPercent.toFixed(1)}%
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-sm text-center">
                           {product.quantity <= product.minQuantity ? (

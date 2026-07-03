@@ -11,13 +11,36 @@ import {
 import { useFilterPanel } from '@/contexts/FilterPanelContext';
 import { useTranslation } from '@/contexts/LanguageContext';
 import {
-  getOrders, deleteOrder, updateOrder,
+  getOrders, getOrderStats, deleteOrder, updateOrder,
   type Order,
 } from '@/lib/user-stock-api';
 import ConfirmOrderModal from '@/components/stock/ConfirmOrderModal';
 
 const LIMIT = 30;
 const DEFAULT_TOTAL_MAX = 1000000;
+
+type OrderStatsData = Awaited<ReturnType<typeof getOrderStats>>['stats'];
+
+// Order-status transition matrix (mirrors the backend-enforced rules):
+// cancelled and returned are terminal, delivered can only be returned.
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  pending: ['confirmed', 'preparing', 'shipped', 'delivered', 'cancelled'],
+  confirmed: ['preparing', 'shipped', 'delivered', 'cancelled'],
+  preparing: ['shipped', 'delivered', 'cancelled'],
+  shipped: ['delivered', 'returned'],
+  delivered: ['returned'],
+  cancelled: [],
+  returned: [],
+};
+
+const BULK_ACTIONS: { status: string; label: string; subtle?: boolean }[] = [
+  { status: 'confirmed', label: 'Confirm all' },
+  { status: 'preparing', label: 'Start preparing all' },
+  { status: 'shipped', label: 'Ship all' },
+  { status: 'delivered', label: 'Mark all delivered' },
+  { status: 'returned', label: 'Mark all returned', subtle: true },
+  { status: 'cancelled', label: 'Cancel all', subtle: true },
+];
 
 // Neutral status pill — the word carries the meaning, the dot marks state:
 // filled = terminal-good, hollow = in-progress, none = dead state.
@@ -49,6 +72,9 @@ function OrdersPageInner() {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Server-aggregated totals for the stat tiles + tab badges — independent
+  // of the current page/tab so they never reflect just the visible 30 rows.
+  const [orderStats, setOrderStats] = useState<OrderStatsData | null>(null);
 
   // Search
   const [search, setSearch] = useState('');
@@ -161,6 +187,17 @@ function OrdersPageInner() {
 
   useEffect(() => { loadOrders(); }, [loadOrders]);
 
+  const loadStats = useCallback(async () => {
+    try {
+      const res = await getOrderStats();
+      setOrderStats(res.stats);
+    } catch {
+      // Non-blocking — tiles keep their last known values
+    }
+  }, []);
+
+  useEffect(() => { loadStats(); }, [loadStats]);
+
   useEffect(() => {
     return () => { setFiltersOpen(false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -219,7 +256,10 @@ function OrdersPageInner() {
     try {
       await updateOrder(orderId, { status: newStatus });
       loadOrders();
-    } catch {}
+      loadStats();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update order');
+    }
   };
 
   const toggleSelect = (id: string) => {
@@ -241,15 +281,23 @@ function OrdersPageInner() {
 
   const handleBulkStatus = async (newStatus: string) => {
     if (selectedIds.size === 0) return;
+    setBulkProcessing(true);
+    setError(null);
     try {
-      setBulkProcessing(true);
-      await Promise.all(
+      // allSettled so one rejected update doesn't hide the others' outcome
+      const results = await Promise.allSettled(
         Array.from(selectedIds).map((id) => updateOrder(id, { status: newStatus }))
       );
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (failed > 0) {
+        setError(`${failed} of ${results.length} orders could not be updated`);
+      }
       setSelectedIds(new Set());
-      loadOrders();
-    } catch {} finally {
+    } finally {
       setBulkProcessing(false);
+      // Reload even on partial failure so successful updates are reflected
+      loadOrders();
+      loadStats();
     }
   };
 
@@ -288,6 +336,7 @@ function OrdersPageInner() {
       await deleteOrder(deleteConfirm.id);
       setOrders(orders.filter((o) => o.id !== deleteConfirm.id));
       setDeleteConfirm(null);
+      loadStats();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete order');
     } finally {
@@ -304,6 +353,7 @@ function OrdersPageInner() {
       await updateOrder(returnConfirm.id, { status: 'returned' });
       setReturnConfirm(null);
       loadOrders();
+      loadStats();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to mark order as returned');
     } finally {
@@ -314,6 +364,7 @@ function OrdersPageInner() {
   const handleConfirmModalChange = (updated: Order) => {
     setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
     setConfirmingOrder(updated);
+    loadStats();
   };
 
   // Decide a row's start-border accent — a single neutral marker for rows that
@@ -338,13 +389,31 @@ function OrdersPageInner() {
     return { label: 'Open', tone: 'zinc' };
   };
 
-  // Compute stats from loaded orders
-  const stats = {
-    total: total,
-    pending: orders.filter((o) => o.status === 'pending').length,
-    notCalled: orders.filter((o) => o.confirmationStatus === 'not_called').length,
-    totalValue: orders.reduce((sum, o) => sum + Number(o.total), 0),
+  // Server-side count for a status tab (from getOrderStats), so badges and
+  // tiles never reflect just the 30 rows currently loaded.
+  const statusCountFor = (status: string): number | null => {
+    if (!orderStats) return null;
+    switch (status) {
+      case '': return orderStats.totalOrders;
+      case 'pending': return orderStats.pending;
+      case 'confirmed': return orderStats.confirmed;
+      case 'preparing': return orderStats.preparing;
+      case 'shipped': return orderStats.shipped;
+      case 'delivered': return orderStats.delivered;
+      case 'cancelled': return orderStats.cancelled;
+      case 'returned': return orderStats.returned;
+      default: return null;
+    }
   };
+
+  // Bulk actions = intersection of the transitions allowed for every selected
+  // order's status (terminal statuses contribute an empty set, so e.g. a
+  // cancelled row in the selection removes every bulk action).
+  const selectedOrders = orders.filter((o) => selectedIds.has(o.id));
+  const bulkAllowed = selectedOrders.reduce<string[]>((acc, o, i) => {
+    const allowed = ALLOWED_TRANSITIONS[o.status] || [];
+    return i === 0 ? allowed : acc.filter((s) => allowed.includes(s));
+  }, []);
 
   return (
     <div className="relative">
@@ -400,30 +469,32 @@ function OrdersPageInner() {
         </div>
       )}
 
-      {/* Stats */}
+      {/* Stats — server aggregates from getOrderStats, never the current page */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
           <p className="text-xs text-zinc-500">{t('stock.orders.stat.totalOrders')}</p>
-          <p className="text-2xl font-bold text-white mt-1">{stats.total}</p>
+          <p className="text-2xl font-bold text-white mt-1">{orderStats ? orderStats.totalOrders : '—'}</p>
         </div>
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
           <p className="text-xs text-zinc-500">{t('stock.orders.stat.pending')}</p>
-          <p className="text-2xl font-bold text-white mt-1">{stats.pending}</p>
+          <p className="text-2xl font-bold text-white mt-1">{orderStats ? orderStats.pending : '—'}</p>
         </div>
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
-          <p className="text-xs text-zinc-500">{t('stock.orders.stat.needCalling')}</p>
-          <p className="text-2xl font-bold text-white mt-1">{stats.notCalled}</p>
+          <p className="text-xs text-zinc-500">{t('stock.common.delivered')}</p>
+          <p className="text-2xl font-bold text-white mt-1">{orderStats ? orderStats.delivered : '—'}</p>
         </div>
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
           <p className="text-xs text-zinc-500">{t('stock.orders.stat.totalValue')}</p>
-          <p className="text-2xl font-bold text-white mt-1">{stats.totalValue.toLocaleString()} <span className="text-sm text-zinc-400">DA</span></p>
+          <p className="text-2xl font-bold text-white mt-1">
+            {orderStats ? Number(orderStats.totalRevenue).toLocaleString() : '—'}{' '}
+            <span className="text-sm text-zinc-400">DA</span>
+          </p>
         </div>
       </div>
 
       {/* Status tabs */}
       <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-1 inline-flex flex-wrap gap-1">
         {ORDER_STATUSES.map((s) => {
-          const count = s.value ? orders.filter((o) => o.status === s.value).length : total;
           return (
             <button
               key={s.value}
@@ -436,7 +507,11 @@ function OrdersPageInner() {
             >
               {s.label}
               {s.value === statusTab && statusTab && (
-                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-black/10 text-[10px]">{orders.length}</span>
+                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-black/10 text-[10px]">
+                  {/* Server count for the status — fall back to the list total
+                      (which is server-side too) until stats load */}
+                  {statusCountFor(statusTab) ?? total}
+                </span>
               )}
             </button>
           );
@@ -470,50 +545,34 @@ function OrdersPageInner() {
             <span className="text-sm text-white font-medium">
               {selectedIds.size} order{selectedIds.size !== 1 ? 's' : ''} selected
             </span>
-            <div className="flex items-center gap-2">
-              {statusTab === 'pending' && (
-                <button
-                  onClick={() => handleBulkStatus('confirmed')}
-                  disabled={bulkProcessing}
-                  className="px-3 py-1.5 text-xs font-medium bg-white text-black hover:bg-zinc-200 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {bulkProcessing ? 'Processing…' : 'Confirm all'}
-                </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Only transitions valid for EVERY selected order are offered
+                  (P1 matrix intersection) — e.g. no 'Cancel all' when the
+                  selection contains shipped/delivered/returned/cancelled rows. */}
+              {(() => {
+                let primaryUsed = false;
+                return BULK_ACTIONS.filter((a) => bulkAllowed.includes(a.status)).map((a) => {
+                  const primary = !a.subtle && !primaryUsed;
+                  if (primary) primaryUsed = true;
+                  return (
+                    <button
+                      key={a.status}
+                      onClick={() => handleBulkStatus(a.status)}
+                      disabled={bulkProcessing}
+                      className={
+                        primary
+                          ? 'px-3 py-1.5 text-xs font-medium bg-white text-black hover:bg-zinc-200 rounded-lg transition-colors disabled:opacity-50'
+                          : 'px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white border border-white/10 hover:border-white/20 rounded-lg transition-colors disabled:opacity-50'
+                      }
+                    >
+                      {bulkProcessing ? 'Processing…' : a.label}
+                    </button>
+                  );
+                });
+              })()}
+              {bulkAllowed.length === 0 && (
+                <span className="text-xs text-zinc-500">No bulk action available for this selection</span>
               )}
-              {statusTab === 'confirmed' && (
-                <button
-                  onClick={() => handleBulkStatus('preparing')}
-                  disabled={bulkProcessing}
-                  className="px-3 py-1.5 text-xs font-medium bg-white text-black hover:bg-zinc-200 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {bulkProcessing ? 'Processing…' : 'Start preparing all'}
-                </button>
-              )}
-              {statusTab === 'preparing' && (
-                <button
-                  onClick={() => handleBulkStatus('shipped')}
-                  disabled={bulkProcessing}
-                  className="px-3 py-1.5 text-xs font-medium bg-white text-black hover:bg-zinc-200 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {bulkProcessing ? 'Processing…' : 'Ship all'}
-                </button>
-              )}
-              {statusTab === 'shipped' && (
-                <button
-                  onClick={() => handleBulkStatus('delivered')}
-                  disabled={bulkProcessing}
-                  className="px-3 py-1.5 text-xs font-medium bg-white text-black hover:bg-zinc-200 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {bulkProcessing ? 'Processing…' : 'Mark all delivered'}
-                </button>
-              )}
-              <button
-                onClick={() => handleBulkStatus('cancelled')}
-                disabled={bulkProcessing}
-                className="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white border border-white/10 hover:border-white/20 rounded-lg transition-colors disabled:opacity-50"
-              >
-                Cancel all
-              </button>
               <button
                 onClick={() => setSelectedIds(new Set())}
                 className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white transition-colors"

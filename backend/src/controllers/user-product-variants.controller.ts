@@ -1,8 +1,11 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 
+// Thrown inside stock transactions and mapped to a 400 response
+class StockAdjustError extends Error {}
+
 // Helper: recalculate parent product quantity as sum of variants (works inside a transaction)
-async function recalcParentQuantity(tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0], productId: string) {
+export async function recalcParentQuantity(tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0], productId: string) {
   const agg = await tx.productVariant.aggregate({
     where: { productId, isActive: true },
     _sum: { quantity: true },
@@ -168,17 +171,53 @@ export const updateVariant = async (req: Request, res: Response): Promise<void> 
     const validSellingPrice = sellingPrice !== undefined ? Math.max(0, Number(sellingPrice) || 0) : undefined;
     const validMinQuantity = minQuantity !== undefined ? Math.max(0, Number(minQuantity) || 0) : undefined;
 
-    const variant = await prisma.productVariant.update({
-      where: { id: variantId },
-      data: {
-        ...(name && { name: name.trim().slice(0, 255) }),
-        ...(sku !== undefined && { sku: sku?.trim().slice(0, 255) || null }),
-        ...(validCostPrice !== undefined && { costPrice: validCostPrice }),
-        ...(validSellingPrice !== undefined && { sellingPrice: validSellingPrice }),
-        ...(validMinQuantity !== undefined && { minQuantity: validMinQuantity }),
-        ...(isActive !== undefined && { isActive }),
-      },
-    });
+    const updateData = {
+      ...(name && { name: name.trim().slice(0, 255) }),
+      ...(sku !== undefined && { sku: sku?.trim().slice(0, 255) || null }),
+      ...(validCostPrice !== undefined && { costPrice: validCostPrice }),
+      ...(validSellingPrice !== undefined && { sellingPrice: validSellingPrice }),
+      ...(validMinQuantity !== undefined && { minQuantity: validMinQuantity }),
+      ...(isActive !== undefined && { isActive }),
+    };
+
+    const isActiveChanged = isActive !== undefined && Boolean(isActive) !== existing.isActive;
+
+    let variant;
+    if (isActiveChanged) {
+      // (De)activation changes the parent's aggregate quantity — update,
+      // write the parent-level ledger delta, and recalc atomically
+      variant = await prisma.$transaction(async (tx) => {
+        const updated = await tx.productVariant.update({
+          where: { id: variantId },
+          data: updateData,
+        });
+
+        // Parent-level adjustment for the stock that (dis)appears from the
+        // aggregate. variantId stays null: the variant's own quantity is
+        // unchanged, only the parent-visible total moves.
+        if (existing.quantity > 0) {
+          await tx.stockMovement.create({
+            data: {
+              userId: req.user!.userId,
+              productId,
+              variantId: null,
+              type: 'adjustment',
+              quantity: updated.isActive ? existing.quantity : -existing.quantity,
+              reason: `Variant "${existing.name}" ${updated.isActive ? 'activated' : 'deactivated'}`,
+            },
+          });
+        }
+
+        await recalcParentQuantity(tx, productId);
+
+        return updated;
+      });
+    } else {
+      variant = await prisma.productVariant.update({
+        where: { id: variantId },
+        data: updateData,
+      });
+    }
 
     res.json({ variant });
   } catch (error: any) {
@@ -223,6 +262,23 @@ export const deleteVariant = async (req: Request, res: Response): Promise<void> 
 
     // Use interactive transaction so delete, hasVariants toggle, and recalc are atomic
     await prisma.$transaction(async (tx) => {
+      // Ledger entry for the destroyed stock (only active variants count in
+      // the parent aggregate). variantId is null on purpose: the FK is
+      // onDelete SetNull, so it would be nulled anyway — identify in notes.
+      if (existing.isActive && existing.quantity !== 0) {
+        await tx.stockMovement.create({
+          data: {
+            userId: req.user!.userId,
+            productId,
+            variantId: null,
+            type: 'adjustment',
+            quantity: -existing.quantity,
+            reason: 'Variant deleted',
+            notes: `Variant "${existing.name}" (${existing.id}) deleted with ${existing.quantity} units`,
+          },
+        });
+      }
+
       await tx.productVariant.delete({ where: { id: variantId } });
 
       // Check if this was the last variant
@@ -293,27 +349,39 @@ export const adjustVariantStock = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    // Calculate new quantity
-    let newQuantity = variant.quantity;
-    if (type === 'in') {
-      newQuantity += numQuantity;
-    } else if (type === 'out') {
-      newQuantity -= numQuantity;
-      if (newQuantity < 0) {
-        res.status(400).json({ error: 'Insufficient stock' });
-        return;
-      }
-    } else {
-      // adjustment - set to exact quantity
-      newQuantity = numQuantity;
-    }
-
-    // Use interactive transaction so variant update, stock movement, and parent recalc are atomic
+    // Apply the change atomically inside the transaction — no outside-read,
+    // so concurrent adjustments can neither oversell nor corrupt the ledger delta
     const [updatedVariant, movement] = await prisma.$transaction(async (tx) => {
-      const uv = await tx.productVariant.update({
-        where: { id: variantId },
-        data: { quantity: newQuantity },
-      });
+      let movementQuantity: number;
+
+      if (type === 'in') {
+        await tx.productVariant.update({
+          where: { id: variantId },
+          data: { quantity: { increment: numQuantity } },
+        });
+        movementQuantity = numQuantity;
+      } else if (type === 'out') {
+        const dec = await tx.productVariant.updateMany({
+          where: { id: variantId, productId, quantity: { gte: numQuantity } },
+          data: { quantity: { decrement: numQuantity } },
+        });
+        if (dec.count === 0) {
+          throw new StockAdjustError('Insufficient stock');
+        }
+        movementQuantity = -numQuantity;
+      } else {
+        // adjustment — set to exact quantity; compute the ledger delta from a
+        // locked read (plain findFirst is a non-locking snapshot read on MySQL)
+        const rows = await tx.$queryRaw<Array<{ quantity: number }>>`
+          SELECT quantity FROM ProductVariant WHERE id = ${variantId} FOR UPDATE
+        `;
+        const currentQty = Number(rows[0]?.quantity ?? 0);
+        movementQuantity = numQuantity - currentQty;
+        await tx.productVariant.update({
+          where: { id: variantId },
+          data: { quantity: numQuantity },
+        });
+      }
 
       const mv = await tx.stockMovement.create({
         data: {
@@ -321,7 +389,7 @@ export const adjustVariantStock = async (req: Request, res: Response): Promise<v
           productId,
           variantId,
           type,
-          quantity: type === 'adjustment' ? numQuantity - variant.quantity : (type === 'out' ? -numQuantity : numQuantity),
+          quantity: movementQuantity,
           reason,
           notes,
         },
@@ -330,11 +398,17 @@ export const adjustVariantStock = async (req: Request, res: Response): Promise<v
       // Recalculate parent aggregate quantity inside the transaction
       await recalcParentQuantity(tx, productId);
 
+      const uv = await tx.productVariant.findUniqueOrThrow({ where: { id: variantId } });
+
       return [uv, mv] as const;
     });
 
     res.json({ variant: updatedVariant, movement });
   } catch (error) {
+    if (error instanceof StockAdjustError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     console.error('Adjust variant stock error:', error);
     res.status(500).json({ error: 'Failed to adjust variant stock' });
   }

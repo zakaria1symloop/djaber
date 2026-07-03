@@ -13,7 +13,8 @@ import prisma from '../config/database';
 import { createNotification } from './notification.service';
 import { getRecommendationsMap, trackConversion } from './recommendation.service';
 import { computeDeliveryFee } from '../controllers/user-delivery-fees.controller';
-import { rollbackOrderSideEffects } from '../controllers/user-orders.controller';
+import { rollbackOrderSideEffects, generateOrderNumber } from '../controllers/user-orders.controller';
+import { recalcParentQuantity } from '../controllers/user-product-variants.controller';
 import { wilayas } from '../data/wilayas';
 
 // ============================================================================
@@ -78,6 +79,12 @@ export interface GenerateAgentResponseParams {
   imageUrls?: string[];
   userId: string;
   conversationId?: string;
+  /**
+   * Test playground mode: bind stub order/cancel tools with identical
+   * names/schemas that validate against the catalog but write NOTHING
+   * to the database.
+   */
+  dryRun?: boolean;
 }
 
 // Legacy params (for backward compat with old AISettings flow)
@@ -411,231 +418,441 @@ function makeShippingFeeTool(userId: string) {
 // Create Order Tool — allows the AI to place orders in the database
 // ============================================================================
 
+// Thrown inside the order transaction when a conditional stock decrement
+// fails — rolls back the whole order and is relayed to the model as an error.
+class StockError extends Error {}
+
+const CREATE_ORDER_DESCRIPTION =
+  'Create a new order when the customer confirms they want to buy. You MUST collect the customer name, phone number, delivery address, AND wilaya BEFORE calling this tool. If a product has variants, you MUST also ask which variant the customer wants and pass its exact variantName. Pass wilayaId or wilayaName so shipping is auto-calculated. Only call this when the customer has explicitly confirmed the order.';
+
+const createOrderSchema = z.object({
+  clientName: z.string().describe('Customer full name'),
+  clientPhone: z.string().optional().describe('Customer phone number'),
+  clientAddress: z.string().optional().describe('Customer delivery address'),
+  wilayaId: z.number().optional().describe('Destination wilaya ID (1-58). Preferred.'),
+  wilayaName: z
+    .string()
+    .optional()
+    .describe('Destination wilaya name (Arabic/French/English) if ID unknown.'),
+  isStopdesk: z
+    .boolean()
+    .optional()
+    .describe('True if the customer wants to pick up at the agency (cheaper).'),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().describe('Product ID from the catalog (the value in [ID: ...])'),
+        variantName: z
+          .string()
+          .optional()
+          .describe('Exact variant name from the catalog (e.g. "Red - L"). REQUIRED when the product lists variants — ask the customer which one they want first.'),
+        quantity: z.number().describe('Quantity to order'),
+      })
+    )
+    .describe('Products the customer wants to buy'),
+  notes: z.string().optional().describe('Any additional order notes'),
+});
+
+interface ResolvedOrderItem {
+  productId: string;
+  productName: string;
+  variantName: string | null;
+  quantity: number;
+  unitPrice: number;
+}
+
+// Validate tool items against the catalog snapshot and resolve prices
+// (variant price when a variant is targeted). Stock correctness is
+// re-enforced inside the transaction; this is the fast-path UX check.
+function resolveOrderItems(
+  products: ProductInfo[],
+  inputItems: Array<{ productId: string; quantity: number; variantName?: string }>
+):
+  | { error: string; availableVariants?: Array<{ name: string; sellingPrice: number; quantity: number }> }
+  | { items: ResolvedOrderItem[] } {
+  const items: ResolvedOrderItem[] = [];
+
+  for (const item of inputItems) {
+    const product = products.find((p) => p.id === item.productId);
+    if (!product) {
+      return { error: `Product with ID "${item.productId}" not found in catalog. Check the product ID.` };
+    }
+
+    if (product.hasVariants) {
+      const variants = product.variants || [];
+      if (variants.length === 0) {
+        return { error: `"${product.name}" is currently unavailable (no active variants).` };
+      }
+      const wanted = item.variantName?.trim().toLowerCase();
+      const variant = wanted ? variants.find((v) => v.name.trim().toLowerCase() === wanted) : undefined;
+      if (!variant) {
+        const names = variants.map((v) => v.name).join(', ');
+        return {
+          error: item.variantName
+            ? `Variant "${item.variantName}" of "${product.name}" not found. Available variants: ${names}. Ask the customer to pick one.`
+            : `"${product.name}" comes in multiple variants — ask the customer to choose one. Available variants: ${names}.`,
+          availableVariants: variants.map((v) => ({
+            name: v.name,
+            sellingPrice: v.sellingPrice,
+            quantity: v.quantity,
+          })),
+        };
+      }
+      if (variant.quantity < item.quantity) {
+        return {
+          error: `Not enough stock for "${product.name}" (${variant.name}). Available: ${variant.quantity}, requested: ${item.quantity}.`,
+        };
+      }
+      items.push({
+        productId: product.id,
+        productName: product.name,
+        variantName: variant.name,
+        quantity: item.quantity,
+        unitPrice: variant.sellingPrice,
+      });
+    } else {
+      if (product.quantity < item.quantity) {
+        return {
+          error: `Not enough stock for "${product.name}". Available: ${product.quantity}, requested: ${item.quantity}.`,
+        };
+      }
+      items.push({
+        productId: product.id,
+        productName: product.name,
+        variantName: null,
+        quantity: item.quantity,
+        unitPrice: product.sellingPrice,
+      });
+    }
+  }
+
+  return { items };
+}
+
+// Resolve wilaya + delivery fee from tool input (read-only)
+async function resolveDeliveryFee(
+  userId: string,
+  input: { wilayaId?: number; wilayaName?: string; isStopdesk?: boolean }
+): Promise<{ deliveryFee: number; resolvedWilayaId: number | null }> {
+  let deliveryFee = 0;
+  let resolvedWilayaId: number | null = null;
+
+  if (input.wilayaId || input.wilayaName) {
+    let wid: number | undefined;
+    if (input.wilayaId) {
+      wid = Number(input.wilayaId);
+    } else if (input.wilayaName) {
+      const needle = input.wilayaName.trim().toLowerCase();
+      const found = wilayas.find(
+        (w) =>
+          w.nameFr.toLowerCase() === needle ||
+          w.nameEn.toLowerCase() === needle ||
+          w.name === input.wilayaName ||
+          w.code === input.wilayaName
+      ) || wilayas.find(
+        (w) =>
+          w.nameFr.toLowerCase().includes(needle) ||
+          w.nameEn.toLowerCase().includes(needle)
+      );
+      if (found) wid = found.id;
+    }
+    if (wid && wid >= 1 && wid <= 58) {
+      resolvedWilayaId = wid;
+      try {
+        const quote = await computeDeliveryFee(userId, wid, Boolean(input.isStopdesk));
+        deliveryFee = quote.fee;
+      } catch {
+        deliveryFee = 0;
+      }
+    }
+  }
+
+  return { deliveryFee, resolvedWilayaId };
+}
+
 function makeCreateOrderTool(userId: string, products: ProductInfo[], agentName?: string, conversationId?: string) {
   return tool(
     async (input) => {
       try {
-        // Validate items against product catalog
-        const orderItems: Array<{
-          productId: string;
-          productName: string;
-          quantity: number;
-          unitPrice: number;
-        }> = [];
-
-        for (const item of input.items) {
-          const product = products.find((p) => p.id === item.productId);
-          if (!product) {
-            return JSON.stringify({
-              success: false,
-              error: `Product with ID "${item.productId}" not found in catalog. Check the product ID.`,
-            });
-          }
-          if (product.quantity < item.quantity) {
-            return JSON.stringify({
-              success: false,
-              error: `Not enough stock for "${product.name}". Available: ${product.quantity}, requested: ${item.quantity}.`,
-            });
-          }
-          orderItems.push({
-            productId: product.id,
-            productName: product.name,
-            quantity: item.quantity,
-            unitPrice: product.sellingPrice,
+        // Fast-path validation against the catalog snapshot (stock correctness
+        // is enforced again inside the transaction with conditional decrements)
+        const resolved = resolveOrderItems(products, input.items);
+        if ('error' in resolved) {
+          return JSON.stringify({
+            success: false,
+            error: resolved.error,
+            ...(resolved.availableVariants ? { availableVariants: resolved.availableVariants } : {}),
           });
         }
+        const resolvedItems = resolved.items;
 
         // Calculate totals + auto-compute delivery fee from wilaya
-        const subtotal = orderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-        let deliveryFee = 0;
-        let resolvedWilayaId: number | null = null;
-        if (input.wilayaId || input.wilayaName) {
-          let wid: number | undefined;
-          if (input.wilayaId) {
-            wid = Number(input.wilayaId);
-          } else if (input.wilayaName) {
-            const needle = input.wilayaName.trim().toLowerCase();
-            const found = wilayas.find(
-              (w) =>
-                w.nameFr.toLowerCase() === needle ||
-                w.nameEn.toLowerCase() === needle ||
-                w.name === input.wilayaName ||
-                w.code === input.wilayaName
-            ) || wilayas.find(
-              (w) =>
-                w.nameFr.toLowerCase().includes(needle) ||
-                w.nameEn.toLowerCase().includes(needle)
-            );
-            if (found) wid = found.id;
-          }
-          if (wid && wid >= 1 && wid <= 58) {
-            resolvedWilayaId = wid;
-            try {
-              const quote = await computeDeliveryFee(userId, wid, Boolean(input.isStopdesk));
-              deliveryFee = quote.fee;
-            } catch {
-              deliveryFee = 0;
-            }
-          }
-        }
+        const subtotal = resolvedItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+        const { deliveryFee, resolvedWilayaId } = await resolveDeliveryFee(userId, input);
         const total = subtotal + deliveryFee;
-
-        // Generate order number
         const today = new Date();
-        const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
-        const rand = Math.floor(1000 + Math.random() * 9000);
-        const orderNumber = `ORD-${dateStr}-${rand}`;
 
         // ================================================================
-        // Auto-create/link Client (reuse auto-linked client if exists)
+        // Everything that moves money/stock happens in ONE transaction:
+        // client resolution, sequential order number, order create, client
+        // stats, conditional stock decrements, movements, parent recalc.
+        // P2002 (order number collision) retries with a fresh number.
         // ================================================================
+        const MAX_RETRIES = 3;
+        let order: { id: string; orderNumber: string } | null = null;
         let clientId: string | null = null;
-        try {
-          const clientPhone = input.clientPhone?.trim() || null;
-          const clientName = input.clientName.trim();
 
-          // Check if the conversation already has an auto-linked client
-          let autoLinkedClient: any = null;
-          if (conversationId) {
-            const conv = await prisma.conversation.findUnique({
-              where: { id: conversationId },
-              select: { clientId: true },
-            });
-            if (conv?.clientId) {
-              autoLinkedClient = await prisma.client.findUnique({
-                where: { id: conv.clientId },
-              });
-            }
-          }
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+          try {
+            const txResult = await prisma.$transaction(async (tx) => {
+              // ----------------------------------------------------------
+              // Resolve variant rows (by exact catalog name) for each item
+              // ----------------------------------------------------------
+              const txItems: Array<ResolvedOrderItem & { variantId: string | null }> = [];
+              for (const item of resolvedItems) {
+                let variantId: string | null = null;
+                if (item.variantName) {
+                  const variant = await tx.productVariant.findFirst({
+                    where: { productId: item.productId, name: item.variantName, isActive: true },
+                    select: { id: true },
+                  });
+                  if (!variant) {
+                    throw new StockError(`Variant "${item.variantName}" of "${item.productName}" is no longer available.`);
+                  }
+                  variantId = variant.id;
+                }
+                txItems.push({ ...item, variantId });
+              }
 
-          if (autoLinkedClient) {
-            // Update the auto-linked client with real order details
-            await prisma.client.update({
-              where: { id: autoLinkedClient.id },
-              data: {
-                name: clientName,
-                phone: clientPhone || autoLinkedClient.phone,
-                address: input.clientAddress || autoLinkedClient.address,
-                totalOrders: { increment: 1 },
-                totalSpent: { increment: total },
-                lastOrderDate: today,
-              },
-            });
-            clientId = autoLinkedClient.id;
-          } else if (clientPhone) {
-            // Try to find existing client by phone
-            const existing = await prisma.client.findFirst({
-              where: { userId, phone: clientPhone },
-            });
+              // ----------------------------------------------------------
+              // Resolve client (identity only — stats are incremented AFTER
+              // the order is created). Phone conflicts fall back to the
+              // existing owner of the phone so clientId is never lost.
+              // ----------------------------------------------------------
+              const clientPhone = input.clientPhone?.trim() || null;
+              const clientName = input.clientName.trim();
+              let resolvedClientId: string | null = null;
 
-            if (existing) {
-              // Update existing client stats
-              await prisma.client.update({
-                where: { id: existing.id },
-                data: {
-                  totalOrders: { increment: 1 },
-                  totalSpent: { increment: total },
-                  lastOrderDate: today,
-                  name: clientName,
-                  address: input.clientAddress || existing.address,
-                },
-              });
-              clientId = existing.id;
-            } else {
-              // Create new client
-              const newClient = await prisma.client.create({
+              let autoLinkedClient: { id: string; phone: string | null; address: string | null } | null = null;
+              if (conversationId) {
+                const conv = await tx.conversation.findUnique({
+                  where: { id: conversationId },
+                  select: { clientId: true },
+                });
+                if (conv?.clientId) {
+                  autoLinkedClient = await tx.client.findFirst({
+                    where: { id: conv.clientId },
+                    select: { id: true, phone: true, address: true },
+                  });
+                }
+              }
+
+              if (autoLinkedClient) {
+                // If another client already owns this phone, merge into it
+                // instead of violating the unique (userId, phone) constraint
+                let owner: { id: string; address: string | null } | null = null;
+                if (clientPhone && clientPhone !== autoLinkedClient.phone) {
+                  owner = await tx.client.findFirst({
+                    where: { userId, phone: clientPhone, id: { not: autoLinkedClient.id } },
+                    select: { id: true, address: true },
+                  });
+                }
+                if (owner) {
+                  await tx.client.update({
+                    where: { id: owner.id },
+                    data: { name: clientName, address: input.clientAddress || owner.address },
+                  });
+                  resolvedClientId = owner.id;
+                } else {
+                  try {
+                    await tx.client.update({
+                      where: { id: autoLinkedClient.id },
+                      data: {
+                        name: clientName,
+                        phone: clientPhone || autoLinkedClient.phone,
+                        address: input.clientAddress || autoLinkedClient.address,
+                      },
+                    });
+                    resolvedClientId = autoLinkedClient.id;
+                  } catch (err: any) {
+                    // Concurrent write took the phone — fall back to its owner
+                    if (err?.code === 'P2002' && clientPhone) {
+                      const fallback = await tx.client.findFirst({ where: { userId, phone: clientPhone } });
+                      if (!fallback) throw err;
+                      resolvedClientId = fallback.id;
+                    } else {
+                      throw err;
+                    }
+                  }
+                }
+              } else if (clientPhone) {
+                // Try to find existing client by phone
+                const existing = await tx.client.findFirst({
+                  where: { userId, phone: clientPhone },
+                });
+                if (existing) {
+                  await tx.client.update({
+                    where: { id: existing.id },
+                    data: { name: clientName, address: input.clientAddress || existing.address },
+                  });
+                  resolvedClientId = existing.id;
+                } else {
+                  try {
+                    const created = await tx.client.create({
+                      data: {
+                        userId,
+                        name: clientName,
+                        phone: clientPhone,
+                        address: input.clientAddress || null,
+                        source: 'ai',
+                      },
+                    });
+                    resolvedClientId = created.id;
+                  } catch (err: any) {
+                    // Concurrent create took the phone — reuse the existing client
+                    if (err?.code === 'P2002') {
+                      const fallback = await tx.client.findFirst({ where: { userId, phone: clientPhone } });
+                      if (!fallback) throw err;
+                      resolvedClientId = fallback.id;
+                    } else {
+                      throw err;
+                    }
+                  }
+                }
+              } else {
+                // No phone — create client by name
+                const created = await tx.client.create({
+                  data: {
+                    userId,
+                    name: clientName,
+                    address: input.clientAddress || null,
+                    source: 'ai',
+                  },
+                });
+                resolvedClientId = created.id;
+              }
+
+              // ----------------------------------------------------------
+              // Sequential order number (same generator as manual orders)
+              // ----------------------------------------------------------
+              const orderNumber = await generateOrderNumber(tx, userId);
+
+              const newOrder = await tx.order.create({
                 data: {
                   userId,
-                  name: clientName,
-                  phone: clientPhone,
-                  address: input.clientAddress || null,
+                  orderNumber,
+                  clientId: resolvedClientId || undefined,
+                  clientName: input.clientName,
+                  clientPhone: input.clientPhone || null,
+                  clientAddress: input.clientAddress || null,
+                  subtotal,
+                  discount: 0,
+                  tax: 0,
+                  total,
+                  amountPaid: 0,
+                  paymentMethod: 'cash',
+                  paymentStatus: 'pending',
+                  status: 'pending',
+                  confirmationStatus: 'not_called',
+                  deliveryStatus: 'not_sent',
                   source: 'ai',
-                  totalOrders: 1,
-                  totalSpent: total,
-                  lastOrderDate: today,
+                  notes: input.notes || null,
+                  orderDate: today,
+                  wilayaId: resolvedWilayaId,
+                  isStopdesk: Boolean(input.isStopdesk),
+                  deliveryFee,
+                  items: {
+                    create: txItems.map((item) => ({
+                      productId: item.productId,
+                      productName: item.productName,
+                      variantId: item.variantId,
+                      variantName: item.variantName,
+                      quantity: item.quantity,
+                      unitPrice: item.unitPrice,
+                      discount: 0,
+                      total: item.unitPrice * item.quantity,
+                    })),
+                  },
                 },
               });
-              clientId = newClient.id;
-            }
-          } else {
-            // No phone — create client by name
-            const newClient = await prisma.client.create({
-              data: {
-                userId,
-                name: clientName,
-                address: input.clientAddress || null,
-                source: 'ai',
-                totalOrders: 1,
-                totalSpent: total,
-                lastOrderDate: today,
-              },
+
+              // Client stats — AFTER order creation, so a failed create can
+              // never leave phantom totals
+              if (resolvedClientId) {
+                await tx.client.update({
+                  where: { id: resolvedClientId },
+                  data: {
+                    totalOrders: { increment: 1 },
+                    totalSpent: { increment: total },
+                    lastOrderDate: today,
+                  },
+                });
+              }
+
+              // Conditional stock decrements (kills the check-then-act race),
+              // signed 'out' movements, parent recalc for variant lines
+              for (const item of txItems) {
+                if (item.variantId) {
+                  const dec = await tx.productVariant.updateMany({
+                    where: { id: item.variantId, productId: item.productId, quantity: { gte: item.quantity } },
+                    data: { quantity: { decrement: item.quantity } },
+                  });
+                  if (dec.count !== 1) {
+                    throw new StockError(`Not enough stock for "${item.productName}" (${item.variantName}).`);
+                  }
+                } else {
+                  const dec = await tx.product.updateMany({
+                    where: { id: item.productId, hasVariants: false, quantity: { gte: item.quantity } },
+                    data: { quantity: { decrement: item.quantity } },
+                  });
+                  if (dec.count !== 1) {
+                    throw new StockError(`Not enough stock for "${item.productName}".`);
+                  }
+                }
+
+                await tx.stockMovement.create({
+                  data: {
+                    userId,
+                    productId: item.productId,
+                    variantId: item.variantId,
+                    type: 'out',
+                    quantity: -item.quantity,
+                    reference: newOrder.id,
+                    reason: `AI order ${orderNumber}`,
+                  },
+                });
+
+                if (item.variantId) {
+                  await recalcParentQuantity(tx, item.productId);
+                }
+              }
+
+              return { order: newOrder, clientId: resolvedClientId };
             });
-            clientId = newClient.id;
+
+            order = txResult.order;
+            clientId = txResult.clientId;
+            break;
+          } catch (txError: any) {
+            if (txError?.code === 'P2002' && attempt < MAX_RETRIES - 1) {
+              continue; // order number collision — regenerate and retry
+            }
+            throw txError;
           }
-        } catch (clientError) {
-          console.error('Auto-create client error (non-fatal):', clientError);
         }
 
-        // Create order in database
-        const order = await prisma.order.create({
-          data: {
-            userId,
-            orderNumber,
-            clientId: clientId || undefined,
-            clientName: input.clientName,
-            clientPhone: input.clientPhone || null,
-            clientAddress: input.clientAddress || null,
-            subtotal,
-            discount: 0,
-            tax: 0,
-            total,
-            amountPaid: 0,
-            paymentMethod: 'cash',
-            paymentStatus: 'pending',
-            status: 'pending',
-            confirmationStatus: 'not_called',
-            deliveryStatus: 'not_sent',
-            source: 'ai',
-            notes: input.notes || null,
-            orderDate: today,
-            wilayaId: resolvedWilayaId,
-            isStopdesk: Boolean(input.isStopdesk),
-            deliveryFee,
-            items: {
-              create: orderItems.map((item) => ({
-                productId: item.productId,
-                productName: item.productName,
-                quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                discount: 0,
-                total: item.unitPrice * item.quantity,
-              })),
-            },
-          },
-          include: { items: true },
-        });
-
-        // Update stock for each item
-        for (const item of orderItems) {
-          await prisma.product.update({
-            where: { id: item.productId },
-            data: { quantity: { decrement: item.quantity } },
-          });
-          await prisma.stockMovement.create({
-            data: {
-              userId,
-              productId: item.productId,
-              type: 'out',
-              quantity: item.quantity,
-              reference: order.orderNumber,
-              reason: 'AI order',
-            },
+        if (!order) {
+          return JSON.stringify({
+            success: false,
+            error: 'Failed to create order. Please try again.',
           });
         }
 
         // ================================================================
+        // Post-commit side effects — each non-fatal
+        // ================================================================
+
         // Link conversation to client
-        // ================================================================
         if (conversationId && clientId) {
           try {
             await prisma.conversation.update({
@@ -647,28 +864,30 @@ function makeCreateOrderTool(userId: string, products: ProductInfo[], agentName?
           }
         }
 
-        // ================================================================
         // Create notification
-        // ================================================================
-        await createNotification({
-          userId,
-          type: 'ai_order',
-          title: 'New AI Order',
-          message: `Agent "${agentName || 'AI'}" created order ${orderNumber} for ${input.clientName} — ${total.toLocaleString()} DA`,
-          metadata: {
-            orderId: order.id,
-            orderNumber: order.orderNumber,
-            agentName: agentName || 'AI',
-            clientName: input.clientName,
-            clientId,
-            total,
-            itemCount: orderItems.length,
-          },
-        });
+        try {
+          await createNotification({
+            userId,
+            type: 'ai_order',
+            title: 'New AI Order',
+            message: `Agent "${agentName || 'AI'}" created order ${order.orderNumber} for ${input.clientName} — ${total.toLocaleString()} DA`,
+            metadata: {
+              orderId: order.id,
+              orderNumber: order.orderNumber,
+              agentName: agentName || 'AI',
+              clientName: input.clientName,
+              clientId,
+              total,
+              itemCount: resolvedItems.length,
+            },
+          });
+        } catch (notifError) {
+          console.error('AI order notification error (non-fatal):', notifError);
+        }
 
         // Track cross-sell conversions: check if any ordered items were recommended
         try {
-          const orderedProductIds = orderItems.map(i => i.productId);
+          const orderedProductIds = resolvedItems.map(i => i.productId);
           for (let i = 0; i < orderedProductIds.length; i++) {
             for (let j = 0; j < orderedProductIds.length; j++) {
               if (i === j) continue;
@@ -677,7 +896,7 @@ function makeCreateOrderTool(userId: string, products: ProductInfo[], agentName?
                 userId,
                 orderedProductIds[i],
                 orderedProductIds[j],
-                orderItems[j].unitPrice * orderItems[j].quantity
+                resolvedItems[j].unitPrice * resolvedItems[j].quantity
               );
             }
           }
@@ -691,15 +910,19 @@ function makeCreateOrderTool(userId: string, products: ProductInfo[], agentName?
           subtotal,
           deliveryFee,
           total,
-          itemCount: orderItems.length,
-          items: orderItems.map((i) => ({
+          itemCount: resolvedItems.length,
+          items: resolvedItems.map((i) => ({
             name: i.productName,
+            variant: i.variantName || undefined,
             qty: i.quantity,
             price: i.unitPrice,
             subtotal: i.unitPrice * i.quantity,
           })),
         });
       } catch (error) {
+        if (error instanceof StockError) {
+          return JSON.stringify({ success: false, error: error.message });
+        }
         console.error('Create order tool error:', error);
         return JSON.stringify({
           success: false,
@@ -709,31 +932,62 @@ function makeCreateOrderTool(userId: string, products: ProductInfo[], agentName?
     },
     {
       name: 'create_order',
-      description:
-        'Create a new order when the customer confirms they want to buy. You MUST collect the customer name, phone number, delivery address, AND wilaya BEFORE calling this tool. Pass wilayaId or wilayaName so shipping is auto-calculated. Only call this when the customer has explicitly confirmed the order.',
-      schema: z.object({
-        clientName: z.string().describe('Customer full name'),
-        clientPhone: z.string().optional().describe('Customer phone number'),
-        clientAddress: z.string().optional().describe('Customer delivery address'),
-        wilayaId: z.number().optional().describe('Destination wilaya ID (1-58). Preferred.'),
-        wilayaName: z
-          .string()
-          .optional()
-          .describe('Destination wilaya name (Arabic/French/English) if ID unknown.'),
-        isStopdesk: z
-          .boolean()
-          .optional()
-          .describe('True if the customer wants to pick up at the agency (cheaper).'),
-        items: z
-          .array(
-            z.object({
-              productId: z.string().describe('Product ID from the catalog (the value in [ID: ...])'),
-              quantity: z.number().describe('Quantity to order'),
-            })
-          )
-          .describe('Products the customer wants to buy'),
-        notes: z.string().optional().describe('Any additional order notes'),
-      }),
+      description: CREATE_ORDER_DESCRIPTION,
+      schema: createOrderSchema,
+    }
+  );
+}
+
+// Dry-run variant for the agent test playground — identical name/schema/
+// description so the model behaves exactly as in production, but it only
+// validates against the catalog and writes NOTHING to the database.
+function makeDryRunCreateOrderTool(userId: string, products: ProductInfo[]) {
+  return tool(
+    async (input) => {
+      try {
+        const resolved = resolveOrderItems(products, input.items);
+        if ('error' in resolved) {
+          return JSON.stringify({
+            success: false,
+            simulated: true,
+            error: resolved.error,
+            ...(resolved.availableVariants ? { availableVariants: resolved.availableVariants } : {}),
+          });
+        }
+
+        const subtotal = resolved.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+        const { deliveryFee } = await resolveDeliveryFee(userId, input);
+        const total = subtotal + deliveryFee;
+
+        return JSON.stringify({
+          success: true,
+          simulated: true,
+          orderNumber: `TEST-${Math.floor(1000 + Math.random() * 9000)}`,
+          subtotal,
+          deliveryFee,
+          total,
+          itemCount: resolved.items.length,
+          items: resolved.items.map((i) => ({
+            name: i.productName,
+            variant: i.variantName || undefined,
+            qty: i.quantity,
+            price: i.unitPrice,
+            subtotal: i.unitPrice * i.quantity,
+          })),
+          note: 'TEST MODE — no order was saved',
+        });
+      } catch (error) {
+        console.error('Dry-run create order tool error:', error);
+        return JSON.stringify({
+          success: false,
+          error: 'Failed to create order. Please try again.',
+        });
+      }
+    },
+    {
+      name: 'create_order',
+      description: CREATE_ORDER_DESCRIPTION,
+      schema: createOrderSchema,
     }
   );
 }
@@ -743,6 +997,17 @@ function makeCreateOrderTool(userId: string, products: ProductInfo[], agentName?
 // ============================================================================
 
 const CANCELLABLE_STATUSES = ['pending', 'confirmed', 'preparing'];
+
+const CANCEL_ORDER_DESCRIPTION =
+  "Cancel one of THIS customer's open orders (pending/confirmed/preparing) when they ask to cancel, delete, or undo an order. NEVER use create_order for a cancellation request. If the customer has several open orders the tool returns the list — ask which order number to cancel. Always confirm with the customer before calling this tool.";
+
+const cancelOrderSchema = z.object({
+  orderNumber: z
+    .string()
+    .optional()
+    .describe('The order number to cancel (e.g. ORD-20260702-0001). Omit if the customer has only one open order.'),
+  reason: z.string().optional().describe('Why the customer wants to cancel (optional).'),
+});
 
 function makeCancelOrderTool(userId: string, agentName?: string, conversationId?: string) {
   return tool(
@@ -811,6 +1076,33 @@ function makeCancelOrderTool(userId: string, agentName?: string, conversationId?
           });
         }
 
+        // Cash was already collected on this order — the AI cannot process a
+        // refund, so a human must handle the cancellation.
+        if (Number(target.amountPaid) > 0) {
+          try {
+            await createNotification({
+              userId,
+              type: 'ai_order',
+              title: 'Cancellation Needs Human Review',
+              message: `Customer asked to cancel order ${target.orderNumber} but ${Number(target.amountPaid).toLocaleString()} DA was already collected — a team member must handle the cancellation and refund.`,
+              metadata: {
+                orderId: target.id,
+                orderNumber: target.orderNumber,
+                agentName: agentName || 'AI',
+                action: 'cancel_requested',
+                amountPaid: Number(target.amountPaid),
+              },
+            });
+          } catch (notifError) {
+            console.error('Cancel handoff notification error (non-fatal):', notifError);
+          }
+          return JSON.stringify({
+            success: false,
+            needsHuman: true,
+            error: `Order ${target.orderNumber} already has a recorded payment of ${Number(target.amountPaid).toLocaleString()} DA, so it cannot be cancelled automatically. Tell the customer a team member will process the cancellation and refund shortly.`,
+          });
+        }
+
         // Cancel with full side-effect rollback (stock restore, caisse wipe, client stats)
         await prisma.$transaction(async (tx) => {
           await rollbackOrderSideEffects(tx, userId, target, 'cancelled');
@@ -825,19 +1117,24 @@ function makeCancelOrderTool(userId: string, agentName?: string, conversationId?
           });
         });
 
-        await createNotification({
-          userId,
-          type: 'ai_order',
-          title: 'Order Cancelled by Customer',
-          message: `Agent "${agentName || 'AI'}" cancelled order ${target.orderNumber} at the customer's request${input.reason ? ` — ${input.reason}` : ''}`,
-          metadata: {
-            orderId: target.id,
-            orderNumber: target.orderNumber,
-            agentName: agentName || 'AI',
-            action: 'cancelled',
-            reason: input.reason || null,
-          },
-        });
+        // Post-commit notification — non-fatal
+        try {
+          await createNotification({
+            userId,
+            type: 'ai_order',
+            title: 'Order Cancelled by Customer',
+            message: `Agent "${agentName || 'AI'}" cancelled order ${target.orderNumber} at the customer's request${input.reason ? ` — ${input.reason}` : ''}`,
+            metadata: {
+              orderId: target.id,
+              orderNumber: target.orderNumber,
+              agentName: agentName || 'AI',
+              action: 'cancelled',
+              reason: input.reason || null,
+            },
+          });
+        } catch (notifError) {
+          console.error('Cancel notification error (non-fatal):', notifError);
+        }
 
         return JSON.stringify({
           success: true,
@@ -852,15 +1149,25 @@ function makeCancelOrderTool(userId: string, agentName?: string, conversationId?
     },
     {
       name: 'cancel_order',
-      description:
-        "Cancel one of THIS customer's open orders (pending/confirmed/preparing) when they ask to cancel, delete, or undo an order. NEVER use create_order for a cancellation request. If the customer has several open orders the tool returns the list — ask which order number to cancel. Always confirm with the customer before calling this tool.",
-      schema: z.object({
-        orderNumber: z
-          .string()
-          .optional()
-          .describe('The order number to cancel (e.g. ORD-20260702-0001). Omit if the customer has only one open order.'),
-        reason: z.string().optional().describe('Why the customer wants to cancel (optional).'),
+      description: CANCEL_ORDER_DESCRIPTION,
+      schema: cancelOrderSchema,
+    }
+  );
+}
+
+// Dry-run variant for the agent test playground — no DB reads or writes.
+function makeDryRunCancelOrderTool() {
+  return tool(
+    async () =>
+      JSON.stringify({
+        success: false,
+        simulated: true,
+        error: 'TEST MODE — there are no real orders in the test playground, so nothing was cancelled. No changes were made.',
       }),
+    {
+      name: 'cancel_order',
+      description: CANCEL_ORDER_DESCRIPTION,
+      schema: cancelOrderSchema,
     }
   );
 }
@@ -877,6 +1184,7 @@ export const generateAgentResponse = async ({
   imageUrls,
   userId,
   conversationId,
+  dryRun,
 }: GenerateAgentResponseParams): Promise<string> => {
   try {
     const llm = await createLLM(agent.aiModel, agent.temperature, agent.maxTokens);
@@ -907,6 +1215,7 @@ RULES:
 - When a customer asks about a product, provide accurate info from the catalog above.
 - If a product is out of stock, let the customer know and suggest alternatives if available.
 - When a customer wants to buy, confirm the product, quantity, and total price.
+- If a product has variants (sizes, colors...), ask the customer which variant they want, and pass its EXACT variant name (variantName) for that item when calling create_order.
 - Ask for their name, phone number, wilaya, and delivery address to complete the order.
 - Before creating the order, call the get_shipping_fee tool with the customer's wilaya to quote delivery cost, and tell the customer the total (products + shipping).
 - Ask whether they prefer home delivery or stopdesk (agency pickup — cheaper).
@@ -1031,10 +1340,17 @@ STATUS (REQUIRED — YOU MUST ALWAYS ADD THIS):
       messages.push(new HumanMessage(userMessage));
     }
 
-    // Create tools
-    const orderTool = makeCreateOrderTool(userId, products, agent.name, conversationId);
+    // Create tools. In dry-run mode (agent test playground) bind stub
+    // order/cancel tools with identical names/schemas that validate against
+    // the catalog but never write to the DB; get_shipping_fee stays real
+    // (read-only).
+    const orderTool = dryRun
+      ? makeDryRunCreateOrderTool(userId, products)
+      : makeCreateOrderTool(userId, products, agent.name, conversationId);
     const shippingTool = makeShippingFeeTool(userId);
-    const cancelTool = makeCancelOrderTool(userId, agent.name, conversationId);
+    const cancelTool = dryRun
+      ? makeDryRunCancelOrderTool()
+      : makeCancelOrderTool(userId, agent.name, conversationId);
     // All our providers (OpenAI, Anthropic, Google, Groq) support bindTools
     const llmWithTools = (llm as any).bindTools([orderTool, shippingTool, cancelTool]);
 

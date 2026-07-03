@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/icons';
 import {
   getOrders,
+  getOrderStats,
   type Order,
 } from '@/lib/user-stock-api';
 import {
@@ -40,9 +41,10 @@ export default function DeliveryDashboardPage() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
-  // Unfiltered view, used to compute the stat cards. Otherwise switching to
-  // e.g. the "Sent" tab would zero out the other stats.
-  const [allOrders, setAllOrders] = useState<Order[]>([]);
+  // Server-aggregated delivery-status counts (from getOrderStats), so the
+  // cards reflect ALL orders — not just the fetched page — and don't zero
+  // out when switching tabs.
+  const [stats, setStats] = useState({ readyToShip: 0, shipped: 0, inTransit: 0, delivered: 0 });
   const [total, setTotal] = useState(0);
   const [providers, setProviders] = useState<DeliveryProvider[]>([]);
   const [wilayaList, setWilayaList] = useState<Wilaya[]>([]);
@@ -70,27 +72,36 @@ export default function DeliveryDashboardPage() {
       setLoading(true);
       setError(null);
 
-      const params: any = { limit: 100 };
-      if (filter !== 'all') {
-        // Use deliveryStatus filter — since backend getOrders may not support it directly,
-        // we'll filter client-side
-      }
+      // Delivery-status filtering happens SERVER-SIDE now, so tabs see every
+      // matching order instead of a client-side slice of the newest 100.
+      const params: { limit: number; search?: string; deliveryStatus?: string } = { limit: 100 };
+      if (filter !== 'all') params.deliveryStatus = filter;
       if (search) params.search = search;
 
-      const [ordersRes, provsRes, wilRes] = await Promise.all([
+      const [ordersRes, statsRes, provsRes, wilRes] = await Promise.all([
         getOrders(params),
+        getOrderStats().catch(() => null),
         getDeliveryProviders().catch(() => ({ providers: [] })),
         getWilayas(),
       ]);
 
-      let filteredOrders = ordersRes.orders;
-      if (filter !== 'all') {
-        filteredOrders = filteredOrders.filter(o => o.deliveryStatus === filter);
+      let list = ordersRes.orders;
+      // Cancelled/returned orders are not shippable — keep them out of the
+      // "Ready" tab so it agrees with the Ready to Ship card.
+      if (filter === 'not_sent') {
+        list = list.filter(o => o.status !== 'cancelled' && o.status !== 'returned');
       }
 
-      setOrders(filteredOrders);
-      setAllOrders(ordersRes.orders);
-      setTotal(filteredOrders.length);
+      setOrders(list);
+      setTotal(ordersRes.total);
+      if (statsRes) {
+        setStats({
+          readyToShip: statsRes.stats.notSent,
+          shipped: statsRes.stats.sent,
+          inTransit: statsRes.stats.inTransit,
+          delivered: statsRes.stats.deliveredDelivery,
+        });
+      }
       setProviders(provsRes.providers);
       setWilayaList(wilRes.wilayas);
     } catch (err) {
@@ -103,21 +114,6 @@ export default function DeliveryDashboardPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  // Stats — compute from `allOrders` (the unfiltered list) so switching
-  // delivery tabs doesn't zero out the other counters. We also drop
-  // cancelled/returned orders from the "Ready to Ship" count since you can't
-  // ship something that's no longer a live order.
-  const stats = {
-    readyToShip: allOrders.filter(o =>
-      o.deliveryStatus === 'not_sent' &&
-      o.status !== 'cancelled' &&
-      o.status !== 'returned'
-    ).length,
-    shipped: allOrders.filter(o => o.deliveryStatus === 'sent').length,
-    inTransit: allOrders.filter(o => o.deliveryStatus === 'in_transit').length,
-    delivered: allOrders.filter(o => o.deliveryStatus === 'delivered').length,
-  };
 
   // Fetch rates when provider + wilaya selected
   useEffect(() => {
@@ -364,7 +360,9 @@ export default function DeliveryDashboardPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
-                        {order.deliveryStatus === 'not_sent' && (
+                        {/* Never offer Send for cancelled/returned orders — they are
+                            terminal and their stock was already restored. */}
+                        {order.deliveryStatus === 'not_sent' && order.status !== 'cancelled' && order.status !== 'returned' && (
                           <Button
                             variant="secondary"
                             className="text-xs"

@@ -8,7 +8,7 @@ import {
   ChevronLeftIcon, TrashIcon, PlusIcon, SearchIcon, UserIcon,
   PhoneIcon, DollarIcon,
 } from '@/components/ui/icons';
-import { getProducts, getClients, createSale, type Product, type Client } from '@/lib/user-stock-api';
+import { getProducts, getClients, createSale, type Product, type ProductVariant, type Client } from '@/lib/user-stock-api';
 
 // ── Keyboard-navigable Client Autocomplete ──
 function ClientAutocomplete({
@@ -135,17 +135,18 @@ function ClientAutocomplete({
   );
 }
 
-// ── Keyboard-navigable Product Autocomplete ──
+// ── Keyboard-navigable Product Autocomplete (with per-variant picker rows) ──
 function ProductAutocomplete({
   products,
   onAdd,
 }: {
   products: Product[];
-  onAdd: (product: Product) => void;
+  onAdd: (product: Product, variant?: ProductVariant) => void;
 }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -166,7 +167,7 @@ function ProductAutocomplete({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  useEffect(() => { setHighlightIdx(-1); }, [filtered]);
+  useEffect(() => { setHighlightIdx(-1); setExpandedId(null); }, [filtered]);
 
   useEffect(() => {
     if (highlightIdx >= 0 && listRef.current) {
@@ -176,11 +177,12 @@ function ProductAutocomplete({
   }, [highlightIdx]);
 
   const justClosedRef = useRef(false);
-  const selectProduct = (p: Product) => {
-    onAdd(p);
+  const selectProduct = (p: Product, variant?: ProductVariant) => {
+    onAdd(p, variant);
     setQuery('');
     setOpen(false);
     setHighlightIdx(-1);
+    setExpandedId(null);
     justClosedRef.current = true;
     inputRef.current?.focus();
   };
@@ -197,8 +199,12 @@ function ProductAutocomplete({
       e.preventDefault();
       if (highlightIdx >= 0 && filtered[highlightIdx]) {
         const p = filtered[highlightIdx];
-        const inStock = p.quantity > 0 || (p.hasVariants && p.variants?.some(v => v.quantity > 0));
-        if (inStock) selectProduct(p);
+        if (p.hasVariants) {
+          // Variants must be picked explicitly — Enter toggles the variant rows
+          setExpandedId((id) => (id === p.id ? null : p.id));
+        } else if (p.quantity > 0) {
+          selectProduct(p);
+        }
       }
     } else if (e.key === 'Escape') {
       setOpen(false);
@@ -226,32 +232,70 @@ function ProductAutocomplete({
             <div className="px-4 py-3 text-sm text-zinc-500">No products found</div>
           ) : (
             filtered.map((p, idx) => {
-              const inStock = p.quantity > 0 || (p.hasVariants && p.variants?.some(v => v.quantity > 0));
+              const activeVariants = p.hasVariants ? (p.variants || []).filter((v) => v.isActive) : [];
+              const inStock = p.hasVariants
+                ? activeVariants.some((v) => v.quantity > 0)
+                : p.quantity > 0;
+              const expanded = expandedId === p.id;
               return (
-                <div
-                  key={p.id}
-                  className={`px-4 py-2.5 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
-                    idx === highlightIdx ? 'bg-white/10' : 'hover:bg-white/5'
-                  } ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}`}
-                  onMouseEnter={() => setHighlightIdx(idx)}
-                  onClick={() => inStock && selectProduct(p)}
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm text-white font-medium truncate">{p.name}</div>
-                    <div className="text-xs text-zinc-500">{p.sku}</div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    {!p.hasVariants ? (
-                      <>
-                        <div className="text-sm text-zinc-300 font-medium">{Number(p.sellingPrice).toLocaleString()} DA</div>
-                        <div className={`text-xs ${p.quantity > 0 ? 'text-zinc-500' : 'text-zinc-600'}`}>
-                          {p.quantity > 0 ? `${p.quantity} in stock` : 'Out of stock'}
+                <div key={p.id}>
+                  <div
+                    className={`px-4 py-2.5 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+                      idx === highlightIdx ? 'bg-white/10' : 'hover:bg-white/5'
+                    } ${!inStock ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    onMouseEnter={() => setHighlightIdx(idx)}
+                    onClick={() => {
+                      if (p.hasVariants) setExpandedId(expanded ? null : p.id);
+                      else if (inStock) selectProduct(p);
+                    }}
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm text-white font-medium truncate">{p.name}</div>
+                      <div className="text-xs text-zinc-500">{p.sku}</div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      {!p.hasVariants ? (
+                        <>
+                          <div className="text-sm text-zinc-300 font-medium">{Number(p.sellingPrice).toLocaleString()} DA</div>
+                          <div className={`text-xs ${p.quantity > 0 ? 'text-zinc-500' : 'text-zinc-600'}`}>
+                            {p.quantity > 0 ? `${p.quantity} in stock` : 'Out of stock'}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-zinc-500">
+                          {activeVariants.length} variant{activeVariants.length !== 1 ? 's' : ''} {expanded ? '▴' : '▾'}
                         </div>
-                      </>
-                    ) : (
-                      <div className="text-xs text-zinc-500">{p.variants?.length || 0} variants</div>
-                    )}
+                      )}
+                    </div>
                   </div>
+                  {p.hasVariants && expanded && (
+                    <div className="bg-black/40 border-t border-white/5">
+                      {activeVariants.length === 0 ? (
+                        <div className="pl-10 pr-4 py-2 text-xs text-zinc-600">No active variants</div>
+                      ) : (
+                        activeVariants.map((v) => {
+                          const vInStock = v.quantity > 0;
+                          return (
+                            <div
+                              key={v.id}
+                              className={`pl-10 pr-4 py-2 flex items-center justify-between gap-3 transition-colors ${
+                                vInStock ? 'cursor-pointer hover:bg-white/5' : 'opacity-40 cursor-not-allowed'
+                              }`}
+                              onClick={(e) => { e.stopPropagation(); if (vInStock) selectProduct(p, v); }}
+                            >
+                              <div className="text-sm text-zinc-200 truncate">{v.name}</div>
+                              <div className="text-right flex-shrink-0">
+                                <div className="text-sm text-zinc-300 font-medium">{Number(v.sellingPrice).toLocaleString()} DA</div>
+                                <div className={`text-xs ${vInStock ? 'text-zinc-500' : 'text-zinc-600'}`}>
+                                  {vInStock ? `${v.quantity} in stock` : 'Out of stock'}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -303,9 +347,12 @@ export default function NewSalePage() {
     );
   }, [products]);
 
-  const addProduct = useCallback((product: Product) => {
-    const price = Number(product.sellingPrice);
-    const existing = saleItems.findIndex((i) => i.productId === product.id && !i.variantId);
+  const addProduct = useCallback((product: Product, variant?: ProductVariant) => {
+    const price = variant ? Number(variant.sellingPrice) : Number(product.sellingPrice);
+    // Dedupe lines by productId + variantId (a product can appear once per variant)
+    const existing = saleItems.findIndex(
+      (i) => i.productId === product.id && (variant ? i.variantId === variant.id : !i.variantId)
+    );
     if (existing >= 0) {
       const updated = [...saleItems];
       updated[existing] = { ...updated[existing], quantity: updated[existing].quantity + 1 };
@@ -314,6 +361,8 @@ export default function NewSalePage() {
       setSaleItems((prev) => [...prev, {
         productId: product.id,
         productName: product.name,
+        variantId: variant?.id,
+        variantName: variant?.name,
         quantity: 1,
         unitPrice: price,
       }]);
@@ -354,9 +403,17 @@ export default function NewSalePage() {
       await createSale({
         customerName: customerName || undefined,
         customerPhone: customerPhone || undefined,
-        items: saleItems.map((i) => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })),
+        items: saleItems.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          variantId: i.variantId,
+          variantName: i.variantName,
+        })),
+        amountPaid: paid,
         paymentMethod,
         paymentStatus,
+        saleDate: saleDate || undefined,
         notes: notes || undefined,
       });
       router.push('/dashboard/stock/sales');

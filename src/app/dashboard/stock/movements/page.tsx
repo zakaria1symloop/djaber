@@ -219,7 +219,12 @@ export default function MovementsPage() {
                       mv.type === 'out' ? 'text-zinc-500' :
                       'text-white'
                     }`}>
-                      {mv.type === 'in' || mv.type === 'return' ? '+' : mv.type === 'out' ? '-' : ''}{mv.quantity}
+                      {/* Signed ledger convention: 'out' rows store NEGATIVE quantities,
+                          'in'/'return' positive, 'adjustment' a signed delta. Derive the
+                          sign from the stored value (robust to legacy positive 'out' rows)
+                          and render the magnitude once — never prefix an already-negative
+                          number. */}
+                      {`${mv.type === 'out' || Number(mv.quantity) < 0 ? '-' : '+'}${Math.abs(Number(mv.quantity))}`}
                     </td>
                     <td className="px-4 py-3 text-sm text-zinc-400">{mv.reference || '-'}</td>
                     <td className="px-4 py-3 text-sm text-zinc-400">{mv.reason || <span className="text-zinc-500">-</span>}</td>

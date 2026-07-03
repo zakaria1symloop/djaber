@@ -8,7 +8,7 @@ import {
   ChevronLeftIcon, TrashIcon, PlusIcon, SearchIcon, TruckIcon,
   DollarIcon,
 } from '@/components/ui/icons';
-import { getProducts, getSuppliers, createPurchase, type Product, type Supplier } from '@/lib/user-stock-api';
+import { getProducts, getSuppliers, createPurchase, type Product, type ProductVariant, type Supplier } from '@/lib/user-stock-api';
 
 // ── Keyboard-navigable Supplier Autocomplete ──
 function SupplierAutocomplete({
@@ -134,17 +134,18 @@ function SupplierAutocomplete({
   );
 }
 
-// ── Keyboard-navigable Product Autocomplete ──
+// ── Keyboard-navigable Product Autocomplete (with per-variant picker rows) ──
 function ProductAutocomplete({
   products,
   onAdd,
 }: {
   products: Product[];
-  onAdd: (product: Product) => void;
+  onAdd: (product: Product, variant?: ProductVariant) => void;
 }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -166,7 +167,7 @@ function ProductAutocomplete({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  useEffect(() => { setHighlightIdx(-1); }, [filtered]);
+  useEffect(() => { setHighlightIdx(-1); setExpandedId(null); }, [filtered]);
 
   useEffect(() => {
     if (highlightIdx >= 0 && listRef.current) {
@@ -175,11 +176,12 @@ function ProductAutocomplete({
     }
   }, [highlightIdx]);
 
-  const selectProduct = (p: Product) => {
-    onAdd(p);
+  const selectProduct = (p: Product, variant?: ProductVariant) => {
+    onAdd(p, variant);
     setQuery('');
     setOpen(false);
     setHighlightIdx(-1);
+    setExpandedId(null);
     justClosedRef.current = true;
     inputRef.current?.focus();
   };
@@ -195,7 +197,13 @@ function ProductAutocomplete({
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (highlightIdx >= 0 && filtered[highlightIdx]) {
-        selectProduct(filtered[highlightIdx]);
+        const p = filtered[highlightIdx];
+        if (p.hasVariants) {
+          // Variants must be picked explicitly — Enter toggles the variant rows
+          setExpandedId((id) => (id === p.id ? null : p.id));
+        } else {
+          selectProduct(p);
+        }
       }
     } else if (e.key === 'Escape') {
       setOpen(false);
@@ -222,25 +230,64 @@ function ProductAutocomplete({
           {filtered.length === 0 ? (
             <div className="px-4 py-3 text-sm text-zinc-500">No products found</div>
           ) : (
-            filtered.map((p, idx) => (
-              <div
-                key={p.id}
-                className={`px-4 py-2.5 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
-                  idx === highlightIdx ? 'bg-white/10' : 'hover:bg-white/5'
-                }`}
-                onMouseEnter={() => setHighlightIdx(idx)}
-                onClick={() => selectProduct(p)}
-              >
-                <div className="min-w-0">
-                  <div className="text-sm text-white font-medium truncate">{p.name}</div>
-                  <div className="text-xs text-zinc-500">{p.sku}</div>
+            filtered.map((p, idx) => {
+              const activeVariants = p.hasVariants ? (p.variants || []).filter((v) => v.isActive) : [];
+              const expanded = expandedId === p.id;
+              return (
+                <div key={p.id}>
+                  <div
+                    className={`px-4 py-2.5 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+                      idx === highlightIdx ? 'bg-white/10' : 'hover:bg-white/5'
+                    }`}
+                    onMouseEnter={() => setHighlightIdx(idx)}
+                    onClick={() => {
+                      if (p.hasVariants) setExpandedId(expanded ? null : p.id);
+                      else selectProduct(p);
+                    }}
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm text-white font-medium truncate">{p.name}</div>
+                      <div className="text-xs text-zinc-500">{p.sku}</div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      {!p.hasVariants ? (
+                        <>
+                          <div className="text-sm text-zinc-400 font-medium">{Number(p.costPrice).toLocaleString()} DA</div>
+                          <div className="text-xs text-zinc-500">{p.quantity} in stock</div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-zinc-500">
+                          {activeVariants.length} variant{activeVariants.length !== 1 ? 's' : ''} {expanded ? '▴' : '▾'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {p.hasVariants && expanded && (
+                    <div className="bg-black/40 border-t border-white/5">
+                      {activeVariants.length === 0 ? (
+                        <div className="pl-10 pr-4 py-2 text-xs text-zinc-600">No active variants</div>
+                      ) : (
+                        // Out-of-stock variants stay selectable — a purchase is
+                        // exactly how you buy more of them
+                        activeVariants.map((v) => (
+                          <div
+                            key={v.id}
+                            className="pl-10 pr-4 py-2 flex items-center justify-between gap-3 cursor-pointer transition-colors hover:bg-white/5"
+                            onClick={(e) => { e.stopPropagation(); selectProduct(p, v); }}
+                          >
+                            <div className="text-sm text-zinc-200 truncate">{v.name}</div>
+                            <div className="text-right flex-shrink-0">
+                              <div className="text-sm text-zinc-400 font-medium">{Number(v.costPrice).toLocaleString()} DA</div>
+                              <div className="text-xs text-zinc-500">{v.quantity} in stock</div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-sm text-zinc-400 font-medium">{Number(p.costPrice).toLocaleString()} DA</div>
-                  <div className="text-xs text-zinc-500">{p.quantity} in stock</div>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
@@ -263,7 +310,8 @@ export default function NewPurchasePage() {
   const [amountPaid, setAmountPaid] = useState('');
 
   const [purchaseItems, setPurchaseItems] = useState<{
-    productId: string; productName: string; quantity: number; unitCost: number;
+    productId: string; productName: string; variantId?: string; variantName?: string;
+    quantity: number; unitCost: number;
   }[]>([]);
 
   useEffect(() => {
@@ -280,9 +328,12 @@ export default function NewPurchasePage() {
     load();
   }, []);
 
-  const addProduct = useCallback((product: Product) => {
-    const cost = Number(product.costPrice);
-    const existing = purchaseItems.findIndex((i) => i.productId === product.id);
+  const addProduct = useCallback((product: Product, variant?: ProductVariant) => {
+    const cost = variant ? Number(variant.costPrice) : Number(product.costPrice);
+    // Dedupe lines by productId + variantId (a product can appear once per variant)
+    const existing = purchaseItems.findIndex(
+      (i) => i.productId === product.id && (variant ? i.variantId === variant.id : !i.variantId)
+    );
     if (existing >= 0) {
       const updated = [...purchaseItems];
       updated[existing] = { ...updated[existing], quantity: updated[existing].quantity + 1 };
@@ -291,6 +342,8 @@ export default function NewPurchasePage() {
       setPurchaseItems((prev) => [...prev, {
         productId: product.id,
         productName: product.name,
+        variantId: variant?.id,
+        variantName: variant?.name,
         quantity: 1,
         unitCost: cost,
       }]);
@@ -327,8 +380,18 @@ export default function NewPurchasePage() {
       setSaving(true);
       await createPurchase({
         supplierId: selectedSupplier?.id || undefined,
-        items: purchaseItems.map((i) => ({ productId: i.productId, quantity: i.quantity, unitCost: i.unitCost })),
-        paymentStatus: paymentStatus === 'partial' ? 'pending' : paymentStatus,
+        items: purchaseItems.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          unitCost: i.unitCost,
+          variantId: i.variantId,
+          variantName: i.variantName,
+        })),
+        amountPaid: paid,
+        paymentMethod,
+        // 'partial' is a legal payment status — the server derives/validates it
+        paymentStatus,
+        purchaseDate: purchaseDate || undefined,
         notes: notes || undefined,
       });
       router.push('/dashboard/stock/purchases');
@@ -410,7 +473,10 @@ export default function NewPurchasePage() {
                       {purchaseItems.map((item, idx) => (
                         <tr key={idx} className="border-t border-white/5 hover:bg-white/[0.02]">
                           <td className="px-4 py-2.5 text-xs text-zinc-500">{idx + 1}</td>
-                          <td className="px-4 py-2.5 text-sm text-white font-medium">{item.productName}</td>
+                          <td className="px-4 py-2.5 text-sm text-white font-medium">
+                            {item.productName}
+                            {item.variantName && <span className="text-xs text-zinc-500 ml-1">({item.variantName})</span>}
+                          </td>
                           <td className="px-4 py-2.5 text-center">
                             <input
                               type="number"

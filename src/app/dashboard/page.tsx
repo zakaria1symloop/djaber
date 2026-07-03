@@ -157,13 +157,13 @@ function DashboardPageInner() {
     try {
       setAnalyticsLoading(true);
       setAnalyticsError(null);
-      const period = analyticsPeriod === 'today' ? 'today' : analyticsPeriod;
-      const purchasePeriod = analyticsPeriod === 'today' ? 'week' : analyticsPeriod;
+      // All four stat calls share the SAME window — the backend now supports
+      // 'today' for purchase stats, so no more remapping today -> week.
       const [dashRes, salesRes, purchRes, orderRes] = await Promise.all([
         getStockDashboard(),
-        getSalesStats(period as 'today' | 'week' | 'month' | 'year'),
-        getPurchaseStats(purchasePeriod as 'week' | 'month' | 'year'),
-        getOrderStats(period as 'today' | 'week' | 'month' | 'year'),
+        getSalesStats(analyticsPeriod),
+        getPurchaseStats(analyticsPeriod),
+        getOrderStats(analyticsPeriod),
       ]);
       setDashboard(dashRes);
       setSalesStats(salesRes as any);
@@ -269,11 +269,13 @@ function DashboardPageInner() {
             <KpiCard
               label={t('page.dash.revenue30d')}
               value={(() => {
+                // getSalesStats.totalRevenue is the single revenue authority —
+                // it already includes delivered orders, so adding orderStats
+                // revenue would double-count them (and count cancelled ones).
                 const s = Number(salesStats?.stats.totalRevenue || 0);
-                const o = Number(orderStats?.stats.totalRevenue || 0);
-                return `${(s + o).toLocaleString(undefined, { maximumFractionDigits: 0 })} DA`;
+                return `${s.toLocaleString(undefined, { maximumFractionDigits: 0 })} DA`;
               })()}
-              hint={`${(salesStats?.stats.totalSales ?? 0) + (orderStats?.stats.totalOrders ?? 0)}`}
+              hint={`${salesStats?.stats.totalSales ?? 0}`}
               icon={<DollarIcon className="w-4 h-4" />}
             />
             <KpiCard
@@ -604,16 +606,15 @@ function DashboardPageInner() {
             <>
               {/* KPI cards */}
               {(() => {
-                // Combine Sales + Orders revenue
-                const salesRevenue = Number(salesStats?.stats.totalRevenue || 0);
-                const ordersRevenue = Number(orderStats?.stats.totalRevenue || 0);
-                const revenue = salesRevenue + ordersRevenue;
+                // Revenue authority = getSalesStats.totalRevenue alone: it
+                // already counts walk-in sales + delivered orders, so adding
+                // orderStats revenue would double-count delivered orders and
+                // include cancelled ones. Same rule for the counts.
+                const revenue = Number(salesStats?.stats.totalRevenue || 0);
                 const spent = Number(purchaseStats?.stats.totalSpent || 0);
                 const profit = revenue - spent;
                 const profitMargin = revenue > 0 ? (profit / revenue) * 100 : 0;
-                const salesCount = (salesStats?.stats.totalSales || 0);
-                const ordersCount = (orderStats?.stats.totalOrders || 0);
-                const totalCount = salesCount + ordersCount;
+                const totalCount = (salesStats?.stats.totalSales || 0);
                 const aov = totalCount > 0 ? revenue / totalCount : 0;
                 const fmt = (n: number) => `${n.toLocaleString(undefined, { maximumFractionDigits: 0 })} DA`;
                 return (
@@ -653,7 +654,9 @@ function DashboardPageInner() {
                   <span className="text-xs text-zinc-500">{analyticsPeriod === 'today' ? 'Today' : analyticsPeriod === 'week' ? 'Last 7 days' : analyticsPeriod === 'month' ? 'Last 30 days' : 'Last year'}</span>
                 </div>
                 {(() => {
-                  const revenue = Number(salesStats?.stats.totalRevenue || 0) + Number(orderStats?.stats.totalRevenue || 0);
+                  // Same revenue authority as the KPIs — sales stats already
+                  // include delivered orders; never add orderStats revenue.
+                  const revenue = Number(salesStats?.stats.totalRevenue || 0);
                   const spent = Number(purchaseStats?.stats.totalSpent || 0);
                   const max = Math.max(revenue, spent, 1);
                   return (

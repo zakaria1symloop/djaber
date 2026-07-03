@@ -350,7 +350,8 @@ export const testAgent = async (req: Request, res: Response): Promise<void> => {
         products: {
           include: {
             product: {
-              include: { variants: true },
+              // Match the production webhook catalog: active variants only
+              include: { variants: { where: { isActive: true } } },
             },
           },
         },
@@ -364,7 +365,8 @@ export const testAgent = async (req: Request, res: Response): Promise<void> => {
     if (agent.sellAllProducts) {
       const allProducts = await prisma.product.findMany({
         where: { userId: req.user.userId, isActive: true },
-        include: { variants: true },
+        // Match the production webhook catalog: active variants only
+        include: { variants: { where: { isActive: true } } },
       });
       products = allProducts.map((p) => ({
         id: p.id,
@@ -417,6 +419,8 @@ export const testAgent = async (req: Request, res: Response): Promise<void> => {
       conversationHistory: history,
       userMessage: message.trim(),
       userId: req.user.userId,
+      // Test playground must NEVER create real orders/clients/stock movements
+      dryRun: true,
     });
 
     res.json({ response });
