@@ -46,6 +46,14 @@ export default function StockOverviewPage() {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
+  // Same mechanism the settings page uses: persist + synthetic StorageEvent so
+  // the dashboard layout (sidebar routes) reacts in this tab immediately.
+  const changeStockMode = (mode: 'simple' | 'advanced') => {
+    setStockMode(mode);
+    localStorage.setItem('stockMode', mode);
+    window.dispatchEvent(new StorageEvent('storage', { key: 'stockMode', newValue: mode }));
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -90,15 +98,46 @@ export default function StockOverviewPage() {
   return (
     <div className="space-y-6" dir={dir}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('page.stock.title')}</h1>
           <p className="text-sm text-zinc-400 mt-1">{t('page.stock.subtitle')}</p>
         </div>
-        <Button variant="outline" onClick={loadData} icon={<RefreshIcon className="w-4 h-4" />}>
-          ↻
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Simple / Advanced mode switch */}
+          <div className="flex items-center rounded-lg border border-white/10 p-0.5">
+            <button
+              onClick={() => changeStockMode('simple')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                stockMode === 'simple' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              {t('settings.stockMode.simple', 'Simple')}
+            </button>
+            <button
+              onClick={() => changeStockMode('advanced')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                stockMode === 'advanced' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              {t('settings.stockMode.advanced', 'Advanced')}
+            </button>
+          </div>
+          <Button variant="outline" onClick={loadData} icon={<RefreshIcon className="w-4 h-4" />}>
+            ↻
+          </Button>
+        </div>
       </div>
+
+      {/* Mode hint */}
+      <p className="text-[11px] text-zinc-600 -mt-3">
+        {stockMode === 'simple'
+          ? t('page.stock.modeHint.simple', 'Simple mode shows products, orders and clients. Switch to Advanced for sales, purchases, suppliers, caisse and movements.')
+          : t('page.stock.modeHint.advanced', 'Advanced mode: full ERP — sales, purchases, suppliers, caisse and stock movements are enabled.')}{' '}
+        <a href="/dashboard?section=settings" className="text-zinc-400 underline hover:text-white">
+          {t('page.stock.modeHint.settings', 'More in Settings')}
+        </a>
+      </p>
 
       {/* Primary Stats */}
       {dashboard && (
