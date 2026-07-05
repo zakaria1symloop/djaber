@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { fmtNum } from './format';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export type LinePoint = { label: string } & Record<string, number | string>;
 
@@ -28,6 +29,7 @@ const SURFACE = '#0a0a0a';
  * with a surface ring, and a crosshair + floating tooltip on hover.
  */
 export function LineChart({ points, series, height = 220, format = fmtNum }: LineChartProps) {
+  const { t } = useTranslation();
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [w, setW] = useState(600);
   const [hover, setHover] = useState<number | null>(null);
@@ -64,8 +66,8 @@ export function LineChart({ points, series, height = 220, format = fmtNum }: Lin
   if (!points || points.length === 0) {
     return (
       <div className="py-10 text-center" style={{ minHeight: height }}>
-        <p className="text-sm font-bold text-white">No data yet</p>
-        <p className="text-xs text-zinc-500 mt-1">The trend line will appear here as data comes in.</p>
+        <p className="text-sm font-bold text-white">{t('rep.hub.chart.noData')}</p>
+        <p className="text-xs text-zinc-500 mt-1">{t('rep.hub.chart.trendHint')}</p>
       </div>
     );
   }

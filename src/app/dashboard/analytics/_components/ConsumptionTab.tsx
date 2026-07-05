@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { PeriodSelector } from '@/components/analytics/KpiCard';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   StatTile,
   StatTileRow,
@@ -64,6 +65,7 @@ function TabSkeleton() {
 }
 
 export default function ConsumptionTab() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<ConsumptionAnalytics | null>(null);
@@ -77,7 +79,7 @@ export default function ConsumptionTab() {
     try {
       setData(await getConsumptionAnalytics(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load consumption analytics');
+      setError(e instanceof Error ? e.message : t('an.tab.err.consumption'));
     } finally {
       setLoading(false);
     }
@@ -99,7 +101,7 @@ export default function ConsumptionTab() {
             onClick={load}
             className="px-3 py-1.5 text-xs font-semibold bg-white text-black rounded-lg hover:bg-zinc-200 transition-colors shrink-0"
           >
-            Retry
+            {t('rep.c.retry')}
           </button>
         </div>
       </div>
@@ -122,12 +124,12 @@ export default function ConsumptionTab() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-white" style={SYNE}>
-            Consumption
+            {t('an.tab.cons.title')}
           </h2>
-          <p className="text-xs text-zinc-500 mt-0.5">Where your credits go and how long they last</p>
+          <p className="text-xs text-zinc-500 mt-0.5">{t('an.tab.cons.subtitle')}</p>
         </div>
         <div className="flex items-center gap-3">
-          {loading && <span className="text-xs text-zinc-500">Updating&hellip;</span>}
+          {loading && <span className="text-xs text-zinc-500">{t('an.tab.updating')}</span>}
           <PeriodSelector value={period} onChange={(p) => { setPeriod(p); setRange({}); }} startDate={range.startDate} endDate={range.endDate} onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }} />
         </div>
       </div>
@@ -139,25 +141,25 @@ export default function ConsumptionTab() {
             onClick={load}
             className="px-3 py-1.5 text-xs font-semibold bg-white text-black rounded-lg hover:bg-zinc-200 transition-colors shrink-0"
           >
-            Retry
+            {t('rep.c.retry')}
           </button>
         </div>
       )}
 
       {ledgerReady === false && (
         <p className="text-xs text-zinc-600">
-          Estimated from message history — live tracking starts now.
+          {t('an.tab.cons.estimatedNote')}
         </p>
       )}
 
       {/* Runway block */}
       <Card>
-        <SectionTitle title="Credit runway" sub="This billing period" />
+        <SectionTitle title={t('an.tab.cons.runway')} sub={t('an.tab.cons.billingPeriod')} />
 
         <div className="flex items-baseline justify-between gap-3 mb-2">
           <p className="text-2xl font-bold text-white leading-none" style={SYNE}>
             {num(credits.used)}
-            <span className="text-sm font-normal text-zinc-500"> / {num(credits.limit)} credits</span>
+            <span className="text-sm font-normal text-zinc-500"> / {num(credits.limit)} {t('an.tab.cons.creditsWord')}</span>
           </p>
           <p className="text-2xl font-bold text-white leading-none" style={SYNE}>
             {decimal(credits.percentage)}
@@ -170,19 +172,19 @@ export default function ConsumptionTab() {
         </div>
 
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mt-2 text-xs text-zinc-500">
-          <span>{num(credits.remaining)} credits remaining</span>
-          <span>Resets {dateLabel(credits.resetAt)}</span>
+          <span>{t('an.tab.cons.creditsRemaining').replace('{n}', num(credits.remaining))}</span>
+          <span>{t('an.tab.cons.resets').replace('{d}', dateLabel(credits.resetAt))}</span>
         </div>
 
         <p className="text-sm text-zinc-400 mt-4">
-          At this pace you&apos;ll use ~{num(Math.round(burn.projectedMonth))} credits this month
-          {burn.runwayDays != null && ` — about ${num(Math.round(burn.runwayDays))} days of runway left`}.
+          {t('an.tab.cons.pace').replace('{n}', num(Math.round(burn.projectedMonth)))}
+          {burn.runwayDays != null ? t('an.tab.cons.runwayLeft').replace('{n}', num(Math.round(burn.runwayDays))) : ''}.
         </p>
 
         {burn.willExhaust && (
           <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5">
             <p className="text-sm text-white">
-              Projected to exceed your {num(credits.limit)}-credit limit — upgrade or slow usage.
+              {t('an.tab.cons.willExhaust').replace('{n}', num(credits.limit))}
             </p>
           </div>
         )}
@@ -191,67 +193,67 @@ export default function ConsumptionTab() {
       {/* Headline ledger */}
       <StatTileRow>
         <StatTile
-          label="Used this period"
+          label={t('an.tab.cons.usedThisPeriod')}
           value={credits.used}
-          hint={`${num(credits.remaining)} remaining`}
+          hint={t('an.tab.cons.remaining').replace('{n}', num(credits.remaining))}
         />
         <StatTile
-          label="Window used"
+          label={t('an.tab.cons.windowUsed')}
           value={windowUsed}
-          hint={`${decimal(burn.perDayAvg)} / day avg`}
+          hint={t('an.tab.cons.perDayAvg').replace('{n}', decimal(burn.perDayAvg))}
         />
         <StatTile
-          label="Projected month"
+          label={t('an.tab.cons.projectedMonth')}
           value={Math.round(burn.projectedMonth)}
-          hint={burn.willExhaust ? 'Over limit' : 'Within limit'}
+          hint={burn.willExhaust ? t('an.tab.cons.overLimit') : t('an.tab.cons.withinLimit')}
         />
-        <StatTile label="Est. cost" value={usd(costEstimateUSD)} hint="Estimated USD" />
+        <StatTile label={t('an.tab.cons.estCost')} value={usd(costEstimateUSD)} hint={t('an.tab.cons.estimatedUSD')} />
       </StatTileRow>
 
       {/* By action */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <SectionTitle title="By action" sub="Share of credits" />
+          <SectionTitle title={t('an.tab.cons.byAction')} sub={t('an.tab.cons.shareOfCredits')} />
           <DonutChart
             slices={actionSlices}
             centerValue={fmtNum(windowUsed)}
-            centerLabel="Credits"
+            centerLabel={t('an.tab.cons.credits')}
           />
         </Card>
 
         <Card>
-          <SectionTitle title="By action" sub="Credits vs uses" />
+          <SectionTitle title={t('an.tab.cons.byAction')} sub={t('an.tab.cons.creditsVsUses')} />
           <BarList
             rows={actionRows}
             valueFormat={fmtNum}
             showSecondary
-            secondaryLabel="Uses"
-            emptyText="No usage yet"
+            secondaryLabel={t('an.tab.cons.uses')}
+            emptyText={t('an.tab.cons.noUsage')}
           />
         </Card>
       </div>
 
       {/* Credits per day */}
       <Card>
-        <SectionTitle title="Credits over time" sub="Per day" />
+        <SectionTitle title={t('an.tab.cons.creditsOverTime')} sub={t('an.tab.cons.perDay')} />
         <ColumnChart
           points={series}
           metric="credits"
           height={180}
-          format={(n) => `${num(Math.round(n))} credits`}
+          format={(n) => t('an.tab.cons.creditsCount').replace('{n}', num(Math.round(n)))}
         />
       </Card>
 
       {/* By agent + page */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <SectionTitle title="By agent" sub="Credits consumed" />
-          <BarList rows={byAgent} valueFormat={fmtNum} emptyText="No agent usage yet" />
+          <SectionTitle title={t('an.tab.byAgent')} sub={t('an.tab.cons.creditsConsumed')} />
+          <BarList rows={byAgent} valueFormat={fmtNum} emptyText={t('an.tab.cons.noAgentUsage')} />
         </Card>
 
         <Card>
-          <SectionTitle title="By page" sub="Credits consumed" />
-          <BarList rows={byPage} valueFormat={fmtNum} emptyText="No page usage yet" />
+          <SectionTitle title={t('an.tab.byPage')} sub={t('an.tab.cons.creditsConsumed')} />
+          <BarList rows={byPage} valueFormat={fmtNum} emptyText={t('an.tab.cons.noPageUsage')} />
         </Card>
       </div>
     </div>

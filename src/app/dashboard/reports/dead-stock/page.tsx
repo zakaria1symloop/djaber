@@ -14,24 +14,27 @@ import {
   type DeadStockReport,
   type ReportPeriod,
 } from '@/lib/reports-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 const META = REPORT_CATALOG.find((r) => r.key === 'dead-stock')!;
 const money = (n: number) => `${Math.round(n).toLocaleString()} DA`;
-const dateLabel = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : 'Never');
-const PERIOD_WORD: Record<ReportPeriod | 'custom', string> = {
-  today: 'today',
-  week: '7 days',
-  month: '30 days',
-  year: 'year',
-  custom: 'custom range',
-};
 
 export default function DeadStockPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<ReportPeriod | 'custom'>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<DeadStockReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const dateLabel = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : t('rep.c.never'));
+  const PERIOD_WORD: Record<ReportPeriod | 'custom', string> = {
+    today: t('rep.inv.dead.period.today'),
+    week: t('rep.inv.dead.period.week'),
+    month: t('rep.inv.dead.period.month'),
+    year: t('rep.inv.dead.period.year'),
+    custom: t('rep.inv.dead.period.custom'),
+  };
 
   const load = useCallback(async () => {
     if (period === 'custom' && (!range.startDate || !range.endDate)) return;
@@ -40,10 +43,11 @@ export default function DeadStockPage() {
     try {
       setData(await getDeadStock(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load dead stock');
+      setError(e instanceof Error ? e.message : t('rep.inv.dead.loadError'));
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period, range.startDate, range.endDate]);
 
   useEffect(() => {
@@ -69,38 +73,38 @@ export default function DeadStockPage() {
         <div className="space-y-6">
           <StatTileRow>
             <StatTile
-              label="Dead stock value"
+              label={t('rep.inv.dead.deadStockValue')}
               value={money(data.deadStockValue)}
-              hint={`Cash tied up · no sales in ${PERIOD_WORD[period]}`}
+              hint={t('rep.inv.dead.deadValueHint').replace('{period}', PERIOD_WORD[period])}
             />
-            <StatTile label="Dead items" value={data.items.length} hint="In stock, not moving" />
-            <StatTile label="Never sold" value={data.zeroSales.length} hint="No sale ever recorded" />
+            <StatTile label={t('rep.inv.dead.deadItems')} value={data.items.length} hint={t('rep.inv.dead.deadItemsHint')} />
+            <StatTile label={t('rep.inv.dead.neverSold')} value={data.zeroSales.length} hint={t('rep.inv.dead.neverSoldHint')} />
           </StatTileRow>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Dead items table */}
             <div className="lg:col-span-2 bg-zinc-900/50 border border-white/10 rounded-xl p-5">
               <h2 className="text-base font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-                Dead items
+                {t('rep.inv.dead.deadItems')}
               </h2>
               <p className="text-xs text-zinc-500 mb-4">
-                In stock with no sales in the last {PERIOD_WORD[period]} — discount, bundle or return to free up cash.
+                {t('rep.inv.dead.deadItemsDesc').replace('{period}', PERIOD_WORD[period])}
               </p>
               {data.items.length === 0 ? (
                 <div className="py-8 text-center">
-                  <p className="text-sm font-bold text-white">All stock is moving</p>
-                  <p className="text-xs text-zinc-500 mt-1">Every product in stock sold within this window.</p>
+                  <p className="text-sm font-bold text-white">{t('rep.inv.dead.itemsEmptyTitle')}</p>
+                  <p className="text-xs text-zinc-500 mt-1">{t('rep.inv.dead.itemsEmptyDesc')}</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">
-                        <th className="text-start font-medium py-2 pe-4">Product</th>
-                        <th className="text-start font-medium py-2 pe-4">SKU</th>
-                        <th className="text-end font-medium py-2 pe-4">Qty</th>
-                        <th className="text-end font-medium py-2 pe-4">Stock value</th>
-                        <th className="text-end font-medium py-2">Last sold</th>
+                        <th className="text-start font-medium py-2 pe-4">{t('rep.c.product')}</th>
+                        <th className="text-start font-medium py-2 pe-4">{t('rep.c.sku')}</th>
+                        <th className="text-end font-medium py-2 pe-4">{t('rep.inv.qty')}</th>
+                        <th className="text-end font-medium py-2 pe-4">{t('rep.c.stockValue')}</th>
+                        <th className="text-end font-medium py-2">{t('rep.c.lastSold')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -121,7 +125,7 @@ export default function DeadStockPage() {
                     <tfoot>
                       <tr className="border-t border-white/10">
                         <td className="py-2.5 pe-4 text-[10px] uppercase tracking-[0.15em] text-zinc-500" colSpan={3}>
-                          Total
+                          {t('rep.c.total')}
                         </td>
                         <td className="py-2.5 pe-4 text-end font-semibold text-white tabular-nums">
                           {money(deadValueTotal)}
@@ -137,9 +141,9 @@ export default function DeadStockPage() {
             {/* Never-sold products */}
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
               <h2 className="text-base font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-                Never sold
+                {t('rep.inv.dead.neverSold')}
               </h2>
-              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-4">Units held, zero lifetime sales</p>
+              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-4">{t('rep.inv.dead.neverSoldSubhead')}</p>
               <BarList
                 rows={data.zeroSales.map((p) => ({
                   id: p.id,
@@ -147,8 +151,8 @@ export default function DeadStockPage() {
                   sublabel: p.sku,
                   value: p.quantity,
                 }))}
-                valueFormat={(n) => `${fmtNum(n)} units`}
-                emptyText="Everything has sold at least once"
+                valueFormat={(n) => `${fmtNum(n)} ${t('rep.inv.unitsWord')}`}
+                emptyText={t('rep.inv.dead.neverSoldEmpty')}
               />
             </div>
           </div>

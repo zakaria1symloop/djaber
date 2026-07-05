@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PeriodSelector } from '@/components/analytics/KpiCard';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   getAgentsAnalytics,
   type AgentAnalytics,
@@ -34,6 +35,7 @@ function InsightPill({ label, count }: { label: string; count: number }) {
 }
 
 function AgentCard({ agent }: { agent: AgentAnalytics }) {
+  const { t } = useTranslation();
   const lowConversion =
     agent.conversionPct !== null && agent.conversionPct < 5 && agent.conversations >= 10;
 
@@ -57,7 +59,7 @@ function AgentCard({ agent }: { agent: AgentAnalytics }) {
 
       {/* Headline income */}
       <div className="mb-5">
-        <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1">Income</p>
+        <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1">{t('an.tab.agent.income')}</p>
         <p className="text-2xl font-bold text-white" style={SYNE}>
           {agent.aiRevenue.toLocaleString()}{' '}
           <span className="text-sm font-normal text-zinc-500">DA</span>
@@ -66,42 +68,42 @@ function AgentCard({ agent }: { agent: AgentAnalytics }) {
 
       {/* Stats row */}
       <div className="flex flex-wrap gap-x-8 gap-y-4 mb-5">
-        <StatItem label="AI orders" value={agent.aiOrders.toLocaleString()} />
+        <StatItem label={t('an.tab.aiOrders')} value={agent.aiOrders.toLocaleString()} />
         <StatItem
-          label="Avg order value"
+          label={t('rep.c.avgOrderValue')}
           value={
             agent.avgOrderValue !== null
               ? `${Math.round(agent.avgOrderValue).toLocaleString()} DA`
               : '—'
           }
         />
-        <StatItem label="Conversations" value={agent.conversations.toLocaleString()} />
-        <StatItem label="Messages handled" value={agent.messagesHandled.toLocaleString()} />
+        <StatItem label={t('an.tab.conversations')} value={agent.conversations.toLocaleString()} />
+        <StatItem label={t('an.tab.agent.messagesHandled')} value={agent.messagesHandled.toLocaleString()} />
         <StatItem
-          label="Conversion"
+          label={t('an.tab.agent.conversion')}
           value={agent.conversionPct !== null ? `${formatPct(agent.conversionPct)}%` : '—'}
         />
       </div>
 
       {/* Insights strip */}
       <div className="flex flex-wrap gap-2">
-        <InsightPill label="Unclear" count={agent.insights.unclear} />
-        <InsightPill label="Unknown" count={agent.insights.unknown} />
-        <InsightPill label="Handoff" count={agent.insights.handoff} />
-        <InsightPill label="Resolved" count={agent.insights.resolved} />
+        <InsightPill label={t('an.tab.insight.unclear')} count={agent.insights.unclear} />
+        <InsightPill label={t('an.tab.insight.unknown')} count={agent.insights.unknown} />
+        <InsightPill label={t('an.tab.insight.handoff')} count={agent.insights.handoff} />
+        <InsightPill label={t('an.tab.insight.resolved')} count={agent.insights.resolved} />
       </div>
 
       {/* Attention strip */}
       {lowConversion && (
         <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 flex items-center justify-between gap-3">
           <p className="text-sm text-zinc-400">
-            Low conversion — review the agent&apos;s instructions
+            {t('an.tab.agent.lowConversion')}
           </p>
           <Link
             href={`/dashboard/agents/${agent.id}/edit`}
             className="text-sm font-medium text-white underline underline-offset-4 shrink-0"
           >
-            Edit
+            {t('an.tab.edit')}
           </Link>
         </div>
       )}
@@ -110,6 +112,7 @@ function AgentCard({ agent }: { agent: AgentAnalytics }) {
 }
 
 export default function AgentsTab() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<AgentsAnalyticsResponse | null>(null);
@@ -124,7 +127,7 @@ export default function AgentsTab() {
       const res = await getAgentsAnalytics(period, period === 'custom' ? range : undefined);
       setData(res);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load agent analytics');
+      setError(err instanceof Error ? err.message : t('an.tab.err.agents'));
     } finally {
       setLoading(false);
     }
@@ -139,8 +142,8 @@ export default function AgentsTab() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-white" style={SYNE}>Agents</h2>
-          <p className="text-xs text-zinc-500 mt-0.5">Which AI generates more income</p>
+          <h2 className="text-lg font-bold text-white" style={SYNE}>{t('an.tab.agent.title')}</h2>
+          <p className="text-xs text-zinc-500 mt-0.5">{t('an.tab.agent.subtitle')}</p>
         </div>
         <PeriodSelector value={period} onChange={(p) => { setPeriod(p); setRange({}); }} startDate={range.startDate} endDate={range.endDate} onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }} />
       </div>
@@ -163,16 +166,16 @@ export default function AgentsTab() {
             onClick={load}
             className="text-sm text-red-400 underline underline-offset-4 shrink-0"
           >
-            Retry
+            {t('rep.c.retry')}
           </button>
         </div>
       ) : !data || data.agents.length === 0 ? (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl px-6 py-12 text-center">
-          <p className="text-white font-bold" style={SYNE}>No agents yet</p>
+          <p className="text-white font-bold" style={SYNE}>{t('an.tab.agent.empty.title')}</p>
           <p className="text-sm text-zinc-500 mt-1.5">
-            Create an AI agent to start generating income from your conversations.{' '}
+            {t('an.tab.agent.empty.desc')}{' '}
             <Link href="/dashboard/agents" className="text-white underline underline-offset-4">
-              Go to agents
+              {t('an.tab.agent.empty.cta')}
             </Link>
           </p>
         </div>

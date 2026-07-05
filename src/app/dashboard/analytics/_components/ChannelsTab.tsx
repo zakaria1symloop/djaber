@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PeriodSelector } from '@/components/analytics/KpiCard';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   getChannelsAnalytics,
   type ChannelAnalytics,
@@ -25,6 +26,7 @@ function LedgerCell({ label, value }: { label: string; value: string }) {
 }
 
 function ChannelCard({ channel }: { channel: ChannelAnalytics }) {
+  const { t } = useTranslation();
   // potentialScore is contractually 0-100; clamp so the bar can never overflow the track.
   const score = Math.max(0, Math.min(100, channel.potentialScore));
 
@@ -42,7 +44,7 @@ function ChannelCard({ channel }: { channel: ChannelAnalytics }) {
 
       {/* Potential meter */}
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">Potential</span>
+        <span className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">{t('an.tab.chan.potential')}</span>
         <span className="text-sm font-bold text-white" style={SYNE}>
           {score.toLocaleString()}
           <span className="text-xs font-normal text-zinc-500">/100</span>
@@ -56,25 +58,26 @@ function ChannelCard({ channel }: { channel: ChannelAnalytics }) {
       {/* Mini ledger — hairline band */}
       <div className="mt-4 rounded-xl border border-white/10 overflow-hidden">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-white/10">
-          <LedgerCell label="Conversations" value={channel.conversations.toLocaleString()} />
-          <LedgerCell label="New" value={channel.newConversations.toLocaleString()} />
-          <LedgerCell label="Messages in" value={channel.messagesIn.toLocaleString()} />
-          <LedgerCell label="Messages out" value={channel.messagesOut.toLocaleString()} />
-          <LedgerCell label="AI orders" value={channel.aiOrders.toLocaleString()} />
-          <LedgerCell label="AI revenue" value={`${channel.aiRevenue.toLocaleString()} DA`} />
+          <LedgerCell label={t('an.tab.conversations')} value={channel.conversations.toLocaleString()} />
+          <LedgerCell label={t('an.tab.new')} value={channel.newConversations.toLocaleString()} />
+          <LedgerCell label={t('an.tab.messagesIn')} value={channel.messagesIn.toLocaleString()} />
+          <LedgerCell label={t('an.tab.messagesOut')} value={channel.messagesOut.toLocaleString()} />
+          <LedgerCell label={t('an.tab.aiOrders')} value={channel.aiOrders.toLocaleString()} />
+          <LedgerCell label={t('an.tab.aiRevenue')} value={`${channel.aiRevenue.toLocaleString()} DA`} />
         </div>
       </div>
 
       <p className="mt-3 text-xs text-zinc-500">
         {channel.conversionPct !== null && channel.conversionPct > 0
-          ? `${formatPct(channel.conversionPct)}% of chats become orders`
-          : 'no conversions yet'}
+          ? t('an.tab.chan.conversion').replace('{n}', formatPct(channel.conversionPct))
+          : t('an.tab.chan.noConversions')}
       </p>
     </div>
   );
 }
 
 export default function ChannelsTab() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<ChannelsAnalyticsResponse | null>(null);
@@ -89,7 +92,7 @@ export default function ChannelsTab() {
       const res = await getChannelsAnalytics(period, period === 'custom' ? range : undefined);
       setData(res);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load channel analytics');
+      setError(err instanceof Error ? err.message : t('an.tab.err.channels'));
     } finally {
       setLoading(false);
     }
@@ -104,8 +107,8 @@ export default function ChannelsTab() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-white" style={SYNE}>Channels</h2>
-          <p className="text-xs text-zinc-500 mt-0.5">Which pages have potential</p>
+          <h2 className="text-lg font-bold text-white" style={SYNE}>{t('an.tab.chan.title')}</h2>
+          <p className="text-xs text-zinc-500 mt-0.5">{t('an.tab.chan.subtitle')}</p>
         </div>
         <PeriodSelector value={period} onChange={(p) => { setPeriod(p); setRange({}); }} startDate={range.startDate} endDate={range.endDate} onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }} />
       </div>
@@ -128,19 +131,19 @@ export default function ChannelsTab() {
             onClick={load}
             className="text-sm text-red-400 underline underline-offset-4 shrink-0"
           >
-            Retry
+            {t('rep.c.retry')}
           </button>
         </div>
       ) : !data || data.channels.length === 0 ? (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl px-6 py-12 text-center">
-          <p className="text-white font-bold" style={SYNE}>No channels connected yet</p>
+          <p className="text-white font-bold" style={SYNE}>{t('an.tab.chan.empty.title')}</p>
           <p className="text-sm text-zinc-500 mt-1.5">
-            Connect a page to start measuring its potential.{' '}
+            {t('an.tab.chan.empty.desc')}{' '}
             <Link
               href="/dashboard?section=pages"
               className="text-white underline underline-offset-4"
             >
-              Connect a page
+              {t('an.tab.chan.empty.cta')}
             </Link>
           </p>
         </div>

@@ -3,6 +3,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useTranslation } from '@/contexts/LanguageContext';
 import ProductsTab from './_components/ProductsTab';
 import ChannelsTab from './_components/ChannelsTab';
 import AgentsTab from './_components/AgentsTab';
@@ -29,6 +30,7 @@ function isTabKey(value: string | null): value is TabKey {
 }
 
 function AnalyticsHub() {
+  const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -45,36 +47,36 @@ function AnalyticsHub() {
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1.5">Insights</p>
+          <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1.5">{t('an.tab.hub.eyebrow')}</p>
           <h1
             className="text-2xl sm:text-3xl font-bold text-white"
             style={{ fontFamily: 'Syne, sans-serif' }}
           >
-            Analytics
+            {t('an.tab.hub.title')}
           </h1>
-          <p className="text-sm text-zinc-400 mt-1">Deep performance analytics for your business</p>
+          <p className="text-sm text-zinc-400 mt-1">{t('an.tab.hub.subtitle')}</p>
         </div>
         <Link
           href="/dashboard?section=analytics"
           className="text-xs text-zinc-500 hover:text-white transition-colors"
         >
-          Classic overview &rarr;
+          {t('an.tab.hub.classic')} &rarr;
         </Link>
       </div>
 
       {/* Tab bar — segmented control */}
       <div className="flex gap-1 border border-white/10 rounded-lg p-0.5 w-fit mb-6 overflow-x-auto max-w-full">
-        {TABS.map((t) => (
+        {TABS.map((item) => (
           <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
+            key={item.key}
+            onClick={() => setTab(item.key)}
             className={`text-xs px-3 py-1.5 rounded-md whitespace-nowrap transition-colors ${
-              tab === t.key
+              tab === item.key
                 ? 'bg-white text-black font-semibold'
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
-            {t.label}
+            {t(`an.tab.hub.tab.${item.key}`)}
           </button>
         ))}
       </div>

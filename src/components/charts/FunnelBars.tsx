@@ -1,4 +1,7 @@
+'use client';
+
 import React from 'react';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export interface FunnelStage {
   label: string;
@@ -17,11 +20,12 @@ export interface FunnelBarsProps {
  * brightness only (white / zinc-500 / zinc-700) — never color.
  */
 export function FunnelBars({ stages }: FunnelBarsProps) {
+  const { t } = useTranslation();
   if (!stages || stages.length === 0) {
     return (
       <div className="py-10 text-center">
-        <p className="text-sm font-bold text-white">No funnel data yet</p>
-        <p className="text-xs text-zinc-500 mt-1">Stages will appear here as data comes in.</p>
+        <p className="text-sm font-bold text-white">{t('rep.hub.chart.noFunnel')}</p>
+        <p className="text-xs text-zinc-500 mt-1">{t('rep.hub.chart.stagesHint')}</p>
       </div>
     );
   }

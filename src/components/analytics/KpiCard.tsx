@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export type KpiColor = 'violet' | 'emerald' | 'orange' | 'blue' | 'red' | 'zinc' | 'yellow' | 'pink';
 
@@ -66,11 +67,13 @@ export interface PeriodSelectorProps {
 }
 
 const PRESETS: PeriodPreset[] = ['today', 'week', 'month', 'year'];
+// English fallbacks; live labels come from the `rep.c.period.*` keys at render.
 const PRESET_LABEL: Record<PeriodPreset, string> = { today: 'Today', week: '7D', month: '30D', year: '1Y' };
 const DATE_INPUT_CLASS =
   'bg-black/50 border border-white/10 rounded-lg text-white text-sm px-2 py-1.5 focus:border-white/30 focus:outline-none [color-scheme:dark]';
 
 export function PeriodSelector({ value, onChange, startDate, endDate, onRangeChange }: PeriodSelectorProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(value === 'custom');
   const showCustom = !!onRangeChange;
   const showInputs = showCustom && (open || value === 'custom');
@@ -89,7 +92,7 @@ export function PeriodSelector({ value, onChange, startDate, endDate, onRangeCha
               value === p ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
             }`}
           >
-            {PRESET_LABEL[p]}
+            {t(`rep.c.period.${p}`, PRESET_LABEL[p])}
           </button>
         ))}
         {showCustom && (
@@ -99,7 +102,7 @@ export function PeriodSelector({ value, onChange, startDate, endDate, onRangeCha
               value === 'custom' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
             }`}
           >
-            Custom
+            {t('rep.c.period.custom')}
           </button>
         )}
       </div>

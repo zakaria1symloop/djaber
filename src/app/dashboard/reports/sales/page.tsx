@@ -12,6 +12,7 @@ import {
   fmtNum,
 } from '@/components/charts';
 import { getSalesReport, type SalesReport, type ReportPeriodParam } from '@/lib/reports-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 function Panel({
   title,
@@ -38,6 +39,7 @@ function Panel({
 }
 
 export default function SalesReportPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<ReportPeriodParam>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<SalesReport | null>(null);
@@ -51,7 +53,7 @@ export default function SalesReportPage() {
     try {
       setData(await getSalesReport(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load report');
+      setError(e instanceof Error ? e.message : t('rep.com.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -63,8 +65,8 @@ export default function SalesReportPage() {
 
   return (
     <ReportShell
-      title="Sales Report"
-      description="Sales and delivered orders: revenue, volume and trend."
+      title={t('rep.com.sales.title')}
+      description={t('rep.com.sales.desc')}
       period={period}
       onPeriodChange={(p) => {
         setPeriod(p);
@@ -83,37 +85,37 @@ export default function SalesReportPage() {
       {data && (
         <div className="space-y-6">
           <StatTileRow>
-            <StatTile label="Revenue" value={data.revenue} suffix=" DA" />
-            <StatTile label="Orders" value={data.orders} />
+            <StatTile label={t('rep.c.revenue')} value={data.revenue} suffix=" DA" />
+            <StatTile label={t('rep.c.orders')} value={data.orders} />
             {data.avgOrderValue != null ? (
-              <StatTile label="Avg order value" value={data.avgOrderValue} suffix=" DA" />
+              <StatTile label={t('rep.c.avgOrderValue')} value={data.avgOrderValue} suffix=" DA" />
             ) : (
-              <StatTile label="Avg order value" value="—" />
+              <StatTile label={t('rep.c.avgOrderValue')} value="—" />
             )}
-            <StatTile label="Items sold" value={data.itemsSold} />
+            <StatTile label={t('rep.com.itemsSold')} value={data.itemsSold} />
           </StatTileRow>
 
-          <Panel title="Revenue & orders" subtitle="Over the selected period">
+          <Panel title={t('rep.com.sales.revenueOrders')} subtitle={t('rep.com.sales.revenueOrders.sub')}>
             <LineChart
               points={data.series}
               series={[
-                { key: 'revenue', label: 'Revenue' },
-                { key: 'orders', label: 'Orders' },
+                { key: 'revenue', label: t('rep.c.revenue') },
+                { key: 'orders', label: t('rep.c.orders') },
               ]}
               format={fmtNum}
             />
           </Panel>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Panel title="By channel" subtitle="Where revenue comes from">
+            <Panel title={t('rep.com.sales.byChannel')} subtitle={t('rep.com.sales.byChannel.sub')}>
               <DonutChart
                 slices={data.byChannel.map((c) => ({ label: c.label, value: c.value }))}
                 centerValue={fmtDA(data.revenue)}
-                centerLabel="Revenue"
+                centerLabel={t('rep.c.revenue')}
               />
             </Panel>
 
-            <Panel title="By payment status" subtitle="Revenue by settlement state">
+            <Panel title={t('rep.com.sales.byPaymentStatus')} subtitle={t('rep.com.sales.byPaymentStatus.sub')}>
               <BarList rows={data.byPaymentStatus} valueFormat={fmtDA} />
             </Panel>
           </div>

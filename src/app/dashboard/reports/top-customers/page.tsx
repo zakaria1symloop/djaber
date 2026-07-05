@@ -14,12 +14,14 @@ import {
   type TopCustomersReport,
   type ReportPeriod,
 } from '@/lib/reports-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 const META = REPORT_CATALOG.find((r) => r.key === 'top-customers')!;
 const money = (n: number) => `${Math.round(n).toLocaleString()} DA`;
 const dateLabel = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : '—');
 
 export default function TopCustomersPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<ReportPeriod | 'custom'>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<TopCustomersReport | null>(null);
@@ -33,10 +35,11 @@ export default function TopCustomersPage() {
     try {
       setData(await getTopCustomers(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load top customers');
+      setError(e instanceof Error ? e.message : t('rep.inv.topCustomers.loadError'));
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period, range.startDate, range.endDate]);
 
   useEffect(() => {
@@ -62,17 +65,17 @@ export default function TopCustomersPage() {
       {data && (
         <div className="space-y-6">
           <StatTileRow>
-            <StatTile label="Total spent" value={money(data.total)} hint="Across ranked customers" />
-            <StatTile label="Customers" value={count} hint="With orders in period" />
-            <StatTile label="Avg per customer" value={money(avg)} hint="Total ÷ customers" />
+            <StatTile label={t('rep.c.totalSpent')} value={money(data.total)} hint={t('rep.inv.topCustomers.totalHint')} />
+            <StatTile label={t('rep.c.customers')} value={count} hint={t('rep.inv.topCustomers.customersHint')} />
+            <StatTile label={t('rep.inv.topCustomers.avgPerCustomer')} value={money(avg)} hint={t('rep.inv.topCustomers.avgHint')} />
           </StatTileRow>
 
           {/* Ranked spend */}
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
             <h2 className="text-base font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-              Top customers by spend
+              {t('rep.inv.topCustomers.bySpend')}
             </h2>
-            <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-4">Total value in period</p>
+            <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-4">{t('rep.inv.topCustomers.bySpendHint')}</p>
             <BarList
               rows={data.customers.map((c) => ({
                 id: c.id,
@@ -81,31 +84,31 @@ export default function TopCustomersPage() {
                 value: c.value,
               }))}
               valueFormat={fmtDA}
-              emptyText="No customer sales in this period"
+              emptyText={t('rep.inv.topCustomers.noSales')}
             />
           </div>
 
           {/* Detail table */}
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
             <h2 className="text-base font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-              Customer detail
+              {t('rep.inv.topCustomers.detail')}
             </h2>
-            <p className="text-xs text-zinc-500 mb-4">Orders, recency and source per customer.</p>
+            <p className="text-xs text-zinc-500 mb-4">{t('rep.inv.topCustomers.detailHint')}</p>
             {data.customers.length === 0 ? (
               <div className="py-8 text-center">
-                <p className="text-sm font-bold text-white">No customers yet</p>
-                <p className="text-xs text-zinc-500 mt-1">Ranked customers will appear here as orders come in.</p>
+                <p className="text-sm font-bold text-white">{t('rep.inv.topCustomers.emptyTitle')}</p>
+                <p className="text-xs text-zinc-500 mt-1">{t('rep.inv.topCustomers.emptyDesc')}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">
-                      <th className="text-start font-medium py-2 pe-4">Customer</th>
-                      <th className="text-end font-medium py-2 pe-4">Orders</th>
-                      <th className="text-end font-medium py-2 pe-4">Last order</th>
-                      <th className="text-start font-medium py-2 pe-4">Source</th>
-                      <th className="text-end font-medium py-2">Spent</th>
+                      <th className="text-start font-medium py-2 pe-4">{t('rep.c.customer')}</th>
+                      <th className="text-end font-medium py-2 pe-4">{t('rep.c.orders')}</th>
+                      <th className="text-end font-medium py-2 pe-4">{t('rep.inv.lastOrder')}</th>
+                      <th className="text-start font-medium py-2 pe-4">{t('rep.inv.source')}</th>
+                      <th className="text-end font-medium py-2">{t('rep.inv.spent')}</th>
                     </tr>
                   </thead>
                   <tbody>

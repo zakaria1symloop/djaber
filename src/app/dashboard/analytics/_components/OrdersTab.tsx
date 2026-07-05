@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { PeriodSelector } from '@/components/analytics/KpiCard';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   getOrdersAnalytics,
   type OrdersAnalyticsResponse,
@@ -102,6 +103,7 @@ function OrdersSkeleton() {
 // ---------------------------------------------------------------------------
 
 export default function OrdersTab() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<OrdersAnalyticsResponse | null>(null);
@@ -116,7 +118,7 @@ export default function OrdersTab() {
       const res = await getOrdersAnalytics(period, period === 'custom' ? range : undefined);
       setData(res);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load orders analytics');
+      setError(e instanceof Error ? e.message : t('an.tab.err.orders'));
     } finally {
       setLoading(false);
     }
@@ -132,7 +134,7 @@ export default function OrdersTab() {
         const res = await getOrdersAnalytics(period, period === 'custom' ? range : undefined);
         if (!cancelled) setData(res);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load orders analytics');
+        if (!cancelled) setError(e instanceof Error ? e.message : t('an.tab.err.orders'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -156,7 +158,7 @@ export default function OrdersTab() {
             onClick={load}
             className="text-sm font-medium px-3 py-1.5 rounded-lg border border-red-500/20 hover:bg-red-500/10 transition-colors shrink-0"
           >
-            Retry
+            {t('rep.c.retry')}
           </button>
         </div>
       </div>
@@ -178,26 +180,26 @@ export default function OrdersTab() {
 
   // Funnel stages — all bars scaled to `created` (the widest stage).
   const funnelStages: Array<{ label: string; value: number; fill: string; muted: boolean }> = [
-    { label: 'Created', value: funnel.created, fill: 'bg-white', muted: false },
-    { label: 'Confirmed', value: funnel.confirmed, fill: 'bg-zinc-500', muted: false },
-    { label: 'Shipped', value: funnel.shipped, fill: 'bg-zinc-500', muted: false },
-    { label: 'Delivered', value: funnel.delivered, fill: 'bg-white', muted: false },
-    { label: 'Cancelled', value: funnel.cancelled, fill: 'bg-zinc-500', muted: true },
-    { label: 'Returned', value: funnel.returned, fill: 'bg-zinc-500', muted: true },
+    { label: t('an.tab.ord.stage.created'), value: funnel.created, fill: 'bg-white', muted: false },
+    { label: t('an.tab.ord.stage.confirmed'), value: funnel.confirmed, fill: 'bg-zinc-500', muted: false },
+    { label: t('an.tab.ord.stage.shipped'), value: funnel.shipped, fill: 'bg-zinc-500', muted: false },
+    { label: t('an.tab.ord.stage.delivered'), value: funnel.delivered, fill: 'bg-white', muted: false },
+    { label: t('an.tab.ord.stage.cancelled'), value: funnel.cancelled, fill: 'bg-zinc-500', muted: true },
+    { label: t('an.tab.ord.stage.returned'), value: funnel.returned, fill: 'bg-zinc-500', muted: true },
   ];
 
   // AI vs Manual — bars scaled to the larger of the two revenues.
   const maxSourceRevenue = Math.max(bySource.ai.revenue, bySource.manual.revenue);
   const sourceRows = [
-    { label: 'AI', orders: bySource.ai.orders, revenue: bySource.ai.revenue, fill: 'bg-white' },
-    { label: 'Manual', orders: bySource.manual.orders, revenue: bySource.manual.revenue, fill: 'bg-zinc-500' },
+    { label: t('an.tab.ord.source.ai'), orders: bySource.ai.orders, revenue: bySource.ai.revenue, fill: 'bg-white' },
+    { label: t('an.tab.ord.source.manual'), orders: bySource.manual.orders, revenue: bySource.manual.revenue, fill: 'bg-zinc-500' },
   ];
 
   const confirmationPills = [
-    { label: 'Not called', value: confirmation.notCalled },
-    { label: 'No answer', value: confirmation.noAnswer },
-    { label: 'Confirmed', value: confirmation.confirmed },
-    { label: 'Rejected', value: confirmation.rejected },
+    { label: t('an.tab.ord.confirm.notCalled'), value: confirmation.notCalled },
+    { label: t('an.tab.ord.confirm.noAnswer'), value: confirmation.noAnswer },
+    { label: t('an.tab.ord.confirm.confirmed'), value: confirmation.confirmed },
+    { label: t('an.tab.ord.confirm.rejected'), value: confirmation.rejected },
   ];
 
   // Wilaya table — orders-cell bars scaled to the max orders in the list.
@@ -218,9 +220,9 @@ export default function OrdersTab() {
 
       {/* 2. Funnel */}
       <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
-        <SectionTitle>Order funnel</SectionTitle>
+        <SectionTitle>{t('an.tab.ord.funnel')}</SectionTitle>
         {funnel.created === 0 ? (
-          <EmptyState title="No orders in this period" hint="Orders will appear here as they come in." />
+          <EmptyState title={t('an.tab.ord.funnelEmpty.title')} hint={t('an.tab.ord.funnelEmpty.hint')} />
         ) : (
           <div className="space-y-4">
             {funnelStages.map((stage) => {
@@ -240,7 +242,7 @@ export default function OrdersTab() {
                     />
                   </div>
                   <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mt-1">
-                    {share.toLocaleString(undefined, { maximumFractionDigits: 1 })}% of created
+                    {t('an.tab.ord.ofCreated').replace('{n}', share.toLocaleString(undefined, { maximumFractionDigits: 1 }))}
                   </p>
                 </div>
               );
@@ -252,24 +254,24 @@ export default function OrdersTab() {
       {/* 3. Stat tiles */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatTile
-          label="COD collected"
+          label={t('an.tab.ord.codCollected')}
           value={money(cod.collectedValue)}
-          sub={cod.collectionPct === null ? 'No delivered orders yet' : `${pct(cod.collectionPct)} of ${money(cod.deliveredValue)} delivered`}
+          sub={cod.collectionPct === null ? t('an.tab.ord.noDelivered') : t('an.tab.ord.ofDelivered').replace('{p}', pct(cod.collectionPct)).replace('{v}', money(cod.deliveredValue))}
         />
-        <StatTile label="Cancel rate" value={pct(cancelRatePct)} sub={`${fmt(funnel.cancelled)} cancelled`} />
-        <StatTile label="Return rate" value={pct(returnRatePct)} sub={`${fmt(funnel.returned)} returned`} />
+        <StatTile label={t('an.tab.ord.cancelRate')} value={pct(cancelRatePct)} sub={t('an.tab.ord.cancelledCount').replace('{n}', fmt(funnel.cancelled))} />
+        <StatTile label={t('an.tab.ord.returnRate')} value={pct(returnRatePct)} sub={t('an.tab.ord.returnedCount').replace('{n}', fmt(funnel.returned))} />
         <StatTile
-          label="Avg call attempts"
+          label={t('an.tab.ord.avgCallAttempts')}
           value={confirmation.avgCallAttempts.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-          sub="Per order confirmation"
+          sub={t('an.tab.ord.perOrderConfirm')}
         />
       </div>
 
       {/* 4. AI vs Manual */}
       <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
-        <SectionTitle>AI vs Manual</SectionTitle>
+        <SectionTitle>{t('an.tab.ord.aiVsManual')}</SectionTitle>
         {bySource.ai.orders === 0 && bySource.manual.orders === 0 ? (
-          <EmptyState title="No orders to compare" hint="AI and manual order sources will show up here." />
+          <EmptyState title={t('an.tab.ord.compareEmpty.title')} hint={t('an.tab.ord.compareEmpty.hint')} />
         ) : (
           <div className="space-y-5">
             {sourceRows.map((row) => (
@@ -277,7 +279,7 @@ export default function OrdersTab() {
                 <div className="flex items-baseline justify-between gap-2 mb-1.5">
                   <span className="text-sm text-zinc-400">
                     {row.label}
-                    <span className="text-zinc-500"> · {fmt(row.orders)} orders</span>
+                    <span className="text-zinc-500"> · {fmt(row.orders)} {t('an.tab.ord.ordersWord')}</span>
                   </span>
                   <span className="text-sm font-semibold text-white">{money(row.revenue)}</span>
                 </div>
@@ -295,7 +297,7 @@ export default function OrdersTab() {
 
       {/* 5. Confirmation breakdown */}
       <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
-        <SectionTitle>Confirmation breakdown</SectionTitle>
+        <SectionTitle>{t('an.tab.ord.confirmBreakdown')}</SectionTitle>
         <div className="flex flex-wrap gap-2">
           {confirmationPills.map((pill) => (
             <div
@@ -311,21 +313,21 @@ export default function OrdersTab() {
 
       {/* 6. Orders by wilaya */}
       <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
-        <SectionTitle>Orders by wilaya</SectionTitle>
+        <SectionTitle>{t('an.tab.ord.byWilaya')}</SectionTitle>
         {byWilaya.length === 0 ? (
-          <EmptyState title="No wilaya data yet" hint="Delivered orders will break down by wilaya here." />
+          <EmptyState title={t('an.tab.ord.wilayaEmpty.title')} hint={t('an.tab.ord.wilayaEmpty.hint')} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">
                   <th className="text-start font-medium py-2 pe-3">#</th>
-                  <th className="text-start font-medium py-2 pe-3">Wilaya</th>
-                  <th className="text-start font-medium py-2 pe-3">Orders</th>
-                  <th className="text-end font-medium py-2 pe-3">Revenue</th>
-                  <th className="text-end font-medium py-2 pe-3">Delivered</th>
-                  <th className="text-end font-medium py-2 pe-3">Returned</th>
-                  <th className="text-end font-medium py-2">Delivery fees</th>
+                  <th className="text-start font-medium py-2 pe-3">{t('an.tab.ord.wilaya')}</th>
+                  <th className="text-start font-medium py-2 pe-3">{t('rep.c.orders')}</th>
+                  <th className="text-end font-medium py-2 pe-3">{t('rep.c.revenue')}</th>
+                  <th className="text-end font-medium py-2 pe-3">{t('an.tab.ord.stage.delivered')}</th>
+                  <th className="text-end font-medium py-2 pe-3">{t('an.tab.ord.stage.returned')}</th>
+                  <th className="text-end font-medium py-2">{t('an.tab.ord.deliveryFees')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -356,16 +358,16 @@ export default function OrdersTab() {
 
       {/* 7. Trend */}
       <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
-        <SectionTitle>Orders trend</SectionTitle>
+        <SectionTitle>{t('an.tab.ord.trend')}</SectionTitle>
         {!hasTrend ? (
-          <EmptyState title="No activity in this period" hint="Daily order volumes will chart here." />
+          <EmptyState title={t('an.tab.ord.trendEmpty.title')} hint={t('an.tab.ord.trendEmpty.hint')} />
         ) : (
           <div>
             <div className="flex items-end gap-px h-24">
               {series.map((bucket) => (
                 <div
                   key={bucket.date}
-                  title={`${bucket.date} · ${fmt(bucket.orders)} orders · ${money(bucket.revenue)}`}
+                  title={`${bucket.date} · ${fmt(bucket.orders)} ${t('an.tab.ord.ordersWord')} · ${money(bucket.revenue)}`}
                   className="flex-1 bg-white/70 hover:bg-white rounded-sm transition-colors min-w-0"
                   style={{
                     height: bucket.orders > 0 ? `${Math.max(4, barPct(bucket.orders, maxSeriesOrders))}%` : '2px',

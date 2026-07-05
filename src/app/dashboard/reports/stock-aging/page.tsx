@@ -13,12 +13,14 @@ import {
   REPORT_CATALOG,
   type StockAgingReport,
 } from '@/lib/reports-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 const META = REPORT_CATALOG.find((r) => r.key === 'stock-aging')!;
 const money = (n: number) => `${Math.round(n).toLocaleString()} DA`;
 const dateLabel = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : '—');
 
 export default function StockAgingPage() {
+  const { t } = useTranslation();
   const [data, setData] = useState<StockAgingReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,10 +31,11 @@ export default function StockAgingPage() {
     try {
       setData(await getStockAging());
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load stock aging');
+      setError(e instanceof Error ? e.message : t('rep.inv.aging.loadError'));
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -54,52 +57,52 @@ export default function StockAgingPage() {
       {data && (
         <div className="space-y-6">
           <StatTileRow>
-            <StatTile label="Stock value" value={money(totalValue)} hint="On hand at cost" />
-            <StatTile label="Units in stock" value={totalUnits} hint="Across all buckets" />
-            <StatTile label="Aged 90d+" value={money(oldValue)} hint="Sitting over 90 days" />
-            <StatTile label="Items tracked" value={data.items.length} hint="With movement history" />
+            <StatTile label={t('rep.c.stockValue')} value={money(totalValue)} hint={t('rep.inv.aging.stockValueHint')} />
+            <StatTile label={t('rep.inv.unitsInStock')} value={totalUnits} hint={t('rep.inv.aging.unitsHint')} />
+            <StatTile label={t('rep.inv.aging.aged90')} value={money(oldValue)} hint={t('rep.inv.aging.aged90Hint')} />
+            <StatTile label={t('rep.inv.aging.itemsTracked')} value={data.items.length} hint={t('rep.inv.aging.itemsTrackedHint')} />
           </StatTileRow>
 
           {/* Aging buckets */}
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
             <h2 className="text-base font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-              Stock value by age
+              {t('rep.inv.aging.byAge')}
             </h2>
-            <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-4">Days since last movement</p>
+            <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-4">{t('rep.inv.aging.byAgeHint')}</p>
             <BarList
               rows={data.buckets.map((b) => ({
                 id: b.id,
                 label: b.label,
-                sublabel: `${(b.secondary ?? 0).toLocaleString()} units`,
+                sublabel: `${(b.secondary ?? 0).toLocaleString()} ${t('rep.inv.unitsWord')}`,
                 value: b.value,
               }))}
               valueFormat={fmtDA}
-              emptyText="No stock on hand"
+              emptyText={t('rep.inv.noStockOnHand')}
             />
           </div>
 
           {/* Oldest items */}
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
             <h2 className="text-base font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-              Oldest items
+              {t('rep.inv.aging.oldestItems')}
             </h2>
-            <p className="text-xs text-zinc-500 mb-4">Longest sitting stock — the first candidates to clear.</p>
+            <p className="text-xs text-zinc-500 mb-4">{t('rep.inv.aging.oldestItemsHint')}</p>
             {data.items.length === 0 ? (
               <div className="py-8 text-center">
-                <p className="text-sm font-bold text-white">No aging data yet</p>
-                <p className="text-xs text-zinc-500 mt-1">Movement history will populate this list over time.</p>
+                <p className="text-sm font-bold text-white">{t('rep.inv.aging.emptyTitle')}</p>
+                <p className="text-xs text-zinc-500 mt-1">{t('rep.inv.aging.emptyDesc')}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">
-                      <th className="text-start font-medium py-2 pe-4">Product</th>
-                      <th className="text-start font-medium py-2 pe-4">SKU</th>
-                      <th className="text-end font-medium py-2 pe-4">Qty</th>
-                      <th className="text-end font-medium py-2 pe-4">Stock value</th>
-                      <th className="text-end font-medium py-2 pe-4">Last moved</th>
-                      <th className="text-end font-medium py-2">Age</th>
+                      <th className="text-start font-medium py-2 pe-4">{t('rep.c.product')}</th>
+                      <th className="text-start font-medium py-2 pe-4">{t('rep.c.sku')}</th>
+                      <th className="text-end font-medium py-2 pe-4">{t('rep.inv.qty')}</th>
+                      <th className="text-end font-medium py-2 pe-4">{t('rep.c.stockValue')}</th>
+                      <th className="text-end font-medium py-2 pe-4">{t('rep.inv.aging.lastMoved')}</th>
+                      <th className="text-end font-medium py-2">{t('rep.inv.aging.age')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -115,7 +118,7 @@ export default function StockAgingPage() {
                           {dateLabel(i.lastMovedAt)}
                         </td>
                         <td className="py-2.5 text-end text-zinc-400 whitespace-nowrap tabular-nums">
-                          {i.ageDays === null ? '—' : `${i.ageDays.toLocaleString()}d`}
+                          {i.ageDays === null ? '—' : `${i.ageDays.toLocaleString()}${t('rep.inv.dayShort')}`}
                         </td>
                       </tr>
                     ))}

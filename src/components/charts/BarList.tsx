@@ -1,4 +1,7 @@
+'use client';
+
 import React from 'react';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export interface BarListRow {
   id: string;
@@ -31,13 +34,14 @@ export function BarList({
   max,
   showSecondary = false,
   secondaryLabel,
-  emptyText = 'No data yet',
+  emptyText,
 }: BarListProps) {
+  const { t } = useTranslation();
   if (!rows || rows.length === 0) {
     return (
       <div className="py-10 text-center">
-        <p className="text-sm font-bold text-white">{emptyText}</p>
-        <p className="text-xs text-zinc-500 mt-1">Rows will appear here as data comes in.</p>
+        <p className="text-sm font-bold text-white">{emptyText ?? t('rep.hub.chart.noData')}</p>
+        <p className="text-xs text-zinc-500 mt-1">{t('rep.hub.chart.rowsHint')}</p>
       </div>
     );
   }
@@ -56,7 +60,7 @@ export function BarList({
         <div className="flex items-center gap-4 mb-3 text-[11px] text-zinc-500">
           <span className="inline-flex items-center gap-1.5">
             <span className="inline-block w-3 h-1.5 rounded-full bg-white" />
-            Value
+            {t('rep.c.value')}
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="inline-block w-0.5 h-3 rounded-full bg-zinc-500" />

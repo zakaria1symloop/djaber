@@ -11,12 +11,10 @@ import {
 } from '@/components/charts';
 import {
   getDiscounts,
-  REPORT_CATALOG,
   type DiscountSummaryReport,
   type ReportPeriodParam,
 } from '@/lib/reports-api';
-
-const META = REPORT_CATALOG.find((r) => r.key === 'discounts')!;
+import { useTranslation } from '@/contexts/LanguageContext';
 
 function pctLabel(p: number | null): string {
   return p == null || !Number.isFinite(p) ? '—' : `${p.toFixed(1)}%`;
@@ -45,6 +43,7 @@ function Panel({
 }
 
 export default function DiscountsPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<ReportPeriodParam>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<DiscountSummaryReport | null>(null);
@@ -58,7 +57,7 @@ export default function DiscountsPage() {
     try {
       setData(await getDiscounts(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load report');
+      setError(e instanceof Error ? e.message : t('rep.com.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -70,8 +69,8 @@ export default function DiscountsPage() {
 
   return (
     <ReportShell
-      title={META.title}
-      description={META.description}
+      title={t('rep.fin.discounts.title')}
+      description={t('rep.fin.discounts.desc')}
       period={period}
       onPeriodChange={(p) => {
         setPeriod(p);
@@ -90,21 +89,21 @@ export default function DiscountsPage() {
       {data && (
         <>
           <StatTileRow>
-            <StatTile label="Total discount" value={fmtDA(data.totalDiscount)} />
-            <StatTile label="Discount rate" value={pctLabel(data.discountRatePct)} />
-            <StatTile label="Discounted revenue" value={fmtDA(data.discountedRevenue)} />
-            <StatTile label="Products discounted" value={data.topDiscountedProducts.length} />
+            <StatTile label={t('rep.fin.disc.total')} value={fmtDA(data.totalDiscount)} />
+            <StatTile label={t('rep.fin.disc.rate')} value={pctLabel(data.discountRatePct)} />
+            <StatTile label={t('rep.fin.disc.discountedRevenue')} value={fmtDA(data.discountedRevenue)} />
+            <StatTile label={t('rep.fin.disc.productsDiscounted')} value={data.topDiscountedProducts.length} />
           </StatTileRow>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Panel className="lg:col-span-2" title="Discounts over time">
+            <Panel className="lg:col-span-2" title={t('rep.fin.disc.overTime')}>
               <ColumnChart points={data.series} metric="discount" format={fmtDA} />
             </Panel>
-            <Panel title="Most discounted products">
+            <Panel title={t('rep.fin.disc.mostDiscounted')}>
               <BarList
                 rows={data.topDiscountedProducts}
                 valueFormat={fmtDA}
-                emptyText="No discounts yet"
+                emptyText={t('rep.fin.disc.noDiscounts')}
               />
             </Panel>
           </div>

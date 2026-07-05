@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { PeriodSelector } from '@/components/analytics/KpiCard';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   StatTile,
   StatTileRow,
@@ -58,6 +59,7 @@ function TabSkeleton() {
 }
 
 export default function ConversationsTab() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<ConversationsAnalytics | null>(null);
@@ -71,7 +73,7 @@ export default function ConversationsTab() {
     try {
       setData(await getConversationsAnalytics(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load conversation analytics');
+      setError(e instanceof Error ? e.message : t('an.tab.err.conversations'));
     } finally {
       setLoading(false);
     }
@@ -93,7 +95,7 @@ export default function ConversationsTab() {
             onClick={load}
             className="px-3 py-1.5 text-xs font-semibold bg-white text-black rounded-lg hover:bg-zinc-200 transition-colors shrink-0"
           >
-            Retry
+            {t('rep.c.retry')}
           </button>
         </div>
       </div>
@@ -123,12 +125,12 @@ export default function ConversationsTab() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-white" style={SYNE}>
-            Conversations
+            {t('an.tab.conv.title')}
           </h2>
-          <p className="text-xs text-zinc-500 mt-0.5">Who writes, when, and from where</p>
+          <p className="text-xs text-zinc-500 mt-0.5">{t('an.tab.conv.subtitle')}</p>
         </div>
         <div className="flex items-center gap-3">
-          {loading && <span className="text-xs text-zinc-500">Updating&hellip;</span>}
+          {loading && <span className="text-xs text-zinc-500">{t('an.tab.updating')}</span>}
           <PeriodSelector value={period} onChange={(p) => { setPeriod(p); setRange({}); }} startDate={range.startDate} endDate={range.endDate} onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }} />
         </div>
       </div>
@@ -140,7 +142,7 @@ export default function ConversationsTab() {
             onClick={load}
             className="px-3 py-1.5 text-xs font-semibold bg-white text-black rounded-lg hover:bg-zinc-200 transition-colors shrink-0"
           >
-            Retry
+            {t('rep.c.retry')}
           </button>
         </div>
       )}
@@ -148,31 +150,31 @@ export default function ConversationsTab() {
       {/* Headline ledger */}
       <StatTileRow>
         <StatTile
-          label="Conversations"
+          label={t('an.tab.conversations')}
           value={totals.conversations}
           hint={
             avgMessagesPerConversation != null
-              ? `${decimal(avgMessagesPerConversation)} messages / conversation`
+              ? t('an.tab.conv.msgsPerConv').replace('{n}', decimal(avgMessagesPerConversation))
               : undefined
           }
         />
-        <StatTile label="New" value={totals.newConversations} hint="Started in this period" />
-        <StatTile label="Unread" value={totals.unread} hint="Awaiting a reply" />
+        <StatTile label={t('an.tab.new')} value={totals.newConversations} hint={t('an.tab.conv.startedInPeriod')} />
+        <StatTile label={t('an.tab.conv.unread')} value={totals.unread} hint={t('an.tab.conv.awaitingReply')} />
         <StatTile
-          label="Unique customers"
+          label={t('an.tab.conv.uniqueCustomers')}
           value={totals.uniqueCustomers}
-          hint={`${num(totals.returningCustomers)} returning`}
+          hint={t('an.tab.conv.returning').replace('{n}', num(totals.returningCustomers))}
         />
       </StatTileRow>
 
       {/* Volume trend */}
       <Card>
-        <SectionTitle title="Volume" sub="Conversations & messages over time" />
+        <SectionTitle title={t('an.tab.conv.volume')} sub={t('an.tab.conv.volumeSub')} />
         <LineChart
           points={series}
           series={[
-            { key: 'conversations', label: 'Conversations' },
-            { key: 'messages', label: 'Messages' },
+            { key: 'conversations', label: t('an.tab.conversations') },
+            { key: 'messages', label: t('an.tab.messages') },
           ]}
           format={fmtNum}
         />
@@ -180,47 +182,47 @@ export default function ConversationsTab() {
 
       {/* Activity clock */}
       <Card>
-        <SectionTitle title="Activity clock" sub="When customers write &middot; by hour of day" />
+        <SectionTitle title={t('an.tab.conv.activityClock')} sub={t('an.tab.conv.activityClockSub')} />
         <ColumnChart
           points={hourly}
           metric="messages"
           height={180}
-          format={(n) => `${num(n)} messages`}
+          format={(n) => t('an.tab.messagesCount').replace('{n}', num(n))}
         />
         <p className="text-xs text-zinc-500 mt-3">
           {peak
-            ? `Customers write most around ${peak.label} — staff or prime the AI for that window.`
-            : 'No messages in this period yet.'}
+            ? t('an.tab.conv.peak').replace('{h}', peak.label)
+            : t('an.tab.conv.noMessages')}
         </p>
       </Card>
 
       {/* Status + pages */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <SectionTitle title="By status" sub="Share of conversations" />
+          <SectionTitle title={t('an.tab.conv.byStatus')} sub={t('an.tab.conv.shareOfConv')} />
           <DonutChart
             slices={byStatus.map((r) => ({ label: r.label, value: r.value }))}
             centerValue={fmtNum(statusTotal)}
-            centerLabel="Conversations"
+            centerLabel={t('an.tab.conversations')}
           />
         </Card>
 
         <Card>
-          <SectionTitle title="By page" sub="Conversations vs messages" />
+          <SectionTitle title={t('an.tab.byPage')} sub={t('an.tab.conv.convVsMsgs')} />
           <BarList
             rows={byPage}
             valueFormat={fmtNum}
             showSecondary
-            secondaryLabel="Messages"
-            emptyText="No page activity yet"
+            secondaryLabel={t('an.tab.messages')}
+            emptyText={t('an.tab.noPageActivity')}
           />
         </Card>
       </div>
 
       {/* Top customers */}
       <Card>
-        <SectionTitle title="Top customers" sub="By messages sent" />
-        <BarList rows={topCustomers} valueFormat={fmtNum} emptyText="No customers yet" />
+        <SectionTitle title={t('an.tab.conv.topCustomers')} sub={t('an.tab.conv.byMessagesSent')} />
+        <BarList rows={topCustomers} valueFormat={fmtNum} emptyText={t('an.tab.conv.noCustomers')} />
       </Card>
     </div>
   );

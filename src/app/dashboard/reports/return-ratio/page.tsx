@@ -11,6 +11,7 @@ import {
   fmtNum,
 } from '@/components/charts';
 import { getReturnRatio, type ReturnRatioReport, type ReportPeriodParam } from '@/lib/reports-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 function Panel({
   title,
@@ -43,6 +44,7 @@ function pctTile(v: number | null): { value: string | number; suffix?: string } 
 }
 
 export default function ReturnRatioPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<ReportPeriodParam>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<ReturnRatioReport | null>(null);
@@ -56,7 +58,7 @@ export default function ReturnRatioPage() {
     try {
       setData(await getReturnRatio(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load report');
+      setError(e instanceof Error ? e.message : t('rep.com.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -78,15 +80,15 @@ export default function ReturnRatioPage() {
         id: w.id,
         label: w.label,
         sublabel:
-          w.secondary != null ? `${w.secondary.toLocaleString()} orders` : w.sublabel,
+          w.secondary != null ? `${w.secondary.toLocaleString()} ${t('rep.com.return.ordersSuffix')}` : w.sublabel,
         value: w.value,
       }))
     : [];
 
   return (
     <ReportShell
-      title="Return Ratio"
-      description="Order return and cancellation rates — the COD cost."
+      title={t('rep.com.return.title')}
+      description={t('rep.com.return.desc')}
       period={period}
       onPeriodChange={(p) => {
         setPeriod(p);
@@ -105,37 +107,37 @@ export default function ReturnRatioPage() {
       {data && (
         <div className="space-y-6">
           <StatTileRow>
-            <StatTile label="Fulfilment rate" {...pctTile(data.fulfilmentRatePct)} />
-            <StatTile label="Cancel rate" {...pctTile(data.cancelRatePct)} />
-            <StatTile label="Return rate" {...pctTile(data.returnRatePct)} />
-            <StatTile label="Lost revenue" value={data.lostRevenue} suffix=" DA" />
+            <StatTile label={t('rep.com.return.fulfilmentRate')} {...pctTile(data.fulfilmentRatePct)} />
+            <StatTile label={t('rep.com.return.cancelRate')} {...pctTile(data.cancelRatePct)} />
+            <StatTile label={t('rep.com.return.returnRate')} {...pctTile(data.returnRatePct)} />
+            <StatTile label={t('rep.com.return.lostRevenue')} value={data.lostRevenue} suffix=" DA" />
           </StatTileRow>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Panel title="Fulfilment funnel" subtitle="Cancelled and returned drop out">
+            <Panel title={t('rep.com.return.funnel')} subtitle={t('rep.com.return.funnel.sub')}>
               <FunnelBars
                 stages={[
-                  { label: 'Created', value: data.created, tone: 'good' },
-                  { label: 'Delivered', value: data.delivered, tone: 'good' },
-                  { label: 'Cancelled', value: data.cancelled, tone: 'dead' },
-                  { label: 'Returned', value: data.returned, tone: 'dead' },
+                  { label: t('rep.com.return.stage.created'), value: data.created, tone: 'good' },
+                  { label: t('rep.com.return.stage.delivered'), value: data.delivered, tone: 'good' },
+                  { label: t('rep.com.return.stage.cancelled'), value: data.cancelled, tone: 'dead' },
+                  { label: t('rep.com.return.stage.returned'), value: data.returned, tone: 'dead' },
                 ]}
               />
             </Panel>
 
-            <Panel title="Delivered vs failed" subtitle="Cancelled + returned combined">
+            <Panel title={t('rep.com.return.deliveredVsFailed')} subtitle={t('rep.com.return.deliveredVsFailed.sub')}>
               <LineChart
                 points={trendPoints}
                 series={[
-                  { key: 'delivered', label: 'Delivered' },
-                  { key: 'failed', label: 'Cancelled + returned' },
+                  { key: 'delivered', label: t('rep.com.return.stage.delivered') },
+                  { key: 'failed', label: t('rep.com.return.cancelledReturned') },
                 ]}
                 format={fmtNum}
               />
             </Panel>
           </div>
 
-          <Panel title="Return rate by wilaya" subtitle="Where orders fail most">
+          <Panel title={t('rep.com.return.byWilaya')} subtitle={t('rep.com.return.byWilaya.sub')}>
             <BarList
               rows={wilayaRows}
               valueFormat={(n) => `${n.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`}

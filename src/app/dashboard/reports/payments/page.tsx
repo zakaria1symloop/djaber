@@ -12,12 +12,10 @@ import {
 } from '@/components/charts';
 import {
   getPayments,
-  REPORT_CATALOG,
   type PaymentsReport,
   type ReportPeriodParam,
 } from '@/lib/reports-api';
-
-const META = REPORT_CATALOG.find((r) => r.key === 'payments')!;
+import { useTranslation } from '@/contexts/LanguageContext';
 
 function Panel({
   title,
@@ -42,6 +40,7 @@ function Panel({
 }
 
 export default function PaymentsPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<ReportPeriodParam>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<PaymentsReport | null>(null);
@@ -55,7 +54,7 @@ export default function PaymentsPage() {
     try {
       setData(await getPayments(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load report');
+      setError(e instanceof Error ? e.message : t('rep.com.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -67,8 +66,8 @@ export default function PaymentsPage() {
 
   return (
     <ReportShell
-      title={META.title}
-      description={META.description}
+      title={t('rep.fin.payments.title')}
+      description={t('rep.fin.payments.desc')}
       period={period}
       onPeriodChange={(p) => {
         setPeriod(p);
@@ -87,34 +86,34 @@ export default function PaymentsPage() {
       {data && (
         <>
           <StatTileRow>
-            <StatTile label="Received" value={fmtDA(data.received)} />
-            <StatTile label="Paid out" value={fmtDA(data.paidOut)} />
-            <StatTile label="Net" value={fmtDA(data.net)} />
-            <StatTile label="Payment methods" value={data.byMethod.length} />
+            <StatTile label={t('rep.fin.pay.received')} value={fmtDA(data.received)} />
+            <StatTile label={t('rep.fin.pay.paidOut')} value={fmtDA(data.paidOut)} />
+            <StatTile label={t('rep.c.net')} value={fmtDA(data.net)} />
+            <StatTile label={t('rep.fin.pay.paymentMethods')} value={data.byMethod.length} />
           </StatTileRow>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Panel className="lg:col-span-2" title="Received vs paid out">
+            <Panel className="lg:col-span-2" title={t('rep.fin.pay.receivedVsPaid')}>
               <LineChart
                 points={data.series}
                 series={[
-                  { key: 'received', label: 'Received' },
-                  { key: 'paidOut', label: 'Paid out' },
+                  { key: 'received', label: t('rep.fin.pay.received') },
+                  { key: 'paidOut', label: t('rep.fin.pay.paidOut') },
                 ]}
                 format={fmtDA}
               />
             </Panel>
-            <Panel title="By payment method">
+            <Panel title={t('rep.fin.pay.byMethod')}>
               <DonutChart
                 slices={data.byMethod.map((r) => ({ label: r.label, value: r.value }))}
                 centerValue={fmtDA(data.received)}
-                centerLabel="Received"
+                centerLabel={t('rep.fin.pay.received')}
               />
             </Panel>
           </div>
 
-          <Panel title="By source">
-            <BarList rows={data.bySource} valueFormat={fmtDA} emptyText="No payments yet" />
+          <Panel title={t('rep.fin.bySource')}>
+            <BarList rows={data.bySource} valueFormat={fmtDA} emptyText={t('rep.fin.pay.noPayments')} />
           </Panel>
         </>
       )}

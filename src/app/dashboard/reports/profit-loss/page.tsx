@@ -12,12 +12,10 @@ import {
 } from '@/components/charts';
 import {
   getProfitLoss,
-  REPORT_CATALOG,
   type ProfitLossReport,
   type ReportPeriodParam,
 } from '@/lib/reports-api';
-
-const META = REPORT_CATALOG.find((r) => r.key === 'profit-loss')!;
+import { useTranslation } from '@/contexts/LanguageContext';
 
 function pctLabel(p: number | null): string {
   return p == null || !Number.isFinite(p) ? '—' : `${p.toFixed(1)}%`;
@@ -46,6 +44,7 @@ function Panel({
 }
 
 export default function ProfitLossPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<ReportPeriodParam>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<ProfitLossReport | null>(null);
@@ -59,7 +58,7 @@ export default function ProfitLossPage() {
     try {
       setData(await getProfitLoss(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load report');
+      setError(e instanceof Error ? e.message : t('rep.com.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -77,8 +76,8 @@ export default function ProfitLossPage() {
 
   return (
     <ReportShell
-      title={META.title}
-      description={META.description}
+      title={t('rep.fin.profitLoss.title')}
+      description={t('rep.fin.profitLoss.desc')}
       period={period}
       onPeriodChange={(p) => {
         setPeriod(p);
@@ -97,32 +96,32 @@ export default function ProfitLossPage() {
       {data && (
         <>
           <StatTileRow>
-            <StatTile label="Revenue" value={fmtDA(data.revenue)} />
-            <StatTile label="Cost of goods" value={fmtDA(data.cogs)} />
+            <StatTile label={t('rep.c.revenue')} value={fmtDA(data.revenue)} />
+            <StatTile label={t('rep.c.cogs')} value={fmtDA(data.cogs)} />
             <StatTile
-              label="Gross profit"
+              label={t('rep.c.grossProfit')}
               value={fmtDA(data.grossProfit)}
-              hint={`${pctLabel(data.grossMarginPct)} margin`}
+              hint={`${pctLabel(data.grossMarginPct)} ${t('rep.fin.marginWord')}`}
             />
             <StatTile
-              label="Net profit"
+              label={t('rep.c.netProfit')}
               value={fmtDA(data.netProfit)}
-              hint={`${pctLabel(data.netMarginPct)} margin`}
+              hint={`${pctLabel(data.netMarginPct)} ${t('rep.fin.marginWord')}`}
             />
           </StatTileRow>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Panel className="lg:col-span-2" title="Revenue & profit">
+            <Panel className="lg:col-span-2" title={t('rep.fin.pl.revProfit')}>
               <LineChart
                 points={data.series}
                 series={[
-                  { key: 'revenue', label: 'Revenue' },
-                  { key: 'profit', label: 'Profit' },
+                  { key: 'revenue', label: t('rep.c.revenue') },
+                  { key: 'profit', label: t('rep.c.profit') },
                 ]}
                 format={fmtDA}
               />
             </Panel>
-            <Panel title="Where the money goes" hint="share of revenue">
+            <Panel title={t('rep.fin.pl.moneyGoes')} hint={t('rep.fin.pl.shareOfRevenue')}>
               <FunnelBars stages={stages} />
             </Panel>
           </div>

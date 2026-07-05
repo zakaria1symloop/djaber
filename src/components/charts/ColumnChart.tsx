@@ -1,5 +1,8 @@
+'use client';
+
 import React from 'react';
 import { fmtNum } from './format';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export type ColumnPoint = { label: string } & Record<string, number | string>;
 
@@ -28,11 +31,12 @@ export function ColumnChart({
   height = 200,
   format = fmtNum,
 }: ColumnChartProps) {
+  const { t } = useTranslation();
   if (!points || points.length === 0) {
     return (
       <div className="py-10 text-center">
-        <p className="text-sm font-bold text-white">No data yet</p>
-        <p className="text-xs text-zinc-500 mt-1">Columns will appear here as data comes in.</p>
+        <p className="text-sm font-bold text-white">{t('rep.hub.chart.noData')}</p>
+        <p className="text-xs text-zinc-500 mt-1">{t('rep.hub.chart.columnsHint')}</p>
       </div>
     );
   }

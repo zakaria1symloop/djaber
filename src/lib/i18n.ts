@@ -6,6 +6,8 @@
  * (e.g., from utilities) via `t()` / `getLang()` / `setLang()`.
  */
 
+import { extraI18n } from './i18n-extra';
+
 export type Lang = 'en' | 'fr' | 'ar';
 
 export const LANGS: { code: Lang; label: string; nativeLabel: string; dir: 'ltr' | 'rtl' }[] = [
@@ -3129,7 +3131,14 @@ const ar: Dict = {
   'stock.movements.reason.returnedOrder': 'طلب مرتجع {n}',
 };
 
-const dictionaries: Record<Lang, Dict> = { en, fr, ar };
+// Fold in the reports/analytics namespace dictionaries (see i18n-extra.ts).
+// Base keys win only if a namespace doesn't define them, so screen-specific
+// translations override nothing existing.
+const dictionaries: Record<Lang, Dict> = {
+  en: { ...en, ...extraI18n.en },
+  fr: { ...fr, ...extraI18n.fr },
+  ar: { ...ar, ...extraI18n.ar },
+};
 
 export function getLang(): Lang {
   if (typeof window === 'undefined') return DEFAULT_LANG;

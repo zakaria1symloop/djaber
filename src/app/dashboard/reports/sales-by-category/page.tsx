@@ -14,6 +14,7 @@ import {
   type SalesByCategoryReport,
   type ReportPeriodParam,
 } from '@/lib/reports-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 function Panel({
   title,
@@ -40,6 +41,7 @@ function Panel({
 }
 
 export default function SalesByCategoryPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<ReportPeriodParam>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<SalesByCategoryReport | null>(null);
@@ -53,7 +55,7 @@ export default function SalesByCategoryPage() {
     try {
       setData(await getSalesByCategory(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load report');
+      setError(e instanceof Error ? e.message : t('rep.com.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -67,8 +69,8 @@ export default function SalesByCategoryPage() {
 
   return (
     <ReportShell
-      title="Sales by Category"
-      description="Which product categories drive revenue."
+      title={t('rep.com.cat.title')}
+      description={t('rep.com.cat.desc')}
       period={period}
       onPeriodChange={(p) => {
         setPeriod(p);
@@ -87,39 +89,39 @@ export default function SalesByCategoryPage() {
       {data && (
         <div className="space-y-6">
           <StatTileRow>
-            <StatTile label="Total revenue" value={data.total} suffix=" DA" />
-            <StatTile label="Categories" value={data.categories.length} />
-            <StatTile label="Units sold" value={totalUnits} />
+            <StatTile label={t('rep.com.totalRevenue')} value={data.total} suffix=" DA" />
+            <StatTile label={t('rep.c.categories')} value={data.categories.length} />
+            <StatTile label={t('rep.c.unitsSold')} value={totalUnits} />
           </StatTileRow>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Panel title="Revenue share" subtitle="Category split of revenue">
+            <Panel title={t('rep.com.cat.revShare')} subtitle={t('rep.com.cat.revShare.sub')}>
               <DonutChart
                 slices={data.categories.map((c) => ({ label: c.label, value: c.value }))}
                 centerValue={fmtDA(data.total)}
-                centerLabel="Revenue"
+                centerLabel={t('rep.c.revenue')}
               />
             </Panel>
 
-            <Panel title="Categories ranked" subtitle="Revenue with units marker">
+            <Panel title={t('rep.com.cat.ranked')} subtitle={t('rep.com.cat.ranked.sub')}>
               <BarList
                 rows={data.categories}
                 valueFormat={fmtDA}
                 showSecondary
-                secondaryLabel="Units"
+                secondaryLabel={t('rep.c.units')}
               />
             </Panel>
           </div>
 
-          <Panel title="Category detail" subtitle="Full breakdown">
+          <Panel title={t('rep.com.cat.detail')} subtitle={t('rep.com.cat.detail.sub')}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">
-                    <th className="text-start font-medium py-2 pe-4">Category</th>
-                    <th className="text-end font-medium py-2 pe-4">Units</th>
-                    <th className="text-end font-medium py-2 pe-4">Revenue</th>
-                    <th className="text-end font-medium py-2">Share</th>
+                    <th className="text-start font-medium py-2 pe-4">{t('rep.c.category')}</th>
+                    <th className="text-end font-medium py-2 pe-4">{t('rep.c.units')}</th>
+                    <th className="text-end font-medium py-2 pe-4">{t('rep.c.revenue')}</th>
+                    <th className="text-end font-medium py-2">{t('rep.c.share')}</th>
                   </tr>
                 </thead>
                 <tbody>

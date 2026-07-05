@@ -11,6 +11,7 @@ import {
   REPORT_CATALOG,
   type ProductsReport,
 } from '@/lib/reports-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 const META = REPORT_CATALOG.find((r) => r.key === 'products')!;
 const money = (n: number) => `${Math.round(n).toLocaleString()} DA`;
@@ -18,6 +19,7 @@ const money = (n: number) => `${Math.round(n).toLocaleString()} DA`;
 const PAGE = 50;
 
 export default function ProductsReportPage() {
+  const { t } = useTranslation();
   const [data, setData] = useState<ProductsReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,10 +32,11 @@ export default function ProductsReportPage() {
     try {
       setData(await getProductsReport());
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load products report');
+      setError(e instanceof Error ? e.message : t('rep.inv.products.loadError'));
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -66,23 +69,23 @@ export default function ProductsReportPage() {
         <div className="space-y-6">
           <StatTileRow>
             <StatTile
-              label="Products"
+              label={t('rep.c.products')}
               value={data.productCount}
-              hint={`${data.activeCount.toLocaleString()} active`}
+              hint={t('rep.inv.products.activeHint').replace('{n}', data.activeCount.toLocaleString())}
             />
-            <StatTile label="Units in stock" value={data.totalUnits} hint="Total on hand" />
-            <StatTile label="Cost value" value={money(data.costValue)} hint="At cost price" />
-            <StatTile label="Retail value" value={money(data.retailValue)} hint="At selling price" />
+            <StatTile label={t('rep.inv.unitsInStock')} value={data.totalUnits} hint={t('rep.inv.products.totalOnHand')} />
+            <StatTile label={t('rep.inv.costValue')} value={money(data.costValue)} hint={t('rep.inv.products.atCost')} />
+            <StatTile label={t('rep.inv.retailValue')} value={money(data.retailValue)} hint={t('rep.inv.products.atSelling')} />
           </StatTileRow>
 
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
             <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
               <div>
                 <h2 className="text-base font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-                  Catalog
+                  {t('rep.inv.products.catalog')}
                 </h2>
                 <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">
-                  {filtered.length.toLocaleString()} products
+                  {t('rep.inv.products.countLabel').replace('{n}', filtered.length.toLocaleString())}
                 </p>
               </div>
               <input
@@ -92,7 +95,7 @@ export default function ProductsReportPage() {
                   setQuery(e.target.value);
                   setShowAll(false);
                 }}
-                placeholder="Search name, SKU or category"
+                placeholder={t('rep.inv.products.searchPlaceholder')}
                 className="w-full sm:w-64 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/30 transition-colors"
               />
             </div>
@@ -100,12 +103,12 @@ export default function ProductsReportPage() {
             {filtered.length === 0 ? (
               <div className="py-10 text-center">
                 <p className="text-sm font-bold text-white">
-                  {data.rows.length === 0 ? 'No products yet' : 'No matches'}
+                  {data.rows.length === 0 ? t('rep.inv.products.noProducts') : t('rep.inv.products.noMatches')}
                 </p>
                 <p className="text-xs text-zinc-500 mt-1">
                   {data.rows.length === 0
-                    ? 'Add products to your catalog to see them here.'
-                    : 'Try a different search term.'}
+                    ? t('rep.inv.products.noProductsHint')
+                    : t('rep.inv.products.noMatchesHint')}
                 </p>
               </div>
             ) : (
@@ -114,14 +117,14 @@ export default function ProductsReportPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">
-                        <th className="text-start font-medium py-2 pe-4">Product</th>
-                        <th className="text-start font-medium py-2 pe-4">SKU</th>
-                        <th className="text-start font-medium py-2 pe-4">Category</th>
-                        <th className="text-end font-medium py-2 pe-4">Qty</th>
-                        <th className="text-end font-medium py-2 pe-4">Cost</th>
-                        <th className="text-end font-medium py-2 pe-4">Price</th>
-                        <th className="text-end font-medium py-2 pe-4">Stock value</th>
-                        <th className="text-start font-medium py-2">Status</th>
+                        <th className="text-start font-medium py-2 pe-4">{t('rep.c.product')}</th>
+                        <th className="text-start font-medium py-2 pe-4">{t('rep.c.sku')}</th>
+                        <th className="text-start font-medium py-2 pe-4">{t('rep.c.category')}</th>
+                        <th className="text-end font-medium py-2 pe-4">{t('rep.inv.qty')}</th>
+                        <th className="text-end font-medium py-2 pe-4">{t('rep.c.cost')}</th>
+                        <th className="text-end font-medium py-2 pe-4">{t('rep.c.price')}</th>
+                        <th className="text-end font-medium py-2 pe-4">{t('rep.c.stockValue')}</th>
+                        <th className="text-start font-medium py-2">{t('rep.c.status')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -132,7 +135,7 @@ export default function ProductsReportPage() {
                               {r.name}
                               {r.hasVariants && (
                                 <span className="text-[10px] uppercase tracking-[0.1em] text-zinc-500 border border-white/10 rounded px-1 py-0.5">
-                                  Variants
+                                  {t('rep.inv.variants')}
                                 </span>
                               )}
                             </span>
@@ -152,7 +155,7 @@ export default function ProductsReportPage() {
                                   r.isActive ? 'bg-white' : 'bg-zinc-600'
                                 }`}
                               />
-                              {r.isActive ? 'Active' : 'Inactive'}
+                              {r.isActive ? t('rep.c.active') : t('rep.c.inactive')}
                             </span>
                           </td>
                         </tr>
@@ -166,7 +169,9 @@ export default function ProductsReportPage() {
                     onClick={() => setShowAll((v) => !v)}
                     className="mt-3 text-xs text-zinc-400 hover:text-white transition-colors"
                   >
-                    {showAll ? `Show first ${PAGE}` : `Show all (${filtered.length.toLocaleString()})`}
+                    {showAll
+                      ? t('rep.inv.products.showFirst').replace('{n}', String(PAGE))
+                      : t('rep.inv.products.showAllCount').replace('{n}', filtered.length.toLocaleString())}
                   </button>
                 )}
               </>

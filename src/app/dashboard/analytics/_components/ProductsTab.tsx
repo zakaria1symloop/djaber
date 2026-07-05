@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { PeriodSelector } from '@/components/analytics/KpiCard';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   getProductsAnalytics,
   type ProductsAnalyticsResponse,
@@ -23,6 +24,7 @@ function StatTile({ label, value }: { label: string; value: string }) {
 }
 
 export default function ProductsTab() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<ProductsAnalyticsResponse | null>(null);
@@ -37,7 +39,7 @@ export default function ProductsTab() {
     try {
       setData(await getProductsAnalytics(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load product analytics');
+      setError(e instanceof Error ? e.message : t('an.tab.err.products'));
     } finally {
       setLoading(false);
     }
@@ -75,7 +77,7 @@ export default function ProductsTab() {
             onClick={load}
             className="px-3 py-1.5 text-xs font-semibold bg-white text-black rounded-lg hover:bg-zinc-200 transition-colors shrink-0"
           >
-            Retry
+            {t('rep.c.retry')}
           </button>
         </div>
       </div>
@@ -97,7 +99,7 @@ export default function ProductsTab() {
       {/* Period row */}
       <div className="flex items-center justify-between gap-4">
         <PeriodSelector value={period} onChange={(p) => { setPeriod(p); setRange({}); }} startDate={range.startDate} endDate={range.endDate} onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }} />
-        {loading && <span className="text-xs text-zinc-500">Updating&hellip;</span>}
+        {loading && <span className="text-xs text-zinc-500">{t('an.tab.updating')}</span>}
       </div>
 
       {error && (
@@ -107,31 +109,31 @@ export default function ProductsTab() {
             onClick={load}
             className="px-3 py-1.5 text-xs font-semibold bg-white text-black rounded-lg hover:bg-zinc-200 transition-colors shrink-0"
           >
-            Retry
+            {t('rep.c.retry')}
           </button>
         </div>
       )}
 
       {/* Headline stat tiles */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatTile label="Revenue" value={money(totals.revenue)} />
-        <StatTile label="Units sold" value={num(totals.unitsSold)} />
-        <StatTile label="Gross profit" value={money(totals.grossProfit)} />
-        <StatTile label="Stock value" value={money(totals.stockValue)} />
+        <StatTile label={t('rep.c.revenue')} value={money(totals.revenue)} />
+        <StatTile label={t('rep.c.unitsSold')} value={num(totals.unitsSold)} />
+        <StatTile label={t('rep.c.grossProfit')} value={money(totals.grossProfit)} />
+        <StatTile label={t('rep.c.stockValue')} value={money(totals.stockValue)} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Top products */}
         <div className="lg:col-span-2 bg-zinc-900/50 border border-white/10 rounded-xl p-5">
           <h2 className="text-base font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-            Top products
+            {t('an.tab.prod.topProducts')}
           </h2>
-          <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-3">By revenue</p>
+          <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-3">{t('an.tab.prod.byRevenue')}</p>
 
           {products.length === 0 ? (
             <div className="py-10 text-center">
-              <p className="text-sm font-bold text-white">No product sales in this period</p>
-              <p className="text-xs text-zinc-500 mt-1">Sales and order items will show up here as they come in.</p>
+              <p className="text-sm font-bold text-white">{t('an.tab.prod.empty.title')}</p>
+              <p className="text-xs text-zinc-500 mt-1">{t('an.tab.prod.empty.desc')}</p>
             </div>
           ) : (
             <>
@@ -152,11 +154,11 @@ export default function ProductsTab() {
                       />
                     </div>
                     <p className="text-xs text-zinc-500 mt-1">
-                      {num(p.unitsSold)} units
+                      {num(p.unitsSold)} {t('an.tab.prod.unitsWord')}
                       {' · '}
-                      {p.marginPct === null ? '— margin' : `${Math.round(p.marginPct)}% margin`}
+                      {p.marginPct === null ? t('an.tab.prod.noMargin') : t('an.tab.prod.margin').replace('{n}', String(Math.round(p.marginPct)))}
                       {' · '}
-                      {p.stockCoverDays === null ? 'no cover data' : `${Math.round(p.stockCoverDays)}d cover`}
+                      {p.stockCoverDays === null ? t('an.tab.prod.noCover') : t('an.tab.prod.cover').replace('{n}', String(Math.round(p.stockCoverDays)))}
                     </p>
                   </div>
                 ))}
@@ -167,14 +169,14 @@ export default function ProductsTab() {
                   onClick={() => setShowAll((v) => !v)}
                   className="mt-3 text-xs text-zinc-400 hover:text-white transition-colors"
                 >
-                  {showAll ? 'Show top 20' : `Show all (${products.length})`}
+                  {showAll ? t('an.tab.prod.showTop20') : t('an.tab.prod.showAllN').replace('{n}', String(products.length))}
                 </button>
               )}
 
               {/* Totals row under the products list (period totals across all products) */}
               <div className="mt-3 pt-3 border-t border-white/10 flex items-baseline justify-between gap-3">
                 <span className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">
-                  Total &middot; {num(products.length)} products &middot; {num(totals.unitsSold)} units
+                  {t('rep.c.total')} &middot; {num(products.length)} {t('an.tab.prod.productsWord')} &middot; {num(totals.unitsSold)} {t('an.tab.prod.unitsWord')}
                 </span>
                 <span className="text-sm font-semibold text-white whitespace-nowrap">{money(totals.revenue)}</span>
               </div>
@@ -185,14 +187,14 @@ export default function ProductsTab() {
         {/* Categories */}
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
           <h2 className="text-base font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-            Categories
+            {t('rep.c.categories')}
           </h2>
-          <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-3">By revenue</p>
+          <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-3">{t('an.tab.prod.byRevenue')}</p>
 
           {categories.length === 0 ? (
             <div className="py-10 text-center">
-              <p className="text-sm font-bold text-white">No category data</p>
-              <p className="text-xs text-zinc-500 mt-1">Assign categories to your products to break revenue down.</p>
+              <p className="text-sm font-bold text-white">{t('an.tab.prod.noCatData')}</p>
+              <p className="text-xs text-zinc-500 mt-1">{t('an.tab.prod.noCatDesc')}</p>
             </div>
           ) : (
             <div>
@@ -209,7 +211,7 @@ export default function ProductsTab() {
                     />
                   </div>
                   <p className="text-[11px] text-zinc-500 mt-1">
-                    {num(c.unitsSold)} units &middot; {num(c.productCount)} products
+                    {num(c.unitsSold)} {t('an.tab.prod.unitsWord')} &middot; {num(c.productCount)} {t('an.tab.prod.productsWord')}
                   </p>
                 </div>
               ))}
@@ -221,24 +223,24 @@ export default function ProductsTab() {
       {/* Dead stock */}
       <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
         <h2 className="text-base font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-          Dead stock
+          {t('an.tab.prod.deadStock')}
         </h2>
-        <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-4">In stock, zero sales this period</p>
+        <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-4">{t('an.tab.prod.deadStockSub')}</p>
 
         {deadStock.length === 0 ? (
           <div className="py-8 text-center">
-            <p className="text-sm font-bold text-white">All stock is moving</p>
-            <p className="text-xs text-zinc-500 mt-1">Every product in stock sold at least once in this period.</p>
+            <p className="text-sm font-bold text-white">{t('an.tab.prod.deadEmpty.title')}</p>
+            <p className="text-xs text-zinc-500 mt-1">{t('an.tab.prod.deadEmpty.desc')}</p>
           </div>
         ) : (
           <>
             {/* Attention strip */}
             <div className="mb-4">
               <p className="text-sm font-bold text-white">
-                {num(deadStock.length)} products are not selling
+                {t('an.tab.prod.notSelling').replace('{n}', num(deadStock.length))}
               </p>
               <p className="text-xs text-zinc-500 mt-0.5">
-                {money(deadValueTotal)} is tied up in stock with no sales this period &mdash; discount, bundle or return it to free up cash.
+                {t('an.tab.prod.tiedUp').replace('{v}', money(deadValueTotal))}
               </p>
             </div>
 
@@ -246,11 +248,11 @@ export default function ProductsTab() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">
-                    <th className="text-start font-medium py-2 pe-4">Product</th>
-                    <th className="text-start font-medium py-2 pe-4">SKU</th>
-                    <th className="text-end font-medium py-2 pe-4">Qty</th>
-                    <th className="text-end font-medium py-2 pe-4">Stock value</th>
-                    <th className="text-end font-medium py-2">Last sold</th>
+                    <th className="text-start font-medium py-2 pe-4">{t('rep.c.product')}</th>
+                    <th className="text-start font-medium py-2 pe-4">{t('rep.c.sku')}</th>
+                    <th className="text-end font-medium py-2 pe-4">{t('an.tab.prod.qty')}</th>
+                    <th className="text-end font-medium py-2 pe-4">{t('rep.c.stockValue')}</th>
+                    <th className="text-end font-medium py-2">{t('rep.c.lastSold')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -268,7 +270,7 @@ export default function ProductsTab() {
                   {/* Totals row under the products table */}
                   <tr className="border-t border-white/10">
                     <td className="py-2.5 pe-4 text-[10px] uppercase tracking-[0.15em] text-zinc-500" colSpan={2}>
-                      Total
+                      {t('rep.c.total')}
                     </td>
                     <td className="py-2.5 pe-4 text-end font-semibold text-white">{num(deadQtyTotal)}</td>
                     <td className="py-2.5 pe-4 text-end font-semibold text-white">{money(deadValueTotal)}</td>

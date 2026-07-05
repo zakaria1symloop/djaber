@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { PeriodSelector } from '@/components/analytics/KpiCard';
+import { useTranslation } from '@/contexts/LanguageContext';
 import {
   StatTile,
   StatTileRow,
@@ -79,6 +80,7 @@ function TabSkeleton() {
 }
 
 export default function ResponsesTab() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<ResponsesAnalytics | null>(null);
@@ -92,7 +94,7 @@ export default function ResponsesTab() {
     try {
       setData(await getResponsesAnalytics(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load response analytics');
+      setError(e instanceof Error ? e.message : t('an.tab.err.responses'));
     } finally {
       setLoading(false);
     }
@@ -114,7 +116,7 @@ export default function ResponsesTab() {
             onClick={load}
             className="px-3 py-1.5 text-xs font-semibold bg-white text-black rounded-lg hover:bg-zinc-200 transition-colors shrink-0"
           >
-            Retry
+            {t('rep.c.retry')}
           </button>
         </div>
       </div>
@@ -132,12 +134,12 @@ export default function ResponsesTab() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-white" style={SYNE}>
-            Responses
+            {t('an.tab.resp.title')}
           </h2>
-          <p className="text-xs text-zinc-500 mt-0.5">How fast and how far the AI replies</p>
+          <p className="text-xs text-zinc-500 mt-0.5">{t('an.tab.resp.subtitle')}</p>
         </div>
         <div className="flex items-center gap-3">
-          {loading && <span className="text-xs text-zinc-500">Updating&hellip;</span>}
+          {loading && <span className="text-xs text-zinc-500">{t('an.tab.updating')}</span>}
           <PeriodSelector value={period} onChange={(p) => { setPeriod(p); setRange({}); }} startDate={range.startDate} endDate={range.endDate} onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }} />
         </div>
       </div>
@@ -149,7 +151,7 @@ export default function ResponsesTab() {
             onClick={load}
             className="px-3 py-1.5 text-xs font-semibold bg-white text-black rounded-lg hover:bg-zinc-200 transition-colors shrink-0"
           >
-            Retry
+            {t('rep.c.retry')}
           </button>
         </div>
       )}
@@ -157,50 +159,50 @@ export default function ResponsesTab() {
       {/* Headline ledger */}
       <StatTileRow>
         <StatTile
-          label="AI replies"
+          label={t('an.tab.resp.aiReplies')}
           value={totals.aiReplies}
-          hint={`${num(totals.humanReplies)} sent by a human`}
+          hint={t('an.tab.resp.sentByHuman').replace('{n}', num(totals.humanReplies))}
         />
         <StatTile
-          label="Reply rate"
+          label={t('an.tab.resp.replyRate')}
           value={pct(totals.replyRatePct)}
-          hint={`${num(totals.incoming)} incoming`}
+          hint={t('an.tab.resp.incoming').replace('{n}', num(totals.incoming))}
         />
         <StatTile
-          label="Avg first response"
+          label={t('an.tab.resp.avgFirstResponse')}
           value={fmtSeconds(responseTime.avgFirstResponseSec)}
           hint={
             responseTime.within1MinPct != null
-              ? `${pct(responseTime.within1MinPct)} within 1 min`
+              ? t('an.tab.resp.withinMin').replace('{p}', pct(responseTime.within1MinPct))
               : undefined
           }
         />
         <StatTile
-          label="Handoff rate"
+          label={t('an.tab.resp.handoffRate')}
           value={pct(totals.handoffRatePct)}
-          hint={`${num(totals.handoffs)} handed to a human`}
+          hint={t('an.tab.resp.handedToHuman').replace('{n}', num(totals.handoffs))}
         />
       </StatTileRow>
 
       {/* Response speed */}
       <Card>
-        <SectionTitle title="Response speed" sub="Customer message &rarr; first AI reply" />
+        <SectionTitle title={t('an.tab.resp.responseSpeed')} sub={t('an.tab.resp.responseSpeedSub')} />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1.5">Average</p>
+            <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1.5">{t('an.tab.resp.average')}</p>
             <p className="text-2xl font-bold text-white leading-none" style={SYNE}>
               {fmtSeconds(responseTime.avgFirstResponseSec)}
             </p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1.5">Median</p>
+            <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1.5">{t('an.tab.resp.median')}</p>
             <p className="text-2xl font-bold text-white leading-none" style={SYNE}>
               {fmtSeconds(responseTime.medianFirstResponseSec)}
             </p>
           </div>
           <div>
             <div className="flex items-baseline justify-between gap-2 mb-1.5">
-              <span className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">Within 1 minute</span>
+              <span className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">{t('an.tab.resp.within1Min')}</span>
               <span className="text-sm font-bold text-white" style={SYNE}>
                 {pct(responseTime.within1MinPct)}
               </span>
@@ -208,19 +210,19 @@ export default function ResponsesTab() {
             <div className="h-2 bg-white/10 rounded-full overflow-hidden">
               <div className="h-full bg-white rounded-full" style={{ width: `${within1Min}%` }} />
             </div>
-            <p className="text-xs text-zinc-500 mt-2">Replies sent inside a minute</p>
+            <p className="text-xs text-zinc-500 mt-2">{t('an.tab.resp.insideMinute')}</p>
           </div>
         </div>
       </Card>
 
       {/* Reply mix over time */}
       <Card>
-        <SectionTitle title="Reply mix" sub="AI vs human replies over time" />
+        <SectionTitle title={t('an.tab.resp.replyMix')} sub={t('an.tab.resp.replyMixSub')} />
         <LineChart
           points={series}
           series={[
-            { key: 'aiReplies', label: 'AI replies' },
-            { key: 'humanReplies', label: 'Human replies' },
+            { key: 'aiReplies', label: t('an.tab.resp.aiReplies') },
+            { key: 'humanReplies', label: t('an.tab.resp.humanReplies') },
           ]}
           format={fmtNum}
         />
@@ -228,31 +230,31 @@ export default function ResponsesTab() {
 
       {/* Insights */}
       <Card>
-        <SectionTitle title="Conversation insights" sub="How threads resolved" />
+        <SectionTitle title={t('an.tab.resp.insights')} sub={t('an.tab.resp.insightsSub')} />
         <div className="flex flex-wrap gap-2">
-          <InsightPill label="Unclear" count={insights.unclear} />
-          <InsightPill label="Unknown" count={insights.unknown} />
-          <InsightPill label="Handoff" count={insights.handoff} />
-          <InsightPill label="Resolved" count={insights.resolved} />
-          <InsightPill label="Pending" count={insights.pending} />
+          <InsightPill label={t('an.tab.insight.unclear')} count={insights.unclear} />
+          <InsightPill label={t('an.tab.insight.unknown')} count={insights.unknown} />
+          <InsightPill label={t('an.tab.insight.handoff')} count={insights.handoff} />
+          <InsightPill label={t('an.tab.insight.resolved')} count={insights.resolved} />
+          <InsightPill label={t('an.tab.insight.pending')} count={insights.pending} />
         </div>
       </Card>
 
       {/* Pages + agents */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <SectionTitle title="By page" sub="AI replies" />
-          <BarList rows={byPage} valueFormat={fmtNum} emptyText="No page activity yet" />
+          <SectionTitle title={t('an.tab.byPage')} sub={t('an.tab.resp.aiReplies')} />
+          <BarList rows={byPage} valueFormat={fmtNum} emptyText={t('an.tab.noPageActivity')} />
         </Card>
 
         <Card>
-          <SectionTitle title="By agent" sub="AI replies vs handoffs" />
+          <SectionTitle title={t('an.tab.byAgent')} sub={t('an.tab.resp.byAgentSub')} />
           <BarList
             rows={byAgent}
             valueFormat={fmtNum}
             showSecondary
-            secondaryLabel="Handoffs"
-            emptyText="No agent activity yet"
+            secondaryLabel={t('an.tab.resp.handoffs')}
+            emptyText={t('an.tab.noAgentActivity')}
           />
         </Card>
       </div>

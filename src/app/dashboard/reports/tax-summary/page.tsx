@@ -11,12 +11,10 @@ import {
 } from '@/components/charts';
 import {
   getTaxSummary,
-  REPORT_CATALOG,
   type TaxSummaryReport,
   type ReportPeriodParam,
 } from '@/lib/reports-api';
-
-const META = REPORT_CATALOG.find((r) => r.key === 'tax-summary')!;
+import { useTranslation } from '@/contexts/LanguageContext';
 
 function pctLabel(p: number | null): string {
   return p == null || !Number.isFinite(p) ? '—' : `${p.toFixed(1)}%`;
@@ -45,6 +43,7 @@ function Panel({
 }
 
 export default function TaxSummaryPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<ReportPeriodParam>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<TaxSummaryReport | null>(null);
@@ -58,7 +57,7 @@ export default function TaxSummaryPage() {
     try {
       setData(await getTaxSummary(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load report');
+      setError(e instanceof Error ? e.message : t('rep.com.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -70,8 +69,8 @@ export default function TaxSummaryPage() {
 
   return (
     <ReportShell
-      title={META.title}
-      description={META.description}
+      title={t('rep.fin.taxSummary.title')}
+      description={t('rep.fin.taxSummary.desc')}
       period={period}
       onPeriodChange={(p) => {
         setPeriod(p);
@@ -90,22 +89,22 @@ export default function TaxSummaryPage() {
       {data && (
         <>
           <StatTileRow>
-            <StatTile label="Tax collected" value={fmtDA(data.taxCollected)} />
-            <StatTile label="Taxable revenue" value={fmtDA(data.taxableRevenue)} />
-            <StatTile label="Effective rate" value={pctLabel(data.effectiveRatePct)} />
-            <StatTile label="Sources" value={data.bySource.length} />
+            <StatTile label={t('rep.fin.tax.collected')} value={fmtDA(data.taxCollected)} />
+            <StatTile label={t('rep.fin.tax.taxableRevenue')} value={fmtDA(data.taxableRevenue)} />
+            <StatTile label={t('rep.fin.tax.effectiveRate')} value={pctLabel(data.effectiveRatePct)} />
+            <StatTile label={t('rep.fin.tax.sources')} value={data.bySource.length} />
           </StatTileRow>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Panel className="lg:col-span-2" title="Tax collected over time">
+            <Panel className="lg:col-span-2" title={t('rep.fin.tax.collectedOverTime')}>
               <LineChart
                 points={data.series}
-                series={[{ key: 'tax', label: 'Tax' }]}
+                series={[{ key: 'tax', label: t('rep.fin.tax.tax') }]}
                 format={fmtDA}
               />
             </Panel>
-            <Panel title="By source">
-              <BarList rows={data.bySource} valueFormat={fmtDA} emptyText="No tax yet" />
+            <Panel title={t('rep.fin.bySource')}>
+              <BarList rows={data.bySource} valueFormat={fmtDA} emptyText={t('rep.fin.tax.noTax')} />
             </Panel>
           </div>
         </>

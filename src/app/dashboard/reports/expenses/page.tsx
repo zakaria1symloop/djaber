@@ -11,12 +11,10 @@ import {
 } from '@/components/charts';
 import {
   getExpenses,
-  REPORT_CATALOG,
   type ExpensesReport,
   type ReportPeriodParam,
 } from '@/lib/reports-api';
-
-const META = REPORT_CATALOG.find((r) => r.key === 'expenses')!;
+import { useTranslation } from '@/contexts/LanguageContext';
 
 function fmtDate(iso: string): string {
   const d = new Date(iso);
@@ -47,6 +45,7 @@ function Panel({
 }
 
 export default function ExpensesPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<ReportPeriodParam>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<ExpensesReport | null>(null);
@@ -60,7 +59,7 @@ export default function ExpensesPage() {
     try {
       setData(await getExpenses(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load report');
+      setError(e instanceof Error ? e.message : t('rep.com.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -74,8 +73,8 @@ export default function ExpensesPage() {
 
   return (
     <ReportShell
-      title={META.title}
-      description={META.description}
+      title={t('rep.fin.expenses.title')}
+      description={t('rep.fin.expenses.desc')}
       period={period}
       onPeriodChange={(p) => {
         setPeriod(p);
@@ -94,25 +93,25 @@ export default function ExpensesPage() {
       {data && (
         <>
           <StatTileRow>
-            <StatTile label="Total spent" value={fmtDA(data.total)} />
-            <StatTile label="Categories" value={data.byCategory.length} />
-            <StatTile label="Entries" value={data.rows.length} />
+            <StatTile label={t('rep.c.totalSpent')} value={fmtDA(data.total)} />
+            <StatTile label={t('rep.c.categories')} value={data.byCategory.length} />
+            <StatTile label={t('rep.fin.exp.entries')} value={data.rows.length} />
             <StatTile
-              label="Largest category"
+              label={t('rep.fin.exp.largestCategory')}
               value={top ? top.label : '—'}
               hint={top ? fmtDA(top.value) : undefined}
             />
           </StatTileRow>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Panel className="lg:col-span-2" title="Spending over time">
+            <Panel className="lg:col-span-2" title={t('rep.fin.exp.spendingOverTime')}>
               <ColumnChart points={data.series} metric="amount" format={fmtDA} />
             </Panel>
-            <Panel title="By category">
+            <Panel title={t('rep.fin.byCategory')}>
               <DonutChart
                 slices={data.byCategory.map((r) => ({ label: r.label, value: r.value }))}
                 centerValue={fmtDA(data.total)}
-                centerLabel="Total"
+                centerLabel={t('rep.c.total')}
               />
             </Panel>
           </div>
@@ -122,20 +121,20 @@ export default function ExpensesPage() {
               <table className="w-full text-sm">
                 <thead className="bg-white/[0.02]">
                   <tr className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">
-                    <th className="text-start font-medium px-4 py-3 whitespace-nowrap">Date</th>
-                    <th className="text-start font-medium px-4 py-3">Category</th>
-                    <th className="text-start font-medium px-4 py-3">Description</th>
-                    <th className="text-start font-medium px-4 py-3">Source</th>
-                    <th className="text-end font-medium px-4 py-3 whitespace-nowrap">Amount</th>
+                    <th className="text-start font-medium px-4 py-3 whitespace-nowrap">{t('rep.c.date')}</th>
+                    <th className="text-start font-medium px-4 py-3">{t('rep.c.category')}</th>
+                    <th className="text-start font-medium px-4 py-3">{t('rep.c.description')}</th>
+                    <th className="text-start font-medium px-4 py-3">{t('rep.fin.source')}</th>
+                    <th className="text-end font-medium px-4 py-3 whitespace-nowrap">{t('rep.c.amount')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.rows.length === 0 && (
                     <tr>
                       <td colSpan={5} className="px-4 py-10 text-center">
-                        <p className="text-sm font-bold text-white">No expenses</p>
+                        <p className="text-sm font-bold text-white">{t('rep.fin.exp.noExpenses')}</p>
                         <p className="text-xs text-zinc-500 mt-1">
-                          Recorded expenses will appear here.
+                          {t('rep.fin.exp.noExpensesHint')}
                         </p>
                       </td>
                     </tr>

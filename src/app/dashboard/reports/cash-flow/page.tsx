@@ -12,12 +12,10 @@ import {
 } from '@/components/charts';
 import {
   getCashFlow,
-  REPORT_CATALOG,
   type CashFlowReport,
   type ReportPeriodParam,
 } from '@/lib/reports-api';
-
-const META = REPORT_CATALOG.find((r) => r.key === 'cash-flow')!;
+import { useTranslation } from '@/contexts/LanguageContext';
 
 function Panel({
   title,
@@ -42,6 +40,7 @@ function Panel({
 }
 
 export default function CashFlowPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<ReportPeriodParam>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<CashFlowReport | null>(null);
@@ -55,7 +54,7 @@ export default function CashFlowPage() {
     try {
       setData(await getCashFlow(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load report');
+      setError(e instanceof Error ? e.message : t('rep.com.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -67,8 +66,8 @@ export default function CashFlowPage() {
 
   return (
     <ReportShell
-      title={META.title}
-      description={META.description}
+      title={t('rep.fin.cashFlow.title')}
+      description={t('rep.fin.cashFlow.desc')}
       period={period}
       onPeriodChange={(p) => {
         setPeriod(p);
@@ -87,34 +86,34 @@ export default function CashFlowPage() {
       {data && (
         <>
           <StatTileRow>
-            <StatTile label="Money in" value={fmtDA(data.totalIn)} />
-            <StatTile label="Money out" value={fmtDA(data.totalOut)} />
-            <StatTile label="Net movement" value={fmtDA(data.net)} />
+            <StatTile label={t('rep.fin.cf.moneyIn')} value={fmtDA(data.totalIn)} />
+            <StatTile label={t('rep.fin.cf.moneyOut')} value={fmtDA(data.totalOut)} />
+            <StatTile label={t('rep.fin.cf.netMovement')} value={fmtDA(data.net)} />
             <StatTile
-              label="Closing balance"
+              label={t('rep.fin.cf.closingBalance')}
               value={fmtDA(data.closingBalance)}
-              hint={`opened at ${fmtDA(data.openingBalance)}`}
+              hint={`${t('rep.fin.cf.openedAt')} ${fmtDA(data.openingBalance)}`}
             />
           </StatTileRow>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Panel className="lg:col-span-2" title="Running balance">
+            <Panel className="lg:col-span-2" title={t('rep.fin.cf.runningBalance')}>
               <LineChart
                 points={data.series}
-                series={[{ key: 'balance', label: 'Balance' }]}
+                series={[{ key: 'balance', label: t('rep.c.balance') }]}
                 format={fmtDA}
               />
             </Panel>
-            <Panel title="By category">
+            <Panel title={t('rep.fin.byCategory')}>
               <BarList
                 rows={data.byCategory}
                 valueFormat={fmtDA}
-                emptyText="No categories yet"
+                emptyText={t('rep.fin.cf.noCategories')}
               />
             </Panel>
           </div>
 
-          <Panel title="Money in vs money out">
+          <Panel title={t('rep.fin.cf.inVsOut')}>
             <ColumnChart points={data.series} metric="in" metric2="out" format={fmtDA} />
           </Panel>
         </>

@@ -13,6 +13,7 @@ import {
   type ProductPurchasesReport,
   type ReportPeriod,
 } from '@/lib/reports-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 function Panel({
   title,
@@ -39,6 +40,7 @@ function Panel({
 }
 
 export default function ProductPurchasesPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<ReportPeriod | 'custom'>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<ProductPurchasesReport | null>(null);
@@ -52,7 +54,7 @@ export default function ProductPurchasesPage() {
     try {
       setData(await getProductPurchases(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load report');
+      setError(e instanceof Error ? e.message : t('rep.com.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -66,8 +68,8 @@ export default function ProductPurchasesPage() {
 
   return (
     <ReportShell
-      title="Product Purchases"
-      description="What you restock most, by quantity and cost."
+      title={t('rep.com.prodPurch.title')}
+      description={t('rep.com.prodPurch.desc')}
       period={period}
       onPeriodChange={(p) => { setPeriod(p); setRange({}); }}
       startDate={range.startDate}
@@ -80,28 +82,28 @@ export default function ProductPurchasesPage() {
       {data && (
         <div className="space-y-6">
           <StatTileRow>
-            <StatTile label="Total cost" value={data.total} suffix=" DA" />
-            <StatTile label="Products" value={data.products.length} />
-            <StatTile label="Units purchased" value={totalUnits} />
+            <StatTile label={t('rep.com.totalCost')} value={data.total} suffix=" DA" />
+            <StatTile label={t('rep.c.products')} value={data.products.length} />
+            <StatTile label={t('rep.com.unitsPurchased')} value={totalUnits} />
           </StatTileRow>
 
-          <Panel title="Most purchased products" subtitle="Bar length is cost; marker is units">
+          <Panel title={t('rep.com.prodPurch.most')} subtitle={t('rep.com.prodPurch.most.sub')}>
             <BarList
               rows={data.products}
               valueFormat={fmtDA}
               showSecondary
-              secondaryLabel="Units"
+              secondaryLabel={t('rep.c.units')}
             />
           </Panel>
 
-          <Panel title="Purchase detail" subtitle="Units and cost per product">
+          <Panel title={t('rep.com.prodPurch.detail')} subtitle={t('rep.com.prodPurch.detail.sub')}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">
-                    <th className="text-start font-medium py-2 pe-4">Product</th>
-                    <th className="text-end font-medium py-2 pe-4">Units</th>
-                    <th className="text-end font-medium py-2">Cost</th>
+                    <th className="text-start font-medium py-2 pe-4">{t('rep.c.product')}</th>
+                    <th className="text-end font-medium py-2 pe-4">{t('rep.c.units')}</th>
+                    <th className="text-end font-medium py-2">{t('rep.c.cost')}</th>
                   </tr>
                 </thead>
                 <tbody>

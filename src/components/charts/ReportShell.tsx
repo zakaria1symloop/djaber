@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { PeriodSelector, type PeriodValue } from '@/components/analytics/KpiCard';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export type ReportPeriod = 'today' | 'week' | 'month' | 'year';
 
@@ -41,6 +42,7 @@ export function ReportShell({
   actions,
   children,
 }: ReportShellProps) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-6">
       <div>
@@ -64,7 +66,7 @@ export function ReportShell({
               strokeLinejoin="round"
             />
           </svg>
-          Reports
+          {t('rep.hub.shell.back')}
         </Link>
 
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -99,7 +101,7 @@ export function ReportShell({
             onClick={onRetry}
             className="px-3 py-1.5 text-xs font-semibold bg-white text-black rounded-lg hover:bg-zinc-200 transition-colors shrink-0"
           >
-            Retry
+            {t('rep.c.retry')}
           </button>
         </div>
       )}

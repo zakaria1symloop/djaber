@@ -10,6 +10,7 @@ import {
   fmtDA,
 } from '@/components/charts';
 import { getPurchasesReport, type PurchasesReport, type ReportPeriod } from '@/lib/reports-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 function Panel({
   title,
@@ -36,6 +37,7 @@ function Panel({
 }
 
 export default function PurchasesReportPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<ReportPeriod | 'custom'>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<PurchasesReport | null>(null);
@@ -49,7 +51,7 @@ export default function PurchasesReportPage() {
     try {
       setData(await getPurchasesReport(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load report');
+      setError(e instanceof Error ? e.message : t('rep.com.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -61,8 +63,8 @@ export default function PurchasesReportPage() {
 
   return (
     <ReportShell
-      title="Purchases Report"
-      description="Purchase orders: committed vs paid, by status and over time."
+      title={t('rep.com.purch.title')}
+      description={t('rep.com.purch.desc')}
       period={period}
       onPeriodChange={(p) => { setPeriod(p); setRange({}); }}
       startDate={range.startDate}
@@ -75,29 +77,29 @@ export default function PurchasesReportPage() {
       {data && (
         <div className="space-y-6">
           <StatTileRow>
-            <StatTile label="Committed" value={data.committed} suffix=" DA" />
-            <StatTile label="Paid" value={data.paid} suffix=" DA" />
+            <StatTile label={t('rep.com.committed')} value={data.committed} suffix=" DA" />
+            <StatTile label={t('rep.c.paid')} value={data.paid} suffix=" DA" />
             <StatTile
-              label="Outstanding"
+              label={t('rep.c.outstanding')}
               value={data.outstanding}
               suffix=" DA"
-              hint="Committed minus paid"
+              hint={t('rep.com.purch.outstandingHint')}
             />
-            <StatTile label="Purchase orders" value={data.count} />
+            <StatTile label={t('rep.com.purchaseOrders')} value={data.count} />
           </StatTileRow>
 
-          <Panel title="Committed vs paid" subtitle="Spend commitment against settlement">
+          <Panel title={t('rep.com.purch.committedVsPaid')} subtitle={t('rep.com.purch.committedVsPaid.sub')}>
             <LineChart
               points={data.series}
               series={[
-                { key: 'committed', label: 'Committed' },
-                { key: 'paid', label: 'Paid' },
+                { key: 'committed', label: t('rep.com.committed') },
+                { key: 'paid', label: t('rep.c.paid') },
               ]}
               format={fmtDA}
             />
           </Panel>
 
-          <Panel title="By status" subtitle="Committed value by purchase status">
+          <Panel title={t('rep.com.purch.byStatus')} subtitle={t('rep.com.purch.byStatus.sub')}>
             <BarList rows={data.byStatus} valueFormat={fmtDA} />
           </Panel>
         </div>

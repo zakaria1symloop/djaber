@@ -9,6 +9,7 @@ import {
   fmtDA,
 } from '@/components/charts';
 import { getTopProducts, type TopProductsReport, type ReportPeriodParam } from '@/lib/reports-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 function Panel({
   title,
@@ -35,6 +36,7 @@ function Panel({
 }
 
 export default function TopProductsPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<ReportPeriodParam>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<TopProductsReport | null>(null);
@@ -48,7 +50,7 @@ export default function TopProductsPage() {
     try {
       setData(await getTopProducts(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load report');
+      setError(e instanceof Error ? e.message : t('rep.com.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -81,8 +83,8 @@ export default function TopProductsPage() {
 
   return (
     <ReportShell
-      title="Top Selling Products"
-      description="Best sellers by revenue and units, with margin."
+      title={t('rep.com.topProd.title')}
+      description={t('rep.com.topProd.desc')}
       period={period}
       onPeriodChange={(p) => {
         setPeriod(p);
@@ -101,27 +103,27 @@ export default function TopProductsPage() {
       {data && (
         <div className="space-y-6">
           <StatTileRow>
-            <StatTile label="Revenue" value={totals.revenue} suffix=" DA" />
-            <StatTile label="Profit" value={totals.profit} suffix=" DA" />
-            <StatTile label="Units sold" value={totals.units} />
-            <StatTile label="Products" value={data.products.length} />
+            <StatTile label={t('rep.c.revenue')} value={totals.revenue} suffix=" DA" />
+            <StatTile label={t('rep.c.profit')} value={totals.profit} suffix=" DA" />
+            <StatTile label={t('rep.c.unitsSold')} value={totals.units} />
+            <StatTile label={t('rep.c.products')} value={data.products.length} />
           </StatTileRow>
 
-          <Panel title="Top products by revenue" subtitle="Bar length is revenue; marker is units">
-            <BarList rows={barRows} valueFormat={fmtDA} showSecondary secondaryLabel="Units" />
+          <Panel title={t('rep.com.topProd.byRevenue')} subtitle={t('rep.com.topProd.byRevenue.sub')}>
+            <BarList rows={barRows} valueFormat={fmtDA} showSecondary secondaryLabel={t('rep.c.units')} />
           </Panel>
 
-          <Panel title="Product detail" subtitle="Units, cost of goods, profit and margin">
+          <Panel title={t('rep.com.topProd.detail')} subtitle={t('rep.com.topProd.detail.sub')}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">
-                    <th className="text-start font-medium py-2 pe-4">Product</th>
-                    <th className="text-end font-medium py-2 pe-4">Units</th>
-                    <th className="text-end font-medium py-2 pe-4">Revenue</th>
-                    <th className="text-end font-medium py-2 pe-4">COGS</th>
-                    <th className="text-end font-medium py-2 pe-4">Profit</th>
-                    <th className="text-end font-medium py-2">Margin</th>
+                    <th className="text-start font-medium py-2 pe-4">{t('rep.c.product')}</th>
+                    <th className="text-end font-medium py-2 pe-4">{t('rep.c.units')}</th>
+                    <th className="text-end font-medium py-2 pe-4">{t('rep.c.revenue')}</th>
+                    <th className="text-end font-medium py-2 pe-4">{t('rep.c.cogs')}</th>
+                    <th className="text-end font-medium py-2 pe-4">{t('rep.c.profit')}</th>
+                    <th className="text-end font-medium py-2">{t('rep.c.margin')}</th>
                   </tr>
                 </thead>
                 <tbody>

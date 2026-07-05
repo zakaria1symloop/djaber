@@ -1,4 +1,7 @@
+'use client';
+
 import React from 'react';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export interface DonutSlice {
   label: string;
@@ -22,6 +25,7 @@ const RAMP = ['#ffffff', '#d4d4d8', '#a1a1aa', '#71717a', '#52525b', '#3f3f46'];
  * "Other". Always rendered beside a legend so the grays stay legible.
  */
 export function DonutChart({ slices, size = 160, centerLabel, centerValue }: DonutChartProps) {
+  const { t } = useTranslation();
   const clean = (slices ?? []).filter((s) => Number.isFinite(s.value) && s.value > 0);
   const sorted = [...clean].sort((a, b) => b.value - a.value);
 
@@ -30,7 +34,7 @@ export function DonutChart({ slices, size = 160, centerLabel, centerValue }: Don
   if (sorted.length > 6) {
     const head = sorted.slice(0, 5);
     const rest = sorted.slice(5).reduce((sum, s) => sum + s.value, 0);
-    display = [...head, { label: 'Other', value: rest }];
+    display = [...head, { label: t('rep.hub.chart.other'), value: rest }];
   }
 
   const total = display.reduce((sum, s) => sum + s.value, 0);
@@ -93,7 +97,7 @@ export function DonutChart({ slices, size = 160, centerLabel, centerValue }: Don
       </div>
 
       <div className="min-w-0 flex-1 space-y-2">
-        {total === 0 && <p className="text-sm font-bold text-white">No data yet</p>}
+        {total === 0 && <p className="text-sm font-bold text-white">{t('rep.hub.chart.noData')}</p>}
         {display.map((s, i) => {
           const pct = total > 0 ? Math.round((s.value / total) * 100) : 0;
           return (

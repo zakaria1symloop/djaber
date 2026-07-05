@@ -9,6 +9,7 @@ import {
   fmtDA,
 } from '@/components/charts';
 import { getTopSuppliers, type SuppliersReport, type ReportPeriod } from '@/lib/reports-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 function Panel({
   title,
@@ -35,6 +36,7 @@ function Panel({
 }
 
 export default function TopSuppliersPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<ReportPeriod | 'custom'>('month');
   const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<SuppliersReport | null>(null);
@@ -48,7 +50,7 @@ export default function TopSuppliersPage() {
     try {
       setData(await getTopSuppliers(period, period === 'custom' ? range : undefined));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load report');
+      setError(e instanceof Error ? e.message : t('rep.com.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -71,8 +73,8 @@ export default function TopSuppliersPage() {
 
   return (
     <ReportShell
-      title="Top Suppliers"
-      description="Your biggest suppliers by total spend."
+      title={t('rep.com.topSupp.title')}
+      description={t('rep.com.topSupp.desc')}
       period={period}
       onPeriodChange={(p) => { setPeriod(p); setRange({}); }}
       startDate={range.startDate}
@@ -85,24 +87,24 @@ export default function TopSuppliersPage() {
       {data && (
         <div className="space-y-6">
           <StatTileRow>
-            <StatTile label="Total spend" value={data.total} suffix=" DA" />
-            <StatTile label="Suppliers" value={data.suppliers.length} />
-            <StatTile label="Outstanding" value={outstanding} suffix=" DA" />
+            <StatTile label={t('rep.com.totalSpend')} value={data.total} suffix=" DA" />
+            <StatTile label={t('rep.c.suppliers')} value={data.suppliers.length} />
+            <StatTile label={t('rep.c.outstanding')} value={outstanding} suffix=" DA" />
           </StatTileRow>
 
-          <Panel title="Top suppliers by spend" subtitle="Your biggest commitments">
+          <Panel title={t('rep.com.topSupp.bySpend')} subtitle={t('rep.com.topSupp.bySpend.sub')}>
             <BarList rows={barRows} valueFormat={fmtDA} />
           </Panel>
 
-          <Panel title="Supplier detail" subtitle="Purchases, spend and outstanding balance">
+          <Panel title={t('rep.com.supp.detail')} subtitle={t('rep.com.supp.detail.sub')}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">
-                    <th className="text-start font-medium py-2 pe-4">Supplier</th>
-                    <th className="text-end font-medium py-2 pe-4">Purchases</th>
-                    <th className="text-end font-medium py-2 pe-4">Spend</th>
-                    <th className="text-end font-medium py-2">Outstanding</th>
+                    <th className="text-start font-medium py-2 pe-4">{t('rep.c.supplier')}</th>
+                    <th className="text-end font-medium py-2 pe-4">{t('rep.c.purchases')}</th>
+                    <th className="text-end font-medium py-2 pe-4">{t('rep.com.spend')}</th>
+                    <th className="text-end font-medium py-2">{t('rep.c.outstanding')}</th>
                   </tr>
                 </thead>
                 <tbody>
