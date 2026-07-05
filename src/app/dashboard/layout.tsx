@@ -46,7 +46,7 @@ const navigationItemsBase = [
   { id: 'social-media', labelKey: 'nav.dash.social', icon: ChatIcon, href: '/dashboard', section: 'pages' },
   { id: 'services', labelKey: 'nav.dash.services', icon: GridIcon, href: '/dashboard/services' },
   { id: 'notifications', labelKey: 'nav.dash.notifications', icon: BellIcon, href: '/dashboard/notifications' },
-  { id: 'analytics', labelKey: 'nav.dash.analytics', icon: ChartIcon, href: '/dashboard', section: 'analytics' },
+  { id: 'analytics', labelKey: 'nav.dash.analytics', icon: ChartIcon, href: '/dashboard/analytics' },
   { id: 'reports', labelKey: 'nav.reports', icon: FileTextIcon, href: '/dashboard/reports' },
   { id: 'settings', labelKey: 'nav.dash.settings', icon: SettingsIcon, href: '/dashboard', section: 'settings' },
 ] as const;
@@ -57,6 +57,28 @@ const serviceSubItemsBase = [
   // 'sales' intentionally omitted here — Sales lives in the stock sub-sidebar
   // (/dashboard/stock/sales); listing it here too showed a duplicate "Ventes" tab.
   { id: 'commercial', labelKey: 'nav.dash.commercial', icon: MegaphoneIcon, href: null, active: false },
+] as const;
+
+// Analytics deep-hub tabs — sidebar sub-items jump straight to a tab.
+const analyticsSubItemsBase = [
+  { id: 'conversations', labelKey: 'nav.an.conversations', href: '/dashboard/analytics?tab=conversations' },
+  { id: 'responses', labelKey: 'nav.an.responses', href: '/dashboard/analytics?tab=responses' },
+  { id: 'consumption', labelKey: 'nav.an.consumption', href: '/dashboard/analytics?tab=consumption' },
+  { id: 'agents', labelKey: 'nav.an.agents', href: '/dashboard/analytics?tab=agents' },
+  { id: 'channels', labelKey: 'nav.an.channels', href: '/dashboard/analytics?tab=channels' },
+  { id: 'products', labelKey: 'nav.an.products', href: '/dashboard/analytics?tab=products' },
+  { id: 'orders', labelKey: 'nav.an.orders', href: '/dashboard/analytics?tab=orders' },
+] as const;
+
+// Reports — a curated shortcut set; "All reports" opens the full catalog.
+const reportsSubItemsBase = [
+  { id: 'all', labelKey: 'nav.rep.all', href: '/dashboard/reports' },
+  { id: 'profit-loss', labelKey: 'nav.rep.profitLoss', href: '/dashboard/reports/profit-loss' },
+  { id: 'cash-flow', labelKey: 'nav.rep.cashFlow', href: '/dashboard/reports/cash-flow' },
+  { id: 'sales', labelKey: 'nav.rep.sales', href: '/dashboard/reports/sales' },
+  { id: 'purchases', labelKey: 'nav.rep.purchases', href: '/dashboard/reports/purchases' },
+  { id: 'inventory-valuation', labelKey: 'nav.rep.inventory', href: '/dashboard/reports/inventory-valuation' },
+  { id: 'top-customers', labelKey: 'nav.rep.customers', href: '/dashboard/reports/top-customers' },
 ] as const;
 
 const stockNavItemsBase = [
@@ -102,10 +124,14 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   }, [pathname]);
   const navigationItems = navigationItemsBase.map((i) => ({ ...i, name: t(i.labelKey) }));
   const serviceSubItems = serviceSubItemsBase.map((i) => ({ ...i, name: t(i.labelKey) }));
+  const analyticsSubItems = analyticsSubItemsBase.map((i) => ({ ...i, name: t(i.labelKey, i.id) }));
+  const reportsSubItems = reportsSubItemsBase.map((i) => ({ ...i, name: t(i.labelKey, i.id) }));
   const stockNavItemsRaw = stockNavItemsBase.map((i) => ({ ...i, label: t(i.labelKey) }));
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [servicesExpanded, setServicesExpanded] = useState(false);
+  const [analyticsExpanded, setAnalyticsExpanded] = useState(false);
+  const [reportsExpanded, setReportsExpanded] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [urgentAlert, setUrgentAlert] = useState(false);
@@ -230,12 +256,16 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const isNotificationsRoute = pathname?.startsWith('/dashboard/notifications');
   const isInboxRoute = pathname?.startsWith('/dashboard/inbox');
   const isReportsRoute = pathname?.startsWith('/dashboard/reports');
+  const isAnalyticsHubRoute = pathname?.startsWith('/dashboard/analytics');
   const isDashboardRoot = pathname === '/dashboard';
   const section = searchParams.get('section');
+  const analyticsTab = searchParams.get('tab') || 'conversations';
 
-  // Auto-expand services accordion when on services or stock routes
+  // Auto-expand accordions when their route is active
   const isServicesOrStockActive = isStockRoute || isAgentsRoute || isServicesRoute;
   const showServicesExpanded = servicesExpanded || isServicesOrStockActive;
+  const showAnalyticsExpanded = analyticsExpanded || isAnalyticsHubRoute;
+  const showReportsExpanded = reportsExpanded || isReportsRoute;
 
   // Sidebar collapse: collapses on stock routes, expands on hover (pushing content)
   const sidebarCollapsed = isStockRoute;
@@ -245,6 +275,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
     if (isInboxRoute) return 'inbox';
     if (isNotificationsRoute) return 'notifications';
     if (isReportsRoute) return 'reports';
+    if (isAnalyticsHubRoute) return 'analytics';
     if (isStockRoute) return 'services';
     if (isAgentsRoute) return 'services';
     if (isServicesRoute) return 'services';
@@ -262,6 +293,12 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
     if (item.id === 'services') {
       setServicesExpanded(!servicesExpanded);
       router.push('/dashboard/services');
+    } else if (item.id === 'analytics') {
+      setAnalyticsExpanded((v) => !v);
+      router.push('/dashboard/analytics');
+    } else if (item.id === 'reports') {
+      setReportsExpanded((v) => !v);
+      router.push('/dashboard/reports');
     } else if ('section' in item && item.section) {
       router.push(`/dashboard?section=${item.section}`);
     } else {
@@ -344,10 +381,14 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                       {badge}
                     </span>
                   )}
-                  {!isCollapsedMode && isServices && (
+                  {!isCollapsedMode && (isServices || item.id === 'analytics' || item.id === 'reports') && (
                     <ChevronDownIcon
                       className={`w-4 h-4 transition-transform duration-200 ${
-                        showServicesExpanded ? 'rotate-180' : ''
+                        (isServices && showServicesExpanded) ||
+                        (item.id === 'analytics' && showAnalyticsExpanded) ||
+                        (item.id === 'reports' && showReportsExpanded)
+                          ? 'rotate-180'
+                          : ''
                       } ${isActive ? 'text-black/60' : 'text-zinc-600'}`}
                     />
                   )}
@@ -387,6 +428,48 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                               {t('nav.dash.soon')}
                             </span>
                           )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Analytics accordion sub-items (deep-hub tabs) */}
+                {item.id === 'analytics' && showAnalyticsExpanded && !isCollapsedMode && (
+                  <div className="mt-1 ms-4 ps-4 border-s border-white/10 space-y-0.5">
+                    {analyticsSubItems.map((sub) => {
+                      const isSubActive = isAnalyticsHubRoute && analyticsTab === sub.id;
+                      return (
+                        <button
+                          key={sub.id}
+                          onClick={() => { router.push(sub.href); setSidebarOpen(false); }}
+                          className={`w-full flex items-center px-2.5 py-2 rounded-lg text-sm transition-all ${
+                            isSubActive ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          <span className="font-medium">{sub.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Reports accordion sub-items (shortcuts) */}
+                {item.id === 'reports' && showReportsExpanded && !isCollapsedMode && (
+                  <div className="mt-1 ms-4 ps-4 border-s border-white/10 space-y-0.5">
+                    {reportsSubItems.map((sub) => {
+                      const isSubActive = sub.id === 'all'
+                        ? pathname === '/dashboard/reports'
+                        : pathname === `/dashboard/reports/${sub.id}`;
+                      return (
+                        <button
+                          key={sub.id}
+                          onClick={() => { router.push(sub.href); setSidebarOpen(false); }}
+                          className={`w-full flex items-center px-2.5 py-2 rounded-lg text-sm transition-all ${
+                            isSubActive ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          <span className="font-medium">{sub.name}</span>
                         </button>
                       );
                     })}

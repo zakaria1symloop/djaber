@@ -671,7 +671,11 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
 
       // Consume credits after successful AI response
       const action = batchImages.length > 0 ? 'image_recognition' : voiceTranscribed ? 'voice_transcription' : 'text_message';
-      await consumeCredits(page.userId, creditCost, action);
+      await consumeCredits(page.userId, creditCost, action, {
+        conversationId: conversation.id,
+        agentId: agent.id,
+        pageId: page.id,
+      });
 
       // Save AI response (clean text, no tags)
       await prisma.message.create({

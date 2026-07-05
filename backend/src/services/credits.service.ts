@@ -41,10 +41,24 @@ export async function hasCredits(userId: string, cost: number = 1): Promise<{ ok
   };
 }
 
+/** Optional context recorded in the credit ledger for analytics. */
+interface CreditMeta {
+  conversationId?: string;
+  agentId?: string;
+  pageId?: string;
+}
+
 /**
  * Consume credits for an action. Returns false if insufficient.
+ * Also appends a CreditUsage ledger row (non-fatal) so the AI consumption
+ * analytics can break usage down by action / agent / page / time.
  */
-export async function consumeCredits(userId: string, cost: number, _action: string): Promise<boolean> {
+export async function consumeCredits(
+  userId: string,
+  cost: number,
+  action: string,
+  meta?: CreditMeta
+): Promise<boolean> {
   const check = await hasCredits(userId, cost);
   if (!check.ok) return false;
 
@@ -52,6 +66,22 @@ export async function consumeCredits(userId: string, cost: number, _action: stri
     where: { id: userId },
     data: { creditsUsed: { increment: cost } },
   });
+
+  // Append to the usage ledger — never block the reply on a logging failure.
+  try {
+    await prisma.creditUsage.create({
+      data: {
+        userId,
+        action,
+        credits: cost,
+        conversationId: meta?.conversationId || null,
+        agentId: meta?.agentId || null,
+        pageId: meta?.pageId || null,
+      },
+    });
+  } catch (err) {
+    console.error('CreditUsage log failed (non-fatal):', err);
+  }
 
   return true;
 }

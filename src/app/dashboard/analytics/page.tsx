@@ -7,12 +7,19 @@ import ProductsTab from './_components/ProductsTab';
 import ChannelsTab from './_components/ChannelsTab';
 import AgentsTab from './_components/AgentsTab';
 import OrdersTab from './_components/OrdersTab';
+import ConversationsTab from './_components/ConversationsTab';
+import ResponsesTab from './_components/ResponsesTab';
+import ConsumptionTab from './_components/ConsumptionTab';
 
+// AI-first ordering — the agent story leads, commerce follows.
 const TABS = [
-  { key: 'products', label: 'Products' },
-  { key: 'channels', label: 'Channels' },
-  { key: 'agents', label: 'AI Agents' },
-  { key: 'orders', label: 'Orders' },
+  { key: 'conversations', label: 'Conversations', group: 'AI' },
+  { key: 'responses', label: 'Responses', group: 'AI' },
+  { key: 'consumption', label: 'Consumption', group: 'AI' },
+  { key: 'agents', label: 'AI Agents', group: 'AI' },
+  { key: 'channels', label: 'Channels', group: 'AI' },
+  { key: 'products', label: 'Products', group: 'Commerce' },
+  { key: 'orders', label: 'Orders', group: 'Commerce' },
 ] as const;
 
 type TabKey = (typeof TABS)[number]['key'];
@@ -27,7 +34,7 @@ function AnalyticsHub() {
   const searchParams = useSearchParams();
 
   const rawTab = searchParams.get('tab');
-  const tab: TabKey = isTabKey(rawTab) ? rawTab : 'products';
+  const tab: TabKey = isTabKey(rawTab) ? rawTab : 'conversations';
 
   const setTab = (key: TabKey) => {
     router.replace(`${pathname}?tab=${key}`, { scroll: false });
@@ -72,9 +79,12 @@ function AnalyticsHub() {
         ))}
       </div>
 
-      {tab === 'products' && <ProductsTab />}
-      {tab === 'channels' && <ChannelsTab />}
+      {tab === 'conversations' && <ConversationsTab />}
+      {tab === 'responses' && <ResponsesTab />}
+      {tab === 'consumption' && <ConsumptionTab />}
       {tab === 'agents' && <AgentsTab />}
+      {tab === 'channels' && <ChannelsTab />}
+      {tab === 'products' && <ProductsTab />}
       {tab === 'orders' && <OrdersTab />}
     </div>
   );

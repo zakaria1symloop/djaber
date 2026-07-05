@@ -145,6 +145,11 @@ import {
   getOrdersAnalytics,
 } from '../controllers/user-analytics.controller';
 import {
+  getConversationsAnalytics,
+  getResponsesAnalytics,
+  getConsumptionAnalytics,
+} from '../controllers/user-ai-analytics.controller';
+import {
   // Finance
   getProfitLossReport,
   getCashFlowReport,
@@ -339,6 +344,13 @@ router.get('/analytics/products', getProductsAnalytics);
 router.get('/analytics/channels', getChannelsAnalytics);
 router.get('/analytics/agents', getAgentsAnalytics);
 router.get('/analytics/orders', getOrdersAnalytics);
+
+// ============================================================================
+// AI Analytics (contract: src/lib/ai-analytics-api.ts)
+// ============================================================================
+router.get('/analytics/conversations', getConversationsAnalytics);
+router.get('/analytics/responses', getResponsesAnalytics);
+router.get('/analytics/consumption', getConsumptionAnalytics);
 
 // ============================================================================
 // Reports (contract: src/lib/reports-api.ts) — all scoped by req.user.userId

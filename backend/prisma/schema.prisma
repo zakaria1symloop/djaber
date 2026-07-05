@@ -711,6 +711,28 @@ model Subscription {
 // Notifications
 // ============================================================================
 
+// ============================================================================
+// Credit Usage Ledger — one row per AI action that consumed credits.
+// Powers the AI consumption analytics (by type, agent, page, over time).
+// ============================================================================
+
+model CreditUsage {
+  id             String   @id @default(uuid())
+  userId         String
+  action         String   // text_message, image_recognition, voice_transcription, order_created
+  credits        Int
+  conversationId String?
+  agentId        String?
+  pageId         String?
+  estimated      Boolean  @default(false) // true = reconstructed from message history, not logged live
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, action, createdAt])
+  @@index([agentId, createdAt])
+  @@index([pageId, createdAt])
+}
+
 model Notification {
   id        String   @id @default(uuid())
   userId    String
