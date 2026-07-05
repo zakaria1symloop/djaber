@@ -18,30 +18,33 @@ import {
 const META = REPORT_CATALOG.find((r) => r.key === 'dead-stock')!;
 const money = (n: number) => `${Math.round(n).toLocaleString()} DA`;
 const dateLabel = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : 'Never');
-const PERIOD_WORD: Record<ReportPeriod, string> = {
+const PERIOD_WORD: Record<ReportPeriod | 'custom', string> = {
   today: 'today',
   week: '7 days',
   month: '30 days',
   year: 'year',
+  custom: 'custom range',
 };
 
 export default function DeadStockPage() {
-  const [period, setPeriod] = useState<ReportPeriod>('month');
+  const [period, setPeriod] = useState<ReportPeriod | 'custom'>('month');
+  const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<DeadStockReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (period === 'custom' && (!range.startDate || !range.endDate)) return;
     setLoading(true);
     setError(null);
     try {
-      setData(await getDeadStock(period));
+      setData(await getDeadStock(period, period === 'custom' ? range : undefined));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load dead stock');
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, range.startDate, range.endDate]);
 
   useEffect(() => {
     load();
@@ -54,7 +57,10 @@ export default function DeadStockPage() {
       title={META.title}
       description={META.description}
       period={period}
-      onPeriodChange={setPeriod}
+      onPeriodChange={(p) => { setPeriod(p); setRange({}); }}
+      startDate={range.startDate}
+      endDate={range.endDate}
+      onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }}
       loading={loading && !data}
       error={error}
       onRetry={load}

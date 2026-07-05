@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { PeriodSelector } from '@/components/analytics/KpiCard';
 import {
   getOrdersAnalytics,
-  type AnalyticsPeriod,
   type OrdersAnalyticsResponse,
 } from '@/lib/analytics-api';
 
@@ -103,31 +102,34 @@ function OrdersSkeleton() {
 // ---------------------------------------------------------------------------
 
 export default function OrdersTab() {
-  const [period, setPeriod] = useState<AnalyticsPeriod>('month');
+  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('month');
+  const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<OrdersAnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (period === 'custom' && (!range.startDate || !range.endDate)) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await getOrdersAnalytics(period);
+      const res = await getOrdersAnalytics(period, period === 'custom' ? range : undefined);
       setData(res);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load orders analytics');
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, range.startDate, range.endDate]);
 
   useEffect(() => {
+    if (period === 'custom' && (!range.startDate || !range.endDate)) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await getOrdersAnalytics(period);
+        const res = await getOrdersAnalytics(period, period === 'custom' ? range : undefined);
         if (!cancelled) setData(res);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load orders analytics');
@@ -138,7 +140,7 @@ export default function OrdersTab() {
     return () => {
       cancelled = true;
     };
-  }, [period]);
+  }, [period, range.startDate, range.endDate]);
 
   // -------------------------------------------------------------------------
 
@@ -146,7 +148,7 @@ export default function OrdersTab() {
     return (
       <div className="space-y-4">
         <div className="flex justify-end">
-          <PeriodSelector value={period} onChange={setPeriod} />
+          <PeriodSelector value={period} onChange={(p) => { setPeriod(p); setRange({}); }} startDate={range.startDate} endDate={range.endDate} onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }} />
         </div>
         <div className="bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl p-4 flex items-center justify-between gap-4">
           <p className="text-sm">{error}</p>
@@ -165,7 +167,7 @@ export default function OrdersTab() {
     return (
       <div className="space-y-4">
         <div className="flex justify-end">
-          <PeriodSelector value={period} onChange={setPeriod} />
+          <PeriodSelector value={period} onChange={(p) => { setPeriod(p); setRange({}); }} startDate={range.startDate} endDate={range.endDate} onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }} />
         </div>
         <OrdersSkeleton />
       </div>
@@ -211,7 +213,7 @@ export default function OrdersTab() {
     <div className="space-y-6">
       {/* 1. Period selector */}
       <div className="flex justify-end">
-        <PeriodSelector value={period} onChange={setPeriod} />
+        <PeriodSelector value={period} onChange={(p) => { setPeriod(p); setRange({}); }} startDate={range.startDate} endDate={range.endDate} onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }} />
       </div>
 
       {/* 2. Funnel */}

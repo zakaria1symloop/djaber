@@ -2,42 +2,15 @@ import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import prisma from '../config/database';
 import { getWilayaById } from '../data/wilayas';
+import { resolveWindow, WindowDateFilter } from '../utils/period';
 
 // ============================================================================
 // Deep Analytics — products / channels / agents / orders
 // Response shapes MUST match the frontend contract in src/lib/analytics-api.ts
 // ============================================================================
 
-type AnalyticsPeriod = 'today' | 'week' | 'month' | 'year';
-
 // Order statuses excluded from revenue attribution everywhere
 const EXCLUDED_ORDER_STATUSES = ['cancelled', 'returned'];
-
-interface PeriodWindow {
-  period: AnalyticsPeriod;
-  start: Date;
-  days: number; // window length in days (used for velocity / stock cover)
-}
-
-// Same convention as getSalesStats / getOrderStats: start of day for 'today',
-// otherwise a rolling 7 / 30 / 365 day window back from now.
-const resolvePeriodWindow = (raw: unknown): PeriodWindow => {
-  const period: AnalyticsPeriod =
-    raw === 'today' || raw === 'week' || raw === 'year' ? raw : 'month';
-  const now = new Date();
-  const DAY_MS = 24 * 60 * 60 * 1000;
-
-  switch (period) {
-    case 'today':
-      return { period, start: new Date(now.getFullYear(), now.getMonth(), now.getDate()), days: 1 };
-    case 'week':
-      return { period, start: new Date(now.getTime() - 7 * DAY_MS), days: 7 };
-    case 'year':
-      return { period, start: new Date(now.getTime() - 365 * DAY_MS), days: 365 };
-    default:
-      return { period: 'month', start: new Date(now.getTime() - 30 * DAY_MS), days: 30 };
-  }
-};
 
 // ============================================================================
 // Products
@@ -50,7 +23,11 @@ export const getProductsAnalytics = async (req: Request, res: Response): Promise
       return;
     }
     const userId = req.user.userId;
-    const { period, start, days } = resolvePeriodWindow(req.query.period);
+    const { period, days, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
 
     const [allProducts, orderAgg, saleAgg] = await Promise.all([
       prisma.product.findMany({
@@ -70,7 +47,7 @@ export const getProductsAnalytics = async (req: Request, res: Response): Promise
         where: {
           order: {
             userId,
-            orderDate: { gte: start },
+            orderDate: dateFilter,
             status: { notIn: EXCLUDED_ORDER_STATUSES },
           },
         },
@@ -79,7 +56,7 @@ export const getProductsAnalytics = async (req: Request, res: Response): Promise
       // Units + revenue from walk-in sales in window
       prisma.saleItem.groupBy({
         by: ['productId'],
-        where: { sale: { userId, saleDate: { gte: start } } },
+        where: { sale: { userId, saleDate: dateFilter } },
         _sum: { quantity: true, total: true },
       }),
     ]);
@@ -211,12 +188,15 @@ interface AttributionData {
 // Fetch AI orders in the window plus each ordering client's conversations
 // (newest first) so callers can attribute every order to the conversation
 // that most plausibly produced it.
-const fetchAiOrderAttribution = async (userId: string, start: Date): Promise<AttributionData> => {
+const fetchAiOrderAttribution = async (
+  userId: string,
+  dateFilter: WindowDateFilter
+): Promise<AttributionData> => {
   const orders = await prisma.order.findMany({
     where: {
       userId,
       source: 'ai',
-      orderDate: { gte: start },
+      orderDate: dateFilter,
       status: { notIn: EXCLUDED_ORDER_STATUSES },
       clientId: { not: null },
     },
@@ -254,14 +234,18 @@ export const getChannelsAnalytics = async (req: Request, res: Response): Promise
       return;
     }
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
+    const { period, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
 
     const [pages, attribution] = await Promise.all([
       prisma.page.findMany({
         where: { userId, isActive: true },
         select: { id: true, pageName: true, platform: true },
       }),
-      fetchAiOrderAttribution(userId, start),
+      fetchAiOrderAttribution(userId, dateFilter),
     ]);
 
     // Attribute each AI order to the page of the client's most recent
@@ -281,14 +265,14 @@ export const getChannelsAnalytics = async (req: Request, res: Response): Promise
       pages.map(async (page) => {
         const [conversations, newConversations, messagesIn, messagesOut, activeConversations] = await Promise.all([
           prisma.conversation.count({
-            where: { pageId: page.id, messages: { some: { timestamp: { gte: start } } } },
+            where: { pageId: page.id, messages: { some: { timestamp: dateFilter } } },
           }),
-          prisma.conversation.count({ where: { pageId: page.id, createdAt: { gte: start } } }),
+          prisma.conversation.count({ where: { pageId: page.id, createdAt: dateFilter } }),
           prisma.message.count({
-            where: { conversation: { pageId: page.id }, timestamp: { gte: start }, isFromPage: false },
+            where: { conversation: { pageId: page.id }, timestamp: dateFilter, isFromPage: false },
           }),
           prisma.message.count({
-            where: { conversation: { pageId: page.id }, timestamp: { gte: start }, isFromPage: true },
+            where: { conversation: { pageId: page.id }, timestamp: dateFilter, isFromPage: true },
           }),
           // Unread = active conversations whose latest message is from the
           // customer (same technique as page-summary.service)
@@ -360,14 +344,18 @@ export const getAgentsAnalytics = async (req: Request, res: Response): Promise<v
       return;
     }
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
+    const { period, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
 
     const [agents, attribution] = await Promise.all([
       prisma.agent.findMany({
         where: { userId },
         select: { id: true, name: true, isActive: true, aiModel: true },
       }),
-      fetchAiOrderAttribution(userId, start),
+      fetchAiOrderAttribution(userId, dateFilter),
     ]);
 
     // Attribute each AI order to the agent of the client's most recent
@@ -391,7 +379,7 @@ export const getAgentsAnalytics = async (req: Request, res: Response): Promise<v
     const insightRows = agentIds.length
       ? await prisma.agentInsight.groupBy({
           by: ['agentId', 'type', 'status'],
-          where: { agentId: { in: agentIds }, createdAt: { gte: start } },
+          where: { agentId: { in: agentIds }, createdAt: dateFilter },
           _count: { _all: true },
         })
       : [];
@@ -415,10 +403,10 @@ export const getAgentsAnalytics = async (req: Request, res: Response): Promise<v
       agents.map(async (agent) => {
         const [conversations, messagesHandled] = await Promise.all([
           prisma.conversation.count({
-            where: { agentId: agent.id, messages: { some: { timestamp: { gte: start } } } },
+            where: { agentId: agent.id, messages: { some: { timestamp: dateFilter } } },
           }),
           prisma.message.count({
-            where: { conversation: { agentId: agent.id }, timestamp: { gte: start }, isFromPage: true },
+            where: { conversation: { agentId: agent.id }, timestamp: dateFilter, isFromPage: true },
           }),
         ]);
 
@@ -466,10 +454,14 @@ export const getOrdersAnalytics = async (req: Request, res: Response): Promise<v
       return;
     }
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
+    const { period, start, end, bucket, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
 
     const orders = await prisma.order.findMany({
-      where: { userId, orderDate: { gte: start } },
+      where: { userId, orderDate: dateFilter },
       select: {
         status: true,
         confirmationStatus: true,
@@ -559,17 +551,16 @@ export const getOrdersAnalytics = async (req: Request, res: Response): Promise<v
       .sort((a, b) => b.orders - a.orders)
       .slice(0, 15);
 
-    // ---- Time series (daily buckets; monthly for 'year') -----------------
-    const now = new Date();
-    const isMonthly = period === 'year';
+    // ---- Time series (daily buckets; monthly for wide windows) -----------
+    const isMonthly = bucket === 'month';
     const seriesMap = new Map<string, { orders: number; revenue: number }>();
     const cursor = isMonthly
       ? new Date(start.getFullYear(), start.getMonth(), 1)
       : new Date(start.getFullYear(), start.getMonth(), start.getDate());
-    const end = isMonthly
-      ? new Date(now.getFullYear(), now.getMonth(), 1)
-      : new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    while (cursor <= end) {
+    const seriesEnd = isMonthly
+      ? new Date(end.getFullYear(), end.getMonth(), 1)
+      : new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    while (cursor <= seriesEnd) {
       seriesMap.set(isMonthly ? monthKey(cursor) : dayKey(cursor), { orders: 0, revenue: 0 });
       if (isMonthly) cursor.setMonth(cursor.getMonth() + 1);
       else cursor.setDate(cursor.getDate() + 1);

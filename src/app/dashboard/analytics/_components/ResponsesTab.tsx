@@ -11,7 +11,6 @@ import {
 } from '@/components/charts';
 import {
   getResponsesAnalytics,
-  type AnalyticsPeriod,
   type ResponsesAnalytics,
 } from '@/lib/ai-analytics-api';
 
@@ -80,22 +79,24 @@ function TabSkeleton() {
 }
 
 export default function ResponsesTab() {
-  const [period, setPeriod] = useState<AnalyticsPeriod>('month');
+  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('month');
+  const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<ResponsesAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (period === 'custom' && (!range.startDate || !range.endDate)) return;
     setLoading(true);
     setError(null);
     try {
-      setData(await getResponsesAnalytics(period));
+      setData(await getResponsesAnalytics(period, period === 'custom' ? range : undefined));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load response analytics');
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, range.startDate, range.endDate]);
 
   useEffect(() => {
     load();
@@ -106,7 +107,7 @@ export default function ResponsesTab() {
   if (error && !data) {
     return (
       <div className="space-y-4">
-        <PeriodSelector value={period} onChange={setPeriod} />
+        <PeriodSelector value={period} onChange={(p) => { setPeriod(p); setRange({}); }} startDate={range.startDate} endDate={range.endDate} onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }} />
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between gap-4">
           <p className="text-sm text-red-400">{error}</p>
           <button
@@ -137,7 +138,7 @@ export default function ResponsesTab() {
         </div>
         <div className="flex items-center gap-3">
           {loading && <span className="text-xs text-zinc-500">Updating&hellip;</span>}
-          <PeriodSelector value={period} onChange={setPeriod} />
+          <PeriodSelector value={period} onChange={(p) => { setPeriod(p); setRange({}); }} startDate={range.startDate} endDate={range.endDate} onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }} />
         </div>
       </div>
 

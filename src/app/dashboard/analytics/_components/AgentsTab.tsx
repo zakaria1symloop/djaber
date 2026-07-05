@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { PeriodSelector } from '@/components/analytics/KpiCard';
 import {
   getAgentsAnalytics,
-  type AnalyticsPeriod,
   type AgentAnalytics,
   type AgentsAnalyticsResponse,
 } from '@/lib/analytics-api';
@@ -111,23 +110,25 @@ function AgentCard({ agent }: { agent: AgentAnalytics }) {
 }
 
 export default function AgentsTab() {
-  const [period, setPeriod] = useState<AnalyticsPeriod>('month');
+  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('month');
+  const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<AgentsAnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (period === 'custom' && (!range.startDate || !range.endDate)) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await getAgentsAnalytics(period);
+      const res = await getAgentsAnalytics(period, period === 'custom' ? range : undefined);
       setData(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load agent analytics');
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, range.startDate, range.endDate]);
 
   useEffect(() => {
     load();
@@ -141,7 +142,7 @@ export default function AgentsTab() {
           <h2 className="text-lg font-bold text-white" style={SYNE}>Agents</h2>
           <p className="text-xs text-zinc-500 mt-0.5">Which AI generates more income</p>
         </div>
-        <PeriodSelector value={period} onChange={setPeriod} />
+        <PeriodSelector value={period} onChange={(p) => { setPeriod(p); setRange({}); }} startDate={range.startDate} endDate={range.endDate} onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }} />
       </div>
 
       {loading ? (

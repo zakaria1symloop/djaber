@@ -10,7 +10,7 @@ import {
   FunnelBars,
   fmtNum,
 } from '@/components/charts';
-import { getReturnRatio, type ReturnRatioReport, type ReportPeriod } from '@/lib/reports-api';
+import { getReturnRatio, type ReturnRatioReport, type ReportPeriodParam } from '@/lib/reports-api';
 
 function Panel({
   title,
@@ -43,22 +43,24 @@ function pctTile(v: number | null): { value: string | number; suffix?: string } 
 }
 
 export default function ReturnRatioPage() {
-  const [period, setPeriod] = useState<ReportPeriod>('month');
+  const [period, setPeriod] = useState<ReportPeriodParam>('month');
+  const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<ReturnRatioReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (period === 'custom' && (!range.startDate || !range.endDate)) return;
     setLoading(true);
     setError(null);
     try {
-      setData(await getReturnRatio(period));
+      setData(await getReturnRatio(period, period === 'custom' ? range : undefined));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load report');
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, range.startDate, range.endDate]);
 
   useEffect(() => {
     load();
@@ -86,7 +88,16 @@ export default function ReturnRatioPage() {
       title="Return Ratio"
       description="Order return and cancellation rates — the COD cost."
       period={period}
-      onPeriodChange={setPeriod}
+      onPeriodChange={(p) => {
+        setPeriod(p);
+        setRange({});
+      }}
+      startDate={range.startDate}
+      endDate={range.endDate}
+      onRangeChange={(s, e) => {
+        setPeriod('custom');
+        setRange({ startDate: s, endDate: e });
+      }}
       loading={loading}
       error={error}
       onRetry={load}

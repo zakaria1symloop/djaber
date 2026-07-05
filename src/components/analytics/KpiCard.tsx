@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 export type KpiColor = 'violet' | 'emerald' | 'orange' | 'blue' | 'red' | 'zinc' | 'yellow' | 'pink';
 
@@ -39,26 +39,90 @@ export function KpiCard({ label, value, hint, icon, color = 'zinc' }: KpiCardPro
 
 /**
  * Compact period selector button group used by analytics pages.
+ *
+ * Backward compatible: existing callers pass only { value, onChange } with a
+ * preset period. Pass `onRangeChange` (plus optional `startDate`/`endDate`) to
+ * unlock a "Custom" button that reveals two monochrome date inputs.
  */
+export type PeriodPreset = 'today' | 'week' | 'month' | 'year';
+export type PeriodValue = PeriodPreset | 'custom';
+
+/** Shared state shape callers can hold for a period + optional custom range. */
+export type DateRangeState = {
+  period: PeriodValue;
+  startDate?: string;
+  endDate?: string;
+};
+
 export interface PeriodSelectorProps {
-  value: 'today' | 'week' | 'month' | 'year';
-  onChange: (value: 'today' | 'week' | 'month' | 'year') => void;
+  value: PeriodValue;
+  /** Called when a preset button is clicked (never called with 'custom'). */
+  onChange: (value: PeriodPreset) => void;
+  /** Current custom range bounds (YYYY-MM-DD). */
+  startDate?: string;
+  endDate?: string;
+  /** Provide to enable the Custom range button + date inputs. */
+  onRangeChange?: (start: string, end: string) => void;
 }
 
-export function PeriodSelector({ value, onChange }: PeriodSelectorProps) {
+const PRESETS: PeriodPreset[] = ['today', 'week', 'month', 'year'];
+const PRESET_LABEL: Record<PeriodPreset, string> = { today: 'Today', week: '7D', month: '30D', year: '1Y' };
+const DATE_INPUT_CLASS =
+  'bg-black/50 border border-white/10 rounded-lg text-white text-sm px-2 py-1.5 focus:border-white/30 focus:outline-none [color-scheme:dark]';
+
+export function PeriodSelector({ value, onChange, startDate, endDate, onRangeChange }: PeriodSelectorProps) {
+  const [open, setOpen] = useState(value === 'custom');
+  const showCustom = !!onRangeChange;
+  const showInputs = showCustom && (open || value === 'custom');
+
   return (
-    <div className="inline-flex items-center bg-zinc-900/60 border border-white/10 rounded-lg p-1">
-      {(['today', 'week', 'month', 'year'] as const).map((p) => (
-        <button
-          key={p}
-          onClick={() => onChange(p)}
-          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-            value === p ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
-          }`}
-        >
-          {p === 'today' ? 'Today' : p === 'week' ? '7D' : p === 'month' ? '30D' : '1Y'}
-        </button>
-      ))}
+    <div className="inline-flex items-center gap-2 flex-wrap">
+      <div className="inline-flex items-center bg-zinc-900/60 border border-white/10 rounded-lg p-1">
+        {PRESETS.map((p) => (
+          <button
+            key={p}
+            onClick={() => {
+              setOpen(false);
+              onChange(p);
+            }}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+              value === p ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            {PRESET_LABEL[p]}
+          </button>
+        ))}
+        {showCustom && (
+          <button
+            onClick={() => setOpen(true)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+              value === 'custom' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            Custom
+          </button>
+        )}
+      </div>
+
+      {showInputs && (
+        <div className="inline-flex items-center gap-2">
+          <input
+            type="date"
+            value={startDate || ''}
+            max={endDate || undefined}
+            onChange={(e) => onRangeChange!(e.target.value, endDate || '')}
+            className={DATE_INPUT_CLASS}
+          />
+          <span className="text-zinc-500 text-xs">—</span>
+          <input
+            type="date"
+            value={endDate || ''}
+            min={startDate || undefined}
+            onChange={(e) => onRangeChange!(startDate || '', e.target.value)}
+            className={DATE_INPUT_CLASS}
+          />
+        </div>
+      )}
     </div>
   );
 }

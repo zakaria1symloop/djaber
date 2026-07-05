@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import prisma from '../config/database';
 import { getWilayaById } from '../data/wilayas';
+import { resolveWindow } from '../utils/period';
 
 // ============================================================================
 // Reports suite — /api/user-stock/reports/*
@@ -15,36 +16,10 @@ import { getWilayaById } from '../data/wilayas';
 //   in the window is revenue.
 // ============================================================================
 
-type ReportPeriod = 'today' | 'week' | 'month' | 'year';
-
 // Order statuses that never contribute to revenue / payments received.
 const EXCLUDED_ORDER_STATUSES = ['cancelled', 'returned'];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-interface PeriodWindow {
-  period: ReportPeriod;
-  start: Date;
-  days: number;
-}
-
-// Same window convention as user-analytics / stats controllers: start of today
-// for 'today', otherwise a rolling 7 / 30 / 365 day window back from now.
-const resolvePeriodWindow = (raw: unknown): PeriodWindow => {
-  const period: ReportPeriod =
-    raw === 'today' || raw === 'week' || raw === 'year' ? raw : 'month';
-  const now = new Date();
-  switch (period) {
-    case 'today':
-      return { period, start: new Date(now.getFullYear(), now.getMonth(), now.getDate()), days: 1 };
-    case 'week':
-      return { period, start: new Date(now.getTime() - 7 * DAY_MS), days: 7 };
-    case 'year':
-      return { period, start: new Date(now.getTime() - 365 * DAY_MS), days: 365 };
-    default:
-      return { period: 'month', start: new Date(now.getTime() - 30 * DAY_MS), days: 30 };
-  }
-};
 
 // ---------------------------------------------------------------------------
 // Time-series scaffolding (daily buckets; monthly buckets for 'year')
@@ -68,17 +43,16 @@ interface SeriesScaffold {
   labelOf: (key: string) => string;
 }
 
-const buildSeries = (period: ReportPeriod, start: Date): SeriesScaffold => {
-  const now = new Date();
-  const isMonthly = period === 'year';
+const buildSeries = (start: Date, end: Date, bucket: 'day' | 'month'): SeriesScaffold => {
+  const isMonthly = bucket === 'month';
   const keys: string[] = [];
   const cursor = isMonthly
     ? new Date(start.getFullYear(), start.getMonth(), 1)
     : new Date(start.getFullYear(), start.getMonth(), start.getDate());
-  const end = isMonthly
-    ? new Date(now.getFullYear(), now.getMonth(), 1)
-    : new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  while (cursor <= end) {
+  const endBound = isMonthly
+    ? new Date(end.getFullYear(), end.getMonth(), 1)
+    : new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  while (cursor <= endBound) {
     keys.push(isMonthly ? monthKey(cursor) : dayKey(cursor));
     if (isMonthly) cursor.setMonth(cursor.getMonth() + 1);
     else cursor.setDate(cursor.getDate() + 1);
@@ -152,16 +126,20 @@ export const getProfitLossReport = async (req: Request, res: Response): Promise<
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
-    const scaffold = buildSeries(period, start);
+    const { period, start, end, bucket, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
+    const scaffold = buildSeries(start, end, bucket);
 
     const [sales, orders, caisseExpense, productExpense, maps] = await Promise.all([
       prisma.sale.findMany({
-        where: { userId, saleDate: { gte: start } },
+        where: { userId, saleDate: dateFilter },
         select: { total: true, saleDate: true, items: { select: { productId: true, quantity: true } } },
       }),
       prisma.order.findMany({
-        where: { userId, status: 'delivered', orderDate: { gte: start } },
+        where: { userId, status: 'delivered', orderDate: dateFilter },
         select: {
           total: true,
           deliveryFee: true,
@@ -170,11 +148,11 @@ export const getProfitLossReport = async (req: Request, res: Response): Promise<
         },
       }),
       prisma.caisseTransaction.aggregate({
-        where: { userId, type: 'expense', date: { gte: start } },
+        where: { userId, type: 'expense', date: dateFilter },
         _sum: { amount: true },
       }),
       prisma.productExpense.aggregate({
-        where: { userId, date: { gte: start } },
+        where: { userId, date: dateFilter },
         _sum: { amount: true },
       }),
       fetchCostMaps(userId),
@@ -250,12 +228,16 @@ export const getCashFlowReport = async (req: Request, res: Response): Promise<vo
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
-    const scaffold = buildSeries(period, start);
+    const { period, start, end, bucket, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
+    const scaffold = buildSeries(start, end, bucket);
 
     const [txns, priorIncome, priorExpense] = await Promise.all([
       prisma.caisseTransaction.findMany({
-        where: { userId, date: { gte: start } },
+        where: { userId, date: dateFilter },
         select: { type: true, amount: true, category: true, date: true },
       }),
       prisma.caisseTransaction.aggregate({
@@ -329,9 +311,13 @@ export const getCashRegisterReport = async (req: Request, res: Response): Promis
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
+    const { period, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
 
-    const where = { userId, date: { gte: start } };
+    const where = { userId, date: dateFilter };
     const [incomeAgg, expenseAgg, count, rows] = await Promise.all([
       prisma.caisseTransaction.aggregate({ where: { ...where, type: 'income' }, _sum: { amount: true } }),
       prisma.caisseTransaction.aggregate({ where: { ...where, type: 'expense' }, _sum: { amount: true } }),
@@ -386,20 +372,24 @@ export const getPaymentsReport = async (req: Request, res: Response): Promise<vo
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
-    const scaffold = buildSeries(period, start);
+    const { period, start, end, bucket, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
+    const scaffold = buildSeries(start, end, bucket);
 
     const [sales, orders, purchases] = await Promise.all([
       prisma.sale.findMany({
-        where: { userId, saleDate: { gte: start } },
+        where: { userId, saleDate: dateFilter },
         select: { amountPaid: true, paymentMethod: true, saleDate: true },
       }),
       prisma.order.findMany({
-        where: { userId, orderDate: { gte: start }, status: { notIn: EXCLUDED_ORDER_STATUSES } },
+        where: { userId, orderDate: dateFilter, status: { notIn: EXCLUDED_ORDER_STATUSES } },
         select: { amountPaid: true, paymentMethod: true, orderDate: true },
       }),
       prisma.purchase.findMany({
-        where: { userId, purchaseDate: { gte: start }, status: { not: 'cancelled' } },
+        where: { userId, purchaseDate: dateFilter, status: { not: 'cancelled' } },
         select: { amountPaid: true, purchaseDate: true },
       }),
     ]);
@@ -465,16 +455,20 @@ export const getExpensesReport = async (req: Request, res: Response): Promise<vo
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
-    const scaffold = buildSeries(period, start);
+    const { period, start, end, bucket, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
+    const scaffold = buildSeries(start, end, bucket);
 
     const [caisse, productExpenses] = await Promise.all([
       prisma.caisseTransaction.findMany({
-        where: { userId, type: 'expense', date: { gte: start } },
+        where: { userId, type: 'expense', date: dateFilter },
         select: { id: true, date: true, category: true, description: true, amount: true },
       }),
       prisma.productExpense.findMany({
-        where: { userId, date: { gte: start } },
+        where: { userId, date: dateFilter },
         select: { id: true, date: true, category: true, description: true, amount: true },
       }),
     ]);
@@ -539,16 +533,20 @@ export const getTaxSummaryReport = async (req: Request, res: Response): Promise<
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
-    const scaffold = buildSeries(period, start);
+    const { period, start, end, bucket, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
+    const scaffold = buildSeries(start, end, bucket);
 
     const [sales, orders] = await Promise.all([
       prisma.sale.findMany({
-        where: { userId, saleDate: { gte: start } },
+        where: { userId, saleDate: dateFilter },
         select: { tax: true, total: true, saleDate: true },
       }),
       prisma.order.findMany({
-        where: { userId, status: 'delivered', orderDate: { gte: start } },
+        where: { userId, status: 'delivered', orderDate: dateFilter },
         select: { tax: true, total: true, orderDate: true },
       }),
     ]);
@@ -599,12 +597,16 @@ export const getDiscountsReport = async (req: Request, res: Response): Promise<v
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
-    const scaffold = buildSeries(period, start);
+    const { period, start, end, bucket, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
+    const scaffold = buildSeries(start, end, bucket);
 
     const [sales, orders, products] = await Promise.all([
       prisma.sale.findMany({
-        where: { userId, saleDate: { gte: start } },
+        where: { userId, saleDate: dateFilter },
         select: {
           discount: true,
           total: true,
@@ -613,7 +615,7 @@ export const getDiscountsReport = async (req: Request, res: Response): Promise<v
         },
       }),
       prisma.order.findMany({
-        where: { userId, status: 'delivered', orderDate: { gte: start } },
+        where: { userId, status: 'delivered', orderDate: dateFilter },
         select: {
           discount: true,
           total: true,
@@ -686,12 +688,16 @@ export const getSalesReport = async (req: Request, res: Response): Promise<void>
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
-    const scaffold = buildSeries(period, start);
+    const { period, start, end, bucket, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
+    const scaffold = buildSeries(start, end, bucket);
 
     const [sales, orders] = await Promise.all([
       prisma.sale.findMany({
-        where: { userId, saleDate: { gte: start } },
+        where: { userId, saleDate: dateFilter },
         select: {
           total: true,
           saleDate: true,
@@ -700,7 +706,7 @@ export const getSalesReport = async (req: Request, res: Response): Promise<void>
         },
       }),
       prisma.order.findMany({
-        where: { userId, status: 'delivered', orderDate: { gte: start } },
+        where: { userId, status: 'delivered', orderDate: dateFilter },
         select: {
           total: true,
           orderDate: true,
@@ -791,7 +797,11 @@ export const getSalesByCategoryReport = async (req: Request, res: Response): Pro
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
+    const { period, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
 
     const [products, saleItems, orderItems] = await Promise.all([
       prisma.product.findMany({
@@ -800,12 +810,12 @@ export const getSalesByCategoryReport = async (req: Request, res: Response): Pro
       }),
       prisma.saleItem.groupBy({
         by: ['productId'],
-        where: { sale: { userId, saleDate: { gte: start } } },
+        where: { sale: { userId, saleDate: dateFilter } },
         _sum: { total: true, quantity: true },
       }),
       prisma.orderItem.groupBy({
         by: ['productId'],
-        where: { order: { userId, status: 'delivered', orderDate: { gte: start } } },
+        where: { order: { userId, status: 'delivered', orderDate: dateFilter } },
         _sum: { total: true, quantity: true },
       }),
     ]);
@@ -844,16 +854,20 @@ export const getTopProductsReport = async (req: Request, res: Response): Promise
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
+    const { period, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
 
     const [products, saleItems, orderItems, maps] = await Promise.all([
       prisma.product.findMany({ where: { userId }, select: { id: true, name: true, sku: true } }),
       prisma.saleItem.findMany({
-        where: { sale: { userId, saleDate: { gte: start } } },
+        where: { sale: { userId, saleDate: dateFilter } },
         select: { productId: true, quantity: true, total: true },
       }),
       prisma.orderItem.findMany({
-        where: { order: { userId, status: 'delivered', orderDate: { gte: start } } },
+        where: { order: { userId, status: 'delivered', orderDate: dateFilter } },
         select: { productId: true, variantId: true, quantity: true, total: true },
       }),
       fetchCostMaps(userId),
@@ -905,11 +919,15 @@ export const getReturnRatioReport = async (req: Request, res: Response): Promise
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
-    const scaffold = buildSeries(period, start);
+    const { period, start, end, bucket, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
+    const scaffold = buildSeries(start, end, bucket);
 
     const orders = await prisma.order.findMany({
-      where: { userId, orderDate: { gte: start } },
+      where: { userId, orderDate: dateFilter },
       select: { status: true, total: true, orderDate: true, wilayaId: true },
     });
 
@@ -981,11 +999,15 @@ export const getPurchasesReport = async (req: Request, res: Response): Promise<v
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
-    const scaffold = buildSeries(period, start);
+    const { period, start, end, bucket, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
+    const scaffold = buildSeries(start, end, bucket);
 
     const purchases = await prisma.purchase.findMany({
-      where: { userId, purchaseDate: { gte: start }, status: { not: 'cancelled' } },
+      where: { userId, purchaseDate: dateFilter, status: { not: 'cancelled' } },
       select: { total: true, amountPaid: true, status: true, purchaseDate: true },
     });
 
@@ -1036,13 +1058,17 @@ export const getProductPurchasesReport = async (req: Request, res: Response): Pr
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
+    const { period, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
 
     const [products, items] = await Promise.all([
       prisma.product.findMany({ where: { userId }, select: { id: true, name: true, sku: true } }),
       prisma.purchaseItem.groupBy({
         by: ['productId'],
-        where: { purchase: { userId, purchaseDate: { gte: start }, status: { not: 'cancelled' } } },
+        where: { purchase: { userId, purchaseDate: dateFilter, status: { not: 'cancelled' } } },
         _sum: { total: true, quantity: true },
       }),
     ]);
@@ -1075,13 +1101,17 @@ const buildSuppliersReport = async (
 ): Promise<void> => {
   if (!req.user) return unauthorized(res);
   const userId = req.user.userId;
-  const { period, start } = resolvePeriodWindow(req.query.period);
+  const { period, dateFilter } = resolveWindow(
+    req.query.period,
+    req.query.startDate,
+    req.query.endDate
+  );
 
   const [suppliers, grouped] = await Promise.all([
     prisma.supplier.findMany({ where: { userId }, select: { id: true, name: true } }),
     prisma.purchase.groupBy({
       by: ['supplierId'],
-      where: { userId, purchaseDate: { gte: start }, status: { not: 'cancelled' }, supplierId: { not: null } },
+      where: { userId, purchaseDate: dateFilter, status: { not: 'cancelled' }, supplierId: { not: null } },
       _sum: { total: true, amountPaid: true },
       _count: { _all: true },
     }),
@@ -1254,7 +1284,11 @@ export const getDeadStockReport = async (req: Request, res: Response): Promise<v
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
+    const { period, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
 
     const [products, soldSale, soldOrder] = await Promise.all([
       prisma.product.findMany({
@@ -1263,12 +1297,12 @@ export const getDeadStockReport = async (req: Request, res: Response): Promise<v
       }),
       prisma.saleItem.groupBy({
         by: ['productId'],
-        where: { sale: { userId, saleDate: { gte: start } } },
+        where: { sale: { userId, saleDate: dateFilter } },
         _sum: { quantity: true },
       }),
       prisma.orderItem.groupBy({
         by: ['productId'],
-        where: { order: { userId, status: 'delivered', orderDate: { gte: start } } },
+        where: { order: { userId, status: 'delivered', orderDate: dateFilter } },
         _sum: { quantity: true },
       }),
     ]);
@@ -1408,10 +1442,14 @@ export const getStockAdjustmentsReport = async (req: Request, res: Response): Pr
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
+    const { period, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
 
     const movements = await prisma.stockMovement.findMany({
-      where: { userId, type: 'adjustment', createdAt: { gte: start } },
+      where: { userId, type: 'adjustment', createdAt: dateFilter },
       orderBy: { createdAt: 'desc' },
       take: 500,
       select: {
@@ -1524,11 +1562,15 @@ export const getTopCustomersReport = async (req: Request, res: Response): Promis
   try {
     if (!req.user) return unauthorized(res);
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
+    const { period, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
 
     const grouped = await prisma.order.groupBy({
       by: ['clientId'],
-      where: { userId, status: 'delivered', orderDate: { gte: start }, clientId: { not: null } },
+      where: { userId, status: 'delivered', orderDate: dateFilter, clientId: { not: null } },
       _sum: { total: true },
       _count: { _all: true },
     });

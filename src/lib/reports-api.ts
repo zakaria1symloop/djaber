@@ -8,6 +8,10 @@
 import { apiRequest } from './api-config';
 
 export type ReportPeriod = 'today' | 'week' | 'month' | 'year';
+/** Period accepted by the fetchers — presets plus 'custom' (used with explicit dates). */
+export type ReportPeriodParam = ReportPeriod | 'custom';
+/** Optional explicit custom date range (YYYY-MM-DD). Backend prefers these over `period`. */
+export type RangeOpts = { startDate?: string; endDate?: string };
 
 // A point on a time series (daily buckets for today/week/month, monthly for year).
 export interface TimePoint {
@@ -26,8 +30,10 @@ export interface RankRow {
   extra?: Record<string, number | string>;
 }
 
-function q(period: ReportPeriod, extra?: Record<string, string>): string {
+function q(period: ReportPeriodParam, opts?: RangeOpts, extra?: Record<string, string>): string {
   const params = new URLSearchParams({ period, ...(extra || {}) });
+  if (opts?.startDate) params.set('startDate', opts.startDate);
+  if (opts?.endDate) params.set('endDate', opts.endDate);
   return params.toString();
 }
 
@@ -100,8 +106,8 @@ export interface ProfitLossReport {
   breakdown: RankRow[]; // waterfall-ish lines: Revenue, COGS, Gross, Expenses, Delivery, Net
   series: TimePoint[]; // { date,label, revenue, profit }
 }
-export const getProfitLoss = (period: ReportPeriod = 'month') =>
-  apiRequest<ProfitLossReport>(`/api/user-stock/reports/profit-loss?${q(period)}`);
+export const getProfitLoss = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<ProfitLossReport>(`/api/user-stock/reports/profit-loss?${q(period, opts)}`);
 
 export interface CashFlowReport {
   period: ReportPeriod;
@@ -113,8 +119,8 @@ export interface CashFlowReport {
   series: TimePoint[]; // { date,label, in, out, balance }
   byCategory: RankRow[]; // expense/income categories
 }
-export const getCashFlow = (period: ReportPeriod = 'month') =>
-  apiRequest<CashFlowReport>(`/api/user-stock/reports/cash-flow?${q(period)}`);
+export const getCashFlow = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<CashFlowReport>(`/api/user-stock/reports/cash-flow?${q(period, opts)}`);
 
 export interface CashRegisterRow {
   id: string;
@@ -134,8 +140,8 @@ export interface CashRegisterReport {
   count: number;
   rows: CashRegisterRow[];
 }
-export const getCashRegister = (period: ReportPeriod = 'month') =>
-  apiRequest<CashRegisterReport>(`/api/user-stock/reports/cash-register?${q(period)}`);
+export const getCashRegister = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<CashRegisterReport>(`/api/user-stock/reports/cash-register?${q(period, opts)}`);
 
 export interface PaymentsReport {
   period: ReportPeriod;
@@ -146,8 +152,8 @@ export interface PaymentsReport {
   bySource: RankRow[]; // Sales / Orders / Purchases
   series: TimePoint[]; // { date,label, received, paidOut }
 }
-export const getPayments = (period: ReportPeriod = 'month') =>
-  apiRequest<PaymentsReport>(`/api/user-stock/reports/payments?${q(period)}`);
+export const getPayments = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<PaymentsReport>(`/api/user-stock/reports/payments?${q(period, opts)}`);
 
 export interface ExpensesReport {
   period: ReportPeriod;
@@ -156,8 +162,8 @@ export interface ExpensesReport {
   series: TimePoint[]; // { date,label, amount }
   rows: Array<{ id: string; date: string; category: string; description: string | null; amount: number; source: 'caisse' | 'product' }>;
 }
-export const getExpenses = (period: ReportPeriod = 'month') =>
-  apiRequest<ExpensesReport>(`/api/user-stock/reports/expenses?${q(period)}`);
+export const getExpenses = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<ExpensesReport>(`/api/user-stock/reports/expenses?${q(period, opts)}`);
 
 export interface TaxSummaryReport {
   period: ReportPeriod;
@@ -167,8 +173,8 @@ export interface TaxSummaryReport {
   series: TimePoint[]; // { date,label, tax }
   bySource: RankRow[]; // Sales tax / Orders tax
 }
-export const getTaxSummary = (period: ReportPeriod = 'month') =>
-  apiRequest<TaxSummaryReport>(`/api/user-stock/reports/tax-summary?${q(period)}`);
+export const getTaxSummary = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<TaxSummaryReport>(`/api/user-stock/reports/tax-summary?${q(period, opts)}`);
 
 export interface DiscountSummaryReport {
   period: ReportPeriod;
@@ -178,8 +184,8 @@ export interface DiscountSummaryReport {
   topDiscountedProducts: RankRow[];
   series: TimePoint[]; // { date,label, discount }
 }
-export const getDiscounts = (period: ReportPeriod = 'month') =>
-  apiRequest<DiscountSummaryReport>(`/api/user-stock/reports/discounts?${q(period)}`);
+export const getDiscounts = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<DiscountSummaryReport>(`/api/user-stock/reports/discounts?${q(period, opts)}`);
 
 // ---------------------------------------------------------------------------
 // SALES
@@ -194,23 +200,23 @@ export interface SalesReport {
   byChannel: RankRow[]; // Walk-in sales / AI orders / Manual orders
   byPaymentStatus: RankRow[];
 }
-export const getSalesReport = (period: ReportPeriod = 'month') =>
-  apiRequest<SalesReport>(`/api/user-stock/reports/sales?${q(period)}`);
+export const getSalesReport = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<SalesReport>(`/api/user-stock/reports/sales?${q(period, opts)}`);
 
 export interface SalesByCategoryReport {
   period: ReportPeriod;
   total: number;
   categories: RankRow[]; // value=revenue, secondary=units
 }
-export const getSalesByCategory = (period: ReportPeriod = 'month') =>
-  apiRequest<SalesByCategoryReport>(`/api/user-stock/reports/sales-by-category?${q(period)}`);
+export const getSalesByCategory = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<SalesByCategoryReport>(`/api/user-stock/reports/sales-by-category?${q(period, opts)}`);
 
 export interface TopProductsReport {
   period: ReportPeriod;
   products: Array<RankRow & { extra: { units: number; revenue: number; cogs: number; profit: number; marginPct: number } }>;
 }
-export const getTopProducts = (period: ReportPeriod = 'month') =>
-  apiRequest<TopProductsReport>(`/api/user-stock/reports/top-products?${q(period)}`);
+export const getTopProducts = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<TopProductsReport>(`/api/user-stock/reports/top-products?${q(period, opts)}`);
 
 export interface ReturnRatioReport {
   period: ReportPeriod;
@@ -225,8 +231,8 @@ export interface ReturnRatioReport {
   series: TimePoint[]; // { date,label, delivered, cancelled, returned }
   byWilaya: RankRow[]; // value=returnRatePct, secondary=orders
 }
-export const getReturnRatio = (period: ReportPeriod = 'month') =>
-  apiRequest<ReturnRatioReport>(`/api/user-stock/reports/return-ratio?${q(period)}`);
+export const getReturnRatio = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<ReturnRatioReport>(`/api/user-stock/reports/return-ratio?${q(period, opts)}`);
 
 // ---------------------------------------------------------------------------
 // PURCHASES / SUPPLIERS
@@ -240,26 +246,26 @@ export interface PurchasesReport {
   byStatus: RankRow[];
   series: TimePoint[]; // { date,label, committed, paid }
 }
-export const getPurchasesReport = (period: ReportPeriod = 'month') =>
-  apiRequest<PurchasesReport>(`/api/user-stock/reports/purchases?${q(period)}`);
+export const getPurchasesReport = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<PurchasesReport>(`/api/user-stock/reports/purchases?${q(period, opts)}`);
 
 export interface ProductPurchasesReport {
   period: ReportPeriod;
   total: number;
   products: RankRow[]; // value=cost, secondary=units
 }
-export const getProductPurchases = (period: ReportPeriod = 'month') =>
-  apiRequest<ProductPurchasesReport>(`/api/user-stock/reports/product-purchases?${q(period)}`);
+export const getProductPurchases = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<ProductPurchasesReport>(`/api/user-stock/reports/product-purchases?${q(period, opts)}`);
 
 export interface SuppliersReport {
   period: ReportPeriod;
   total: number;
   suppliers: Array<RankRow & { extra: { purchases: number; spend: number; outstanding: number } }>;
 }
-export const getSuppliersReport = (period: ReportPeriod = 'month') =>
-  apiRequest<SuppliersReport>(`/api/user-stock/reports/suppliers?${q(period)}`);
-export const getTopSuppliers = (period: ReportPeriod = 'month') =>
-  apiRequest<SuppliersReport>(`/api/user-stock/reports/top-suppliers?${q(period)}`);
+export const getSuppliersReport = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<SuppliersReport>(`/api/user-stock/reports/suppliers?${q(period, opts)}`);
+export const getTopSuppliers = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<SuppliersReport>(`/api/user-stock/reports/top-suppliers?${q(period, opts)}`);
 
 // ---------------------------------------------------------------------------
 // INVENTORY
@@ -291,8 +297,8 @@ export interface DeadStockReport {
   items: Array<{ id: string; name: string; sku: string; quantity: number; stockValue: number; lastSoldAt: string | null }>;
   zeroSales: Array<{ id: string; name: string; sku: string; quantity: number }>;
 }
-export const getDeadStock = (period: ReportPeriod = 'month') =>
-  apiRequest<DeadStockReport>(`/api/user-stock/reports/dead-stock?${q(period)}`);
+export const getDeadStock = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<DeadStockReport>(`/api/user-stock/reports/dead-stock?${q(period, opts)}`);
 
 export interface StockAgingReport {
   buckets: RankRow[]; // label: "0-30d","31-60d","61-90d","90d+"; value=stockValue, secondary=units
@@ -308,8 +314,8 @@ export interface StockAdjustmentsReport {
   count: number;
   rows: Array<{ id: string; date: string; productName: string; variantName: string | null; quantity: number; reason: string | null }>;
 }
-export const getStockAdjustments = (period: ReportPeriod = 'month') =>
-  apiRequest<StockAdjustmentsReport>(`/api/user-stock/reports/stock-adjustments?${q(period)}`);
+export const getStockAdjustments = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<StockAdjustmentsReport>(`/api/user-stock/reports/stock-adjustments?${q(period, opts)}`);
 
 export interface ProductsReport {
   productCount: number;
@@ -330,8 +336,8 @@ export interface TopCustomersReport {
   total: number; // total spent in period (or lifetime for the tiles)
   customers: Array<RankRow & { extra: { orders: number; spent: number; lastOrderDate: string | null; source: string } }>;
 }
-export const getTopCustomers = (period: ReportPeriod = 'month') =>
-  apiRequest<TopCustomersReport>(`/api/user-stock/reports/top-customers?${q(period)}`);
+export const getTopCustomers = (period: ReportPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<TopCustomersReport>(`/api/user-stock/reports/top-customers?${q(period, opts)}`);
 
 export interface InactiveCustomersReport {
   thresholdDays: number;

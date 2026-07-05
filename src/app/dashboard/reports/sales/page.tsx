@@ -11,7 +11,7 @@ import {
   fmtDA,
   fmtNum,
 } from '@/components/charts';
-import { getSalesReport, type SalesReport, type ReportPeriod } from '@/lib/reports-api';
+import { getSalesReport, type SalesReport, type ReportPeriodParam } from '@/lib/reports-api';
 
 function Panel({
   title,
@@ -38,22 +38,24 @@ function Panel({
 }
 
 export default function SalesReportPage() {
-  const [period, setPeriod] = useState<ReportPeriod>('month');
+  const [period, setPeriod] = useState<ReportPeriodParam>('month');
+  const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<SalesReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (period === 'custom' && (!range.startDate || !range.endDate)) return;
     setLoading(true);
     setError(null);
     try {
-      setData(await getSalesReport(period));
+      setData(await getSalesReport(period, period === 'custom' ? range : undefined));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load report');
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, range.startDate, range.endDate]);
 
   useEffect(() => {
     load();
@@ -64,7 +66,16 @@ export default function SalesReportPage() {
       title="Sales Report"
       description="Sales and delivered orders: revenue, volume and trend."
       period={period}
-      onPeriodChange={setPeriod}
+      onPeriodChange={(p) => {
+        setPeriod(p);
+        setRange({});
+      }}
+      startDate={range.startDate}
+      endDate={range.endDate}
+      onRangeChange={(s, e) => {
+        setPeriod('custom');
+        setRange({ startDate: s, endDate: e });
+      }}
       loading={loading}
       error={error}
       onRetry={load}

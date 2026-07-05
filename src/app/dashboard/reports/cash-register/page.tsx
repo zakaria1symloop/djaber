@@ -6,7 +6,7 @@ import {
   getCashRegister,
   REPORT_CATALOG,
   type CashRegisterReport,
-  type ReportPeriod,
+  type ReportPeriodParam,
 } from '@/lib/reports-api';
 
 const META = REPORT_CATALOG.find((r) => r.key === 'cash-register')!;
@@ -18,22 +18,24 @@ function fmtDate(iso: string): string {
 }
 
 export default function CashRegisterPage() {
-  const [period, setPeriod] = useState<ReportPeriod>('month');
+  const [period, setPeriod] = useState<ReportPeriodParam>('month');
+  const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<CashRegisterReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (period === 'custom' && (!range.startDate || !range.endDate)) return;
     setLoading(true);
     setError(null);
     try {
-      setData(await getCashRegister(period));
+      setData(await getCashRegister(period, period === 'custom' ? range : undefined));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load report');
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, range.startDate, range.endDate]);
 
   useEffect(() => {
     load();
@@ -44,7 +46,16 @@ export default function CashRegisterPage() {
       title={META.title}
       description={META.description}
       period={period}
-      onPeriodChange={setPeriod}
+      onPeriodChange={(p) => {
+        setPeriod(p);
+        setRange({});
+      }}
+      startDate={range.startDate}
+      endDate={range.endDate}
+      onRangeChange={(s, e) => {
+        setPeriod('custom');
+        setRange({ startDate: s, endDate: e });
+      }}
       loading={loading}
       error={error}
       onRetry={load}

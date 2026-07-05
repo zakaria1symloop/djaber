@@ -7,6 +7,18 @@
 import { apiRequest } from './api-config';
 
 export type AnalyticsPeriod = 'today' | 'week' | 'month' | 'year';
+/** Period accepted by the fetchers — presets plus 'custom' (used with explicit dates). */
+export type AnalyticsPeriodParam = AnalyticsPeriod | 'custom';
+/** Optional explicit custom date range (YYYY-MM-DD). Backend prefers these over `period`. */
+export type RangeOpts = { startDate?: string; endDate?: string };
+
+/** Build `period=..&startDate=..&endDate=..`, appending dates only when supplied. */
+function q(period: AnalyticsPeriodParam, opts?: RangeOpts): string {
+  const params = new URLSearchParams({ period });
+  if (opts?.startDate) params.set('startDate', opts.startDate);
+  if (opts?.endDate) params.set('endDate', opts.endDate);
+  return params.toString();
+}
 
 // ---------------------------------------------------------------------------
 // Products
@@ -53,8 +65,8 @@ export interface ProductsAnalyticsResponse {
   deadStock: DeadStockItem[]; // qty>0, zero sales in period; top 20 by stockValue
 }
 
-export function getProductsAnalytics(period: AnalyticsPeriod = 'month'): Promise<ProductsAnalyticsResponse> {
-  return apiRequest(`/api/user-stock/analytics/products?period=${period}`);
+export function getProductsAnalytics(period: AnalyticsPeriodParam = 'month', opts?: RangeOpts): Promise<ProductsAnalyticsResponse> {
+  return apiRequest(`/api/user-stock/analytics/products?${q(period, opts)}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -82,8 +94,8 @@ export interface ChannelsAnalyticsResponse {
   channels: ChannelAnalytics[]; // sorted by potentialScore desc
 }
 
-export function getChannelsAnalytics(period: AnalyticsPeriod = 'month'): Promise<ChannelsAnalyticsResponse> {
-  return apiRequest(`/api/user-stock/analytics/channels?period=${period}`);
+export function getChannelsAnalytics(period: AnalyticsPeriodParam = 'month', opts?: RangeOpts): Promise<ChannelsAnalyticsResponse> {
+  return apiRequest(`/api/user-stock/analytics/channels?${q(period, opts)}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -109,8 +121,8 @@ export interface AgentsAnalyticsResponse {
   agents: AgentAnalytics[]; // sorted by aiRevenue desc
 }
 
-export function getAgentsAnalytics(period: AnalyticsPeriod = 'month'): Promise<AgentsAnalyticsResponse> {
-  return apiRequest(`/api/user-stock/analytics/agents?period=${period}`);
+export function getAgentsAnalytics(period: AnalyticsPeriodParam = 'month', opts?: RangeOpts): Promise<AgentsAnalyticsResponse> {
+  return apiRequest(`/api/user-stock/analytics/agents?${q(period, opts)}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -158,6 +170,6 @@ export interface OrdersAnalyticsResponse {
   series: Array<{ date: string; orders: number; revenue: number }>; // daily buckets
 }
 
-export function getOrdersAnalytics(period: AnalyticsPeriod = 'month'): Promise<OrdersAnalyticsResponse> {
-  return apiRequest(`/api/user-stock/analytics/orders?period=${period}`);
+export function getOrdersAnalytics(period: AnalyticsPeriodParam = 'month', opts?: RangeOpts): Promise<OrdersAnalyticsResponse> {
+  return apiRequest(`/api/user-stock/analytics/orders?${q(period, opts)}`);
 }

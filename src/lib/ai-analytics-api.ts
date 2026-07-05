@@ -7,6 +7,10 @@
 import { apiRequest } from './api-config';
 
 export type AnalyticsPeriod = 'today' | 'week' | 'month' | 'year';
+/** Period accepted by the fetchers — presets plus 'custom' (used with explicit dates). */
+export type AnalyticsPeriodParam = AnalyticsPeriod | 'custom';
+/** Optional explicit custom date range (YYYY-MM-DD). Backend prefers these over `period`. */
+export type RangeOpts = { startDate?: string; endDate?: string };
 
 export interface TimePoint {
   date: string; // YYYY-MM-DD (first-of-month for 'year')
@@ -23,8 +27,13 @@ export interface RankRow {
   extra?: Record<string, number | string>;
 }
 
-const qp = (period: AnalyticsPeriod, extra?: Record<string, string>) =>
-  new URLSearchParams({ period, ...(extra || {}) }).toString();
+const qp = (period: AnalyticsPeriodParam, opts?: RangeOpts, extra?: Record<string, string>) =>
+  new URLSearchParams({
+    period,
+    ...(opts?.startDate ? { startDate: opts.startDate } : {}),
+    ...(opts?.endDate ? { endDate: opts.endDate } : {}),
+    ...(extra || {}),
+  }).toString();
 
 // ---------------------------------------------------------------------------
 // CONVERSATIONS — volume, status, engagement, where they come from
@@ -49,8 +58,8 @@ export interface ConversationsAnalytics {
   byHour: Array<{ hour: number; count: number }>; // 0-23 incoming-message volume (activity clock)
   topCustomers: RankRow[]; // by message count in window
 }
-export const getConversationsAnalytics = (period: AnalyticsPeriod = 'month') =>
-  apiRequest<ConversationsAnalytics>(`/api/user-stock/analytics/conversations?${qp(period)}`);
+export const getConversationsAnalytics = (period: AnalyticsPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<ConversationsAnalytics>(`/api/user-stock/analytics/conversations?${qp(period, opts)}`);
 
 // ---------------------------------------------------------------------------
 // RESPONSES — how the AI replies: speed, coverage, handoffs, quality
@@ -76,8 +85,8 @@ export interface ResponsesAnalytics {
   byPage: RankRow[]; // value = aiReplies, secondary = replyRatePct
   byAgent: RankRow[]; // value = aiReplies, secondary = handoffs
 }
-export const getResponsesAnalytics = (period: AnalyticsPeriod = 'month') =>
-  apiRequest<ResponsesAnalytics>(`/api/user-stock/analytics/responses?${qp(period)}`);
+export const getResponsesAnalytics = (period: AnalyticsPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<ResponsesAnalytics>(`/api/user-stock/analytics/responses?${qp(period, opts)}`);
 
 // ---------------------------------------------------------------------------
 // CONSUMPTION — credits burned: by type, agent, page, over time + runway
@@ -105,5 +114,5 @@ export interface ConsumptionAnalytics {
   series: TimePoint[]; // { date,label, credits }
   ledgerReady: boolean; // false => figures reconstructed from message history (estimated)
 }
-export const getConsumptionAnalytics = (period: AnalyticsPeriod = 'month') =>
-  apiRequest<ConsumptionAnalytics>(`/api/user-stock/analytics/consumption?${qp(period)}`);
+export const getConsumptionAnalytics = (period: AnalyticsPeriodParam = 'month', opts?: RangeOpts) =>
+  apiRequest<ConsumptionAnalytics>(`/api/user-stock/analytics/consumption?${qp(period, opts)}`);

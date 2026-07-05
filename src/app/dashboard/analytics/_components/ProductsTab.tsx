@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { PeriodSelector } from '@/components/analytics/KpiCard';
 import {
   getProductsAnalytics,
-  type AnalyticsPeriod,
   type ProductsAnalyticsResponse,
 } from '@/lib/analytics-api';
 
@@ -24,23 +23,25 @@ function StatTile({ label, value }: { label: string; value: string }) {
 }
 
 export default function ProductsTab() {
-  const [period, setPeriod] = useState<AnalyticsPeriod>('month');
+  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('month');
+  const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<ProductsAnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(async () => {
+    if (period === 'custom' && (!range.startDate || !range.endDate)) return;
     setLoading(true);
     setError(null);
     try {
-      setData(await getProductsAnalytics(period));
+      setData(await getProductsAnalytics(period, period === 'custom' ? range : undefined));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load product analytics');
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, range.startDate, range.endDate]);
 
   useEffect(() => {
     load();
@@ -67,7 +68,7 @@ export default function ProductsTab() {
   if (error && !data) {
     return (
       <div className="space-y-4">
-        <PeriodSelector value={period} onChange={setPeriod} />
+        <PeriodSelector value={period} onChange={(p) => { setPeriod(p); setRange({}); }} startDate={range.startDate} endDate={range.endDate} onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }} />
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between gap-4">
           <p className="text-sm text-red-400">{error}</p>
           <button
@@ -95,7 +96,7 @@ export default function ProductsTab() {
     <div className="space-y-6">
       {/* Period row */}
       <div className="flex items-center justify-between gap-4">
-        <PeriodSelector value={period} onChange={setPeriod} />
+        <PeriodSelector value={period} onChange={(p) => { setPeriod(p); setRange({}); }} startDate={range.startDate} endDate={range.endDate} onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }} />
         {loading && <span className="text-xs text-zinc-500">Updating&hellip;</span>}
       </div>
 

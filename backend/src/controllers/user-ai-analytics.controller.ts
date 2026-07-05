@@ -1,39 +1,12 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
+import { resolveWindow } from '../utils/period';
 
 // ============================================================================
 // AI Analytics — conversations / responses / consumption
 // Response shapes MUST match the frontend contract in src/lib/ai-analytics-api.ts
 // Everything is scoped by req.user.userId.
 // ============================================================================
-
-type AnalyticsPeriod = 'today' | 'week' | 'month' | 'year';
-
-interface PeriodWindow {
-  period: AnalyticsPeriod;
-  start: Date;
-  days: number; // window length in days (used for burn / velocity)
-}
-
-// Same convention as user-analytics.controller: start of day for 'today',
-// otherwise a rolling 7 / 30 / 365 day window back from now.
-const resolvePeriodWindow = (raw: unknown): PeriodWindow => {
-  const period: AnalyticsPeriod =
-    raw === 'today' || raw === 'week' || raw === 'year' ? raw : 'month';
-  const now = new Date();
-  const DAY_MS = 24 * 60 * 60 * 1000;
-
-  switch (period) {
-    case 'today':
-      return { period, start: new Date(now.getFullYear(), now.getMonth(), now.getDate()), days: 1 };
-    case 'week':
-      return { period, start: new Date(now.getTime() - 7 * DAY_MS), days: 7 };
-    case 'year':
-      return { period, start: new Date(now.getTime() - 365 * DAY_MS), days: 365 };
-    default:
-      return { period: 'month', start: new Date(now.getTime() - 30 * DAY_MS), days: 30 };
-  }
-};
 
 // ----------------------------------------------------------------------------
 // Shared shapes + bucketing helpers
@@ -57,18 +30,17 @@ const monthLabel = (d: Date): string => MONTHS[d.getMonth()];
 
 // Build an ordered set of {date,label} buckets (daily, or monthly for 'year')
 // plus a key->index map so callers can fill metrics without gaps.
-const buildSeriesScaffold = (start: Date, period: AnalyticsPeriod) => {
-  const now = new Date();
-  const isMonthly = period === 'year';
+const buildSeriesScaffold = (start: Date, end: Date, bucket: 'day' | 'month') => {
+  const isMonthly = bucket === 'month';
   const buckets: Array<{ date: string; label: string }> = [];
   const indexByKey = new Map<string, number>();
   const cursor = isMonthly
     ? new Date(start.getFullYear(), start.getMonth(), 1)
     : new Date(start.getFullYear(), start.getMonth(), start.getDate());
-  const end = isMonthly
-    ? new Date(now.getFullYear(), now.getMonth(), 1)
-    : new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  while (cursor <= end) {
+  const endBound = isMonthly
+    ? new Date(end.getFullYear(), end.getMonth(), 1)
+    : new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  while (cursor <= endBound) {
     const key = isMonthly ? monthKey(cursor) : dayKey(cursor);
     indexByKey.set(key, buckets.length);
     buckets.push({ date: key, label: isMonthly ? monthLabel(cursor) : dayLabel(cursor) });
@@ -103,8 +75,12 @@ export const getConversationsAnalytics = async (req: Request, res: Response): Pr
       return;
     }
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
-    const { buckets, indexByKey, keyOf } = buildSeriesScaffold(start, period);
+    const { period, start, end, bucket, custom, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
+    const { buckets, indexByKey, keyOf } = buildSeriesScaffold(start, end, bucket);
 
     const [allConvs, windowMessages, activeConvs, pages, clients] = await Promise.all([
       // All conversations ever (current status + returning-customer detection)
@@ -114,7 +90,7 @@ export const getConversationsAnalytics = async (req: Request, res: Response): Pr
       }),
       // Every message in the window (one pass powers most aggregates)
       prisma.message.findMany({
-        where: { conversation: { userId }, timestamp: { gte: start } },
+        where: { conversation: { userId }, timestamp: dateFilter },
         select: { conversationId: true, isFromPage: true, timestamp: true },
       }),
       // Active conversations + their latest message (for the unread count)
@@ -143,7 +119,9 @@ export const getConversationsAnalytics = async (req: Request, res: Response): Pr
     const unread = activeConvs.filter((c) => c.messages[0] && !c.messages[0].isFromPage).length;
 
     // newConversations = created inside the window
-    const newConversations = allConvs.filter((c) => c.createdAt >= start).length;
+    const newConversations = allConvs.filter(
+      (c) => c.createdAt >= start && (!custom || c.createdAt <= end)
+    ).length;
 
     // returningCustomers = distinct senderId with >1 conversation ever
     const convsPerSender = new Map<string, number>();
@@ -268,12 +246,16 @@ export const getResponsesAnalytics = async (req: Request, res: Response): Promis
       return;
     }
     const userId = req.user.userId;
-    const { period, start } = resolvePeriodWindow(req.query.period);
-    const { buckets, indexByKey, keyOf } = buildSeriesScaffold(start, period);
+    const { period, start, end, bucket, custom, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
+    const { buckets, indexByKey, keyOf } = buildSeriesScaffold(start, end, bucket);
 
     const [windowMessages, convMeta, insightRows, pages, agents] = await Promise.all([
       prisma.message.findMany({
-        where: { conversation: { userId }, timestamp: { gte: start } },
+        where: { conversation: { userId }, timestamp: dateFilter },
         select: { conversationId: true, isFromPage: true, messageId: true, timestamp: true },
       }),
       prisma.conversation.findMany({
@@ -281,7 +263,7 @@ export const getResponsesAnalytics = async (req: Request, res: Response): Promis
         select: { id: true, pageId: true, agentId: true, status: true, aiPaused: true, updatedAt: true },
       }),
       prisma.agentInsight.findMany({
-        where: { agent: { userId }, createdAt: { gte: start } },
+        where: { agent: { userId }, createdAt: dateFilter },
         select: { type: true, status: true, conversationId: true },
       }),
       prisma.page.findMany({ where: { userId }, select: { id: true, pageName: true } }),
@@ -376,7 +358,9 @@ export const getResponsesAnalytics = async (req: Request, res: Response): Promis
     // handoffs = conversations paused for a human (aiPaused set, updated in
     // window) OR flagged by a 'handoff' insight in the window.
     const handoffConvIds = new Set<string>();
-    for (const c of convMeta) if (c.aiPaused && c.updatedAt >= start) handoffConvIds.add(c.id);
+    for (const c of convMeta)
+      if (c.aiPaused && c.updatedAt >= start && (!custom || c.updatedAt <= end))
+        handoffConvIds.add(c.id);
     for (const i of insightRows) if (i.type === 'handoff') handoffConvIds.add(i.conversationId);
     const handoffs = handoffConvIds.size;
     const windowConvCount = msgsByConv.size;
@@ -488,8 +472,12 @@ export const getConsumptionAnalytics = async (req: Request, res: Response): Prom
       return;
     }
     const userId = req.user.userId;
-    const { period, start, days } = resolvePeriodWindow(req.query.period);
-    const { buckets, indexByKey, keyOf } = buildSeriesScaffold(start, period);
+    const { period, start, end, days, bucket, dateFilter } = resolveWindow(
+      req.query.period,
+      req.query.startDate,
+      req.query.endDate
+    );
+    const { buckets, indexByKey, keyOf } = buildSeriesScaffold(start, end, bucket);
 
     const [user, ledgerRows, pages, agents] = await Promise.all([
       prisma.user.findUnique({
@@ -497,7 +485,7 @@ export const getConsumptionAnalytics = async (req: Request, res: Response): Prom
         select: { creditsUsed: true, creditsLimit: true, creditsResetAt: true },
       }),
       prisma.creditUsage.findMany({
-        where: { userId, createdAt: { gte: start } },
+        where: { userId, createdAt: dateFilter },
         select: { action: true, credits: true, agentId: true, pageId: true, createdAt: true },
       }),
       prisma.page.findMany({ where: { userId }, select: { id: true, pageName: true } }),
@@ -550,7 +538,7 @@ export const getConsumptionAnalytics = async (req: Request, res: Response): Prom
       ledgerReady = false;
       const [windowMessages, convMeta, aiOrders] = await Promise.all([
         prisma.message.findMany({
-          where: { conversation: { userId }, timestamp: { gte: start } },
+          where: { conversation: { userId }, timestamp: dateFilter },
           select: { conversationId: true, isFromPage: true, messageId: true, attachmentType: true, timestamp: true },
         }),
         prisma.conversation.findMany({
@@ -558,7 +546,7 @@ export const getConsumptionAnalytics = async (req: Request, res: Response): Prom
           select: { id: true, agentId: true, pageId: true, clientId: true, updatedAt: true },
         }),
         prisma.order.findMany({
-          where: { userId, source: 'ai', orderDate: { gte: start } },
+          where: { userId, source: 'ai', orderDate: dateFilter },
           select: { orderDate: true, createdAt: true, clientId: true },
         }),
       ]);

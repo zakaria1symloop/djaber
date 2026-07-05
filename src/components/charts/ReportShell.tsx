@@ -2,15 +2,19 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { PeriodSelector } from '@/components/analytics/KpiCard';
+import { PeriodSelector, type PeriodValue } from '@/components/analytics/KpiCard';
 
 export type ReportPeriod = 'today' | 'week' | 'month' | 'year';
 
 export interface ReportShellProps {
   title: string;
   description: string;
-  period?: ReportPeriod;
+  period?: PeriodValue;
   onPeriodChange?: (value: ReportPeriod) => void;
+  /** Current custom range bounds (YYYY-MM-DD). Provide with onRangeChange to enable Custom. */
+  startDate?: string;
+  endDate?: string;
+  onRangeChange?: (start: string, end: string) => void;
   loading: boolean;
   error?: string | null;
   onRetry?: () => void;
@@ -28,6 +32,9 @@ export function ReportShell({
   description,
   period,
   onPeriodChange,
+  startDate,
+  endDate,
+  onRangeChange,
   loading,
   error,
   onRetry,
@@ -71,7 +78,15 @@ export function ReportShell({
             <p className="text-sm text-zinc-400 mt-1">{description}</p>
           </div>
           <div className="flex items-center gap-3">
-            {period && onPeriodChange && <PeriodSelector value={period} onChange={onPeriodChange} />}
+            {period && onPeriodChange && (
+              <PeriodSelector
+                value={period}
+                onChange={onPeriodChange}
+                startDate={startDate}
+                endDate={endDate}
+                onRangeChange={onRangeChange}
+              />
+            )}
             {actions}
           </div>
         </div>

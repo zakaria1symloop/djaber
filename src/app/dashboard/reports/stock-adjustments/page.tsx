@@ -20,22 +20,24 @@ const dateLabel = (iso: string | null) => (iso ? new Date(iso).toLocaleDateStrin
 const signed = (n: number) => `${n > 0 ? '+' : ''}${n.toLocaleString()}`;
 
 export default function StockAdjustmentsPage() {
-  const [period, setPeriod] = useState<ReportPeriod>('month');
+  const [period, setPeriod] = useState<ReportPeriod | 'custom'>('month');
+  const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<StockAdjustmentsReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (period === 'custom' && (!range.startDate || !range.endDate)) return;
     setLoading(true);
     setError(null);
     try {
-      setData(await getStockAdjustments(period));
+      setData(await getStockAdjustments(period, period === 'custom' ? range : undefined));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load stock adjustments');
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, range.startDate, range.endDate]);
 
   useEffect(() => {
     load();
@@ -46,7 +48,10 @@ export default function StockAdjustmentsPage() {
       title={META.title}
       description={META.description}
       period={period}
-      onPeriodChange={setPeriod}
+      onPeriodChange={(p) => { setPeriod(p); setRange({}); }}
+      startDate={range.startDate}
+      endDate={range.endDate}
+      onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }}
       loading={loading && !data}
       error={error}
       onRetry={load}

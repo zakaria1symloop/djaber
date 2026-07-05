@@ -36,22 +36,24 @@ function Panel({
 }
 
 export default function PurchasesReportPage() {
-  const [period, setPeriod] = useState<ReportPeriod>('month');
+  const [period, setPeriod] = useState<ReportPeriod | 'custom'>('month');
+  const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<PurchasesReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (period === 'custom' && (!range.startDate || !range.endDate)) return;
     setLoading(true);
     setError(null);
     try {
-      setData(await getPurchasesReport(period));
+      setData(await getPurchasesReport(period, period === 'custom' ? range : undefined));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load report');
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, range.startDate, range.endDate]);
 
   useEffect(() => {
     load();
@@ -62,7 +64,10 @@ export default function PurchasesReportPage() {
       title="Purchases Report"
       description="Purchase orders: committed vs paid, by status and over time."
       period={period}
-      onPeriodChange={setPeriod}
+      onPeriodChange={(p) => { setPeriod(p); setRange({}); }}
+      startDate={range.startDate}
+      endDate={range.endDate}
+      onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }}
       loading={loading}
       error={error}
       onRetry={load}

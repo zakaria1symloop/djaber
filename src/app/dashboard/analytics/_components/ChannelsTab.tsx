@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { PeriodSelector } from '@/components/analytics/KpiCard';
 import {
   getChannelsAnalytics,
-  type AnalyticsPeriod,
   type ChannelAnalytics,
   type ChannelsAnalyticsResponse,
 } from '@/lib/analytics-api';
@@ -76,23 +75,25 @@ function ChannelCard({ channel }: { channel: ChannelAnalytics }) {
 }
 
 export default function ChannelsTab() {
-  const [period, setPeriod] = useState<AnalyticsPeriod>('month');
+  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year' | 'custom'>('month');
+  const [range, setRange] = useState<{ startDate?: string; endDate?: string }>({});
   const [data, setData] = useState<ChannelsAnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (period === 'custom' && (!range.startDate || !range.endDate)) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await getChannelsAnalytics(period);
+      const res = await getChannelsAnalytics(period, period === 'custom' ? range : undefined);
       setData(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load channel analytics');
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, [period, range.startDate, range.endDate]);
 
   useEffect(() => {
     load();
@@ -106,7 +107,7 @@ export default function ChannelsTab() {
           <h2 className="text-lg font-bold text-white" style={SYNE}>Channels</h2>
           <p className="text-xs text-zinc-500 mt-0.5">Which pages have potential</p>
         </div>
-        <PeriodSelector value={period} onChange={setPeriod} />
+        <PeriodSelector value={period} onChange={(p) => { setPeriod(p); setRange({}); }} startDate={range.startDate} endDate={range.endDate} onRangeChange={(s, e) => { setPeriod('custom'); setRange({ startDate: s, endDate: e }); }} />
       </div>
 
       {loading ? (
