@@ -144,6 +144,36 @@ import {
   getAgentsAnalytics,
   getOrdersAnalytics,
 } from '../controllers/user-analytics.controller';
+import {
+  // Finance
+  getProfitLossReport,
+  getCashFlowReport,
+  getCashRegisterReport,
+  getPaymentsReport,
+  getExpensesReport,
+  getTaxSummaryReport,
+  getDiscountsReport,
+  // Sales
+  getSalesReport,
+  getSalesByCategoryReport,
+  getTopProductsReport,
+  getReturnRatioReport,
+  // Purchases / Suppliers
+  getPurchasesReport,
+  getProductPurchasesReport,
+  getSuppliersReport,
+  getTopSuppliersReport,
+  // Inventory
+  getInventoryValuationReport,
+  getStockAlertsReport,
+  getDeadStockReport,
+  getStockAgingReport,
+  getStockAdjustmentsReport,
+  getProductsReport,
+  // Customers
+  getTopCustomersReport,
+  getInactiveCustomersReport,
+} from '../controllers/reports.controller';
 import { uploadProductImages } from '../config/upload';
 
 const router = Router();
@@ -309,6 +339,38 @@ router.get('/analytics/products', getProductsAnalytics);
 router.get('/analytics/channels', getChannelsAnalytics);
 router.get('/analytics/agents', getAgentsAnalytics);
 router.get('/analytics/orders', getOrdersAnalytics);
+
+// ============================================================================
+// Reports (contract: src/lib/reports-api.ts) — all scoped by req.user.userId
+// ============================================================================
+// Finance
+router.get('/reports/profit-loss', getProfitLossReport);
+router.get('/reports/cash-flow', getCashFlowReport);
+router.get('/reports/cash-register', getCashRegisterReport);
+router.get('/reports/payments', getPaymentsReport);
+router.get('/reports/expenses', getExpensesReport);
+router.get('/reports/tax-summary', getTaxSummaryReport);
+router.get('/reports/discounts', getDiscountsReport);
+// Sales
+router.get('/reports/sales', getSalesReport);
+router.get('/reports/sales-by-category', getSalesByCategoryReport);
+router.get('/reports/top-products', getTopProductsReport);
+router.get('/reports/return-ratio', getReturnRatioReport);
+// Purchases / Suppliers
+router.get('/reports/purchases', getPurchasesReport);
+router.get('/reports/product-purchases', getProductPurchasesReport);
+router.get('/reports/suppliers', getSuppliersReport);
+router.get('/reports/top-suppliers', getTopSuppliersReport);
+// Inventory
+router.get('/reports/inventory-valuation', getInventoryValuationReport);
+router.get('/reports/stock-alerts', getStockAlertsReport);
+router.get('/reports/dead-stock', getDeadStockReport);
+router.get('/reports/stock-aging', getStockAgingReport);
+router.get('/reports/stock-adjustments', getStockAdjustmentsReport);
+router.get('/reports/products', getProductsReport);
+// Customers
+router.get('/reports/top-customers', getTopCustomersReport);
+router.get('/reports/inactive-customers', getInactiveCustomersReport);
 
 // ============================================================================
 // Caisse (Cash Register)

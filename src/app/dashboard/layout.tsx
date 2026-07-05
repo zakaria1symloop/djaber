@@ -30,6 +30,7 @@ import {
   BellIcon,
   BoltIcon,
   DollarIcon,
+  FileTextIcon,
 } from '@/components/ui';
 import { getUnreadCount } from '@/lib/notifications-api';
 import { getCreditStatus } from '@/lib/user-stock-api';
@@ -46,6 +47,7 @@ const navigationItemsBase = [
   { id: 'services', labelKey: 'nav.dash.services', icon: GridIcon, href: '/dashboard/services' },
   { id: 'notifications', labelKey: 'nav.dash.notifications', icon: BellIcon, href: '/dashboard/notifications' },
   { id: 'analytics', labelKey: 'nav.dash.analytics', icon: ChartIcon, href: '/dashboard', section: 'analytics' },
+  { id: 'reports', labelKey: 'nav.reports', icon: FileTextIcon, href: '/dashboard/reports' },
   { id: 'settings', labelKey: 'nav.dash.settings', icon: SettingsIcon, href: '/dashboard', section: 'settings' },
 ] as const;
 
@@ -227,6 +229,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const isServicesRoute = pathname === '/dashboard/services';
   const isNotificationsRoute = pathname?.startsWith('/dashboard/notifications');
   const isInboxRoute = pathname?.startsWith('/dashboard/inbox');
+  const isReportsRoute = pathname?.startsWith('/dashboard/reports');
   const isDashboardRoot = pathname === '/dashboard';
   const section = searchParams.get('section');
 
@@ -241,6 +244,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const getActiveId = () => {
     if (isInboxRoute) return 'inbox';
     if (isNotificationsRoute) return 'notifications';
+    if (isReportsRoute) return 'reports';
     if (isStockRoute) return 'services';
     if (isAgentsRoute) return 'services';
     if (isServicesRoute) return 'services';
@@ -269,6 +273,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
   const getHeaderTitle = () => {
     if (isInboxRoute) return t('nav.dash.inbox');
     if (isNotificationsRoute) return t('nav.dash.notifications');
+    if (isReportsRoute) return t('nav.reports', 'Reports');
     if (isStockRoute) return t('nav.dash.products');
     if (isServicesRoute) return t('nav.dash.services');
     if (activeNavId === 'social-media') return t('nav.dash.social');
