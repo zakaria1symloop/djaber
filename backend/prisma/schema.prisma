@@ -35,6 +35,7 @@ model Page {
   platform       String   // facebook, instagram
   pageId         String   // Platform's page ID
   pageName       String
+  pageAvatar     String?  @db.Text // Profile picture URL (IG profile_picture_url / FB page picture)
   pageAccessToken String  @db.Text // Encrypted access token
   userId         String
   isActive       Boolean  @default(true)

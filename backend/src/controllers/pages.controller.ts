@@ -90,6 +90,7 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
     // Get user's pages
     const pagesResponse = await axios.get('https://graph.facebook.com/v18.0/me/accounts', {
       params: {
+        fields: 'id,name,access_token,picture{url}',
         access_token: userAccessToken,
       },
     });
@@ -106,6 +107,7 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
         },
         update: {
           pageName: page.name,
+          pageAvatar: page.picture?.data?.url || null,
           pageAccessToken: page.access_token,
           isActive: true,
           userId: userId,
@@ -114,6 +116,7 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
           platform: 'facebook',
           pageId: page.id,
           pageName: page.name,
+          pageAvatar: page.picture?.data?.url || null,
           pageAccessToken: page.access_token,
           userId: userId,
           isActive: true,
@@ -229,6 +232,7 @@ export const getUserPages = async (req: Request, res: Response): Promise<void> =
         platform: true,
         pageId: true,
         pageName: true,
+        pageAvatar: true,
         isActive: true,
         createdAt: true,
       },
@@ -355,19 +359,21 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
     // Step 3: Get user profile info (user_id here is the IGSID used in webhooks)
     let username = `instagram-${igUserId}`;
     let igsId = String(igUserId); // fallback to OAuth user_id
+    let avatar: string | null = null;
     try {
       const profileResponse = await axios.get(`https://graph.instagram.com/v21.0/me`, {
         params: {
-          fields: 'user_id,username',
+          fields: 'user_id,username,name,profile_picture_url',
           access_token: longLivedToken,
         },
       });
       username = profileResponse.data.username || username;
+      avatar = profileResponse.data.profile_picture_url || null;
       // user_id from the profile API is the IGSID that webhooks use
       if (profileResponse.data.user_id) {
         igsId = String(profileResponse.data.user_id);
       }
-      console.log(`Instagram profile: username=${username}, oauth_id=${igUserId}, igsid=${igsId}`);
+      console.log(`Instagram profile: username=${username}, oauth_id=${igUserId}, igsid=${igsId}, hasAvatar=${!!avatar}`);
     } catch (profErr: any) {
       console.warn('Failed to fetch Instagram profile:', profErr.response?.data || profErr.message);
     }
@@ -392,6 +398,7 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
       },
       update: {
         pageName: username,
+        pageAvatar: avatar,
         pageAccessToken: longLivedToken,
         isActive: true,
         userId: userId,
@@ -400,6 +407,7 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
         platform: 'instagram',
         pageId: igsId,
         pageName: username,
+        pageAvatar: avatar,
         pageAccessToken: longLivedToken,
         userId: userId,
         isActive: true,
@@ -407,6 +415,18 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
     });
 
     console.log(`Connected Instagram account: ${username} (${igUserId})`);
+
+    // Step 5: Subscribe this Instagram account to message webhooks (idempotent, non-fatal)
+    try {
+      await axios.post(
+        `https://graph.instagram.com/v21.0/me/subscribed_apps`,
+        null,
+        { params: { subscribed_fields: 'messages', access_token: longLivedToken } }
+      );
+      console.log(`Subscribed Instagram account ${username} to message webhooks`);
+    } catch (subErr: any) {
+      console.warn(`Failed to subscribe Instagram account ${username}:`, subErr.response?.data || subErr.message);
+    }
 
     // Send success response that closes the popup
     res.send(`

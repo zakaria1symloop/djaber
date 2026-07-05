@@ -105,12 +105,15 @@ export async function getPageSummary(pageId: string, userId: string): Promise<Pa
 
   const unread = activeConversations.filter((c) => c.messages[0] && !c.messages[0].isFromPage).length;
 
-  // FB page picture URL — `redirect=false` would require an extra Graph call,
-  // but the redirect URL works directly in <img> tags and is cached by FB.
+  // Prefer the stored avatar (IG profile_picture_url / FB page picture captured at
+  // connect time). Fall back to the FB Graph redirect URL, which works directly in
+  // <img> tags and is cached by FB. Instagram has no such fallback, so it relies on
+  // the stored pageAvatar.
   const pictureUrl =
-    page.platform === 'facebook'
+    page.pageAvatar ||
+    (page.platform === 'facebook'
       ? `https://graph.facebook.com/v18.0/${page.pageId}/picture?type=large`
-      : null;
+      : null);
 
   return {
     id: page.id,
