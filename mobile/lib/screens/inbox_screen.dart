@@ -12,10 +12,10 @@ class InboxScreen extends StatefulWidget {
   const InboxScreen({super.key, required this.onLoggedOut});
 
   @override
-  State<InboxScreen> createState() => _InboxScreenState();
+  InboxScreenState createState() => InboxScreenState();
 }
 
-class _InboxScreenState extends State<InboxScreen> {
+class InboxScreenState extends State<InboxScreen> {
   bool loading = true;
   String? error;
   List<ConversationSummary> conversations = [];
@@ -200,7 +200,7 @@ class _InboxScreenState extends State<InboxScreen> {
                   ? NetworkImage(c.page!.pageAvatar!)
                   : null,
               child: c.page?.pageAvatar == null
-                  ? Text((c.senderName ?? '?').characters.first.toUpperCase(),
+                  ? Text(initial(c.senderName),
                       style: const TextStyle(
                           color: Zinc.textSecondary,
                           fontWeight: FontWeight.w700))

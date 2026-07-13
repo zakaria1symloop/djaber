@@ -13,10 +13,10 @@ class HomeScreen extends StatefulWidget {
       {super.key, required this.onLoggedOut, required this.onOpenInbox});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  HomeScreenState createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class HomeScreenState extends State<HomeScreen> {
   bool loading = true;
   String? error;
   List<PageInfo> pages = [];
@@ -331,11 +331,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     CircleAvatar(
                       radius: 18,
                       backgroundColor: Zinc.inputBg,
-                      child: Text(
-                          (c.senderName ?? '?')
-                              .characters
-                              .first
-                              .toUpperCase(),
+                      child: Text(initial(c.senderName),
                           style: const TextStyle(
                               color: Zinc.textSecondary,
                               fontWeight: FontWeight.w700)),
@@ -513,8 +509,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   CircleAvatar(
                     radius: 16,
                     backgroundColor: Zinc.inputBg,
-                    child: Text(
-                        (c.senderName ?? '?').characters.first.toUpperCase(),
+                    child: Text(initial(c.senderName),
                         style: const TextStyle(
                             color: Zinc.textSecondary,
                             fontSize: 13,

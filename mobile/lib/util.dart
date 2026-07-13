@@ -1,4 +1,12 @@
+import 'package:flutter/widgets.dart' show StringCharacters;
 import 'i18n.dart';
+
+/// First grapheme of a name, defensive against null AND empty strings
+/// (''.characters.first throws).
+String initial(String? s) {
+  final v = s?.trim() ?? '';
+  return v.isEmpty ? '?' : v.characters.first.toUpperCase();
+}
 
 String timeAgo(String iso) {
   final date = DateTime.tryParse(iso);

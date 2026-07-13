@@ -19,6 +19,14 @@ class DjaberApp extends StatefulWidget {
 
 class _DjaberAppState extends State<DjaberApp> {
   bool? loggedIn; // null = loading
+  final _navKey = GlobalKey<NavigatorState>();
+
+  void _handleLoggedOut() {
+    // Pop any pushed routes (conversation, agent edit) so no authenticated
+    // screen survives logout and their poll timers get disposed.
+    _navKey.currentState?.popUntil((r) => r.isFirst);
+    setState(() => loggedIn = false);
+  }
 
   @override
   void initState() {
@@ -42,6 +50,7 @@ class _DjaberAppState extends State<DjaberApp> {
         return MaterialApp(
           title: 'Djaber',
           debugShowCheckedModeBanner: false,
+          navigatorKey: _navKey,
           theme: buildTheme(),
           builder: (context, child) => Directionality(
             textDirection:
@@ -55,7 +64,7 @@ class _DjaberAppState extends State<DjaberApp> {
                           CircularProgressIndicator(color: Colors.white)),
                 )
               : loggedIn == true
-                  ? Shell(onLoggedOut: () => setState(() => loggedIn = false))
+                  ? Shell(onLoggedOut: _handleLoggedOut)
                   : LoginScreen(
                       onLoggedIn: () => setState(() => loggedIn = true)),
         );

@@ -9,10 +9,10 @@ class AgentsScreen extends StatefulWidget {
   const AgentsScreen({super.key, required this.onLoggedOut});
 
   @override
-  State<AgentsScreen> createState() => _AgentsScreenState();
+  AgentsScreenState createState() => AgentsScreenState();
 }
 
-class _AgentsScreenState extends State<AgentsScreen> {
+class AgentsScreenState extends State<AgentsScreen> {
   bool loading = true;
   String? error;
   List<AgentInfo> agents = [];
@@ -78,8 +78,17 @@ class _AgentsScreenState extends State<AgentsScreen> {
           ? const Center(child: CircularProgressIndicator(color: Colors.white))
           : error != null
               ? Center(
-                  child: Text(error!,
-                      style: const TextStyle(color: Zinc.textMuted)))
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text(error!,
+                        style: const TextStyle(color: Zinc.textMuted)),
+                    const SizedBox(height: 12),
+                    OutlinedButton(
+                        onPressed: () {
+                          setState(() => loading = true);
+                          load();
+                        },
+                        child: Text(t('common.retry'))),
+                  ]))
               : RefreshIndicator(
                   color: Colors.white,
                   backgroundColor: const Color(0xFF18181B),

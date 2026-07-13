@@ -55,6 +55,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
     try {
       final res = await getConversationMessages(widget.conversationId);
       if (!mounted || seq != _loadSeq) return;
+      // Only auto-scroll when the user is already pinned to the bottom
+      // (or on first load) — never yank someone reading history.
+      final stick = !scroll.hasClients ||
+          scroll.position.pixels >= scroll.position.maxScrollExtent - 48;
       setState(() {
         conversation = res.conversation;
         // keep any in-flight optimistic bubble instead of wiping it
@@ -62,10 +66,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
         messages = [...res.messages, ...pending];
         loading = false;
       });
-      _scrollToEnd();
+      if (stick) _scrollToEnd();
     } on ApiException catch (e) {
       if (e.status == 401 && mounted) {
-        Navigator.of(context).maybePop();
+        await logout();
+        if (mounted) widget.onLoggedOut();
         return;
       }
       if (mounted) setState(() => loading = false);

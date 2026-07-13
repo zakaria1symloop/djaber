@@ -8,10 +8,10 @@ class SocialScreen extends StatefulWidget {
   const SocialScreen({super.key, required this.onLoggedOut});
 
   @override
-  State<SocialScreen> createState() => _SocialScreenState();
+  SocialScreenState createState() => SocialScreenState();
 }
 
-class _SocialScreenState extends State<SocialScreen> {
+class SocialScreenState extends State<SocialScreen> {
   bool loading = true;
   String? error;
   List<PageInfo> pages = [];
@@ -67,8 +67,17 @@ class _SocialScreenState extends State<SocialScreen> {
           ? const Center(child: CircularProgressIndicator(color: Colors.white))
           : error != null
               ? Center(
-                  child: Text(error!,
-                      style: const TextStyle(color: Zinc.textMuted)))
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Text(error!,
+                        style: const TextStyle(color: Zinc.textMuted)),
+                    const SizedBox(height: 12),
+                    OutlinedButton(
+                        onPressed: () {
+                          setState(() => loading = true);
+                          load();
+                        },
+                        child: Text(t('common.retry'))),
+                  ]))
               : RefreshIndicator(
                   color: Colors.white,
                   backgroundColor: const Color(0xFF18181B),
