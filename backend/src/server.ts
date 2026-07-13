@@ -10,6 +10,7 @@ import pageConfigRoutes from './routes/page-config.routes';
 import stockRoutes from './routes/stock.routes';
 import userStockRoutes from './routes/user-stock.routes';
 import adminRoutes from './routes/admin.routes';
+import devicesRoutes from './routes/devices.routes';
 import prisma from './config/database';
 
 // Load environment variables
@@ -111,6 +112,7 @@ app.use('/api/pages', pageConfigRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/user-stock', userStockRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/devices', devicesRoutes);
 
 // ============================================================================
 // Chargily Pay endpoints

@@ -118,6 +118,8 @@ export const getPageConversationsController = async (req: Request, res: Response
       senderId: conv.senderId,
       senderName: conv.senderName,
       status: conv.status,
+      aiPaused: (conv as any).aiPaused ?? false,
+      platform: conv.platform,
       lastMessage: conv.messages[0]
         ? {
             text: conv.messages[0].text,
@@ -390,7 +392,7 @@ export const getConversationMessagesController = async (req: Request, res: Respo
           { page: { userId: req.user.userId } },
         ],
       },
-      select: { id: true, senderName: true, senderId: true, status: true, platform: true },
+      select: { id: true, senderName: true, senderId: true, status: true, platform: true, aiPaused: true },
     });
 
     if (!conversation) {

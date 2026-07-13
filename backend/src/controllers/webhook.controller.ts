@@ -3,6 +3,7 @@ import { verifyWebhook } from '../services/meta.service';
 import { generateAIResponse, generateAgentResponse } from '../services/ai.service';
 import { sendMessage, sendProductCards } from '../services/meta.service';
 import { createNotification } from '../services/notification.service';
+import { sendPushToUser } from '../services/push.service';
 import { trackImpressions } from '../services/recommendation.service';
 import { queueMessage } from '../services/message-batcher';
 import { hasCredits, consumeCredits, CREDIT_COSTS } from '../services/credits.service';
@@ -401,6 +402,16 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       // resumes the AI by setting the conversation back to "active" in the UI.
       if ((conversation as any).aiPaused) {
         console.log(`Conversation ${conversation.id} is paused for human takeover — AI will not reply`);
+        // Alert the merchant's phone: the customer wrote back while a human is handling it
+        sendPushToUser(page.userId, {
+          title: `💬 ${(conversation as any).senderName || 'Customer'} · ${page.pageName}`,
+          body: messageText ? messageText.slice(0, 140) : '📎 Sent an attachment',
+          data: {
+            type: 'paused_message',
+            conversationId: conversation.id,
+            pageId: page.id,
+          },
+        }).catch(() => {});
         return;
       }
 
