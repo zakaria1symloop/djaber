@@ -66,6 +66,21 @@ export async function login(email: string, password: string): Promise<User> {
   return res.user;
 }
 
+export async function register(
+  firstName: string,
+  lastName: string,
+  email: string,
+  password: string
+): Promise<User> {
+  const res = await api<{ token: string; user: User }>('/api/auth/register', {
+    method: 'POST',
+    body: { firstName, lastName, email, password },
+    auth: false,
+  });
+  await setToken(res.token);
+  return res.user;
+}
+
 export async function logout(): Promise<void> {
   // Unregister this device's push token BEFORE clearing auth (endpoint needs the JWT),
   // so a logged-out phone stops receiving the account's notifications.
