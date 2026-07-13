@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import * as Notifications from 'expo-notifications';
 import { I18nProvider } from './src/i18n';
 import { getToken } from './src/api/client';
-import { registerForPushNotifications } from './src/push';
+import {
+  registerForPushNotifications,
+  addNotificationTapListener,
+  getInitialNotificationConversationId,
+} from './src/push';
 import LoginScreen from './src/screens/LoginScreen';
 import InboxScreen from './src/screens/InboxScreen';
 import ConversationScreen from './src/screens/ConversationScreen';
@@ -33,14 +36,9 @@ export default function App() {
       registerForPushNotifications().catch(() => {});
 
       // Cold start from a notification tap → deep-link into that conversation
-      const response = await Notifications.getLastNotificationResponseAsync().catch(() => null);
-      const data: any = response?.notification.request.content.data || {};
-      if (data.conversationId) {
-        setScreen({
-          name: 'conversation',
-          conversationId: String(data.conversationId),
-          title: '',
-        });
+      const conversationId = await getInitialNotificationConversationId();
+      if (conversationId) {
+        setScreen({ name: 'conversation', conversationId, title: '' });
       } else {
         setScreen({ name: 'inbox' });
       }
@@ -50,21 +48,12 @@ export default function App() {
   // Tapping a push notification while the app is running opens that conversation
   // (only when authenticated — never from the login/loading screens)
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data: any = response.notification.request.content.data || {};
-      if (
-        data.conversationId &&
-        screenRef.current.name !== 'login' &&
-        screenRef.current.name !== 'loading'
-      ) {
-        setScreen({
-          name: 'conversation',
-          conversationId: String(data.conversationId),
-          title: '',
-        });
+    const unsubscribe = addNotificationTapListener((conversationId) => {
+      if (screenRef.current.name !== 'login' && screenRef.current.name !== 'loading') {
+        setScreen({ name: 'conversation', conversationId, title: '' });
       }
     });
-    return () => sub.remove();
+    return unsubscribe;
   }, []);
 
   return (
