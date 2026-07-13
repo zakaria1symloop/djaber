@@ -135,6 +135,75 @@ export async function setConversationStatus(
   });
 }
 
+// ---------- Page summary (dashboard card stats) ----------
+
+export interface PageSummary {
+  id: string;
+  platform: string;
+  pageId: string;
+  pageName: string;
+  pictureUrl: string | null;
+  conversations: { total: number; active: number; resolved: number; archived: number; unread: number };
+  messages: { last7d: number; last24h: number; incoming7d: number; outgoing7d: number };
+  products: number;
+  agent: {
+    id: string | null;
+    name: string | null;
+    enabled: boolean;
+    autoReply: boolean;
+    personality: string | null;
+    hasInstructions: boolean;
+  };
+  lastActivity: string | null;
+}
+
+export async function getPageSummary(pageId: string): Promise<PageSummary> {
+  const res = await api<{ summary: PageSummary }>(`/api/pages/${pageId}/summary`);
+  // some deployments return the object directly
+  return (res as any).summary ?? (res as any);
+}
+
+// ---------- Agents ----------
+
+export interface AgentPageRef {
+  page: { id: string; pageName: string; platform: string; pageId: string; isActive: boolean };
+}
+
+export interface Agent {
+  id: string;
+  name: string;
+  description: string | null;
+  personality: string;
+  customInstructions: string | null;
+  humanHandoffRules: string | null;
+  aiModel: string;
+  isActive: boolean;
+  imageRecognition?: boolean;
+  voiceTranscription?: boolean;
+  sellAllProducts?: boolean;
+  pages: AgentPageRef[];
+  _count?: { pages: number; products: number };
+  createdAt?: string;
+}
+
+export async function getAgents(): Promise<Agent[]> {
+  const res = await api<{ agents: Agent[] }>('/api/user-stock/agents');
+  return res.agents;
+}
+
+export interface AgentPatch {
+  name?: string;
+  description?: string;
+  personality?: string;
+  customInstructions?: string;
+  humanHandoffRules?: string;
+  isActive?: boolean;
+}
+
+export async function updateAgent(agentId: string, patch: AgentPatch): Promise<void> {
+  await api(`/api/user-stock/agents/${agentId}`, { method: 'PUT', body: patch });
+}
+
 // ---------- Devices (push) ----------
 
 export async function registerDevice(token: string, platform: string): Promise<void> {
