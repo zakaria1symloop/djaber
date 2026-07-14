@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+﻿import { Request, Response } from 'express';
 import axios from 'axios';
 import prisma from '../config/database';
 
@@ -40,7 +40,7 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
   try {
     const { code, state, error: fbError } = req.query;
     const userId = state as string;
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5175';
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5175').split(',')[0].trim();
 
     // Handle user cancellation or errors
     if (fbError) {
@@ -197,7 +197,7 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
     `);
   } catch (error) {
     console.error('Facebook callback error:', error);
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5175';
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5175').split(',')[0].trim();
     res.send(`
       <html>
         <body>
@@ -286,7 +286,7 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
   try {
     const { code, state, error: igError } = req.query;
     const userId = state as string;
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5175';
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5175').split(',')[0].trim();
 
     // Handle user cancellation or errors
     if (igError) {
@@ -360,6 +360,7 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
     let username = `instagram-${igUserId}`;
     let igsId = String(igUserId); // fallback to OAuth user_id
     let avatar: string | null = null;
+    let profileOk = false;
     try {
       const profileResponse = await axios.get(`https://graph.instagram.com/v21.0/me`, {
         params: {
@@ -373,9 +374,35 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
       if (profileResponse.data.user_id) {
         igsId = String(profileResponse.data.user_id);
       }
+      profileOk = true;
       console.log(`Instagram profile: username=${username}, oauth_id=${igUserId}, igsid=${igsId}, hasAvatar=${!!avatar}`);
     } catch (profErr: any) {
       console.warn('Failed to fetch Instagram profile:', profErr.response?.data || profErr.message);
+    }
+
+    // Standard Access (app pending Meta approval): non-tester accounts get an
+    // OAuth token but every Graph call is refused. Saving would create a broken
+    // "instagram-<id>" page whose IGSID doesn't match webhooks â€” refuse cleanly
+    // instead, and clean up any junk row from previous attempts.
+    if (!profileOk) {
+      await prisma.page
+        .deleteMany({ where: { platform: 'instagram', pageId: String(igUserId) } })
+        .catch(() => {});
+      const pendingMsg =
+        'This Instagram account cannot be connected yet: the app is pending Meta approval. ' +
+        'To test now, add this account as an Instagram Tester (App Roles) and accept the invite in the Instagram app.';
+      res.send(`
+        <html>
+          <body>
+            <script>
+              window.opener && window.opener.postMessage({ type: 'instagram-oauth-error', error: ${JSON.stringify(pendingMsg)} }, '${frontendUrl}');
+              window.close();
+            </script>
+            <p>${pendingMsg}</p>
+          </body>
+        </html>
+      `);
+      return;
     }
 
     // Step 4: Save to database using IGSID as pageId (matches webhook entry.id)
@@ -442,7 +469,7 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
     `);
   } catch (error: any) {
     console.error('Instagram callback error:', error.response?.data || error);
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5175';
+    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5175').split(',')[0].trim();
     res.send(`
       <html>
         <body>
