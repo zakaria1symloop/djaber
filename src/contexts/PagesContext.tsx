@@ -75,36 +75,58 @@ export function PagesProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const connectFacebookPage = async () => {
+  // Open the OAuth window SYNCHRONOUSLY inside the click gesture so popup
+  // blockers can't kill it (window.open after an await is treated as
+  // non-user-initiated and silently blocked — this is what made Meta's
+  // reviewer see a "dead" login button). Navigate it once the auth URL
+  // arrives; if it was still blocked, fall back to a full-page redirect —
+  // the OAuth callback detects the missing opener and routes back here.
+  const openOAuthFlow = async (
+    fetchAuthUrl: () => Promise<{ authUrl: string }>,
+    windowName: string,
+    fallbackErrorMessage: string
+  ) => {
+    const width = 600;
+    const height = 700;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    const popup = window.open(
+      '',
+      windowName,
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+    if (popup) {
+      try {
+        popup.document.write(
+          '<p style="font-family:sans-serif;padding:24px">Connecting…</p>'
+        );
+      } catch {
+        // cross-origin reuse of a previous window — ignore
+      }
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      const response = await apiConnectFacebook();
+      const response = await fetchAuthUrl();
 
-      // Open Facebook OAuth in popup
-      const width = 600;
-      const height = 700;
-      const left = window.screen.width / 2 - width / 2;
-      const top = window.screen.height / 2 - height / 2;
-
-      const popup = window.open(
-        response.authUrl,
-        'Facebook Login',
-        `width=${width},height=${height},left=${left},top=${top}`
-      );
-
-      // Also listen for popup close as fallback
-      const checkPopup = setInterval(() => {
-        if (popup?.closed) {
-          clearInterval(checkPopup);
-          // Refresh pages after popup closes (fallback if postMessage fails)
-          setTimeout(() => refreshPages(), 500);
-        }
-      }, 500);
-
+      if (popup && !popup.closed) {
+        popup.location.href = response.authUrl;
+        const checkPopup = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(checkPopup);
+            // Refresh pages after popup closes (fallback if postMessage fails)
+            setTimeout(() => refreshPages(), 500);
+          }
+        }, 500);
+      } else {
+        // Popup blocked → run the whole OAuth flow full-page
+        window.location.href = response.authUrl;
+      }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to connect Facebook page';
+      popup?.close();
+      const errorMessage = err instanceof Error ? err.message : fallbackErrorMessage;
       setError(errorMessage);
       throw err;
     } finally {
@@ -112,41 +134,11 @@ export function PagesProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const connectInstagramPage = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const connectFacebookPage = () =>
+    openOAuthFlow(apiConnectFacebook, 'facebook_oauth', 'Failed to connect Facebook page');
 
-      const response = await apiConnectInstagram();
-
-      // Open Instagram OAuth in popup
-      const width = 600;
-      const height = 700;
-      const left = window.screen.width / 2 - width / 2;
-      const top = window.screen.height / 2 - height / 2;
-
-      const popup = window.open(
-        response.authUrl,
-        'Instagram Login',
-        `width=${width},height=${height},left=${left},top=${top}`
-      );
-
-      // Also listen for popup close as fallback
-      const checkPopup = setInterval(() => {
-        if (popup?.closed) {
-          clearInterval(checkPopup);
-          setTimeout(() => refreshPages(), 500);
-        }
-      }, 500);
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to connect Instagram page';
-      setError(errorMessage);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
+  const connectInstagramPage = () =>
+    openOAuthFlow(apiConnectInstagram, 'instagram_oauth', 'Failed to connect Instagram page');
 
   const disconnectPage = async (pageId: string) => {
     try {

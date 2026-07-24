@@ -3,6 +3,39 @@ import axios from 'axios';
 import prisma from '../config/database';
 
 /**
+ * Finish an OAuth flow that may have run in a popup OR a full-page redirect
+ * (popup-blocker fallback). Posts the result to the opener when present,
+ * otherwise sends the browser back to the dashboard. Payload is JSON-encoded
+ * (never string-interpolated) so query-derived errors can't inject script.
+ */
+function sendOAuthPopupResult(
+  res: Response,
+  frontendUrl: string,
+  payload: Record<string, unknown>,
+  humanMessage: string
+): void {
+  const returnUrl = `${frontendUrl}/dashboard?section=pages`;
+  res.send(`
+    <html>
+      <body style="font-family:sans-serif;background:#09090b;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center;padding:0 24px">
+        <script>
+          (function () {
+            var payload = ${JSON.stringify(payload)};
+            if (window.opener) {
+              try { window.opener.postMessage(payload, ${JSON.stringify(frontendUrl)}); } catch (e) {}
+              window.close();
+            } else {
+              window.location.replace(${JSON.stringify(returnUrl)});
+            }
+          })();
+        </script>
+        <p>${humanMessage}</p>
+      </body>
+    </html>
+  `);
+}
+
+/**
  * Initiate Facebook OAuth flow
  */
 export const connectFacebookPage = async (req: Request, res: Response): Promise<void> => {
@@ -44,32 +77,22 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
 
     // Handle user cancellation or errors
     if (fbError) {
-      res.send(`
-        <html>
-          <body>
-            <script>
-              window.opener && window.opener.postMessage({ type: 'facebook-oauth-error', error: '${fbError}' }, '${frontendUrl}');
-              window.close();
-            </script>
-            <p>Authorization cancelled. This window will close automatically.</p>
-          </body>
-        </html>
-      `);
+      sendOAuthPopupResult(
+        res,
+        frontendUrl,
+        { type: 'facebook-oauth-error', error: String(fbError) },
+        'Authorization cancelled. Returning to Djaber…'
+      );
       return;
     }
 
     if (!code) {
-      res.send(`
-        <html>
-          <body>
-            <script>
-              window.opener && window.opener.postMessage({ type: 'facebook-oauth-error', error: 'No authorization code' }, '${frontendUrl}');
-              window.close();
-            </script>
-            <p>Authorization failed. This window will close automatically.</p>
-          </body>
-        </html>
-      `);
+      sendOAuthPopupResult(
+        res,
+        frontendUrl,
+        { type: 'facebook-oauth-error', error: 'No authorization code' },
+        'Authorization failed. Returning to Djaber…'
+      );
       return;
     }
 
@@ -183,32 +206,22 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
       }
     }
 
-    // Send success response that closes the popup
-    res.send(`
-      <html>
-        <body>
-          <script>
-            window.opener && window.opener.postMessage({ type: 'facebook-oauth-success', pages: ${pages.length} }, '${frontendUrl}');
-            window.close();
-          </script>
-          <p>Successfully connected ${pages.length} page(s). This window will close automatically.</p>
-        </body>
-      </html>
-    `);
+    // Send success response back to the app (popup or full-page)
+    sendOAuthPopupResult(
+      res,
+      frontendUrl,
+      { type: 'facebook-oauth-success', pages: pages.length },
+      `Successfully connected ${pages.length} page(s). Returning to Djaber…`
+    );
   } catch (error) {
     console.error('Facebook callback error:', error);
     const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5175').split(',')[0].trim();
-    res.send(`
-      <html>
-        <body>
-          <script>
-            window.opener && window.opener.postMessage({ type: 'facebook-oauth-error', error: 'Connection failed' }, '${frontendUrl}');
-            window.close();
-          </script>
-          <p>Failed to connect pages. This window will close automatically.</p>
-        </body>
-      </html>
-    `);
+    sendOAuthPopupResult(
+      res,
+      frontendUrl,
+      { type: 'facebook-oauth-error', error: 'Connection failed' },
+      'Failed to connect pages. Returning to Djaber…'
+    );
   }
 };
 
@@ -290,32 +303,22 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
 
     // Handle user cancellation or errors
     if (igError) {
-      res.send(`
-        <html>
-          <body>
-            <script>
-              window.opener && window.opener.postMessage({ type: 'instagram-oauth-error', error: '${igError}' }, '${frontendUrl}');
-              window.close();
-            </script>
-            <p>Authorization cancelled. This window will close automatically.</p>
-          </body>
-        </html>
-      `);
+      sendOAuthPopupResult(
+        res,
+        frontendUrl,
+        { type: 'instagram-oauth-error', error: String(igError) },
+        'Authorization cancelled. Returning to Djaber…'
+      );
       return;
     }
 
     if (!code) {
-      res.send(`
-        <html>
-          <body>
-            <script>
-              window.opener && window.opener.postMessage({ type: 'instagram-oauth-error', error: 'No authorization code' }, '${frontendUrl}');
-              window.close();
-            </script>
-            <p>Authorization failed. This window will close automatically.</p>
-          </body>
-        </html>
-      `);
+      sendOAuthPopupResult(
+        res,
+        frontendUrl,
+        { type: 'instagram-oauth-error', error: 'No authorization code' },
+        'Authorization failed. Returning to Djaber…'
+      );
       return;
     }
 
@@ -391,17 +394,12 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
       const pendingMsg =
         'This Instagram account cannot be connected yet: the app is pending Meta approval. ' +
         'To test now, add this account as an Instagram Tester (App Roles) and accept the invite in the Instagram app.';
-      res.send(`
-        <html>
-          <body>
-            <script>
-              window.opener && window.opener.postMessage({ type: 'instagram-oauth-error', error: ${JSON.stringify(pendingMsg)} }, '${frontendUrl}');
-              window.close();
-            </script>
-            <p>${pendingMsg}</p>
-          </body>
-        </html>
-      `);
+      sendOAuthPopupResult(
+        res,
+        frontendUrl,
+        { type: 'instagram-oauth-error', error: pendingMsg },
+        pendingMsg
+      );
       return;
     }
 
@@ -455,32 +453,22 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
       console.warn(`Failed to subscribe Instagram account ${username}:`, subErr.response?.data || subErr.message);
     }
 
-    // Send success response that closes the popup
-    res.send(`
-      <html>
-        <body>
-          <script>
-            window.opener && window.opener.postMessage({ type: 'instagram-oauth-success', username: '${username}' }, '${frontendUrl}');
-            window.close();
-          </script>
-          <p>Successfully connected Instagram account @${username}. This window will close automatically.</p>
-        </body>
-      </html>
-    `);
+    // Send success response back to the app (popup or full-page)
+    sendOAuthPopupResult(
+      res,
+      frontendUrl,
+      { type: 'instagram-oauth-success', username },
+      `Successfully connected Instagram account @${username}. Returning to Djaber…`
+    );
   } catch (error: any) {
     console.error('Instagram callback error:', error.response?.data || error);
     const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5175').split(',')[0].trim();
-    res.send(`
-      <html>
-        <body>
-          <script>
-            window.opener && window.opener.postMessage({ type: 'instagram-oauth-error', error: 'Connection failed' }, '${frontendUrl}');
-            window.close();
-          </script>
-          <p>Failed to connect Instagram. This window will close automatically.</p>
-        </body>
-      </html>
-    `);
+    sendOAuthPopupResult(
+      res,
+      frontendUrl,
+      { type: 'instagram-oauth-error', error: 'Connection failed' },
+      'Failed to connect Instagram. Returning to Djaber…'
+    );
   }
 };
 
