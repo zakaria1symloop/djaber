@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yaml';
 import authRoutes from './routes/auth.routes';
 import webhookRoutes from './routes/webhook.routes';
 import pagesRoutes from './routes/pages.routes';
@@ -113,6 +115,40 @@ app.use('/api/stock', stockRoutes);
 app.use('/api/user-stock', userStockRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/devices', devicesRoutes);
+
+// ============================================================================
+// API documentation (OpenAPI 3 + Swagger UI)
+//   GET /api/docs               → interactive Swagger UI (Try it out works: same origin)
+//   GET /api/docs/openapi.json  → machine-readable spec (import into Postman / codegen)
+//   GET /api/docs/openapi.yaml  → same spec as YAML
+// The spec lives in backend/openapi/openapi.yaml (one level up from dist/ or src/).
+// ============================================================================
+const openapiPath = path.join(__dirname, '../openapi/openapi.yaml');
+if (fs.existsSync(openapiPath)) {
+  const openapiSpec = YAML.parse(fs.readFileSync(openapiPath, 'utf8'));
+  app.get('/api/docs/openapi.json', (_req: Request, res: Response) => {
+    res.json(openapiSpec);
+  });
+  app.get('/api/docs/openapi.yaml', (_req: Request, res: Response) => {
+    res.type('text/yaml').sendFile(openapiPath);
+  });
+  app.use(
+    '/api/docs',
+    swaggerUi.serve,
+    swaggerUi.setup(openapiSpec, {
+      customSiteTitle: 'Djaber.ai API docs',
+      swaggerOptions: {
+        persistAuthorization: true,
+        displayRequestDuration: true,
+        docExpansion: 'none',
+        filter: true,
+        tagsSorter: 'alpha',
+      },
+    })
+  );
+} else {
+  console.warn(`OpenAPI spec not found at ${openapiPath} — /api/docs disabled`);
+}
 
 // ============================================================================
 // Chargily Pay endpoints
