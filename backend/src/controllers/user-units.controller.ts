@@ -1,13 +1,24 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
+import { ApiError, fail, handleError } from '../errors';
+import { Validator } from '../middleware/validate';
+
+const NAME_MAX = 255;
+const ABBR_MAX = 20;
+
+/** Custom unit owned by the caller; 403 when it is a system default, 404 otherwise. */
+async function findOwnUnit(unitId: string, userId: string) {
+  const unit = await prisma.unit.findUnique({ where: { id: unitId } });
+  if (!unit) throw new ApiError('UNIT_NOT_FOUND');
+  if (unit.userId === null) throw new ApiError('UNIT_SYSTEM_READONLY');
+  if (unit.userId !== userId) throw new ApiError('UNIT_NOT_FOUND');
+  return unit;
+}
 
 // Get all units (system defaults + user's custom units)
 export const getUnits = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const units = await prisma.unit.findMany({
       where: {
@@ -21,132 +32,80 @@ export const getUnits = async (req: Request, res: Response): Promise<void> => {
 
     res.json({ units });
   } catch (error) {
-    console.error('Get units error:', error);
-    res.status(500).json({ error: 'Failed to fetch units' });
+    handleError(req, res, error, 'UNIT_LIST_FAILED');
   }
 };
 
 // Create a custom unit for the user
 export const createUnit = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const { name, abbreviation } = req.body;
-
-    const trimmedName = name?.trim();
-    const trimmedAbbr = abbreviation?.trim();
-
-    if (!trimmedName || !trimmedAbbr) {
-      res.status(400).json({ error: 'Name and abbreviation are required' });
-      return;
-    }
-
-    if (trimmedName.length > 255) {
-      res.status(400).json({ error: 'Unit name is too long (max 255)' });
-      return;
-    }
-
-    if (trimmedAbbr.length > 20) {
-      res.status(400).json({ error: 'Abbreviation is too long (max 20)' });
-      return;
-    }
+    const v = new Validator();
+    const name = v.requiredString(req.body?.name, 'name', { max: NAME_MAX });
+    const abbreviation = v.requiredString(req.body?.abbreviation, 'abbreviation', { max: ABBR_MAX });
+    v.throwIfAny();
 
     const unit = await prisma.unit.create({
       data: {
         userId: req.user.userId,
-        name: trimmedName,
-        abbreviation: trimmedAbbr,
+        name,
+        abbreviation,
         isDefault: false,
       },
     });
 
     res.status(201).json({ unit });
   } catch (error: any) {
-    if (error.code === 'P2002') {
-      res.status(400).json({ error: 'Unit with this name already exists' });
-      return;
-    }
-    console.error('Create unit error:', error);
-    res.status(500).json({ error: 'Failed to create unit' });
+    if (error?.code === 'P2002') return fail(req, res, 'UNIT_ALREADY_EXISTS', { name: String(req.body?.name ?? '').trim() });
+    handleError(req, res, error, 'UNIT_CREATE_FAILED');
   }
 };
 
 // Update a user's custom unit (not system defaults)
 export const updateUnit = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const unitId = req.params.unitId as string;
-    const { name, abbreviation } = req.body;
+    await findOwnUnit(unitId, req.user.userId);
 
-    const existing = await prisma.unit.findFirst({
-      where: { id: unitId, userId: req.user.userId },
-    });
-
-    if (!existing) {
-      res.status(404).json({ error: 'Unit not found or is a system default' });
-      return;
-    }
+    const v = new Validator();
+    const name = v.optionalString(req.body?.name, 'name', { max: NAME_MAX });
+    const abbreviation = v.optionalString(req.body?.abbreviation, 'abbreviation', { max: ABBR_MAX });
+    v.throwIfAny();
 
     const unit = await prisma.unit.update({
       where: { id: unitId },
       data: {
-        ...(name && { name: name.trim() }),
-        ...(abbreviation && { abbreviation: abbreviation.trim() }),
+        ...(name && { name }),
+        ...(abbreviation && { abbreviation }),
       },
     });
 
     res.json({ unit });
   } catch (error: any) {
-    if (error.code === 'P2002') {
-      res.status(400).json({ error: 'Unit with this name already exists' });
-      return;
-    }
-    console.error('Update unit error:', error);
-    res.status(500).json({ error: 'Failed to update unit' });
+    if (error?.code === 'P2002') return fail(req, res, 'UNIT_ALREADY_EXISTS', { name: String(req.body?.name ?? '').trim() });
+    handleError(req, res, error, 'UNIT_UPDATE_FAILED');
   }
 };
 
 // Delete a user's custom unit (if no products reference it)
 export const deleteUnit = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const unitId = req.params.unitId as string;
-
-    const existing = await prisma.unit.findFirst({
-      where: { id: unitId, userId: req.user.userId },
-    });
-
-    if (!existing) {
-      res.status(404).json({ error: 'Unit not found or is a system default' });
-      return;
-    }
+    await findOwnUnit(unitId, req.user.userId);
 
     // Check if any products reference this unit
-    const productCount = await prisma.product.count({
-      where: { unitId },
-    });
-
-    if (productCount > 0) {
-      res.status(400).json({ error: `Cannot delete unit: ${productCount} product(s) still use it` });
-      return;
-    }
+    const productCount = await prisma.product.count({ where: { unitId } });
+    if (productCount > 0) return fail(req, res, 'UNIT_IN_USE', { count: productCount });
 
     await prisma.unit.delete({ where: { id: unitId } });
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete unit error:', error);
-    res.status(500).json({ error: 'Failed to delete unit' });
+    handleError(req, res, error, 'UNIT_DELETE_FAILED');
   }
 };

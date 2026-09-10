@@ -1,8 +1,14 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
+import { ApiError, fail, handleError } from '../errors';
+import { Validator, pagination } from '../middleware/validate';
 import { recalcParentQuantity } from './user-product-variants.controller';
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+// Enumerations mirrored from the Prisma schema comments (model Sale)
+const PAYMENT_METHODS = ['cash', 'card', 'transfer', 'ccp', 'other'] as const;
+const PAYMENT_STATUSES = ['pending', 'partial', 'paid'] as const;
 
 // Payment status is DERIVED server-side from the cash actually received (P4):
 // 0 -> pending, >= total -> paid, else partial.
@@ -39,39 +45,35 @@ const generateSaleNumber = async (tx: TxClient, userId: string): Promise<string>
 
 export const getSales = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const {
-      startDate,
-      endDate,
-      paymentStatus,
-      paymentMethod,
-      search,
-      minTotal,
-      maxTotal,
-      hasRemaining,
-      limit = '50',
-      offset = '0'
-    } = req.query;
+    const { search, hasRemaining } = req.query;
+    const v = new Validator();
+    const startDate = v.date(req.query.startDate, 'startDate');
+    const endDate = v.date(req.query.endDate, 'endDate');
+    const paymentStatus = v.oneOf(req.query.paymentStatus, 'paymentStatus', PAYMENT_STATUSES, PAYMENT_STATUSES[0]);
+    const paymentMethod = v.oneOf(req.query.paymentMethod, 'paymentMethod', PAYMENT_METHODS, PAYMENT_METHODS[0]);
+    const minTotal = v.number(req.query.minTotal, 'minTotal', { required: false, min: 0 });
+    const maxTotal = v.number(req.query.maxTotal, 'maxTotal', { required: false, min: 0 });
+    v.throwIfAny();
+    if (startDate && endDate && startDate > endDate) throw new ApiError('INVALID_DATE_RANGE');
+    const { limit, offset } = pagination(req.query);
 
     const where: any = { userId: req.user.userId };
 
     if (startDate || endDate) {
       where.saleDate = {};
-      if (startDate) where.saleDate.gte = new Date(startDate as string);
-      if (endDate) where.saleDate.lte = new Date(endDate as string);
+      if (startDate) where.saleDate.gte = startDate;
+      if (endDate) where.saleDate.lte = endDate;
     }
 
     if (hasRemaining === 'true') {
       where.paymentStatus = { not: 'paid' };
-    } else if (paymentStatus) {
-      where.paymentStatus = paymentStatus as string;
+    } else if (req.query.paymentStatus) {
+      where.paymentStatus = paymentStatus;
     }
 
-    if (paymentMethod) where.paymentMethod = paymentMethod as string;
+    if (req.query.paymentMethod) where.paymentMethod = paymentMethod;
 
     if (search) {
       where.OR = [
@@ -82,10 +84,10 @@ export const getSales = async (req: Request, res: Response): Promise<void> => {
       ];
     }
 
-    if (minTotal || maxTotal) {
+    if (req.query.minTotal || req.query.maxTotal) {
       where.total = {};
-      if (minTotal) where.total.gte = parseFloat(minTotal as string);
-      if (maxTotal) where.total.lte = parseFloat(maxTotal as string);
+      if (req.query.minTotal) where.total.gte = minTotal;
+      if (req.query.maxTotal) where.total.lte = maxTotal;
     }
 
     const [sales, total] = await Promise.all([
@@ -99,25 +101,21 @@ export const getSales = async (req: Request, res: Response): Promise<void> => {
           },
         },
         orderBy: { saleDate: 'desc' },
-        skip: parseInt(offset as string, 10),
-        take: parseInt(limit as string, 10),
+        skip: offset,
+        take: limit,
       }),
       prisma.sale.count({ where }),
     ]);
 
     res.json({ sales, total });
   } catch (error) {
-    console.error('Get sales error:', error);
-    res.status(500).json({ error: 'Failed to fetch sales' });
+    return handleError(req, res, error, 'SALE_FETCH_FAILED');
   }
 };
 
 export const getSale = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const saleId = req.params.saleId as string;
 
@@ -132,73 +130,59 @@ export const getSale = async (req: Request, res: Response): Promise<void> => {
       },
     });
 
-    if (!sale) {
-      res.status(404).json({ error: 'Sale not found' });
-      return;
-    }
+    if (!sale) return fail(req, res, 'SALE_NOT_FOUND');
 
     res.json({ sale });
   } catch (error) {
-    console.error('Get sale error:', error);
-    res.status(500).json({ error: 'Failed to fetch sale' });
+    return handleError(req, res, error, 'SALE_FETCH_FAILED');
   }
 };
 
 export const createSale = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const {
-      customerName,
-      customerPhone,
-      items,
-      discount = 0,
-      tax = 0,
-      paymentMethod = 'cash',
-      paymentStatus = 'paid',
-      amountPaid,
-      saleDate,
-      notes,
-    } = req.body;
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      res.status(400).json({ error: 'At least one item is required' });
-      return;
-    }
-
+    const v = new Validator();
+    const customerName = v.optionalString(req.body.customerName, 'customerName', { max: 191 });
+    const customerPhone = v.optionalString(req.body.customerPhone, 'customerPhone', { max: 50 });
+    const notes = v.optionalString(req.body.notes, 'notes');
+    const items = v.nonEmptyArray<any>(req.body.items, 'items', 'item');
+    // Coerced to finite numbers: a string "tax" used to be concatenated into the total
+    const discount = v.number(req.body.discount, 'discount', { required: false, def: 0, min: 0 });
+    const tax = v.number(req.body.tax, 'tax', { required: false, def: 0, min: 0 });
+    const paymentMethod = v.oneOf(req.body.paymentMethod, 'paymentMethod', PAYMENT_METHODS, 'cash');
+    const paymentStatus = v.oneOf(req.body.paymentStatus, 'paymentStatus', PAYMENT_STATUSES, 'paid');
+    const amountPaidGiven = req.body.amountPaid !== undefined && req.body.amountPaid !== null && req.body.amountPaid !== '';
+    const amountPaid = amountPaidGiven ? v.number(req.body.amountPaid, 'amountPaid', { min: 0 }) : null;
     // Optional sale date (must not be more than 1 day in the future)
-    let saleDateValue: Date | undefined;
-    if (saleDate !== undefined && saleDate !== null && saleDate !== '') {
-      const parsed = new Date(saleDate);
-      if (isNaN(parsed.getTime())) {
-        res.status(400).json({ error: 'Invalid sale date' });
-        return;
-      }
-      if (parsed.getTime() > Date.now() + 24 * 60 * 60 * 1000) {
-        res.status(400).json({ error: 'Sale date cannot be in the future' });
-        return;
-      }
-      saleDateValue = parsed;
-    }
+    const saleDateValue = v.date(req.body.saleDate, 'saleDate', { notFuture: true }) ?? undefined;
+
+    // Per-line scalar checks (product existence / variants / stock come after)
+    const lineInputs = items.map((item, i) => ({
+      productId: v.id(item?.productId, `items[${i}].productId`),
+      variantId: item?.variantId ? String(item.variantId) : null,
+      quantity: v.integer(item?.quantity, `items[${i}].quantity`, { positive: true }),
+      // `??` (not `||`): an explicit 0 unit price is a legal free item (P8);
+      // absent → resolved from the product / variant below
+      unitPrice: item?.unitPrice === undefined || item?.unitPrice === null || item?.unitPrice === ''
+        ? null
+        : v.number(item.unitPrice, `items[${i}].unitPrice`, { min: 0 }),
+      discount: v.number(item?.discount, `items[${i}].discount`, { required: false, def: 0, min: 0 }),
+    }));
+    v.throwIfAny();
 
     // Verify all products exist (duplicate productIds are legal: two variants of
     // the same product can appear as separate lines)
-    const productIds = items.map((item: any) => item.productId);
+    const uniqueProductIds = Array.from(new Set(lineInputs.map((l) => l.productId as string)));
     const products = await prisma.product.findMany({
-      where: { id: { in: productIds }, userId: req.user.userId, isActive: true },
+      where: { id: { in: uniqueProductIds }, userId: req.user.userId, isActive: true },
       include: { variants: true },
     });
 
-    if (products.length !== new Set(productIds).size) {
-      res.status(400).json({ error: 'One or more products not found' });
-      return;
-    }
+    if (products.length !== uniqueProductIds.length) throw new ApiError('PRODUCTS_NOT_FOUND');
 
-    // Validate items, resolve variants, and pre-check stock (friendly errors only —
-    // the authoritative guard is the conditional decrement inside the transaction)
+    // Resolve variants and pre-check stock (friendly errors only — the
+    // authoritative guard is the conditional decrement inside the transaction)
     let subtotal = 0;
     const resolvedItems: {
       productId: string;
@@ -210,41 +194,24 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
       total: number;
     }[] = [];
 
-    for (const item of items) {
-      const product = products.find((p) => p.id === item.productId)!;
-      const quantity = Number(item.quantity);
-      if (!Number.isInteger(quantity) || quantity <= 0) {
-        res.status(400).json({ error: `Invalid quantity for product: ${product.name}` });
-        return;
-      }
+    for (const line of lineInputs) {
+      const product = products.find((p) => p.id === line.productId)!;
+      const quantity = line.quantity;
 
       let variant = null;
       if (product.hasVariants) {
-        if (!item.variantId) {
-          res.status(400).json({
-            error: `Product "${product.name}" has variants. Please select a variant.`,
-          });
-          return;
-        }
-        variant = product.variants.find((v) => v.id === item.variantId && v.isActive) || null;
-        if (!variant) {
-          res.status(400).json({ error: `Variant not found for product: ${product.name}` });
-          return;
-        }
+        if (!line.variantId) throw new ApiError('SALE_VARIANT_REQUIRED', { product: product.name });
+        variant = product.variants.find((vr) => vr.id === line.variantId && vr.isActive) || null;
+        if (!variant) throw new ApiError('SALE_VARIANT_NOT_FOUND', { product: product.name });
         if (variant.quantity < quantity) {
-          res.status(400).json({
-            error: `Insufficient stock for product: ${product.name} (${variant.name})`,
-          });
-          return;
+          throw new ApiError('SALE_INSUFFICIENT_STOCK', { product: `${product.name} (${variant.name})` });
         }
       } else if (product.quantity < quantity) {
-        res.status(400).json({ error: `Insufficient stock for product: ${product.name}` });
-        return;
+        throw new ApiError('SALE_INSUFFICIENT_STOCK', { product: product.name });
       }
 
-      // `??` (not `||`): an explicit 0 unit price is a legal free item (P8)
-      const unitPrice = item.unitPrice ?? Number(variant ? variant.sellingPrice : product.sellingPrice);
-      const itemDiscount = item.discount || 0;
+      const unitPrice = line.unitPrice ?? Number(variant ? variant.sellingPrice : product.sellingPrice);
+      const itemDiscount = line.discount;
       const itemTotal = (unitPrice * quantity) - itemDiscount;
       subtotal += itemTotal;
 
@@ -263,17 +230,9 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
 
     // Clamp amountPaid and derive payment status server-side (P4). Older clients
     // only send paymentStatus — map it onto amountPaid for backward compatibility.
-    let paid: number;
-    if (amountPaid !== undefined && amountPaid !== null) {
-      const requested = Number(amountPaid);
-      if (isNaN(requested)) {
-        res.status(400).json({ error: 'Invalid amountPaid' });
-        return;
-      }
-      paid = Math.min(Math.max(requested, 0), Math.max(total, 0));
-    } else {
-      paid = paymentStatus === 'paid' ? Math.max(total, 0) : 0;
-    }
+    const paid = amountPaid !== null
+      ? Math.min(Math.max(amountPaid, 0), Math.max(total, 0))
+      : paymentStatus === 'paid' ? Math.max(total, 0) : 0;
     const derivedPaymentStatus = derivePaymentStatus(paid, total);
 
     // Create sale and update stock in transaction (number generation inside to prevent race condition)
@@ -287,8 +246,8 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
         data: {
           userId: req.user!.userId,
           saleNumber,
-          customerName: customerName?.trim() || null,
-          customerPhone: customerPhone?.trim() || null,
+          customerName,
+          customerPhone,
           subtotal,
           discount,
           tax,
@@ -296,7 +255,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
           amountPaid: paid,
           paymentMethod,
           paymentStatus: derivedPaymentStatus,
-          notes: notes?.trim() || null,
+          notes,
           ...(saleDateValue && { saleDate: saleDateValue }),
           items: {
             create: resolvedItems.map(({ variantId, ...saleItem }) => saleItem),
@@ -319,9 +278,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
             data: { quantity: { decrement: item.quantity } },
           });
           if (result.count !== 1) {
-            const err: any = new Error(`Insufficient stock for product: ${item.productName}`);
-            err.code = 'INSUFFICIENT_STOCK';
-            throw err;
+            throw new ApiError('SALE_INSUFFICIENT_STOCK', { product: item.productName });
           }
           variantProductIds.add(item.productId);
         } else {
@@ -334,9 +291,7 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
             data: { quantity: { decrement: item.quantity } },
           });
           if (result.count !== 1) {
-            const err: any = new Error(`Insufficient stock for product: ${item.productName}`);
-            err.code = 'INSUFFICIENT_STOCK';
-            throw err;
+            throw new ApiError('SALE_INSUFFICIENT_STOCK', { product: item.productName });
           }
         }
 
@@ -388,34 +343,30 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
     }
 
     res.status(201).json({ sale });
-  } catch (error: any) {
-    if (error?.code === 'INSUFFICIENT_STOCK') {
-      res.status(400).json({ error: error.message });
-      return;
-    }
-    console.error('Create sale error:', error);
-    res.status(500).json({ error: 'Failed to create sale' });
+  } catch (error) {
+    return handleError(req, res, error, 'SALE_CREATE_FAILED');
   }
 };
 
 export const updateSalePayment = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const saleId = req.params.saleId as string;
-    const { paymentStatus, paymentMethod, notes, amountPaid } = req.body;
+
+    const v = new Validator();
+    const paymentStatus = req.body.paymentStatus ? v.oneOf(req.body.paymentStatus, 'paymentStatus', PAYMENT_STATUSES) : undefined;
+    const paymentMethod = req.body.paymentMethod ? v.oneOf(req.body.paymentMethod, 'paymentMethod', PAYMENT_METHODS) : undefined;
+    const amountPaidGiven = req.body.amountPaid !== undefined && req.body.amountPaid !== null;
+    const amountPaid = amountPaidGiven ? v.number(req.body.amountPaid, 'amountPaid', { min: 0 }) : null;
+    const notes = req.body.notes === undefined ? undefined : v.optionalString(req.body.notes, 'notes');
+    v.throwIfAny();
 
     const existing = await prisma.sale.findFirst({
       where: { id: saleId, userId: req.user.userId },
     });
 
-    if (!existing) {
-      res.status(404).json({ error: 'Sale not found' });
-      return;
-    }
+    if (!existing) return fail(req, res, 'SALE_NOT_FOUND');
 
     const total = Number(existing.total);
     const currentPaid = Number(existing.amountPaid);
@@ -423,15 +374,10 @@ export const updateSalePayment = async (req: Request, res: Response): Promise<vo
     // Resolve the new amountPaid (P4: amountPaid is the source of truth; the
     // payment status is derived from it). Older clients only send a status —
     // map it onto amountPaid for backward compatibility.
-    const touchingPayment = (amountPaid !== undefined && amountPaid !== null) || !!paymentStatus;
+    const touchingPayment = amountPaid !== null || !!paymentStatus;
     let newPaid = currentPaid;
-    if (amountPaid !== undefined && amountPaid !== null) {
-      const requested = Number(amountPaid);
-      if (isNaN(requested)) {
-        res.status(400).json({ error: 'Invalid amountPaid' });
-        return;
-      }
-      newPaid = Math.min(Math.max(requested, 0), Math.max(total, 0));
+    if (amountPaid !== null) {
+      newPaid = Math.min(Math.max(amountPaid, 0), Math.max(total, 0));
     } else if (paymentStatus === 'paid') {
       newPaid = Math.max(total, 0);
     } else if (paymentStatus === 'pending') {
@@ -448,7 +394,7 @@ export const updateSalePayment = async (req: Request, res: Response): Promise<vo
         data: {
           ...(touchingPayment && { amountPaid: newPaid, paymentStatus: derivedPaymentStatus }),
           ...(paymentMethod && { paymentMethod }),
-          ...(notes !== undefined && { notes: notes?.trim() || null }),
+          ...(notes !== undefined && { notes }),
         },
         include: { items: true },
       });
@@ -487,8 +433,7 @@ export const updateSalePayment = async (req: Request, res: Response): Promise<vo
 
     res.json({ sale });
   } catch (error) {
-    console.error('Update sale payment error:', error);
-    res.status(500).json({ error: 'Failed to update sale' });
+    return handleError(req, res, error, 'SALE_UPDATE_FAILED');
   }
 };
 
@@ -498,10 +443,7 @@ export const updateSalePayment = async (req: Request, res: Response): Promise<vo
 
 export const deleteSale = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const saleId = req.params.saleId as string;
 
@@ -510,19 +452,12 @@ export const deleteSale = async (req: Request, res: Response): Promise<void> => 
       include: { items: true },
     });
 
-    if (!sale) {
-      res.status(404).json({ error: 'Sale not found' });
-      return;
-    }
+    if (!sale) return fail(req, res, 'SALE_NOT_FOUND');
 
-    if (sale.paymentStatus === 'paid') {
-      res.status(400).json({ error: 'Cannot delete a paid sale' });
-      return;
-    }
-
+    // Only cash actually received blocks deletion. A zero-total sale is
+    // derived 'paid' with amountPaid = 0 — it must stay deletable.
     if (Number(sale.amountPaid) > 0) {
-      res.status(400).json({ error: 'Cannot delete a sale with recorded payments' });
-      return;
+      return fail(req, res, sale.paymentStatus === 'paid' ? 'SALE_DELETE_PAID' : 'SALE_DELETE_WITH_PAYMENTS');
     }
 
     // The sale's 'out' movements are the authoritative record of what was
@@ -604,8 +539,7 @@ export const deleteSale = async (req: Request, res: Response): Promise<void> => 
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete sale error:', error);
-    res.status(500).json({ error: 'Failed to delete sale' });
+    return handleError(req, res, error, 'SALE_DELETE_FAILED');
   }
 };
 
@@ -615,10 +549,7 @@ export const deleteSale = async (req: Request, res: Response): Promise<void> => 
 
 export const getSalesStats = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const { period = 'today' } = req.query;
 
@@ -747,7 +678,6 @@ export const getSalesStats = async (req: Request, res: Response): Promise<void> 
       topProducts,
     });
   } catch (error) {
-    console.error('Get sales stats error:', error);
-    res.status(500).json({ error: 'Failed to fetch sales stats' });
+    return handleError(req, res, error, 'SALE_STATS_FAILED');
   }
 };

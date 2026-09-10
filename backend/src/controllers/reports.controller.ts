@@ -2,7 +2,9 @@ import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import prisma from '../config/database';
 import { getWilayaById } from '../data/wilayas';
-import { resolveWindow } from '../utils/period';
+import { fail, handleError } from '../errors';
+import { Validator } from '../middleware/validate';
+import { parseWindow } from '../utils/period';
 
 // ============================================================================
 // Reports suite — /api/user-stock/reports/*
@@ -115,22 +117,16 @@ const lineCost = (
   return unit * quantity;
 };
 
-const unauthorized = (res: Response): void => {
-  res.status(401).json({ error: 'Unauthorized' });
-};
+const unauthorized = (req: Request, res: Response): void => fail(req, res, 'UNAUTHORIZED');
 
 // ============================================================================
 // FINANCE — Profit & Loss
 // ============================================================================
 export const getProfitLossReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, start, end, bucket, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, start, end, bucket, dateFilter } = parseWindow(req.query);
     const scaffold = buildSeries(start, end, bucket);
 
     const [sales, orders, caisseExpense, productExpense, maps] = await Promise.all([
@@ -216,8 +212,7 @@ export const getProfitLossReport = async (req: Request, res: Response): Promise<
       series: toPoints(scaffold, buckets),
     });
   } catch (error) {
-    console.error('Get profit-loss report error:', error);
-    res.status(500).json({ error: 'Failed to fetch profit & loss report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -226,13 +221,9 @@ export const getProfitLossReport = async (req: Request, res: Response): Promise<
 // ============================================================================
 export const getCashFlowReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, start, end, bucket, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, start, end, bucket, dateFilter } = parseWindow(req.query);
     const scaffold = buildSeries(start, end, bucket);
 
     const [txns, priorIncome, priorExpense] = await Promise.all([
@@ -299,8 +290,7 @@ export const getCashFlowReport = async (req: Request, res: Response): Promise<vo
       byCategory,
     });
   } catch (error) {
-    console.error('Get cash-flow report error:', error);
-    res.status(500).json({ error: 'Failed to fetch cash flow report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -309,13 +299,9 @@ export const getCashFlowReport = async (req: Request, res: Response): Promise<vo
 // ============================================================================
 export const getCashRegisterReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, dateFilter } = parseWindow(req.query);
 
     const where = { userId, date: dateFilter };
     const [incomeAgg, expenseAgg, count, rows] = await Promise.all([
@@ -360,8 +346,7 @@ export const getCashRegisterReport = async (req: Request, res: Response): Promis
       })),
     });
   } catch (error) {
-    console.error('Get cash-register report error:', error);
-    res.status(500).json({ error: 'Failed to fetch cash register report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -370,13 +355,9 @@ export const getCashRegisterReport = async (req: Request, res: Response): Promis
 // ============================================================================
 export const getPaymentsReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, start, end, bucket, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, start, end, bucket, dateFilter } = parseWindow(req.query);
     const scaffold = buildSeries(start, end, bucket);
 
     const [sales, orders, purchases] = await Promise.all([
@@ -443,8 +424,7 @@ export const getPaymentsReport = async (req: Request, res: Response): Promise<vo
       series: toPoints(scaffold, buckets),
     });
   } catch (error) {
-    console.error('Get payments report error:', error);
-    res.status(500).json({ error: 'Failed to fetch payments report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -453,13 +433,9 @@ export const getPaymentsReport = async (req: Request, res: Response): Promise<vo
 // ============================================================================
 export const getExpensesReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, start, end, bucket, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, start, end, bucket, dateFilter } = parseWindow(req.query);
     const scaffold = buildSeries(start, end, bucket);
 
     const [caisse, productExpenses] = await Promise.all([
@@ -521,8 +497,7 @@ export const getExpensesReport = async (req: Request, res: Response): Promise<vo
       rows,
     });
   } catch (error) {
-    console.error('Get expenses report error:', error);
-    res.status(500).json({ error: 'Failed to fetch expenses report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -531,13 +506,9 @@ export const getExpensesReport = async (req: Request, res: Response): Promise<vo
 // ============================================================================
 export const getTaxSummaryReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, start, end, bucket, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, start, end, bucket, dateFilter } = parseWindow(req.query);
     const scaffold = buildSeries(start, end, bucket);
 
     const [sales, orders] = await Promise.all([
@@ -585,8 +556,7 @@ export const getTaxSummaryReport = async (req: Request, res: Response): Promise<
       ].sort((a, b) => b.value - a.value),
     });
   } catch (error) {
-    console.error('Get tax-summary report error:', error);
-    res.status(500).json({ error: 'Failed to fetch tax summary report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -595,13 +565,9 @@ export const getTaxSummaryReport = async (req: Request, res: Response): Promise<
 // ============================================================================
 export const getDiscountsReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, start, end, bucket, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, start, end, bucket, dateFilter } = parseWindow(req.query);
     const scaffold = buildSeries(start, end, bucket);
 
     const [sales, orders, products] = await Promise.all([
@@ -676,8 +642,7 @@ export const getDiscountsReport = async (req: Request, res: Response): Promise<v
       series: toPoints(scaffold, buckets),
     });
   } catch (error) {
-    console.error('Get discounts report error:', error);
-    res.status(500).json({ error: 'Failed to fetch discount summary report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -686,13 +651,9 @@ export const getDiscountsReport = async (req: Request, res: Response): Promise<v
 // ============================================================================
 export const getSalesReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, start, end, bucket, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, start, end, bucket, dateFilter } = parseWindow(req.query);
     const scaffold = buildSeries(start, end, bucket);
 
     const [sales, orders] = await Promise.all([
@@ -785,8 +746,7 @@ export const getSalesReport = async (req: Request, res: Response): Promise<void>
       byPaymentStatus,
     });
   } catch (error) {
-    console.error('Get sales report error:', error);
-    res.status(500).json({ error: 'Failed to fetch sales report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -795,13 +755,9 @@ export const getSalesReport = async (req: Request, res: Response): Promise<void>
 // ============================================================================
 export const getSalesByCategoryReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, dateFilter } = parseWindow(req.query);
 
     const [products, saleItems, orderItems] = await Promise.all([
       prisma.product.findMany({
@@ -842,8 +798,7 @@ export const getSalesByCategoryReport = async (req: Request, res: Response): Pro
 
     res.json({ period, total, categories });
   } catch (error) {
-    console.error('Get sales-by-category report error:', error);
-    res.status(500).json({ error: 'Failed to fetch sales by category report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -852,13 +807,9 @@ export const getSalesByCategoryReport = async (req: Request, res: Response): Pro
 // ============================================================================
 export const getTopProductsReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, dateFilter } = parseWindow(req.query);
 
     const [products, saleItems, orderItems, maps] = await Promise.all([
       prisma.product.findMany({ where: { userId }, select: { id: true, name: true, sku: true } }),
@@ -907,8 +858,7 @@ export const getTopProductsReport = async (req: Request, res: Response): Promise
 
     res.json({ period, products: productsOut });
   } catch (error) {
-    console.error('Get top-products report error:', error);
-    res.status(500).json({ error: 'Failed to fetch top products report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -917,13 +867,9 @@ export const getTopProductsReport = async (req: Request, res: Response): Promise
 // ============================================================================
 export const getReturnRatioReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, start, end, bucket, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, start, end, bucket, dateFilter } = parseWindow(req.query);
     const scaffold = buildSeries(start, end, bucket);
 
     const orders = await prisma.order.findMany({
@@ -987,8 +933,7 @@ export const getReturnRatioReport = async (req: Request, res: Response): Promise
       byWilaya,
     });
   } catch (error) {
-    console.error('Get return-ratio report error:', error);
-    res.status(500).json({ error: 'Failed to fetch return ratio report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -997,13 +942,9 @@ export const getReturnRatioReport = async (req: Request, res: Response): Promise
 // ============================================================================
 export const getPurchasesReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, start, end, bucket, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, start, end, bucket, dateFilter } = parseWindow(req.query);
     const scaffold = buildSeries(start, end, bucket);
 
     const purchases = await prisma.purchase.findMany({
@@ -1046,8 +987,7 @@ export const getPurchasesReport = async (req: Request, res: Response): Promise<v
       series: toPoints(scaffold, buckets),
     });
   } catch (error) {
-    console.error('Get purchases report error:', error);
-    res.status(500).json({ error: 'Failed to fetch purchases report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -1056,13 +996,9 @@ export const getPurchasesReport = async (req: Request, res: Response): Promise<v
 // ============================================================================
 export const getProductPurchasesReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, dateFilter } = parseWindow(req.query);
 
     const [products, items] = await Promise.all([
       prisma.product.findMany({ where: { userId }, select: { id: true, name: true, sku: true } }),
@@ -1086,8 +1022,7 @@ export const getProductPurchasesReport = async (req: Request, res: Response): Pr
 
     res.json({ period, total, products: rows.slice(0, 100) });
   } catch (error) {
-    console.error('Get product-purchases report error:', error);
-    res.status(500).json({ error: 'Failed to fetch product purchases report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -1099,13 +1034,9 @@ const buildSuppliersReport = async (
   res: Response,
   limit: number | null
 ): Promise<void> => {
-  if (!req.user) return unauthorized(res);
+  if (!req.user) return unauthorized(req, res);
   const userId = req.user.userId;
-  const { period, dateFilter } = resolveWindow(
-    req.query.period,
-    req.query.startDate,
-    req.query.endDate
-  );
+  const { period, dateFilter } = parseWindow(req.query);
 
   const [suppliers, grouped] = await Promise.all([
     prisma.supplier.findMany({ where: { userId }, select: { id: true, name: true } }),
@@ -1142,8 +1073,7 @@ export const getSuppliersReport = async (req: Request, res: Response): Promise<v
   try {
     await buildSuppliersReport(req, res, null);
   } catch (error) {
-    console.error('Get suppliers report error:', error);
-    res.status(500).json({ error: 'Failed to fetch suppliers report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -1151,8 +1081,7 @@ export const getTopSuppliersReport = async (req: Request, res: Response): Promis
   try {
     await buildSuppliersReport(req, res, 10);
   } catch (error) {
-    console.error('Get top-suppliers report error:', error);
-    res.status(500).json({ error: 'Failed to fetch top suppliers report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -1161,7 +1090,7 @@ export const getTopSuppliersReport = async (req: Request, res: Response): Promis
 // ============================================================================
 export const getInventoryValuationReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
 
     const products = await prisma.product.findMany({
@@ -1232,8 +1161,7 @@ export const getInventoryValuationReport = async (req: Request, res: Response): 
       topByValue,
     });
   } catch (error) {
-    console.error('Get inventory-valuation report error:', error);
-    res.status(500).json({ error: 'Failed to fetch inventory valuation report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -1242,7 +1170,7 @@ export const getInventoryValuationReport = async (req: Request, res: Response): 
 // ============================================================================
 export const getStockAlertsReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
 
     const products = await prisma.product.findMany({
@@ -1272,8 +1200,7 @@ export const getStockAlertsReport = async (req: Request, res: Response): Promise
       counts: { low: lowStock.length, negative: negativeStock.length, out: outOfStock.length },
     });
   } catch (error) {
-    console.error('Get stock-alerts report error:', error);
-    res.status(500).json({ error: 'Failed to fetch stock alerts report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -1282,13 +1209,9 @@ export const getStockAlertsReport = async (req: Request, res: Response): Promise
 // ============================================================================
 export const getDeadStockReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, dateFilter } = parseWindow(req.query);
 
     const [products, soldSale, soldOrder] = await Promise.all([
       prisma.product.findMany({
@@ -1363,8 +1286,7 @@ export const getDeadStockReport = async (req: Request, res: Response): Promise<v
       zeroSales: dead.map((p) => ({ id: p.id, name: p.name, sku: p.sku, quantity: p.quantity })),
     });
   } catch (error) {
-    console.error('Get dead-stock report error:', error);
-    res.status(500).json({ error: 'Failed to fetch dead stock report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -1373,7 +1295,7 @@ export const getDeadStockReport = async (req: Request, res: Response): Promise<v
 // ============================================================================
 export const getStockAgingReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
 
     const [products, movements] = await Promise.all([
@@ -1430,8 +1352,7 @@ export const getStockAgingReport = async (req: Request, res: Response): Promise<
 
     res.json({ buckets, items: topItems });
   } catch (error) {
-    console.error('Get stock-aging report error:', error);
-    res.status(500).json({ error: 'Failed to fetch stock aging report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -1440,13 +1361,9 @@ export const getStockAgingReport = async (req: Request, res: Response): Promise<
 // ============================================================================
 export const getStockAdjustmentsReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, dateFilter } = parseWindow(req.query);
 
     const movements = await prisma.stockMovement.findMany({
       where: { userId, type: 'adjustment', createdAt: dateFilter },
@@ -1484,8 +1401,7 @@ export const getStockAdjustmentsReport = async (req: Request, res: Response): Pr
       })),
     });
   } catch (error) {
-    console.error('Get stock-adjustments report error:', error);
-    res.status(500).json({ error: 'Failed to fetch stock adjustments report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -1494,7 +1410,7 @@ export const getStockAdjustmentsReport = async (req: Request, res: Response): Pr
 // ============================================================================
 export const getProductsReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
 
     const products = await prisma.product.findMany({
@@ -1550,8 +1466,7 @@ export const getProductsReport = async (req: Request, res: Response): Promise<vo
       rows: rows.slice(0, 500),
     });
   } catch (error) {
-    console.error('Get products report error:', error);
-    res.status(500).json({ error: 'Failed to fetch products report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -1560,13 +1475,9 @@ export const getProductsReport = async (req: Request, res: Response): Promise<vo
 // ============================================================================
 export const getTopCustomersReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
-    const { period, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, dateFilter } = parseWindow(req.query);
 
     const grouped = await prisma.order.groupBy({
       by: ['clientId'],
@@ -1611,8 +1522,7 @@ export const getTopCustomersReport = async (req: Request, res: Response): Promis
 
     res.json({ period, total, customers });
   } catch (error) {
-    console.error('Get top-customers report error:', error);
-    res.status(500).json({ error: 'Failed to fetch top customers report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };
 
@@ -1621,11 +1531,12 @@ export const getTopCustomersReport = async (req: Request, res: Response): Promis
 // ============================================================================
 export const getInactiveCustomersReport = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) return unauthorized(res);
+    if (!req.user) return unauthorized(req, res);
     const userId = req.user.userId;
 
-    const parsed = parseInt(String(req.query.days ?? ''), 10);
-    const thresholdDays = Number.isFinite(parsed) && parsed > 0 ? parsed : 60;
+    const v = new Validator();
+    const thresholdDays = v.integer(req.query.days, 'days', { required: false, def: 60, min: 1, max: 3650 });
+    v.throwIfAny();
     const now = Date.now();
     const thresholdDate = new Date(now - thresholdDays * DAY_MS);
 
@@ -1664,7 +1575,6 @@ export const getInactiveCustomersReport = async (req: Request, res: Response): P
       customers: customers.slice(0, 500),
     });
   } catch (error) {
-    console.error('Get inactive-customers report error:', error);
-    res.status(500).json({ error: 'Failed to fetch inactive customers report' });
+    return handleError(req, res, error, 'REPORT_FAILED');
   }
 };

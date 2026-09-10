@@ -14,6 +14,7 @@ import userStockRoutes from './routes/user-stock.routes';
 import adminRoutes from './routes/admin.routes';
 import devicesRoutes from './routes/devices.routes';
 import prisma from './config/database';
+import { fail, handleError } from './errors';
 
 // Load environment variables
 dotenv.config();
@@ -159,20 +160,21 @@ import { authenticate } from './middleware/auth';
 // Create checkout session for a plan (authenticated user)
 app.post('/api/payments/checkout', authenticate, async (req: Request, res: Response) => {
   try {
-    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
-    if (!chargilyConfigured()) { res.status(503).json({ error: 'Payment gateway not configured' }); return; }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+    if (!chargilyConfigured()) return fail(req, res, 'PAYMENT_GATEWAY_NOT_CONFIGURED');
 
-    const { planSlug, billingCycle = 'monthly' } = req.body;
-    if (!planSlug) { res.status(400).json({ error: 'planSlug is required' }); return; }
+    const { planSlug, billingCycle = 'monthly' } = req.body ?? {};
+    if (!planSlug || typeof planSlug !== 'string') return fail(req, res, 'FIELD_REQUIRED', { field: 'planSlug' });
+    if (billingCycle !== 'monthly' && billingCycle !== 'yearly') return fail(req, res, 'FIELD_INVALID_ENUM', { field: 'billingCycle', allowed: 'monthly, yearly' });
 
     const plan = await prisma.plan.findUnique({ where: { slug: planSlug } });
-    if (!plan || !plan.isActive) { res.status(404).json({ error: 'Plan not found or inactive' }); return; }
+    if (!plan || !plan.isActive) return fail(req, res, 'PLAN_NOT_FOUND');
 
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+    if (!user) return fail(req, res, 'USER_NOT_FOUND');
 
     const amount = billingCycle === 'yearly' ? Number(plan.priceYearly) : Number(plan.priceMonthly);
-    if (amount <= 0) { res.status(400).json({ error: 'This plan is free — no payment needed' }); return; }
+    if (amount <= 0) return fail(req, res, 'PLAN_IS_FREE');
 
     const result = await createPlanCheckout({
       userId: user.id,
@@ -185,14 +187,13 @@ app.post('/api/payments/checkout', authenticate, async (req: Request, res: Respo
     });
 
     if (!result.success) {
-      res.status(502).json({ error: result.error || 'Failed to create checkout' });
-      return;
+      console.error('Chargily checkout failed:', result.error);
+      return fail(req, res, 'PAYMENT_CHECKOUT_FAILED');
     }
 
     res.json({ checkoutUrl: result.checkoutUrl, checkoutId: result.checkoutId });
   } catch (error) {
-    console.error('Checkout error:', error);
-    res.status(500).json({ error: 'Failed to create checkout' });
+    handleError(req, res, error, 'PAYMENT_CHECKOUT_FAILED');
   }
 });
 
@@ -242,13 +243,12 @@ app.get('/api/payments/verify/:checkoutId', authenticate, async (req: Request, r
     }
     res.json({ status: result.data?.status || 'unknown', data: result.data });
   } catch (error) {
-    console.error('Verify payment error:', error);
-    res.status(500).json({ error: 'Failed to verify payment' });
+    handleError(req, res, error, 'PAYMENT_VERIFY_FAILED');
   }
 });
 
 // Public plans endpoint (no auth — for pricing page)
-app.get('/api/plans', async (_req: Request, res: Response) => {
+app.get('/api/plans', async (req: Request, res: Response) => {
   try {
     const plans = await prisma.plan.findMany({
       where: { isActive: true },
@@ -267,8 +267,8 @@ app.get('/api/plans', async (_req: Request, res: Response) => {
       features: (() => { try { return JSON.parse(p.features); } catch { return []; } })(),
     }));
     res.json({ plans: parsed });
-  } catch {
-    res.status(500).json({ error: 'Failed to fetch plans' });
+  } catch (error) {
+    handleError(req, res, error);
   }
 });
 
@@ -276,11 +276,11 @@ app.get('/api/plans', async (_req: Request, res: Response) => {
 import { getCreditStatus } from './services/credits.service';
 app.get('/api/credits', authenticate, async (req: Request, res: Response) => {
   try {
-    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const status = await getCreditStatus(req.user.userId);
     res.json(status);
-  } catch {
-    res.status(500).json({ error: 'Failed to get credit status' });
+  } catch (error) {
+    handleError(req, res, error);
   }
 });
 
@@ -290,32 +290,22 @@ app.get('/api/cms/:slug', async (req: Request, res: Response) => {
     const page = await prisma.cmsPage.findFirst({
       where: { slug: String(req.params.slug), isPublished: true },
     });
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
+    if (!page) return fail(req, res, 'CMS_PAGE_NOT_FOUND');
     res.json({ page });
-  } catch {
-    res.status(500).json({ error: 'Failed to fetch page' });
+  } catch (error) {
+    handleError(req, res, error);
   }
 });
 
-// 404 handler
+// 404 handler — translated like every other error (see src/errors)
 app.use((req: Request, res: Response) => {
-  res.status(404).json({
-    error: 'Not Found',
-    message: `Cannot ${req.method} ${req.path}`,
-  });
+  fail(req, res, 'ROUTE_NOT_FOUND', { method: req.method, path: req.path });
 });
 
-// Global error handler
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('Error:', err);
-
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong',
-  });
+// Global error handler: ApiError → its status/code; JSON parse / payload / multer /
+// Prisma errors → 400/413/404/409; anything else → 500 INTERNAL_ERROR (logged).
+app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+  handleError(req, res, err);
 });
 
 // Seed default units if they don't exist

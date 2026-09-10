@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
+import { ApiError, fail, handleError } from '../errors';
+import { Validator, pagination } from '../middleware/validate';
 import { recalcParentQuantity } from './user-product-variants.controller';
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
@@ -11,15 +13,21 @@ const derivePaymentStatus = (amountPaid: number, total: number): string => {
   return amountPaid >= total ? 'paid' : 'partial';
 };
 
-const VALID_PAYMENT_STATUSES = ['pending', 'partial', 'paid'];
+// Enumerations mirrored from the Prisma schema comments (model Purchase)
+const PAYMENT_STATUSES = ['pending', 'partial', 'paid'] as const;
+const PAYMENT_METHODS = ['cash', 'card', 'transfer', 'ccp', 'other'] as const;
+const PURCHASE_STATUSES = ['pending', 'partial', 'received', 'cancelled'] as const;
 
 // Status transition matrix (P5): received and cancelled are terminal.
+// 'partial' / 'received' are reached ONLY through receivePurchaseItems —
+// PUT may only cancel.
 const PURCHASE_STATUS_TRANSITIONS: Record<string, string[]> = {
-  pending: ['partial', 'received', 'cancelled'],
-  partial: ['received', 'cancelled'],
+  pending: ['cancelled'],
+  partial: ['cancelled'],
   received: [],
   cancelled: [],
 };
+const RECEIVE_ONLY_STATUSES = ['partial', 'received'];
 
 // Generate purchase number inside a transaction client to avoid race conditions
 const generatePurchaseNumber = async (tx: TxClient, userId: string): Promise<string> => {
@@ -49,40 +57,35 @@ const generatePurchaseNumber = async (tx: TxClient, userId: string): Promise<str
 
 export const getPurchases = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const {
-      startDate,
-      endDate,
-      status,
-      paymentStatus,
-      supplierId,
-      search,
-      minTotal,
-      maxTotal,
-      hasRemaining,
-      limit = '50',
-      offset = '0'
-    } = req.query;
+    const { supplierId, search, hasRemaining } = req.query;
+    const v = new Validator();
+    const startDate = v.date(req.query.startDate, 'startDate');
+    const endDate = v.date(req.query.endDate, 'endDate');
+    const status = v.oneOf(req.query.status, 'status', PURCHASE_STATUSES, PURCHASE_STATUSES[0]);
+    const paymentStatus = v.oneOf(req.query.paymentStatus, 'paymentStatus', PAYMENT_STATUSES, PAYMENT_STATUSES[0]);
+    const minTotal = v.number(req.query.minTotal, 'minTotal', { required: false, min: 0 });
+    const maxTotal = v.number(req.query.maxTotal, 'maxTotal', { required: false, min: 0 });
+    v.throwIfAny();
+    if (startDate && endDate && startDate > endDate) throw new ApiError('INVALID_DATE_RANGE');
+    const { limit, offset } = pagination(req.query);
 
     const where: any = { userId: req.user.userId };
 
     if (startDate || endDate) {
       where.purchaseDate = {};
-      if (startDate) where.purchaseDate.gte = new Date(startDate as string);
-      if (endDate) where.purchaseDate.lte = new Date(endDate as string);
+      if (startDate) where.purchaseDate.gte = startDate;
+      if (endDate) where.purchaseDate.lte = endDate;
     }
 
-    if (status) where.status = status as string;
+    if (req.query.status) where.status = status;
     if (hasRemaining === 'true') {
       where.paymentStatus = { not: 'paid' };
       // Cancelled purchases are not money owed
-      if (!status) where.status = { not: 'cancelled' };
-    } else if (paymentStatus) {
-      where.paymentStatus = paymentStatus as string;
+      if (!req.query.status) where.status = { not: 'cancelled' };
+    } else if (req.query.paymentStatus) {
+      where.paymentStatus = paymentStatus;
     }
     if (supplierId) where.supplierId = supplierId as string;
 
@@ -94,10 +97,10 @@ export const getPurchases = async (req: Request, res: Response): Promise<void> =
       ];
     }
 
-    if (minTotal || maxTotal) {
+    if (req.query.minTotal || req.query.maxTotal) {
       where.total = {};
-      if (minTotal) where.total.gte = parseFloat(minTotal as string);
-      if (maxTotal) where.total.lte = parseFloat(maxTotal as string);
+      if (req.query.minTotal) where.total.gte = minTotal;
+      if (req.query.maxTotal) where.total.lte = maxTotal;
     }
 
     const [purchases, total] = await Promise.all([
@@ -112,25 +115,21 @@ export const getPurchases = async (req: Request, res: Response): Promise<void> =
           },
         },
         orderBy: { purchaseDate: 'desc' },
-        skip: parseInt(offset as string, 10),
-        take: parseInt(limit as string, 10),
+        skip: offset,
+        take: limit,
       }),
       prisma.purchase.count({ where }),
     ]);
 
     res.json({ purchases, total });
   } catch (error) {
-    console.error('Get purchases error:', error);
-    res.status(500).json({ error: 'Failed to fetch purchases' });
+    return handleError(req, res, error, 'PURCHASE_FETCH_FAILED');
   }
 };
 
 export const getPurchase = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const purchaseId = req.params.purchaseId as string;
 
@@ -146,78 +145,65 @@ export const getPurchase = async (req: Request, res: Response): Promise<void> =>
       },
     });
 
-    if (!purchase) {
-      res.status(404).json({ error: 'Purchase not found' });
-      return;
-    }
+    if (!purchase) return fail(req, res, 'PURCHASE_NOT_FOUND');
 
     res.json({ purchase });
   } catch (error) {
-    console.error('Get purchase error:', error);
-    res.status(500).json({ error: 'Failed to fetch purchase' });
+    return handleError(req, res, error, 'PURCHASE_FETCH_FAILED');
   }
 };
 
 export const createPurchase = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     // NOTE: `status` is intentionally NOT accepted from the client — new purchases
     // always start 'pending'; 'partial'/'received' are owned by receivePurchaseItems
     // and 'cancelled' by updatePurchase (P5).
-    const {
-      supplierId,
-      items,
-      tax = 0,
-      shippingCost = 0,
-      paymentStatus = 'pending',
-      paymentMethod = 'cash',
-      amountPaid,
-      purchaseDate,
-      expectedDate,
-      notes,
-    } = req.body;
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      res.status(400).json({ error: 'At least one item is required' });
-      return;
-    }
-
-    if (!VALID_PAYMENT_STATUSES.includes(paymentStatus)) {
-      res.status(400).json({ error: 'Invalid payment status' });
-      return;
-    }
-
+    const v = new Validator();
+    const supplierId = v.id(req.body.supplierId, 'supplierId', false);
+    const items = v.nonEmptyArray<any>(req.body.items, 'items', 'item');
+    const tax = v.number(req.body.tax, 'tax', { required: false, def: 0, min: 0 });
+    const shippingCost = v.number(req.body.shippingCost, 'shippingCost', { required: false, def: 0, min: 0 });
+    const paymentStatus = v.oneOf(req.body.paymentStatus, 'paymentStatus', PAYMENT_STATUSES, 'pending');
+    const paymentMethod = v.oneOf(req.body.paymentMethod, 'paymentMethod', PAYMENT_METHODS, 'cash');
+    const amountPaidGiven = req.body.amountPaid !== undefined && req.body.amountPaid !== null && req.body.amountPaid !== '';
+    const amountPaid = amountPaidGiven ? v.number(req.body.amountPaid, 'amountPaid', { min: 0 }) : null;
     // Optional purchase date (must not be more than 1 day in the future)
-    let purchaseDateValue: Date | undefined;
-    if (purchaseDate !== undefined && purchaseDate !== null && purchaseDate !== '') {
-      const parsed = new Date(purchaseDate);
-      if (isNaN(parsed.getTime())) {
-        res.status(400).json({ error: 'Invalid purchase date' });
-        return;
-      }
-      if (parsed.getTime() > Date.now() + 24 * 60 * 60 * 1000) {
-        res.status(400).json({ error: 'Purchase date cannot be in the future' });
-        return;
-      }
-      purchaseDateValue = parsed;
+    const purchaseDateValue = v.date(req.body.purchaseDate, 'purchaseDate', { notFuture: true }) ?? undefined;
+    const expectedDate = v.date(req.body.expectedDate, 'expectedDate');
+    const notes = v.optionalString(req.body.notes, 'notes');
+
+    // Per-line scalar checks (product existence / variants come after)
+    const lineInputs = items.map((item, i) => ({
+      productId: v.id(item?.productId, `items[${i}].productId`),
+      variantId: item?.variantId ? String(item.variantId) : null,
+      quantity: v.integer(item?.quantity, `items[${i}].quantity`, { positive: true }),
+      // `??` (not `||`): an explicit 0 unit cost is legal (e.g. free samples);
+      // absent → resolved from the product / variant below
+      unitCost: item?.unitCost === undefined || item?.unitCost === null || item?.unitCost === ''
+        ? null
+        : v.number(item.unitCost, `items[${i}].unitCost`, { min: 0 }),
+    }));
+    v.throwIfAny();
+
+    // A linked supplier must exist AND belong to the caller
+    if (supplierId) {
+      const supplier = await prisma.supplier.findFirst({
+        where: { id: supplierId, userId: req.user.userId },
+        select: { id: true },
+      });
+      if (!supplier) throw new ApiError('SUPPLIER_NOT_FOUND');
     }
 
     // Verify all products exist (items may repeat a product across variants)
-    const productIds: string[] = items.map((item: any) => item.productId);
-    const uniqueProductIds = Array.from(new Set(productIds));
+    const uniqueProductIds = Array.from(new Set(lineInputs.map((l) => l.productId as string)));
     const products = await prisma.product.findMany({
       where: { id: { in: uniqueProductIds }, userId: req.user.userId },
       include: { variants: true },
     });
 
-    if (products.length !== uniqueProductIds.length) {
-      res.status(400).json({ error: 'One or more products not found' });
-      return;
-    }
+    if (products.length !== uniqueProductIds.length) throw new ApiError('PRODUCTS_NOT_FOUND');
 
     // Resolve lines: validate variants and compute totals. Variant products
     // must say WHICH variant is being restocked — otherwise receiving would
@@ -234,27 +220,18 @@ export const createPurchase = async (req: Request, res: Response): Promise<void>
       total: number;
     }[] = [];
 
-    for (const item of items) {
-      const product = products.find((p) => p.id === item.productId)!;
+    for (const line of lineInputs) {
+      const product = products.find((p) => p.id === line.productId)!;
 
       let variant: (typeof product.variants)[number] | null = null;
       if (product.hasVariants) {
-        if (!item.variantId) {
-          res.status(400).json({ error: `Variant is required for product: ${product.name}` });
-          return;
-        }
-        variant = product.variants.find((v) => v.id === item.variantId) || null;
-        if (!variant || !variant.isActive) {
-          res.status(400).json({ error: `Variant not found for product: ${product.name}` });
-          return;
-        }
+        if (!line.variantId) throw new ApiError('PURCHASE_VARIANT_REQUIRED', { product: product.name });
+        variant = product.variants.find((vr) => vr.id === line.variantId) || null;
+        if (!variant || !variant.isActive) throw new ApiError('PURCHASE_VARIANT_NOT_FOUND', { product: product.name });
       }
 
-      // `??` (not `||`): an explicit 0 unit cost is legal (e.g. free samples)
-      const unitCost = Number(
-        item.unitCost ?? (variant ? variant.costPrice : product.costPrice)
-      );
-      const itemTotal = unitCost * item.quantity;
+      const unitCost = line.unitCost ?? Number(variant ? variant.costPrice : product.costPrice);
+      const itemTotal = unitCost * line.quantity;
       subtotal += itemTotal;
 
       purchaseItems.push({
@@ -262,7 +239,7 @@ export const createPurchase = async (req: Request, res: Response): Promise<void>
         productName: product.name,
         variantId: variant ? variant.id : null,
         variantName: variant ? variant.name : null,
-        quantity: item.quantity,
+        quantity: line.quantity,
         unitCost,
         total: itemTotal,
       });
@@ -272,17 +249,9 @@ export const createPurchase = async (req: Request, res: Response): Promise<void>
 
     // Clamp amountPaid and derive payment status server-side (P4). Older clients
     // only send paymentStatus — map it onto amountPaid for backward compatibility.
-    let paid: number;
-    if (amountPaid !== undefined && amountPaid !== null) {
-      const requested = Number(amountPaid);
-      if (isNaN(requested)) {
-        res.status(400).json({ error: 'Invalid amountPaid' });
-        return;
-      }
-      paid = Math.min(Math.max(requested, 0), Math.max(total, 0));
-    } else {
-      paid = paymentStatus === 'paid' ? Math.max(total, 0) : 0;
-    }
+    const paid = amountPaid !== null
+      ? Math.min(Math.max(amountPaid, 0), Math.max(total, 0))
+      : paymentStatus === 'paid' ? Math.max(total, 0) : 0;
     const derivedPaymentStatus = derivePaymentStatus(paid, total);
 
     // Create purchase with number generation inside transaction to prevent race condition
@@ -307,8 +276,8 @@ export const createPurchase = async (req: Request, res: Response): Promise<void>
               paymentStatus: derivedPaymentStatus,
               status: 'pending',
               ...(purchaseDateValue && { purchaseDate: purchaseDateValue }),
-              expectedDate: expectedDate ? new Date(expectedDate) : null,
-              notes: notes?.trim() || null,
+              expectedDate,
+              notes,
               items: {
                 create: purchaseItems,
               },
@@ -349,40 +318,44 @@ export const createPurchase = async (req: Request, res: Response): Promise<void>
 
     res.status(201).json({ purchase });
   } catch (error) {
-    console.error('Create purchase error:', error);
-    res.status(500).json({ error: 'Failed to create purchase' });
+    return handleError(req, res, error, 'PURCHASE_CREATE_FAILED');
   }
 };
 
 export const updatePurchase = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const purchaseId = req.params.purchaseId as string;
-    const { paymentStatus, status, expectedDate, notes, amountPaid, paymentMethod } = req.body;
+
+    const v = new Validator();
+    const status = req.body.status ? v.oneOf(req.body.status, 'status', PURCHASE_STATUSES) : undefined;
+    const paymentStatus = req.body.paymentStatus ? v.oneOf(req.body.paymentStatus, 'paymentStatus', PAYMENT_STATUSES) : undefined;
+    const paymentMethod = req.body.paymentMethod ? v.oneOf(req.body.paymentMethod, 'paymentMethod', PAYMENT_METHODS) : undefined;
+    const amountPaidGiven = req.body.amountPaid !== undefined && req.body.amountPaid !== null;
+    const amountPaid = amountPaidGiven ? v.number(req.body.amountPaid, 'amountPaid', { min: 0 }) : null;
+    const expectedDateGiven = req.body.expectedDate !== undefined;
+    const expectedDate = v.date(req.body.expectedDate, 'expectedDate');
+    const notes = req.body.notes === undefined ? undefined : v.optionalString(req.body.notes, 'notes');
+    v.throwIfAny();
 
     const existing = await prisma.purchase.findFirst({
       where: { id: purchaseId, userId: req.user.userId },
       include: { items: true },
     });
 
-    if (!existing) {
-      res.status(404).json({ error: 'Purchase not found' });
-      return;
-    }
+    if (!existing) return fail(req, res, 'PURCHASE_NOT_FOUND');
 
     // Enforce the status transition matrix (P5). Same-status is a no-op.
+    // 'partial' / 'received' are owned by the receive endpoint.
     let newStatus: string | undefined;
     if (status && status !== existing.status) {
+      if (RECEIVE_ONLY_STATUSES.includes(status)) {
+        return fail(req, res, 'PURCHASE_STATUS_VIA_RECEIVE', { status });
+      }
       const allowed = PURCHASE_STATUS_TRANSITIONS[existing.status];
       if (!allowed || !allowed.includes(status)) {
-        res.status(400).json({
-          error: `Cannot change purchase status from '${existing.status}' to '${status}'`,
-        });
-        return;
+        return fail(req, res, 'PURCHASE_INVALID_TRANSITION', { from: existing.status, to: status });
       }
       newStatus = status;
     }
@@ -390,14 +363,8 @@ export const updatePurchase = async (req: Request, res: Response): Promise<void>
     const cancelling = newStatus === 'cancelled';
 
     // Cancelled is terminal: payments can no longer change
-    if (existing.status === 'cancelled' && ((amountPaid !== undefined && amountPaid !== null) || paymentStatus)) {
-      res.status(400).json({ error: 'Cannot modify payments on a cancelled purchase' });
-      return;
-    }
-
-    if (paymentStatus && !VALID_PAYMENT_STATUSES.includes(paymentStatus)) {
-      res.status(400).json({ error: 'Invalid payment status' });
-      return;
+    if (existing.status === 'cancelled' && (amountPaid !== null || paymentStatus)) {
+      return fail(req, res, 'PURCHASE_CANCELLED_PAYMENT_LOCKED');
     }
 
     const total = Number(existing.total);
@@ -407,18 +374,12 @@ export const updatePurchase = async (req: Request, res: Response): Promise<void>
     // payment status is derived). Cancelling forces amountPaid to 0 — the
     // automatic expense rows are removed and any supplier refund is a manual
     // caisse entry. Older clients only send a status — map it onto amountPaid.
-    const touchingPayment =
-      cancelling || (amountPaid !== undefined && amountPaid !== null) || !!paymentStatus;
+    const touchingPayment = cancelling || amountPaid !== null || !!paymentStatus;
     let newPaid = currentPaid;
     if (cancelling) {
       newPaid = 0;
-    } else if (amountPaid !== undefined && amountPaid !== null) {
-      const requested = Number(amountPaid);
-      if (isNaN(requested)) {
-        res.status(400).json({ error: 'Invalid amountPaid' });
-        return;
-      }
-      newPaid = Math.min(Math.max(requested, 0), Math.max(total, 0));
+    } else if (amountPaid !== null) {
+      newPaid = Math.min(Math.max(amountPaid, 0), Math.max(total, 0));
     } else if (paymentStatus === 'paid') {
       newPaid = Math.max(total, 0);
     } else if (paymentStatus === 'pending') {
@@ -503,10 +464,8 @@ export const updatePurchase = async (req: Request, res: Response): Promise<void>
           ...(newStatus && { status: newStatus }),
           ...(touchingPayment && { amountPaid: newPaid, paymentStatus: derivedPaymentStatus }),
           ...(paymentMethod && { paymentMethod }),
-          ...(expectedDate !== undefined && {
-            expectedDate: expectedDate ? new Date(expectedDate) : null,
-          }),
-          ...(notes !== undefined && { notes: notes?.trim() || null }),
+          ...(expectedDateGiven && { expectedDate }),
+          ...(notes !== undefined && { notes }),
         },
         include: { supplier: true, items: true },
       });
@@ -551,8 +510,7 @@ export const updatePurchase = async (req: Request, res: Response): Promise<void>
       }),
     });
   } catch (error) {
-    console.error('Update purchase error:', error);
-    res.status(500).json({ error: 'Failed to update purchase' });
+    return handleError(req, res, error, 'PURCHASE_UPDATE_FAILED');
   }
 };
 
@@ -562,10 +520,7 @@ export const updatePurchase = async (req: Request, res: Response): Promise<void>
 
 export const deletePurchase = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const purchaseId = req.params.purchaseId as string;
 
@@ -574,32 +529,22 @@ export const deletePurchase = async (req: Request, res: Response): Promise<void>
       include: { items: true },
     });
 
-    if (!purchase) {
-      res.status(404).json({ error: 'Purchase not found' });
-      return;
-    }
+    if (!purchase) return fail(req, res, 'PURCHASE_NOT_FOUND');
 
     if (purchase.status !== 'pending') {
-      res.status(400).json({ error: 'Can only delete pending purchases' });
-      return;
-    }
-
-    if (purchase.paymentStatus === 'paid') {
-      res.status(400).json({ error: 'Cannot delete a paid purchase' });
-      return;
+      return fail(req, res, 'PURCHASE_DELETE_NOT_PENDING', { status: purchase.status });
     }
 
     // P5: deletion requires amountPaid = 0 (cash already moved must be
-    // compensated through updatePurchase/cancel, never silently deleted)
+    // compensated through updatePurchase/cancel, never silently deleted).
+    // A zero-total purchase is derived 'paid' with amountPaid = 0 — deletable.
     if (Number(purchase.amountPaid) > 0) {
-      res.status(400).json({ error: 'Cannot delete a purchase with recorded payments' });
-      return;
+      return fail(req, res, purchase.paymentStatus === 'paid' ? 'PURCHASE_DELETE_PAID' : 'PURCHASE_DELETE_WITH_PAYMENTS');
     }
 
     // Defense-in-depth: a pending purchase should never have received stock
     if (purchase.items.some((i) => i.receivedQty > 0)) {
-      res.status(400).json({ error: 'Cannot delete a purchase with received items' });
-      return;
+      return fail(req, res, 'PURCHASE_DELETE_WITH_RECEIVED');
     }
 
     // Delete related automatic caisse transactions and purchase (manual rows survive)
@@ -612,8 +557,7 @@ export const deletePurchase = async (req: Request, res: Response): Promise<void>
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete purchase error:', error);
-    res.status(500).json({ error: 'Failed to delete purchase' });
+    return handleError(req, res, error, 'PURCHASE_DELETE_FAILED');
   }
 };
 
@@ -623,48 +567,29 @@ export const deletePurchase = async (req: Request, res: Response): Promise<void>
 
 export const receivePurchaseItems = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const purchaseId = req.params.purchaseId as string;
     // Array of { itemId, receivedQty } — receivedQty is the DELTA received NOW
     // (matches the 'Receive Now' input in the UI), NOT a cumulative value (P5).
-    const { items } = req.body;
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      res.status(400).json({ error: 'Items to receive are required' });
-      return;
-    }
-
+    const v = new Validator();
+    const rawItems = v.nonEmptyArray<any>(req.body.items, 'items', 'item');
     // Validate deltas up-front: must be non-negative integers (0 = no-op line)
-    for (const item of items) {
-      const delta = Number(item.receivedQty);
-      if (!Number.isInteger(delta) || delta < 0) {
-        res.status(400).json({ error: 'Received quantity must be a non-negative whole number' });
-        return;
-      }
-    }
+    const items = rawItems.map((item, i) => ({
+      itemId: v.id(item?.itemId, `items[${i}].itemId`),
+      receivedQty: v.integer(item?.receivedQty, `items[${i}].receivedQty`, { min: 0 }),
+    }));
+    v.throwIfAny();
 
     const purchase = await prisma.purchase.findFirst({
       where: { id: purchaseId, userId: req.user.userId },
     });
 
-    if (!purchase) {
-      res.status(404).json({ error: 'Purchase not found' });
-      return;
-    }
+    if (!purchase) return fail(req, res, 'PURCHASE_NOT_FOUND');
 
-    if (purchase.status === 'cancelled') {
-      res.status(400).json({ error: 'Cannot receive items into a cancelled purchase' });
-      return;
-    }
+    if (purchase.status === 'cancelled') return fail(req, res, 'PURCHASE_RECEIVE_CANCELLED');
 
-    if (purchase.status === 'received') {
-      res.status(400).json({ error: 'Purchase is already fully received' });
-      return;
-    }
+    if (purchase.status === 'received') return fail(req, res, 'PURCHASE_ALREADY_RECEIVED');
 
     // Process receiving in transaction
     const updatedPurchase = await prisma.$transaction(async (tx) => {
@@ -673,41 +598,40 @@ export const receivePurchaseItems = async (req: Request, res: Response): Promise
       const productsToRecalc = new Set<string>();
 
       for (const item of items) {
-        const delta = Number(item.receivedQty);
+        const delta = item.receivedQty;
         if (delta === 0) continue;
 
         // Re-read inside the transaction (never trust a pre-transaction
         // snapshot — fixes the concurrent-receive race)
         const purchaseItem = await tx.purchaseItem.findFirst({
-          where: { id: item.itemId, purchaseId },
+          where: { id: item.itemId as string, purchaseId },
         });
-        if (!purchaseItem) continue;
+        // An itemId that belongs to another purchase (or to nothing) is a
+        // client bug, not a no-op: silently ignoring it made the caller
+        // believe the goods were received.
+        if (!purchaseItem) throw new ApiError('PURCHASE_ITEM_NOT_FOUND');
 
         if (purchaseItem.receivedQty + delta > purchaseItem.quantity) {
           const remaining = purchaseItem.quantity - purchaseItem.receivedQty;
-          const err: any = new Error(
-            `Cannot receive ${delta} more for "${purchaseItem.productName}": only ${remaining} remaining`,
-          );
-          err.code = 'OVER_RECEIVE';
-          throw err;
+          throw new ApiError('PURCHASE_OVER_RECEIVE', {
+            product: purchaseItem.productName,
+            delta,
+            remaining,
+          });
         }
 
         // Conditional increment: guards against a concurrent receive pushing
         // the received quantity past the ordered quantity
         const result = await tx.purchaseItem.updateMany({
           where: {
-            id: item.itemId,
+            id: item.itemId as string,
             purchaseId,
             receivedQty: { lte: purchaseItem.quantity - delta },
           },
           data: { receivedQty: { increment: delta } },
         });
         if (result.count !== 1) {
-          const err: any = new Error(
-            `Another receive is in progress for "${purchaseItem.productName}" — please retry`,
-          );
-          err.code = 'CONCURRENT_RECEIVE';
-          throw err;
+          throw new ApiError('PURCHASE_CONCURRENT_RECEIVE', { product: purchaseItem.productName });
         }
 
         // Update stock: variant lines restock the VARIANT (the parent is
@@ -780,17 +704,8 @@ export const receivePurchaseItems = async (req: Request, res: Response): Promise
     });
 
     res.json({ purchase: updatedPurchase });
-  } catch (error: any) {
-    if (error?.code === 'OVER_RECEIVE') {
-      res.status(400).json({ error: error.message });
-      return;
-    }
-    if (error?.code === 'CONCURRENT_RECEIVE') {
-      res.status(409).json({ error: error.message });
-      return;
-    }
-    console.error('Receive purchase items error:', error);
-    res.status(500).json({ error: 'Failed to receive items' });
+  } catch (error) {
+    return handleError(req, res, error, 'PURCHASE_RECEIVE_FAILED');
   }
 };
 
@@ -800,10 +715,7 @@ export const receivePurchaseItems = async (req: Request, res: Response): Promise
 
 export const getPurchaseStats = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const { period = 'month' } = req.query;
 
@@ -886,7 +798,6 @@ export const getPurchaseStats = async (req: Request, res: Response): Promise<voi
       topSuppliers: topSuppliersWithNames,
     });
   } catch (error) {
-    console.error('Get purchase stats error:', error);
-    res.status(500).json({ error: 'Failed to fetch purchase stats' });
+    return handleError(req, res, error, 'PURCHASE_STATS_FAILED');
   }
 };

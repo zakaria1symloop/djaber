@@ -40,8 +40,9 @@ export default function LoginPage() {
       // Admins go to the admin panel; everyone else to the dashboard.
       router.push(loggedInUser.isAdmin ? '/admin' : '/dashboard');
     } catch (err) {
-      const message = err instanceof Error ? err.message : '';
-      toast.error(translateBackendError(message));
+      // Pass the error itself: it carries the backend `code`, so a network
+      // failure is translated instead of showing the raw English fallback.
+      toast.error(translateBackendError(err instanceof Error ? err : ''));
     }
   };
 

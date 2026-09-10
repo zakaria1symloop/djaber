@@ -1,8 +1,23 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
+import { ApiError, fail, handleError } from '../errors';
+import { Validator } from '../middleware/validate';
 
-// Thrown inside stock transactions and mapped to a 400 response
-class StockAdjustError extends Error {}
+const NAME_MAX = 255;
+const SKU_MAX = 255;
+const REASON_MAX = 255;
+const NOTES_MAX = 2000;
+const MOVEMENT_TYPES = ['in', 'out', 'adjustment', 'return'] as const;
+
+/** Product owned by the caller or 404 PRODUCT_NOT_FOUND. */
+async function findOwnProduct(productId: string, userId: string): Promise<{ id: string }> {
+  const product = await prisma.product.findFirst({
+    where: { id: productId, userId },
+    select: { id: true },
+  });
+  if (!product) throw new ApiError('PRODUCT_NOT_FOUND');
+  return product;
+}
 
 // Helper: recalculate parent product quantity as sum of variants (works inside a transaction)
 export async function recalcParentQuantity(tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0], productId: string) {
@@ -20,22 +35,10 @@ export async function recalcParentQuantity(tx: Parameters<Parameters<typeof pris
 // Get variants for a product
 export const getVariants = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const productId = req.params.productId as string;
-
-    const product = await prisma.product.findFirst({
-      where: { id: productId, userId: req.user.userId },
-      select: { id: true },
-    });
-
-    if (!product) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
-    }
+    await findOwnProduct(productId, req.user.userId);
 
     const variants = await prisma.productVariant.findMany({
       where: { productId },
@@ -44,53 +47,36 @@ export const getVariants = async (req: Request, res: Response): Promise<void> =>
 
     res.json({ variants });
   } catch (error) {
-    console.error('Get variants error:', error);
-    res.status(500).json({ error: 'Failed to fetch variants' });
+    handleError(req, res, error, 'VARIANT_LIST_FAILED');
   }
 };
 
 // Create a variant
 export const createVariant = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const productId = req.params.productId as string;
-    const { name, sku, costPrice, sellingPrice, quantity, minQuantity } = req.body;
+    const body = req.body ?? {};
 
-    if (!name?.trim()) {
-      res.status(400).json({ error: 'Variant name is required' });
-      return;
-    }
+    const v = new Validator();
+    const name = v.requiredString(body.name, 'name', { max: NAME_MAX });
+    const sku = v.optionalString(body.sku, 'sku', { max: SKU_MAX });
+    const validCostPrice = v.number(body.costPrice, 'costPrice', { min: 0, required: false, def: 0 });
+    const validSellingPrice = v.number(body.sellingPrice, 'sellingPrice', { min: 0, required: false, def: 0 });
+    const variantQty = v.integer(body.quantity, 'quantity', { min: 0, required: false, def: 0 });
+    const validMinQuantity = v.integer(body.minQuantity, 'minQuantity', { min: 0, required: false, def: 0 });
+    v.throwIfAny();
 
-    if (name.trim().length > 255) {
-      res.status(400).json({ error: 'Variant name is too long (max 255)' });
-      return;
-    }
-
-    const product = await prisma.product.findFirst({
-      where: { id: productId, userId: req.user.userId },
-    });
-
-    if (!product) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
-    }
-
-    const variantQty = Math.max(0, Number(quantity) || 0);
-    const validCostPrice = Math.max(0, Number(costPrice) || 0);
-    const validSellingPrice = Math.max(0, Number(sellingPrice) || 0);
-    const validMinQuantity = Math.max(0, Number(minQuantity) || 0);
+    await findOwnProduct(productId, req.user.userId);
 
     // Use interactive transaction so variant creation, parent recalc, and stock movement are atomic
     const variant = await prisma.$transaction(async (tx) => {
       const newVariant = await tx.productVariant.create({
         data: {
           productId,
-          name: name.trim(),
-          sku: sku?.trim().slice(0, 255) || null,
+          name,
+          sku,
           costPrice: validCostPrice,
           sellingPrice: validSellingPrice,
           quantity: variantQty,
@@ -126,61 +112,46 @@ export const createVariant = async (req: Request, res: Response): Promise<void> 
 
     res.status(201).json({ variant });
   } catch (error: any) {
-    if (error.code === 'P2002') {
-      res.status(400).json({ error: 'A variant with this name already exists for this product' });
-      return;
-    }
-    console.error('Create variant error:', error);
-    res.status(500).json({ error: 'Failed to create variant' });
+    if (error?.code === 'P2002') return fail(req, res, 'VARIANT_ALREADY_EXISTS', { name: String(req.body?.name ?? '').trim() });
+    handleError(req, res, error, 'VARIANT_CREATE_FAILED');
   }
 };
 
 // Update a variant
 export const updateVariant = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const productId = req.params.productId as string;
     const variantId = req.params.variantId as string;
-    const { name, sku, costPrice, sellingPrice, minQuantity, isActive } = req.body;
+    const body = req.body ?? {};
 
-    const product = await prisma.product.findFirst({
-      where: { id: productId, userId: req.user.userId },
-      select: { id: true },
-    });
+    const v = new Validator();
+    const name = v.optionalString(body.name, 'name', { max: NAME_MAX });
+    const sku = body.sku !== undefined ? v.optionalString(body.sku, 'sku', { max: SKU_MAX }) : undefined;
+    const validCostPrice = body.costPrice !== undefined ? v.number(body.costPrice, 'costPrice', { min: 0 }) : undefined;
+    const validSellingPrice = body.sellingPrice !== undefined ? v.number(body.sellingPrice, 'sellingPrice', { min: 0 }) : undefined;
+    const validMinQuantity = body.minQuantity !== undefined ? v.integer(body.minQuantity, 'minQuantity', { min: 0 }) : undefined;
+    const isActive = body.isActive !== undefined ? v.boolean(body.isActive, 'isActive') : undefined;
+    v.throwIfAny();
 
-    if (!product) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
-    }
+    await findOwnProduct(productId, req.user.userId);
 
     const existing = await prisma.productVariant.findFirst({
       where: { id: variantId, productId },
     });
-
-    if (!existing) {
-      res.status(404).json({ error: 'Variant not found' });
-      return;
-    }
-
-    // Validate numeric fields
-    const validCostPrice = costPrice !== undefined ? Math.max(0, Number(costPrice) || 0) : undefined;
-    const validSellingPrice = sellingPrice !== undefined ? Math.max(0, Number(sellingPrice) || 0) : undefined;
-    const validMinQuantity = minQuantity !== undefined ? Math.max(0, Number(minQuantity) || 0) : undefined;
+    if (!existing) return fail(req, res, 'VARIANT_NOT_FOUND');
 
     const updateData = {
-      ...(name && { name: name.trim().slice(0, 255) }),
-      ...(sku !== undefined && { sku: sku?.trim().slice(0, 255) || null }),
+      ...(name && { name }),
+      ...(sku !== undefined && { sku }),
       ...(validCostPrice !== undefined && { costPrice: validCostPrice }),
       ...(validSellingPrice !== undefined && { sellingPrice: validSellingPrice }),
       ...(validMinQuantity !== undefined && { minQuantity: validMinQuantity }),
       ...(isActive !== undefined && { isActive }),
     };
 
-    const isActiveChanged = isActive !== undefined && Boolean(isActive) !== existing.isActive;
+    const isActiveChanged = isActive !== undefined && isActive !== existing.isActive;
 
     let variant;
     if (isActiveChanged) {
@@ -221,44 +192,25 @@ export const updateVariant = async (req: Request, res: Response): Promise<void> 
 
     res.json({ variant });
   } catch (error: any) {
-    if (error.code === 'P2002') {
-      res.status(400).json({ error: 'A variant with this name already exists for this product' });
-      return;
-    }
-    console.error('Update variant error:', error);
-    res.status(500).json({ error: 'Failed to update variant' });
+    if (error?.code === 'P2002') return fail(req, res, 'VARIANT_ALREADY_EXISTS', { name: String(req.body?.name ?? '').trim() });
+    handleError(req, res, error, 'VARIANT_UPDATE_FAILED');
   }
 };
 
 // Delete a variant
 export const deleteVariant = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const productId = req.params.productId as string;
     const variantId = req.params.variantId as string;
 
-    const product = await prisma.product.findFirst({
-      where: { id: productId, userId: req.user.userId },
-      select: { id: true },
-    });
-
-    if (!product) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
-    }
+    await findOwnProduct(productId, req.user.userId);
 
     const existing = await prisma.productVariant.findFirst({
       where: { id: variantId, productId },
     });
-
-    if (!existing) {
-      res.status(404).json({ error: 'Variant not found' });
-      return;
-    }
+    if (!existing) return fail(req, res, 'VARIANT_NOT_FOUND');
 
     // Use interactive transaction so delete, hasVariants toggle, and recalc are atomic
     await prisma.$transaction(async (tx) => {
@@ -297,64 +249,41 @@ export const deleteVariant = async (req: Request, res: Response): Promise<void> 
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete variant error:', error);
-    res.status(500).json({ error: 'Failed to delete variant' });
+    handleError(req, res, error, 'VARIANT_DELETE_FAILED');
   }
 };
 
 // Adjust variant stock
 export const adjustVariantStock = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const productId = req.params.productId as string;
     const variantId = req.params.variantId as string;
-    const { type, quantity, reason, notes } = req.body;
+    const body = req.body ?? {};
 
-    if (!type || quantity === undefined || quantity === null) {
-      res.status(400).json({ error: 'Type and quantity are required' });
-      return;
-    }
+    const v = new Validator();
+    const type = v.oneOf(body.type, 'type', MOVEMENT_TYPES);
+    const numQuantity = v.integer(body.quantity, 'quantity', { min: 0 });
+    const reason = v.optionalString(body.reason, 'reason', { max: REASON_MAX });
+    const notes = v.optionalString(body.notes, 'notes', { max: NOTES_MAX });
+    // Zero is only meaningful when setting an absolute level (adjustment)
+    if (v.ok && type !== 'adjustment' && numQuantity === 0) v.add('quantity', 'STOCK_QUANTITY_ZERO');
+    v.throwIfAny();
 
-    if (!['in', 'out', 'adjustment'].includes(type)) {
-      res.status(400).json({ error: 'Invalid type. Must be: in, out, or adjustment' });
-      return;
-    }
-
-    const numQuantity = Number(quantity);
-    if (isNaN(numQuantity) || numQuantity < 0) {
-      res.status(400).json({ error: 'Quantity must be a non-negative number' });
-      return;
-    }
-
-    const product = await prisma.product.findFirst({
-      where: { id: productId, userId: req.user.userId },
-      select: { id: true },
-    });
-
-    if (!product) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
-    }
+    await findOwnProduct(productId, req.user.userId);
 
     const variant = await prisma.productVariant.findFirst({
       where: { id: variantId, productId },
     });
-
-    if (!variant) {
-      res.status(404).json({ error: 'Variant not found' });
-      return;
-    }
+    if (!variant) return fail(req, res, 'VARIANT_NOT_FOUND');
 
     // Apply the change atomically inside the transaction — no outside-read,
     // so concurrent adjustments can neither oversell nor corrupt the ledger delta
     const [updatedVariant, movement] = await prisma.$transaction(async (tx) => {
       let movementQuantity: number;
 
-      if (type === 'in') {
+      if (type === 'in' || type === 'return') {
         await tx.productVariant.update({
           where: { id: variantId },
           data: { quantity: { increment: numQuantity } },
@@ -366,7 +295,8 @@ export const adjustVariantStock = async (req: Request, res: Response): Promise<v
           data: { quantity: { decrement: numQuantity } },
         });
         if (dec.count === 0) {
-          throw new StockAdjustError('Insufficient stock');
+          const current = await tx.productVariant.findUnique({ where: { id: variantId }, select: { quantity: true } });
+          throw new ApiError('STOCK_INSUFFICIENT', { name: variant.name, available: current?.quantity ?? 0 });
         }
         movementQuantity = -numQuantity;
       } else {
@@ -405,11 +335,6 @@ export const adjustVariantStock = async (req: Request, res: Response): Promise<v
 
     res.json({ variant: updatedVariant, movement });
   } catch (error) {
-    if (error instanceof StockAdjustError) {
-      res.status(400).json({ error: error.message });
-      return;
-    }
-    console.error('Adjust variant stock error:', error);
-    res.status(500).json({ error: 'Failed to adjust variant stock' });
+    handleError(req, res, error, 'VARIANT_STOCK_ADJUST_FAILED');
   }
 };

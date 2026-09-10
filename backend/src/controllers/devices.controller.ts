@@ -1,10 +1,24 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
+import { fail, handleError } from '../errors';
+import { Validator } from '../middleware/validate';
 
 // Expo push tokens look like ExponentPushToken[xxxxxxxx] — reject junk strings
 const EXPO_TOKEN_RE = /^Expo(nent)?PushToken\[[^\]]+\]$/;
 // Bound DeviceToken rows per user (abuse guard + push fan-out cap)
 const MAX_DEVICES_PER_USER = 20;
+const PLATFORMS = ['android', 'ios'] as const;
+
+/** Non-empty string token (≤ 255 chars); empty → DEVICE_TOKEN_REQUIRED. */
+function readToken(value: unknown, v: Validator): string {
+  const s = typeof value === 'string' ? value.trim() : '';
+  if (!s) {
+    v.add('token', 'DEVICE_TOKEN_REQUIRED');
+    return '';
+  }
+  if (s.length > 255) v.add('token', 'FIELD_TOO_LONG', { max: 255 });
+  return s;
+}
 
 /**
  * Register (or refresh) a device's Expo push token for the logged-in user.
@@ -12,21 +26,18 @@ const MAX_DEVICES_PER_USER = 20;
  */
 export const registerDevice = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized', message: 'User not authenticated' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const { token, platform } = req.body as { token?: string; platform?: string };
-    if (!token || typeof token !== 'string' || !EXPO_TOKEN_RE.test(token)) {
-      res.status(400).json({ error: 'Bad Request', message: 'A valid Expo push token is required' });
-      return;
-    }
+    const v = new Validator();
+    const token = readToken(req.body?.token, v);
+    if (token && !EXPO_TOKEN_RE.test(token)) v.add('token', 'DEVICE_TOKEN_INVALID');
+    const platform = v.oneOf(req.body?.platform, 'platform', PLATFORMS, 'android');
+    v.throwIfAny();
 
     const device = await prisma.deviceToken.upsert({
       where: { token },
-      update: { userId: req.user.userId, platform: platform || 'android' },
-      create: { token, userId: req.user.userId, platform: platform || 'android' },
+      update: { userId: req.user.userId, platform },
+      create: { token, userId: req.user.userId, platform },
     });
 
     // Enforce per-user cap: keep the most recent MAX, drop the rest
@@ -42,8 +53,7 @@ export const registerDevice = async (req: Request, res: Response): Promise<void>
 
     res.json({ success: true, deviceId: device.id });
   } catch (error) {
-    console.error('Register device error:', error);
-    res.status(500).json({ error: 'Internal Server Error', message: 'Failed to register device' });
+    handleError(req, res, error, 'DEVICE_REGISTER_FAILED');
   }
 };
 
@@ -52,16 +62,11 @@ export const registerDevice = async (req: Request, res: Response): Promise<void>
  */
 export const unregisterDevice = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized', message: 'User not authenticated' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const { token } = req.body as { token?: string };
-    if (!token) {
-      res.status(400).json({ error: 'Bad Request', message: 'token is required' });
-      return;
-    }
+    const v = new Validator();
+    const token = readToken(req.body?.token, v);
+    v.throwIfAny();
 
     await prisma.deviceToken.deleteMany({
       where: { token, userId: req.user.userId },
@@ -69,7 +74,6 @@ export const unregisterDevice = async (req: Request, res: Response): Promise<voi
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Unregister device error:', error);
-    res.status(500).json({ error: 'Internal Server Error', message: 'Failed to unregister device' });
+    handleError(req, res, error, 'DEVICE_UNREGISTER_FAILED');
   }
 };

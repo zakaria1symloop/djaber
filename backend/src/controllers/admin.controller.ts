@@ -1,6 +1,35 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import prisma from '../config/database';
+import { fail, handleError } from '../errors';
+import { Validator, pagination } from '../middleware/validate';
+
+const USER_PLANS = ['individual', 'teams'] as const;
+const BILLING_CYCLES = ['monthly', 'yearly'] as const;
+const SUBSCRIPTION_STATUSES = ['active', 'cancelled', 'expired', 'trial'] as const;
+const CMS_CATEGORIES = ['company', 'legal'] as const;
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const CURRENCY_RE = /^[A-Za-z]{2,5}$/;
+
+/** Optional array of non-empty strings (features list). Returns null when absent. */
+const featureList = (v: Validator, value: unknown, field: string): string[] | null => {
+  if (value === undefined || value === null) return null;
+  if (!Array.isArray(value) || value.some((f) => typeof f !== 'string' || f.trim() === '')) {
+    v.add(field, 'FIELD_INVALID');
+    return null;
+  }
+  return (value as string[]).map((f) => f.trim());
+};
+
+/** Optional boolean that must be an actual boolean when present. */
+const optionalBool = (v: Validator, value: unknown, field: string): boolean | undefined => {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'boolean') {
+    v.add(field, 'FIELD_INVALID');
+    return undefined;
+  }
+  return value;
+};
 
 /**
  * Returns platform-wide analytics for super admins.
@@ -114,8 +143,7 @@ export const getAdminAnalytics = async (req: Request, res: Response): Promise<vo
       recentSignups,
     });
   } catch (error) {
-    console.error('Get admin analytics error:', error);
-    res.status(500).json({ error: 'Failed to fetch admin analytics' });
+    return handleError(req, res, error, 'ADMIN_ANALYTICS_FAILED');
   }
 };
 
@@ -132,8 +160,7 @@ export const listUsers = async (req: Request, res: Response): Promise<void> => {
     const endDate = String(req.query.endDate || '').trim();
     const sortBy = String(req.query.sortBy || 'createdAt').trim();
     const sortOrder = (String(req.query.sortOrder || 'desc').trim() === 'asc' ? 'asc' : 'desc') as 'asc' | 'desc';
-    const limit = Math.min(Number(req.query.limit) || 50, 500);
-    const offset = Number(req.query.offset) || 0;
+    const { limit, offset } = pagination(req.query, { limit: 50, maxLimit: 500 });
 
     const where: Record<string, unknown> = {};
     if (plan) where.plan = plan;
@@ -257,8 +284,7 @@ export const listUsers = async (req: Request, res: Response): Promise<void> => {
 
     res.json({ users, total: users.length === usersBase.length ? total : users.length });
   } catch (error) {
-    console.error('List users error:', error);
-    res.status(500).json({ error: 'Failed to list users' });
+    return handleError(req, res, error, 'ADMIN_USERS_LIST_FAILED');
   }
 };
 
@@ -342,10 +368,7 @@ export const getUserDetails = async (req: Request, res: Response): Promise<void>
         }),
       ]);
 
-    if (!user) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
+    if (!user) return fail(req, res, 'USER_NOT_FOUND');
 
     res.json({
       user,
@@ -365,30 +388,39 @@ export const getUserDetails = async (req: Request, res: Response): Promise<void>
       recentConversations: conversations,
     });
   } catch (error) {
-    console.error('Get user details error:', error);
-    res.status(500).json({ error: 'Failed to fetch user details' });
+    return handleError(req, res, error, 'ADMIN_USER_FETCH_FAILED');
   }
 };
 
 export const updateUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = String(req.params.userId);
-    const { isAdmin, plan, firstName, lastName, password } = req.body;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+
+    const v = new Validator();
+    const isAdmin = optionalBool(v, body.isAdmin, 'isAdmin');
+    const plan = body.plan === undefined || body.plan === null ? undefined : v.oneOf(body.plan, 'plan', USER_PLANS);
+    const firstName = v.optionalString(body.firstName, 'firstName', { max: 100 });
+    const lastName = v.optionalString(body.lastName, 'lastName', { max: 100 });
+    const password = body.password === undefined || body.password === null || body.password === '' ? null : v.requiredString(body.password, 'password', { min: 8, max: 128 });
+    v.throwIfAny();
 
     // Don't let an admin demote themselves (would lock out the panel)
     if (req.user && req.user.userId === userId && isAdmin === false) {
-      res.status(400).json({ error: 'You cannot remove your own admin role' });
-      return;
+      return fail(req, res, 'ADMIN_CANNOT_DEMOTE_SELF');
     }
 
+    // Answer the same 404 code as GET/DELETE instead of letting Prisma's P2025
+    // surface as a generic NOT_FOUND.
+    const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!target) return fail(req, res, 'USER_NOT_FOUND');
+
     const data: Record<string, unknown> = {};
-    if (typeof isAdmin === 'boolean') data.isAdmin = isAdmin;
-    if (typeof plan === 'string' && ['individual', 'teams'].includes(plan)) data.plan = plan;
-    if (typeof firstName === 'string' && firstName.trim()) data.firstName = firstName.trim();
-    if (typeof lastName === 'string' && lastName.trim()) data.lastName = lastName.trim();
-    if (typeof password === 'string' && password.length >= 8) {
-      data.password = await bcrypt.hash(password, 10);
-    }
+    if (isAdmin !== undefined) data.isAdmin = isAdmin;
+    if (plan) data.plan = plan;
+    if (firstName) data.firstName = firstName;
+    if (lastName) data.lastName = lastName;
+    if (password) data.password = await bcrypt.hash(password, 10);
 
     const user = await prisma.user.update({
       where: { id: userId },
@@ -406,8 +438,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
 
     res.json({ user });
   } catch (error) {
-    console.error('Update user error:', error);
-    res.status(500).json({ error: 'Failed to update user' });
+    return handleError(req, res, error, 'ADMIN_USER_UPDATE_FAILED');
   }
 };
 
@@ -426,8 +457,7 @@ export const listConversations = async (req: Request, res: Response): Promise<vo
     const minMessages = req.query.minMessages ? Number(req.query.minMessages) : undefined;
     const startDate = String(req.query.startDate || '').trim();
     const endDate = String(req.query.endDate || '').trim();
-    const limit = Math.min(Number(req.query.limit) || 50, 200);
-    const offset = Number(req.query.offset) || 0;
+    const { limit, offset } = pagination(req.query, { limit: 50, maxLimit: 200 });
 
     const where: Record<string, unknown> = {};
     if (platform) where.platform = platform;
@@ -501,8 +531,7 @@ export const listConversations = async (req: Request, res: Response): Promise<vo
       total: minMessages !== undefined && !Number.isNaN(minMessages) ? conversations.length : total,
     });
   } catch (error) {
-    console.error('List conversations error:', error);
-    res.status(500).json({ error: 'Failed to list conversations' });
+    return handleError(req, res, error, 'ADMIN_CONVERSATIONS_LIST_FAILED');
   }
 };
 
@@ -524,15 +553,11 @@ export const getConversationDetails = async (req: Request, res: Response): Promi
       },
     });
 
-    if (!conversation) {
-      res.status(404).json({ error: 'Conversation not found' });
-      return;
-    }
+    if (!conversation) return fail(req, res, 'CONVERSATION_NOT_FOUND');
 
     res.json({ conversation });
   } catch (error) {
-    console.error('Get conversation details error:', error);
-    res.status(500).json({ error: 'Failed to fetch conversation' });
+    return handleError(req, res, error, 'ADMIN_CONVERSATION_FETCH_FAILED');
   }
 };
 
@@ -543,8 +568,7 @@ export const getConversationDetails = async (req: Request, res: Response): Promi
 export const listAdminProducts = async (req: Request, res: Response): Promise<void> => {
   try {
     const search = String(req.query.search || '').trim();
-    const limit = Math.min(Number(req.query.limit) || 50, 200);
-    const offset = Number(req.query.offset) || 0;
+    const { limit, offset } = pagination(req.query, { limit: 50, maxLimit: 200 });
     const lowStockOnly = req.query.lowStock === 'true';
     const userId = String(req.query.userId || '').trim();
     const categoryId = String(req.query.categoryId || '').trim();
@@ -626,8 +650,7 @@ export const listAdminProducts = async (req: Request, res: Response): Promise<vo
 
     res.json({ products: filteredByLow, total: lowStockOnly ? filteredByLow.length : total });
   } catch (error) {
-    console.error('List admin products error:', error);
-    res.status(500).json({ error: 'Failed to list products' });
+    return handleError(req, res, error, 'ADMIN_PRODUCTS_LIST_FAILED');
   }
 };
 
@@ -635,7 +658,7 @@ export const listAdminProducts = async (req: Request, res: Response): Promise<vo
 // Lookup data for filter dropdowns
 // ============================================================================
 
-export const listAllCategories = async (_req: Request, res: Response): Promise<void> => {
+export const listAllCategories = async (req: Request, res: Response): Promise<void> => {
   try {
     const categories = await prisma.category.findMany({
       select: { id: true, name: true, userId: true },
@@ -644,12 +667,11 @@ export const listAllCategories = async (_req: Request, res: Response): Promise<v
     });
     res.json({ categories });
   } catch (error) {
-    console.error('List all categories error:', error);
-    res.status(500).json({ error: 'Failed to list categories' });
+    return handleError(req, res, error, 'ADMIN_LOOKUP_FAILED');
   }
 };
 
-export const listAllPages = async (_req: Request, res: Response): Promise<void> => {
+export const listAllPages = async (req: Request, res: Response): Promise<void> => {
   try {
     const pages = await prisma.page.findMany({
       select: { id: true, pageName: true, platform: true, userId: true },
@@ -658,12 +680,11 @@ export const listAllPages = async (_req: Request, res: Response): Promise<void> 
     });
     res.json({ pages });
   } catch (error) {
-    console.error('List all pages error:', error);
-    res.status(500).json({ error: 'Failed to list pages' });
+    return handleError(req, res, error, 'ADMIN_LOOKUP_FAILED');
   }
 };
 
-export const listAllAgents = async (_req: Request, res: Response): Promise<void> => {
+export const listAllAgents = async (req: Request, res: Response): Promise<void> => {
   try {
     const agents = await prisma.agent.findMany({
       select: { id: true, name: true, userId: true },
@@ -672,8 +693,7 @@ export const listAllAgents = async (_req: Request, res: Response): Promise<void>
     });
     res.json({ agents });
   } catch (error) {
-    console.error('List all agents error:', error);
-    res.status(500).json({ error: 'Failed to list agents' });
+    return handleError(req, res, error, 'ADMIN_LOOKUP_FAILED');
   }
 };
 
@@ -687,37 +707,29 @@ export const listAllAgents = async (_req: Request, res: Response): Promise<void>
 
 export const updateAdminProfile = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-    const { firstName, lastName, password, currentPassword } = req.body;
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+    const body = (req.body ?? {}) as Record<string, unknown>;
+
+    const v = new Validator();
+    const firstName = v.optionalString(body.firstName, 'firstName', { max: 100 });
+    const lastName = v.optionalString(body.lastName, 'lastName', { max: 100 });
+    const wantsPassword = typeof body.password === 'string' && body.password.trim() !== '';
+    const password = wantsPassword ? v.requiredString(body.password, 'password', { min: 8, max: 128 }) : null;
+    const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : '';
+    v.throwIfAny();
 
     const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
-    if (!user) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
+    if (!user) return fail(req, res, 'USER_NOT_FOUND');
 
     const data: Record<string, unknown> = {};
-    if (typeof firstName === 'string' && firstName.trim()) data.firstName = firstName.trim();
-    if (typeof lastName === 'string' && lastName.trim()) data.lastName = lastName.trim();
+    if (firstName) data.firstName = firstName;
+    if (lastName) data.lastName = lastName;
 
     // Password change requires the current password
-    if (typeof password === 'string' && password.trim()) {
-      if (password.length < 8) {
-        res.status(400).json({ error: 'Password must be at least 8 characters' });
-        return;
-      }
-      if (!currentPassword || typeof currentPassword !== 'string') {
-        res.status(400).json({ error: 'Current password is required to change password' });
-        return;
-      }
+    if (password) {
+      if (!currentPassword) return fail(req, res, 'ADMIN_CURRENT_PASSWORD_REQUIRED');
       const valid = await bcrypt.compare(currentPassword, user.password);
-      if (!valid) {
-        res.status(400).json({ error: 'Current password is incorrect' });
-        return;
-      }
+      if (!valid) return fail(req, res, 'ADMIN_CURRENT_PASSWORD_INCORRECT');
       data.password = await bcrypt.hash(password, 10);
     }
 
@@ -736,8 +748,7 @@ export const updateAdminProfile = async (req: Request, res: Response): Promise<v
 
     res.json({ user: updated });
   } catch (error) {
-    console.error('Update admin profile error:', error);
-    res.status(500).json({ error: 'Failed to update profile' });
+    return handleError(req, res, error, 'ADMIN_PROFILE_UPDATE_FAILED');
   }
 };
 
@@ -756,15 +767,17 @@ export const listSubscriptions = async (req: Request, res: Response): Promise<vo
     const status = String(req.query.status || '').trim();
     const planSlug = String(req.query.planSlug || '').trim();
     const search = String(req.query.search || '').trim();
-    const expiringBefore = String(req.query.expiringBefore || '').trim();
-    const limit = Math.min(Number(req.query.limit) || 100, 500);
-    const offset = Number(req.query.offset) || 0;
+    const { limit, offset } = pagination(req.query, { limit: 100, maxLimit: 500 });
+
+    const v = new Validator();
+    const expiringBefore = v.date(req.query.expiringBefore, 'expiringBefore');
+    v.throwIfAny();
 
     const where: Record<string, unknown> = {};
     if (status) where.status = status;
     if (planSlug) where.planSlug = planSlug;
     if (expiringBefore) {
-      where.endDate = { lte: new Date(expiringBefore) };
+      where.endDate = { lte: expiringBefore };
     }
 
     const [subs, total] = await Promise.all([
@@ -819,48 +832,43 @@ export const listSubscriptions = async (req: Request, res: Response): Promise<vo
 
     res.json({ subscriptions: enriched, total: search ? enriched.length : total });
   } catch (error) {
-    console.error('List subscriptions error:', error);
-    res.status(500).json({ error: 'Failed to list subscriptions' });
+    return handleError(req, res, error, 'SUBSCRIPTION_LIST_FAILED');
   }
 };
 
 export const createSubscription = async (req: Request, res: Response): Promise<void> => {
   try {
-    const {
-      userId,
-      planSlug,
-      billingCycle = 'monthly',
-      startDate,
-      endDate,
-      status = 'active',
-      notes,
-      chargilySubscriptionId,
-      chargilyCustomerId,
-    } = req.body;
+    const body = (req.body ?? {}) as Record<string, unknown>;
 
-    if (!userId || !planSlug) {
-      res.status(400).json({ error: 'userId and planSlug are required' });
-      return;
-    }
+    const v = new Validator();
+    const userId = v.requiredString(body.userId, 'userId', { max: 64 });
+    const planSlug = v.requiredString(body.planSlug, 'planSlug', { max: 100 });
+    const billingCycle = v.oneOf(body.billingCycle, 'billingCycle', BILLING_CYCLES, 'monthly');
+    const status = v.oneOf(body.status, 'status', SUBSCRIPTION_STATUSES, 'active');
+    const startDate = v.date(body.startDate, 'startDate');
+    const endDate = v.date(body.endDate, 'endDate');
+    const notes = v.optionalString(body.notes, 'notes', { max: 2000 });
+    const chargilySubscriptionId = v.optionalString(body.chargilySubscriptionId, 'chargilySubscriptionId', { max: 191 });
+    const chargilyCustomerId = v.optionalString(body.chargilyCustomerId, 'chargilyCustomerId', { max: 191 });
+    v.throwIfAny();
+
+    const start = startDate ?? new Date();
+    const end = endDate ?? monthsLater(start, billingCycle === 'yearly' ? 12 : 1);
+    if (end.getTime() < start.getTime()) return fail(req, res, 'INVALID_DATE_RANGE');
 
     // Verify the user and plan exist
     const [user, plan] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId } }),
       prisma.plan.findUnique({ where: { slug: planSlug } }),
     ]);
-    if (!user) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
-    if (!plan) {
-      res.status(404).json({ error: 'Plan not found' });
-      return;
-    }
+    if (!user) return fail(req, res, 'USER_NOT_FOUND');
+    if (!plan) return fail(req, res, 'PLAN_NOT_FOUND');
 
-    const start = startDate ? new Date(startDate) : new Date();
-    const end = endDate
-      ? new Date(endDate)
-      : monthsLater(start, billingCycle === 'yearly' ? 12 : 1);
+    // Business rule: one active subscription per user
+    if (status === 'active') {
+      const active = await prisma.subscription.findFirst({ where: { userId, status: 'active' }, select: { id: true } });
+      if (active) return fail(req, res, 'SUBSCRIPTION_ALREADY_ACTIVE');
+    }
 
     const sub = await prisma.subscription.create({
       data: {
@@ -870,9 +878,9 @@ export const createSubscription = async (req: Request, res: Response): Promise<v
         startDate: start,
         endDate: end,
         status,
-        notes: notes || null,
-        chargilySubscriptionId: chargilySubscriptionId || null,
-        chargilyCustomerId: chargilyCustomerId || null,
+        notes,
+        chargilySubscriptionId,
+        chargilyCustomerId,
       },
     });
 
@@ -884,21 +892,61 @@ export const createSubscription = async (req: Request, res: Response): Promise<v
 
     res.status(201).json({ subscription: sub });
   } catch (error) {
-    console.error('Create subscription error:', error);
-    res.status(500).json({ error: 'Failed to create subscription' });
+    return handleError(req, res, error, 'SUBSCRIPTION_CREATE_FAILED');
   }
 };
 
 export const updateSubscription = async (req: Request, res: Response): Promise<void> => {
   try {
     const subId = String(req.params.subId);
-    const data: Record<string, unknown> = { ...req.body };
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const has = (k: string) => body[k] !== undefined && body[k] !== null;
 
-    if (data.startDate) data.startDate = new Date(String(data.startDate));
-    if (data.endDate) data.endDate = new Date(String(data.endDate));
-    if (data.status === 'cancelled' && !data.cancelledAt) {
-      data.cancelledAt = new Date();
+    // Whitelist the editable fields (no mass assignment into Prisma)
+    const v = new Validator();
+    const planSlug = has('planSlug') ? v.requiredString(body.planSlug, 'planSlug', { max: 100 }) : undefined;
+    const billingCycle = has('billingCycle') ? v.oneOf(body.billingCycle, 'billingCycle', BILLING_CYCLES) : undefined;
+    const status = has('status') ? v.oneOf(body.status, 'status', SUBSCRIPTION_STATUSES) : undefined;
+    const startDate = has('startDate') ? v.date(body.startDate, 'startDate', { required: true }) : undefined;
+    const endDate = has('endDate') ? v.date(body.endDate, 'endDate', { required: true }) : undefined;
+    const cancelledAt = has('cancelledAt') ? v.date(body.cancelledAt, 'cancelledAt', { required: true }) : undefined;
+    const notes = body.notes === undefined ? undefined : v.optionalString(body.notes, 'notes', { max: 2000 });
+    const chargilySubscriptionId = body.chargilySubscriptionId === undefined ? undefined : v.optionalString(body.chargilySubscriptionId, 'chargilySubscriptionId', { max: 191 });
+    const chargilyCustomerId = body.chargilyCustomerId === undefined ? undefined : v.optionalString(body.chargilyCustomerId, 'chargilyCustomerId', { max: 191 });
+    v.throwIfAny();
+
+    const existing = await prisma.subscription.findUnique({ where: { id: subId } });
+    if (!existing) return fail(req, res, 'SUBSCRIPTION_NOT_FOUND');
+
+    if (planSlug !== undefined && planSlug !== existing.planSlug) {
+      const plan = await prisma.plan.findUnique({ where: { slug: planSlug }, select: { id: true } });
+      if (!plan) return fail(req, res, 'PLAN_NOT_FOUND');
     }
+
+    const finalStart = startDate ?? existing.startDate;
+    const finalEnd = endDate ?? existing.endDate;
+    if (finalEnd.getTime() < finalStart.getTime()) return fail(req, res, 'INVALID_DATE_RANGE');
+
+    if (status === 'active' && existing.status !== 'active') {
+      const other = await prisma.subscription.findFirst({
+        where: { userId: existing.userId, status: 'active', id: { not: subId } },
+        select: { id: true },
+      });
+      if (other) return fail(req, res, 'SUBSCRIPTION_ALREADY_ACTIVE');
+    }
+
+    const data: Record<string, unknown> = {};
+    if (planSlug !== undefined) data.planSlug = planSlug;
+    if (billingCycle !== undefined) data.billingCycle = billingCycle;
+    if (status !== undefined) data.status = status;
+    if (startDate) data.startDate = startDate;
+    if (endDate) data.endDate = endDate;
+    if (cancelledAt) data.cancelledAt = cancelledAt;
+    if (notes !== undefined) data.notes = notes;
+    if (chargilySubscriptionId !== undefined) data.chargilySubscriptionId = chargilySubscriptionId;
+    if (chargilyCustomerId !== undefined) data.chargilyCustomerId = chargilyCustomerId;
+    if (status === 'cancelled' && !cancelledAt && !existing.cancelledAt) data.cancelledAt = new Date();
+    if (Object.keys(data).length === 0) return fail(req, res, 'SUBSCRIPTION_NO_CHANGES');
 
     const sub = await prisma.subscription.update({
       where: { id: subId },
@@ -906,28 +954,28 @@ export const updateSubscription = async (req: Request, res: Response): Promise<v
     });
 
     // If planSlug changed, sync user.plan
-    if (typeof data.planSlug === 'string') {
+    if (planSlug !== undefined) {
       await prisma.user.update({
         where: { id: sub.userId },
-        data: { plan: data.planSlug },
+        data: { plan: planSlug },
       });
     }
 
     res.json({ subscription: sub });
   } catch (error) {
-    console.error('Update subscription error:', error);
-    res.status(500).json({ error: 'Failed to update subscription' });
+    return handleError(req, res, error, 'SUBSCRIPTION_UPDATE_FAILED');
   }
 };
 
 export const deleteSubscription = async (req: Request, res: Response): Promise<void> => {
   try {
     const subId = String(req.params.subId);
+    const existing = await prisma.subscription.findUnique({ where: { id: subId }, select: { id: true } });
+    if (!existing) return fail(req, res, 'SUBSCRIPTION_NOT_FOUND');
     await prisma.subscription.delete({ where: { id: subId } });
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete subscription error:', error);
-    res.status(500).json({ error: 'Failed to delete subscription' });
+    return handleError(req, res, error, 'SUBSCRIPTION_DELETE_FAILED');
   }
 };
 
@@ -947,8 +995,7 @@ export const listCmsPages = async (req: Request, res: Response): Promise<void> =
     });
     res.json({ pages });
   } catch (error) {
-    console.error('List CMS pages error:', error);
-    res.status(500).json({ error: 'Failed to list pages' });
+    return handleError(req, res, error, 'CMS_LIST_FAILED');
   }
 };
 
@@ -956,52 +1003,55 @@ export const getCmsPage = async (req: Request, res: Response): Promise<void> => 
   try {
     const slug = String(req.params.slug);
     const page = await prisma.cmsPage.findUnique({ where: { slug } });
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
+    if (!page) return fail(req, res, 'CMS_PAGE_NOT_FOUND');
     res.json({ page });
   } catch (error) {
-    console.error('Get CMS page error:', error);
-    res.status(500).json({ error: 'Failed to fetch page' });
+    return handleError(req, res, error, 'CMS_FETCH_FAILED');
   }
 };
 
 export const upsertCmsPage = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { slug, title, category, content, isPublished = true, sortOrder = 0 } = req.body;
-    if (!slug || !title || !category) {
-      res.status(400).json({ error: 'slug, title, and category are required' });
-      return;
-    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+
+    const v = new Validator();
+    const slug = v.requiredString(body.slug, 'slug', { max: 100 }).toLowerCase();
+    if (slug && !SLUG_RE.test(slug)) v.add('slug', 'FIELD_INVALID');
+    const title = v.requiredString(body.title, 'title', { max: 200 });
+    const category = v.oneOf(body.category, 'category', CMS_CATEGORIES);
+    const content = typeof body.content === 'string' ? body.content : '';
+    if (content.trim() === '') v.add('content', 'FIELD_REQUIRED');
+    const isPublished = v.boolean(body.isPublished, 'isPublished', true);
+    const sortOrder = v.integer(body.sortOrder, 'sortOrder', { required: false, def: 0, min: 0 });
+    v.throwIfAny();
 
     const page = await prisma.cmsPage.upsert({
-      where: { slug: String(slug).toLowerCase() },
-      update: { title, category, content: content || '', isPublished, sortOrder },
+      where: { slug },
+      update: { title, category, content, isPublished, sortOrder },
       create: {
-        slug: String(slug).toLowerCase(),
+        slug,
         title,
         category,
-        content: content || '',
+        content,
         isPublished,
         sortOrder,
       },
     });
     res.json({ page });
   } catch (error) {
-    console.error('Upsert CMS page error:', error);
-    res.status(500).json({ error: 'Failed to save page' });
+    return handleError(req, res, error, 'CMS_SAVE_FAILED');
   }
 };
 
 export const deleteCmsPage = async (req: Request, res: Response): Promise<void> => {
   try {
     const slug = String(req.params.slug);
+    const existing = await prisma.cmsPage.findUnique({ where: { slug }, select: { id: true } });
+    if (!existing) return fail(req, res, 'CMS_PAGE_NOT_FOUND');
     await prisma.cmsPage.delete({ where: { slug } });
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete CMS page error:', error);
-    res.status(500).json({ error: 'Failed to delete page' });
+    return handleError(req, res, error, 'CMS_DELETE_FAILED');
   }
 };
 
@@ -1020,7 +1070,7 @@ const parsePlan = (p: { features: string } & Record<string, unknown>) => ({
   })(),
 });
 
-export const listPlans = async (_req: Request, res: Response): Promise<void> => {
+export const listPlans = async (req: Request, res: Response): Promise<void> => {
   try {
     const plans = await prisma.plan.findMany({
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
@@ -1038,81 +1088,121 @@ export const listPlans = async (_req: Request, res: Response): Promise<void> => 
       })),
     });
   } catch (error) {
-    console.error('List plans error:', error);
-    res.status(500).json({ error: 'Failed to list plans' });
+    return handleError(req, res, error, 'PLAN_LIST_FAILED');
   }
 };
 
 export const createPlan = async (req: Request, res: Response): Promise<void> => {
   try {
-    const {
-      slug,
-      name,
-      description,
-      priceMonthly = 0,
-      priceYearly = 0,
-      currency = 'DA',
-      maxPages = 1,
-      maxAgents = 1,
-      maxProducts = 50,
-      maxConversations = 100,
-      maxTeamMembers = 1,
-      monthlyCredits = 500,
-      features = [],
-      isActive = true,
-      isFeatured = false,
-      sortOrder = 0,
-      chargilyProductId,
-      chargilyPriceMonthlyId,
-      chargilyPriceYearlyId,
-    } = req.body;
+    const body = (req.body ?? {}) as Record<string, unknown>;
 
-    if (!slug || !name) {
-      res.status(400).json({ error: 'slug and name are required' });
-      return;
-    }
+    const v = new Validator();
+    const rawSlug = v.requiredString(body.slug, 'slug', { max: 100 });
+    const slug = rawSlug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    if (rawSlug && !SLUG_RE.test(slug)) v.add('slug', 'FIELD_INVALID');
+    const name = v.requiredString(body.name, 'name', { max: 120 });
+    const description = v.optionalString(body.description, 'description', { max: 5000 });
+    const priceMonthly = v.number(body.priceMonthly, 'priceMonthly', { required: false, def: 0, min: 0 });
+    const priceYearly = v.number(body.priceYearly, 'priceYearly', { required: false, def: 0, min: 0 });
+    const currency = v.optionalString(body.currency, 'currency', { max: 5 }) ?? 'DA';
+    if (!CURRENCY_RE.test(currency)) v.add('currency', 'FIELD_INVALID');
+    const maxPages = v.integer(body.maxPages, 'maxPages', { required: false, def: 1, min: -1 });
+    const maxAgents = v.integer(body.maxAgents, 'maxAgents', { required: false, def: 1, min: -1 });
+    const maxProducts = v.integer(body.maxProducts, 'maxProducts', { required: false, def: 50, min: -1 });
+    const maxConversations = v.integer(body.maxConversations, 'maxConversations', { required: false, def: 100, min: -1 });
+    const maxTeamMembers = v.integer(body.maxTeamMembers, 'maxTeamMembers', { required: false, def: 1, min: -1 });
+    const monthlyCredits = v.integer(body.monthlyCredits, 'monthlyCredits', { required: false, def: 500, min: -1 });
+    const features = featureList(v, body.features, 'features') ?? [];
+    const isActive = v.boolean(body.isActive, 'isActive', true);
+    const isFeatured = v.boolean(body.isFeatured, 'isFeatured', false);
+    const sortOrder = v.integer(body.sortOrder, 'sortOrder', { required: false, def: 0, min: 0 });
+    const chargilyProductId = v.optionalString(body.chargilyProductId, 'chargilyProductId', { max: 191 });
+    const chargilyPriceMonthlyId = v.optionalString(body.chargilyPriceMonthlyId, 'chargilyPriceMonthlyId', { max: 191 });
+    const chargilyPriceYearlyId = v.optionalString(body.chargilyPriceYearlyId, 'chargilyPriceYearlyId', { max: 191 });
+    v.throwIfAny();
+
+    const taken = await prisma.plan.findUnique({ where: { slug }, select: { id: true } });
+    if (taken) return fail(req, res, 'PLAN_SLUG_TAKEN', { slug });
 
     const plan = await prisma.plan.create({
       data: {
-        slug: String(slug).toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+        slug,
         name,
-        description: description || null,
+        description,
         priceMonthly,
         priceYearly,
-        currency,
+        currency: currency.toUpperCase(),
         maxPages,
         maxAgents,
         maxProducts,
         maxConversations,
         maxTeamMembers,
-        monthlyCredits: Number(monthlyCredits) || 500,
+        monthlyCredits,
         features: JSON.stringify(features),
         isActive,
         isFeatured,
         sortOrder,
-        chargilyProductId: chargilyProductId || null,
-        chargilyPriceMonthlyId: chargilyPriceMonthlyId || null,
-        chargilyPriceYearlyId: chargilyPriceYearlyId || null,
+        chargilyProductId,
+        chargilyPriceMonthlyId,
+        chargilyPriceYearlyId,
       },
     });
 
     res.status(201).json({ plan: parsePlan(plan) });
   } catch (error) {
-    console.error('Create plan error:', error);
-    res.status(500).json({ error: 'Failed to create plan' });
+    return handleError(req, res, error, 'PLAN_CREATE_FAILED');
   }
 };
 
 export const updatePlan = async (req: Request, res: Response): Promise<void> => {
   try {
     const planId = String(req.params.planId);
-    const data: Record<string, unknown> = { ...req.body };
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const has = (k: string) => body[k] !== undefined && body[k] !== null;
 
-    if (data.features && Array.isArray(data.features)) {
-      data.features = JSON.stringify(data.features);
+    // Whitelist the editable fields (no mass assignment into Prisma)
+    const v = new Validator();
+    const data: Record<string, unknown> = {};
+
+    if (has('slug')) {
+      const rawSlug = v.requiredString(body.slug, 'slug', { max: 100 });
+      const slug = rawSlug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+      if (rawSlug && !SLUG_RE.test(slug)) v.add('slug', 'FIELD_INVALID');
+      data.slug = slug;
     }
-    if (data.slug) {
-      data.slug = String(data.slug).toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    if (has('name')) data.name = v.requiredString(body.name, 'name', { max: 120 });
+    if (body.description !== undefined) data.description = v.optionalString(body.description, 'description', { max: 5000 });
+    if (has('priceMonthly')) data.priceMonthly = v.number(body.priceMonthly, 'priceMonthly', { min: 0 });
+    if (has('priceYearly')) data.priceYearly = v.number(body.priceYearly, 'priceYearly', { min: 0 });
+    if (has('currency')) {
+      const currency = v.requiredString(body.currency, 'currency', { max: 5 });
+      if (currency && !CURRENCY_RE.test(currency)) v.add('currency', 'FIELD_INVALID');
+      data.currency = currency.toUpperCase();
+    }
+    for (const limitField of ['maxPages', 'maxAgents', 'maxProducts', 'maxConversations', 'maxTeamMembers', 'monthlyCredits'] as const) {
+      if (has(limitField)) data[limitField] = v.integer(body[limitField], limitField, { min: -1 });
+    }
+    if (has('features')) {
+      const features = featureList(v, body.features, 'features');
+      if (features) data.features = JSON.stringify(features);
+    }
+    for (const boolField of ['isActive', 'isFeatured'] as const) {
+      const b = optionalBool(v, body[boolField], boolField);
+      if (b !== undefined) data[boolField] = b;
+    }
+    if (has('sortOrder')) data.sortOrder = v.integer(body.sortOrder, 'sortOrder', { min: 0 });
+    for (const idField of ['chargilyProductId', 'chargilyPriceMonthlyId', 'chargilyPriceYearlyId'] as const) {
+      if (body[idField] !== undefined) data[idField] = v.optionalString(body[idField], idField, { max: 191 });
+    }
+    v.throwIfAny();
+    if (Object.keys(data).length === 0) return fail(req, res, 'PLAN_NO_CHANGES');
+
+    const existing = await prisma.plan.findUnique({ where: { id: planId }, select: { id: true, slug: true } });
+    if (!existing) return fail(req, res, 'PLAN_NOT_FOUND');
+
+    if (typeof data.slug === 'string' && data.slug !== existing.slug) {
+      const taken = await prisma.plan.findUnique({ where: { slug: data.slug }, select: { id: true } });
+      if (taken) return fail(req, res, 'PLAN_SLUG_TAKEN', { slug: data.slug });
     }
 
     const plan = await prisma.plan.update({
@@ -1121,19 +1211,29 @@ export const updatePlan = async (req: Request, res: Response): Promise<void> => 
     });
     res.json({ plan: parsePlan(plan) });
   } catch (error) {
-    console.error('Update plan error:', error);
-    res.status(500).json({ error: 'Failed to update plan' });
+    return handleError(req, res, error, 'PLAN_UPDATE_FAILED');
   }
 };
 
 export const deletePlan = async (req: Request, res: Response): Promise<void> => {
   try {
     const planId = String(req.params.planId);
+    const existing = await prisma.plan.findUnique({ where: { id: planId }, select: { id: true, slug: true } });
+    if (!existing) return fail(req, res, 'PLAN_NOT_FOUND');
+
+    // Business rule: a plan still assigned to users (or active subscriptions) cannot be removed
+    const [usersOnPlan, activeSubs] = await Promise.all([
+      prisma.user.count({ where: { plan: existing.slug } }),
+      prisma.subscription.count({ where: { planSlug: existing.slug, status: { in: ['active', 'trial'] } } }),
+    ]);
+    if (usersOnPlan > 0 || activeSubs > 0) {
+      return fail(req, res, 'PLAN_IN_USE', { count: Math.max(usersOnPlan, activeSubs) });
+    }
+
     await prisma.plan.delete({ where: { id: planId } });
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete plan error:', error);
-    res.status(500).json({ error: 'Failed to delete plan' });
+    return handleError(req, res, error, 'PLAN_DELETE_FAILED');
   }
 };
 
@@ -1141,15 +1241,14 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
   try {
     const userId = String(req.params.userId);
 
-    if (req.user && req.user.userId === userId) {
-      res.status(400).json({ error: 'You cannot delete your own account' });
-      return;
-    }
+    if (req.user && req.user.userId === userId) return fail(req, res, 'ADMIN_CANNOT_DELETE_SELF');
+
+    const existing = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!existing) return fail(req, res, 'USER_NOT_FOUND');
 
     await prisma.user.delete({ where: { id: userId } });
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete user error:', error);
-    res.status(500).json({ error: 'Failed to delete user' });
+    return handleError(req, res, error, 'ADMIN_USER_DELETE_FAILED');
   }
 };

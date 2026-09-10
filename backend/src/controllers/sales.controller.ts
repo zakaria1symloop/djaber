@@ -1,5 +1,19 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
+import { ApiError, fail, handleError } from '../errors';
+import { Validator, pagination } from '../middleware/validate';
+import { ownedPage } from './stock.controller';
+
+const PAYMENT_METHODS = ['cash', 'card', 'transfer', 'other'] as const;
+const PAYMENT_STATUSES = ['paid', 'pending', 'partial'] as const;
+const PERIODS = ['today', 'week', 'month', 'year'] as const;
+
+interface SaleItemInput {
+  productId: string;
+  quantity: number;
+  unitPrice: number | null;
+  discount: number;
+}
 
 // Generate sale number
 const generateSaleNumber = async (pageId: string): Promise<string> => {
@@ -23,41 +37,48 @@ const generateSaleNumber = async (pageId: string): Promise<string> => {
   return `SL-${dateStr}-${sequence.toString().padStart(4, '0')}`;
 };
 
+/** Validate the `items` array of a sale: non-empty, numeric quantities, no duplicate products. */
+const validateSaleItems = (v: Validator, raw: unknown): SaleItemInput[] => {
+  const list = v.nonEmptyArray<Record<string, unknown>>(raw, 'items', 'product');
+  const items = list.map((item, i) => {
+    const it = (item ?? {}) as Record<string, unknown>;
+    return {
+      productId: v.requiredString(it.productId, `items[${i}].productId`, { max: 64 }),
+      quantity: v.integer(it.quantity, `items[${i}].quantity`, { positive: true }),
+      unitPrice: it.unitPrice === undefined || it.unitPrice === null || it.unitPrice === '' ? null : v.number(it.unitPrice, `items[${i}].unitPrice`, { min: 0 }),
+      discount: v.number(it.discount, `items[${i}].discount`, { required: false, def: 0, min: 0 }),
+    };
+  });
+  const ids = items.map((i) => i.productId).filter(Boolean);
+  if (new Set(ids).size !== ids.length) v.add('items', 'LEGACY_DUPLICATE_PRODUCTS');
+  return items;
+};
+
 // ============================================================================
 // Sales
 // ============================================================================
 
 export const getSales = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const pageId = req.params.pageId as string;
-    const {
-      startDate,
-      endDate,
-      paymentStatus,
-      limit = '50',
-      offset = '0'
-    } = req.query;
+    const { limit, offset } = pagination(req.query);
 
-    const page = await prisma.page.findFirst({
-      where: { id: pageId, userId: req.user.userId, isActive: true },
-    });
+    const v = new Validator();
+    const startDate = v.date(req.query.startDate, 'startDate');
+    const endDate = v.date(req.query.endDate, 'endDate');
+    const paymentStatus = req.query.paymentStatus ? v.oneOf(req.query.paymentStatus, 'paymentStatus', PAYMENT_STATUSES) : null;
+    if (startDate && endDate && startDate.getTime() > endDate.getTime()) v.add('endDate', 'INVALID_DATE_RANGE');
+    v.throwIfAny();
 
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
+    await ownedPage(req, pageId);
 
     const where: any = { pageId };
 
     if (startDate || endDate) {
       where.saleDate = {};
-      if (startDate) where.saleDate.gte = new Date(startDate as string);
-      if (endDate) where.saleDate.lte = new Date(endDate as string);
+      if (startDate) where.saleDate.gte = startDate;
+      if (endDate) where.saleDate.lte = endDate;
     }
 
     if (paymentStatus) {
@@ -75,37 +96,25 @@ export const getSales = async (req: Request, res: Response): Promise<void> => {
           },
         },
         orderBy: { saleDate: 'desc' },
-        skip: parseInt(offset as string, 10),
-        take: parseInt(limit as string, 10),
+        skip: offset,
+        take: limit,
       }),
       prisma.sale.count({ where }),
     ]);
 
     res.json({ sales, total });
   } catch (error) {
-    console.error('Get sales error:', error);
-    res.status(500).json({ error: 'Failed to fetch sales' });
+    return handleError(req, res, error, 'LEGACY_SALE_LIST_FAILED');
   }
 };
 
 export const getSale = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const pageId = req.params.pageId as string;
     const saleId = req.params.saleId as string;
 
-    const page = await prisma.page.findFirst({
-      where: { id: pageId, userId: req.user.userId, isActive: true },
-    });
-
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
+    await ownedPage(req, pageId);
 
     const sale = await prisma.sale.findFirst({
       where: { id: saleId, pageId },
@@ -118,80 +127,56 @@ export const getSale = async (req: Request, res: Response): Promise<void> => {
       },
     });
 
-    if (!sale) {
-      res.status(404).json({ error: 'Sale not found' });
-      return;
-    }
+    if (!sale) return fail(req, res, 'SALE_NOT_FOUND');
 
     res.json({ sale });
   } catch (error) {
-    console.error('Get sale error:', error);
-    res.status(500).json({ error: 'Failed to fetch sale' });
+    return handleError(req, res, error, 'LEGACY_SALE_FETCH_FAILED');
   }
 };
 
 export const createSale = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const pageId = req.params.pageId as string;
-    const {
-      customerName,
-      customerPhone,
-      items,
-      discount = 0,
-      tax = 0,
-      paymentMethod = 'cash',
-      paymentStatus = 'paid',
-      notes,
-    } = req.body;
+    const body = (req.body ?? {}) as Record<string, unknown>;
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      res.status(400).json({ error: 'At least one item is required' });
-      return;
-    }
+    const v = new Validator();
+    const customerName = v.optionalString(body.customerName, 'customerName', { max: 200 });
+    const customerPhone = v.phone(body.customerPhone, 'customerPhone', false);
+    const items = validateSaleItems(v, body.items);
+    const discount = v.number(body.discount, 'discount', { required: false, def: 0, min: 0 });
+    const tax = v.number(body.tax, 'tax', { required: false, def: 0, min: 0 });
+    const paymentMethod = v.oneOf(body.paymentMethod, 'paymentMethod', PAYMENT_METHODS, 'cash');
+    const paymentStatus = v.oneOf(body.paymentStatus, 'paymentStatus', PAYMENT_STATUSES, 'paid');
+    const notes = v.optionalString(body.notes, 'notes', { max: 2000 });
+    v.throwIfAny();
 
-    const page = await prisma.page.findFirst({
-      where: { id: pageId, userId: req.user.userId, isActive: true },
-    });
+    await ownedPage(req, pageId);
 
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
-
-    // Verify all products exist and have enough stock
-    const productIds = items.map((item: any) => item.productId);
+    // Verify all products exist on this page and have enough stock
+    const productIds = items.map((item) => item.productId);
     const products = await prisma.product.findMany({
       where: { id: { in: productIds }, pageId, isActive: true },
     });
 
-    if (products.length !== productIds.length) {
-      res.status(400).json({ error: 'One or more products not found' });
-      return;
-    }
+    if (products.length !== productIds.length) return fail(req, res, 'PRODUCTS_NOT_FOUND');
 
     // Check stock availability
     for (const item of items) {
       const product = products.find((p) => p.id === item.productId);
       if (!product) continue;
       if (product.quantity < item.quantity) {
-        res.status(400).json({
-          error: `Insufficient stock for ${product.name}. Available: ${product.quantity}`,
-        });
-        return;
+        return fail(req, res, 'LEGACY_INSUFFICIENT_STOCK', { product: product.name, available: product.quantity });
       }
     }
 
     // Calculate totals
     let subtotal = 0;
-    const saleItems = items.map((item: any) => {
+    const saleItems = items.map((item) => {
       const product = products.find((p) => p.id === item.productId)!;
-      const unitPrice = item.unitPrice || Number(product.sellingPrice);
-      const itemDiscount = item.discount || 0;
+      const unitPrice = item.unitPrice ?? Number(product.sellingPrice);
+      const itemDiscount = item.discount;
       const itemTotal = unitPrice * item.quantity - itemDiscount;
       subtotal += itemTotal;
 
@@ -217,15 +202,15 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
         data: {
           pageId,
           saleNumber,
-          customerName: customerName?.trim() || null,
-          customerPhone: customerPhone?.trim() || null,
+          customerName,
+          customerPhone,
           subtotal,
           discount,
           tax,
           total,
           paymentMethod,
           paymentStatus,
-          notes: notes?.trim() || null,
+          notes,
           items: {
             create: saleItems,
           },
@@ -235,6 +220,13 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
 
       // Update product quantities and create stock movements
       for (const item of items) {
+        // Re-check inside the transaction so concurrent sales cannot drive stock negative
+        const current = await tx.product.findFirst({ where: { id: item.productId, pageId }, select: { name: true, quantity: true } });
+        if (!current) throw new ApiError('PRODUCTS_NOT_FOUND');
+        if (current.quantity < item.quantity) {
+          throw new ApiError('LEGACY_INSUFFICIENT_STOCK', { product: current.name, available: current.quantity });
+        }
+
         await tx.product.update({
           where: { id: item.productId },
           data: { quantity: { decrement: item.quantity } },
@@ -257,45 +249,42 @@ export const createSale = async (req: Request, res: Response): Promise<void> => 
 
     res.status(201).json({ sale });
   } catch (error) {
-    console.error('Create sale error:', error);
-    res.status(500).json({ error: 'Failed to create sale' });
+    return handleError(req, res, error, 'LEGACY_SALE_CREATE_FAILED');
   }
 };
 
 export const updateSalePayment = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const pageId = req.params.pageId as string;
     const saleId = req.params.saleId as string;
-    const { paymentStatus, paymentMethod, notes } = req.body;
+    const body = (req.body ?? {}) as Record<string, unknown>;
 
-    const page = await prisma.page.findFirst({
-      where: { id: pageId, userId: req.user.userId, isActive: true },
-    });
+    const v = new Validator();
+    const paymentStatus = body.paymentStatus ? v.oneOf(body.paymentStatus, 'paymentStatus', PAYMENT_STATUSES) : undefined;
+    const paymentMethod = body.paymentMethod ? v.oneOf(body.paymentMethod, 'paymentMethod', PAYMENT_METHODS) : undefined;
+    const notes = body.notes === undefined ? undefined : v.optionalString(body.notes, 'notes', { max: 2000 });
+    v.throwIfAny();
 
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
+    await ownedPage(req, pageId);
+
+    // IDOR guard: the sale must belong to this page
+    const existing = await prisma.sale.findFirst({ where: { id: saleId, pageId }, select: { id: true } });
+    if (!existing) return fail(req, res, 'SALE_NOT_FOUND');
 
     const sale = await prisma.sale.update({
       where: { id: saleId },
       data: {
         ...(paymentStatus && { paymentStatus }),
         ...(paymentMethod && { paymentMethod }),
-        ...(notes !== undefined && { notes: notes?.trim() || null }),
+        ...(notes !== undefined && { notes }),
       },
       include: { items: true },
     });
 
     res.json({ sale });
   } catch (error) {
-    console.error('Update sale error:', error);
-    res.status(500).json({ error: 'Failed to update sale' });
+    return handleError(req, res, error, 'LEGACY_SALE_UPDATE_FAILED');
   }
 };
 
@@ -305,22 +294,14 @@ export const updateSalePayment = async (req: Request, res: Response): Promise<vo
 
 export const getSalesStats = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const pageId = req.params.pageId as string;
-    const { period = 'today' } = req.query;
 
-    const page = await prisma.page.findFirst({
-      where: { id: pageId, userId: req.user.userId, isActive: true },
-    });
+    const v = new Validator();
+    const period = v.oneOf(req.query.period, 'period', PERIODS, 'today');
+    v.throwIfAny();
 
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
+    await ownedPage(req, pageId);
 
     // Calculate date range
     const now = new Date();
@@ -386,7 +367,6 @@ export const getSalesStats = async (req: Request, res: Response): Promise<void> 
       topProducts,
     });
   } catch (error) {
-    console.error('Get sales stats error:', error);
-    res.status(500).json({ error: 'Failed to fetch sales stats' });
+    return handleError(req, res, error, 'LEGACY_SALE_STATS_FAILED');
   }
 };

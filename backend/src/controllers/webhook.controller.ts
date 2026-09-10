@@ -9,6 +9,7 @@ import { queueMessage } from '../services/message-batcher';
 import { hasCredits, consumeCredits, CREDIT_COSTS } from '../services/credits.service';
 import { transcribeAudio } from '../services/transcription.service';
 import prisma from '../config/database';
+import { fail, handleError } from '../errors';
 
 // Regex to extract [STATUS:OK|UNCLEAR|UNKNOWN|HANDOFF:detail] from end of AI response
 const STATUS_TAG_RE = /\[STATUS:(OK|UNCLEAR|UNKNOWN|HANDOFF)(?::([^\]]*))?\]\s*$/;
@@ -24,16 +25,18 @@ export const verifyMetaWebhook = async (
     const token = req.query['hub.verify_token'] as string;
     const challenge = req.query['hub.challenge'] as string;
 
+    if (!process.env.META_VERIFY_TOKEN) return fail(req, res, 'WEBHOOK_NOT_CONFIGURED');
+
     const result = verifyWebhook({ mode, token, challenge });
 
+    // Meta expects the raw hub.challenge echoed back with a 200.
     if (result) {
       res.status(200).send(result);
-    } else {
-      res.status(403).send('Forbidden');
+      return;
     }
+    return fail(req, res, 'WEBHOOK_VERIFICATION_FAILED');
   } catch (error) {
-    console.error('Webhook verification error:', error);
-    res.status(500).send('Internal Server Error');
+    handleError(req, res, error, 'WEBHOOK_FAILED');
   }
 };
 
@@ -63,16 +66,11 @@ export const handleDataDeletion = async (req: Request, res: Response): Promise<v
   try {
     const signedRequest = req.body?.signed_request;
     const appSecret = process.env.META_APP_SECRET;
-    if (!signedRequest || !appSecret) {
-      res.status(400).json({ error: 'Missing signed_request' });
-      return;
-    }
+    if (!appSecret) return fail(req, res, 'WEBHOOK_NOT_CONFIGURED');
+    if (typeof signedRequest !== 'string' || signedRequest.trim() === '') return fail(req, res, 'WEBHOOK_SIGNED_REQUEST_REQUIRED');
 
-    const data = parseSignedRequest(String(signedRequest), appSecret);
-    if (!data?.user_id) {
-      res.status(400).json({ error: 'Invalid signed_request' });
-      return;
-    }
+    const data = parseSignedRequest(signedRequest, appSecret);
+    if (!data?.user_id) return fail(req, res, 'WEBHOOK_SIGNED_REQUEST_INVALID');
 
     const userId = String(data.user_id);
     const confirmationCode = `del_${Date.now().toString(36)}_${userId.slice(-6)}`;
@@ -92,8 +90,7 @@ export const handleDataDeletion = async (req: Request, res: Response): Promise<v
       confirmation_code: confirmationCode,
     });
   } catch (error) {
-    console.error('Data deletion callback error:', error);
-    res.status(500).json({ error: 'Internal error' });
+    handleError(req, res, error, 'WEBHOOK_FAILED');
   }
 };
 

@@ -2,6 +2,7 @@ import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
 import fs from 'fs';
+import { ApiError } from '../errors';
 
 const IS_PROD = process.env.NODE_ENV === 'production';
 const GCS_BUCKET = process.env.GCS_BUCKET || 'djaber-prod-uploads';
@@ -33,13 +34,16 @@ const storage = multer.diskStorage({
   },
 });
 
+const ALLOWED_EXT = ['.jpeg', '.jpg', '.png', '.webp', '.gif'];
+const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
 const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  const allowed = ['.jpeg', '.jpg', '.png', '.webp', '.gif'];
   const ext = path.extname(file.originalname).toLowerCase();
-  if (allowed.includes(ext)) {
+  if (ALLOWED_EXT.includes(ext) && (!file.mimetype || ALLOWED_MIME.includes(file.mimetype))) {
     cb(null, true);
   } else {
-    cb(new Error('Only jpeg, png, webp, and gif images are allowed'));
+    // Surfaces as 400 UPLOAD_INVALID_TYPE through the global error handler.
+    cb(new ApiError('UPLOAD_INVALID_TYPE', { allowed: 'JPEG, PNG, WebP, GIF' }));
   }
 };
 

@@ -1,6 +1,49 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { generateAgentResponse } from '../services/ai.service';
+import { ApiError, fail, handleError } from '../errors';
+import { Validator } from '../middleware/validate';
+
+const PERSONALITIES = ['professional', 'friendly', 'casual', 'technical'] as const;
+const INSIGHT_STATUSES = ['pending', 'resolved', 'dismissed'] as const;
+const INSIGHT_ACTIONS = ['resolve', 'dismiss'] as const;
+const AGENT_LIMIT = 1;
+
+const AGENT_INCLUDE = {
+  pages: {
+    include: {
+      page: { select: { id: true, pageName: true, platform: true, pageId: true, isActive: true } },
+    },
+  },
+  products: {
+    include: {
+      product: { select: { id: true, name: true, sku: true, sellingPrice: true, imageUrl: true, isActive: true } },
+    },
+  },
+  _count: { select: { pages: true, products: true } },
+} as const;
+
+/** Optional array of string ids; `undefined` when absent (so "not provided" stays distinguishable). */
+function idList(v: Validator, value: unknown, field: string): string[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.some((x) => typeof x !== 'string' || x.trim() === '')) {
+    v.add(field, 'FIELD_INVALID');
+    return [];
+  }
+  return Array.from(new Set(value.map((x: string) => x.trim())));
+}
+
+/** Throws PAGE_NOT_FOUND / PRODUCT_NOT_FOUND when any id is not owned by the user. */
+async function assertOwnedLinks(userId: string, pageIds: string[] | undefined, productIds: string[] | undefined): Promise<void> {
+  if (pageIds && pageIds.length > 0) {
+    const owned = await prisma.page.findMany({ where: { id: { in: pageIds }, userId }, select: { id: true } });
+    if (owned.length !== pageIds.length) throw new ApiError('PAGE_NOT_FOUND');
+  }
+  if (productIds && productIds.length > 0) {
+    const owned = await prisma.product.findMany({ where: { id: { in: productIds }, userId }, select: { id: true } });
+    if (owned.length !== productIds.length) throw new ApiError('PRODUCT_NOT_FOUND');
+  }
+}
 
 // ============================================================================
 // Get Agents (list)
@@ -8,30 +51,17 @@ import { generateAgentResponse } from '../services/ai.service';
 
 export const getAgents = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const agents = await prisma.agent.findMany({
       where: { userId: req.user.userId },
-      include: {
-        pages: {
-          include: {
-            page: { select: { id: true, pageName: true, platform: true, pageId: true, isActive: true } },
-          },
-        },
-        products: {
-          include: {
-            product: { select: { id: true, name: true, sku: true, sellingPrice: true, imageUrl: true, isActive: true } },
-          },
-        },
-        _count: { select: { pages: true, products: true } },
-      },
+      include: AGENT_INCLUDE,
       orderBy: { createdAt: 'desc' },
     });
 
     res.json({ agents });
   } catch (error) {
-    console.error('Get agents error:', error);
-    res.status(500).json({ error: 'Failed to fetch agents' });
+    handleError(req, res, error, 'AGENT_LIST_FAILED');
   }
 };
 
@@ -41,7 +71,7 @@ export const getAgents = async (req: Request, res: Response): Promise<void> => {
 
 export const getAgent = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const agent = await prisma.agent.findFirst({
       where: { id: String(req.params.agentId), userId: req.user.userId },
@@ -59,12 +89,11 @@ export const getAgent = async (req: Request, res: Response): Promise<void> => {
       },
     });
 
-    if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
+    if (!agent) return fail(req, res, 'AGENT_NOT_FOUND');
 
     res.json({ agent });
   } catch (error) {
-    console.error('Get agent error:', error);
-    res.status(500).json({ error: 'Failed to fetch agent' });
+    handleError(req, res, error, 'AGENT_FETCH_FAILED');
   }
 };
 
@@ -74,106 +103,67 @@ export const getAgent = async (req: Request, res: Response): Promise<void> => {
 
 export const createAgent = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const {
-      name,
-      description,
-      personality = 'professional',
-      customInstructions,
-      productTemplate,
-      closingInstructions,
-      humanHandoffRules,
-      imageRecognition = false,
-      voiceTranscription = false,
-      responseDelay = 3,
-      aiModel = 'gpt-4',
-      temperature = 0.7,
-      maxTokens = 1000,
-      sellAllProducts = true,
-      pageIds = [],
-      productIds = [],
-    } = req.body;
+    const b = req.body ?? {};
+    const v = new Validator();
+    const name = v.requiredString(b.name, 'name', { max: 100 });
+    const description = v.optionalString(b.description, 'description', { max: 1000 });
+    const personality = v.oneOf(b.personality, 'personality', PERSONALITIES, 'professional');
+    const customInstructions = v.optionalString(b.customInstructions, 'customInstructions', { max: 10000 });
+    const productTemplate = v.optionalString(b.productTemplate, 'productTemplate', { max: 5000 });
+    const closingInstructions = v.optionalString(b.closingInstructions, 'closingInstructions', { max: 5000 });
+    const humanHandoffRules = v.optionalString(b.humanHandoffRules, 'humanHandoffRules', { max: 5000 });
+    const imageRecognition = v.boolean(b.imageRecognition, 'imageRecognition', false);
+    const voiceTranscription = v.boolean(b.voiceTranscription, 'voiceTranscription', false);
+    const responseDelay = v.integer(b.responseDelay, 'responseDelay', { min: 0, max: 60, required: false, def: 3 });
+    const aiModel = b.aiModel === undefined ? 'gpt-4' : v.requiredString(b.aiModel, 'aiModel', { max: 100 });
+    const temperature = v.number(b.temperature, 'temperature', { min: 0, max: 2, required: false, def: 0.7 });
+    const maxTokens = v.integer(b.maxTokens, 'maxTokens', { min: 1, max: 8000, required: false, def: 1000 });
+    const sellAllProducts = v.boolean(b.sellAllProducts, 'sellAllProducts', true);
+    const pageIds = idList(v, b.pageIds, 'pageIds') ?? [];
+    const productIds = idList(v, b.productIds, 'productIds') ?? [];
+    v.throwIfAny();
 
-    if (!name || !name.trim()) {
-      res.status(400).json({ error: 'Agent name is required' });
-      return;
-    }
-
-    // Enforce one agent per user
+    // Enforce the plan's agent limit (one agent per user today)
     const existingCount = await prisma.agent.count({ where: { userId: req.user.userId } });
-    if (existingCount >= 1) {
-      res.status(400).json({
-        error: 'Agent limit reached',
-        message: 'You already have an agent. Edit it instead of creating a new one.',
-      });
-      return;
-    }
+    if (existingCount >= AGENT_LIMIT) return fail(req, res, 'PLAN_LIMIT_REACHED', { limit: AGENT_LIMIT, item: 'agent' });
 
-    // Validate pages belong to this user, then clean up any stale cross-user links
+    await assertOwnedLinks(req.user.userId, pageIds, sellAllProducts ? undefined : productIds);
+
+    // Remove any stale AgentPage records for these pages (e.g. from deleted/orphaned agents)
     if (pageIds.length > 0) {
-      const ownedPages = await prisma.page.findMany({
-        where: { id: { in: pageIds }, userId: req.user.userId },
-        select: { id: true },
-      });
-      const ownedIds = new Set(ownedPages.map(p => p.id));
-      const notOwned = pageIds.filter((id: string) => !ownedIds.has(id));
-      if (notOwned.length > 0) {
-        res.status(400).json({ error: 'One or more pages do not belong to you' });
-        return;
-      }
-      // Remove any stale AgentPage records for these pages (e.g. from deleted/orphaned agents)
       await prisma.agentPage.deleteMany({ where: { pageId: { in: pageIds } } });
     }
 
     const agent = await prisma.agent.create({
       data: {
         userId: req.user.userId,
-        name: name.trim(),
-        description: description?.trim() || null,
+        name,
+        description,
         personality,
-        customInstructions: customInstructions?.trim() || null,
-        productTemplate: productTemplate?.trim() || null,
-        closingInstructions: closingInstructions?.trim() || null,
-        humanHandoffRules: humanHandoffRules?.trim() || null,
-        imageRecognition: !!imageRecognition,
-        voiceTranscription: !!voiceTranscription,
-        responseDelay: Number(responseDelay) || 3,
+        customInstructions,
+        productTemplate,
+        closingInstructions,
+        humanHandoffRules,
+        imageRecognition,
+        voiceTranscription,
+        responseDelay,
         aiModel,
         temperature,
         maxTokens,
         sellAllProducts,
-        pages: {
-          create: pageIds.map((pageId: string) => ({ pageId })),
-        },
-        products: sellAllProducts ? undefined : {
-          create: productIds.map((productId: string) => ({ productId })),
-        },
+        pages: { create: pageIds.map((pageId) => ({ pageId })) },
+        products: sellAllProducts ? undefined : { create: productIds.map((productId) => ({ productId })) },
       },
-      include: {
-        pages: {
-          include: {
-            page: { select: { id: true, pageName: true, platform: true, pageId: true, isActive: true } },
-          },
-        },
-        products: {
-          include: {
-            product: { select: { id: true, name: true, sku: true, sellingPrice: true, imageUrl: true, isActive: true } },
-          },
-        },
-        _count: { select: { pages: true, products: true } },
-      },
+      include: AGENT_INCLUDE,
     });
 
     res.status(201).json({ agent });
-  } catch (error: any) {
-    if (error.code === 'P2002') {
-      // Unique constraint on pageId — page already assigned to another agent
-      res.status(400).json({ error: 'One or more pages are already assigned to another agent' });
-      return;
-    }
-    console.error('Create agent error:', error);
-    res.status(500).json({ error: 'Failed to create agent' });
+  } catch (error) {
+    // Unique constraint on pageId — page already assigned to another agent
+    if ((error as { code?: string })?.code === 'P2002') return fail(req, res, 'AGENT_PAGE_ALREADY_ASSIGNED');
+    handleError(req, res, error, 'AGENT_CREATE_FAILED');
   }
 };
 
@@ -183,118 +173,66 @@ export const createAgent = async (req: Request, res: Response): Promise<void> =>
 
 export const updateAgent = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const agentId = String(req.params.agentId);
-    const {
-      name,
-      description,
-      personality,
-      customInstructions,
-      productTemplate,
-      closingInstructions,
-      humanHandoffRules,
-      imageRecognition,
-      voiceTranscription,
-      responseDelay,
-      aiModel,
-      temperature,
-      maxTokens,
-      sellAllProducts,
-      isActive,
-      pageIds,
-      productIds,
-    } = req.body;
+    const b = req.body ?? {};
 
-    const existing = await prisma.agent.findFirst({
-      where: { id: agentId, userId: req.user.userId },
-    });
+    const v = new Validator();
+    const updateData: Record<string, unknown> = {};
+    if (b.name !== undefined) updateData.name = v.requiredString(b.name, 'name', { max: 100 });
+    if (b.description !== undefined) updateData.description = v.optionalString(b.description, 'description', { max: 1000 });
+    if (b.personality !== undefined) updateData.personality = v.oneOf(b.personality, 'personality', PERSONALITIES);
+    if (b.customInstructions !== undefined) updateData.customInstructions = v.optionalString(b.customInstructions, 'customInstructions', { max: 10000 });
+    if (b.productTemplate !== undefined) updateData.productTemplate = v.optionalString(b.productTemplate, 'productTemplate', { max: 5000 });
+    if (b.closingInstructions !== undefined) updateData.closingInstructions = v.optionalString(b.closingInstructions, 'closingInstructions', { max: 5000 });
+    if (b.humanHandoffRules !== undefined) updateData.humanHandoffRules = v.optionalString(b.humanHandoffRules, 'humanHandoffRules', { max: 5000 });
+    if (b.imageRecognition !== undefined) updateData.imageRecognition = v.boolean(b.imageRecognition, 'imageRecognition');
+    if (b.voiceTranscription !== undefined) updateData.voiceTranscription = v.boolean(b.voiceTranscription, 'voiceTranscription');
+    if (b.responseDelay !== undefined) updateData.responseDelay = v.integer(b.responseDelay, 'responseDelay', { min: 0, max: 60 });
+    if (b.aiModel !== undefined) updateData.aiModel = v.requiredString(b.aiModel, 'aiModel', { max: 100 });
+    if (b.temperature !== undefined) updateData.temperature = v.number(b.temperature, 'temperature', { min: 0, max: 2 });
+    if (b.maxTokens !== undefined) updateData.maxTokens = v.integer(b.maxTokens, 'maxTokens', { min: 1, max: 8000 });
+    if (b.sellAllProducts !== undefined) updateData.sellAllProducts = v.boolean(b.sellAllProducts, 'sellAllProducts');
+    if (b.isActive !== undefined) updateData.isActive = v.boolean(b.isActive, 'isActive');
+    const pageIds = idList(v, b.pageIds, 'pageIds');
+    const productIds = idList(v, b.productIds, 'productIds');
+    v.throwIfAny();
 
-    if (!existing) { res.status(404).json({ error: 'Agent not found' }); return; }
+    const existing = await prisma.agent.findFirst({ where: { id: agentId, userId: req.user.userId } });
+    if (!existing) return fail(req, res, 'AGENT_NOT_FOUND');
 
-    // Build update data
-    const updateData: any = {};
-    if (name !== undefined) updateData.name = name.trim();
-    if (description !== undefined) updateData.description = description?.trim() || null;
-    if (personality !== undefined) updateData.personality = personality;
-    if (customInstructions !== undefined) updateData.customInstructions = customInstructions?.trim() || null;
-    if (productTemplate !== undefined) updateData.productTemplate = productTemplate?.trim() || null;
-    if (closingInstructions !== undefined) updateData.closingInstructions = closingInstructions?.trim() || null;
-    if (humanHandoffRules !== undefined) updateData.humanHandoffRules = humanHandoffRules?.trim() || null;
-    if (imageRecognition !== undefined) updateData.imageRecognition = !!imageRecognition;
-    if (voiceTranscription !== undefined) updateData.voiceTranscription = !!voiceTranscription;
-    if (responseDelay !== undefined) updateData.responseDelay = Number(responseDelay);
-    if (aiModel !== undefined) updateData.aiModel = aiModel;
-    if (temperature !== undefined) updateData.temperature = temperature;
-    if (maxTokens !== undefined) updateData.maxTokens = maxTokens;
-    if (sellAllProducts !== undefined) updateData.sellAllProducts = sellAllProducts;
-    if (isActive !== undefined) updateData.isActive = isActive;
-
-    // Validate pages belong to this user before starting transaction
-    if (pageIds !== undefined && pageIds.length > 0) {
-      const ownedPages = await prisma.page.findMany({
-        where: { id: { in: pageIds }, userId: req.user.userId },
-        select: { id: true },
-      });
-      const ownedIds = new Set(ownedPages.map(p => p.id));
-      const notOwned = pageIds.filter((id: string) => !ownedIds.has(id));
-      if (notOwned.length > 0) {
-        res.status(400).json({ error: 'One or more pages do not belong to you' });
-        return;
-      }
-    }
+    await assertOwnedLinks(req.user.userId, pageIds, productIds);
 
     // Update agent + sync page/product links in a transaction
     const agent = await prisma.$transaction(async (tx) => {
-      // Sync pages if provided
       if (pageIds !== undefined) {
         // Delete this agent's existing AgentPages AND any stale links for the requested pages
         await tx.agentPage.deleteMany({ where: { agentId } });
         if (pageIds.length > 0) {
           await tx.agentPage.deleteMany({ where: { pageId: { in: pageIds } } });
-          await tx.agentPage.createMany({
-            data: pageIds.map((pageId: string) => ({ agentId, pageId })),
-          });
+          await tx.agentPage.createMany({ data: pageIds.map((pageId) => ({ agentId, pageId })) });
         }
       }
 
-      // Sync products if provided
       if (productIds !== undefined) {
         await tx.agentProduct.deleteMany({ where: { agentId } });
         if (productIds.length > 0) {
-          await tx.agentProduct.createMany({
-            data: productIds.map((productId: string) => ({ agentId, productId })),
-          });
+          await tx.agentProduct.createMany({ data: productIds.map((productId) => ({ agentId, productId })) });
         }
       }
 
       return tx.agent.update({
         where: { id: agentId },
         data: updateData,
-        include: {
-          pages: {
-            include: {
-              page: { select: { id: true, pageName: true, platform: true, pageId: true, isActive: true } },
-            },
-          },
-          products: {
-            include: {
-              product: { select: { id: true, name: true, sku: true, sellingPrice: true, imageUrl: true, isActive: true } },
-            },
-          },
-          _count: { select: { pages: true, products: true } },
-        },
+        include: AGENT_INCLUDE,
       });
     });
 
     res.json({ agent });
-  } catch (error: any) {
-    if (error.code === 'P2002') {
-      res.status(400).json({ error: 'One or more pages are already assigned to another agent' });
-      return;
-    }
-    console.error('Update agent error:', error);
-    res.status(500).json({ error: 'Failed to update agent' });
+  } catch (error) {
+    if ((error as { code?: string })?.code === 'P2002') return fail(req, res, 'AGENT_PAGE_ALREADY_ASSIGNED');
+    handleError(req, res, error, 'AGENT_UPDATE_FAILED');
   }
 };
 
@@ -304,15 +242,12 @@ export const updateAgent = async (req: Request, res: Response): Promise<void> =>
 
 export const deleteAgent = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const agentId = String(req.params.agentId);
 
-    const existing = await prisma.agent.findFirst({
-      where: { id: agentId, userId: req.user.userId },
-    });
-
-    if (!existing) { res.status(404).json({ error: 'Agent not found' }); return; }
+    const existing = await prisma.agent.findFirst({ where: { id: agentId, userId: req.user.userId } });
+    if (!existing) return fail(req, res, 'AGENT_NOT_FOUND');
 
     // Explicitly clean up related records before deleting (belt + suspenders with cascade)
     await prisma.agentPage.deleteMany({ where: { agentId } });
@@ -322,8 +257,7 @@ export const deleteAgent = async (req: Request, res: Response): Promise<void> =>
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete agent error:', error);
-    res.status(500).json({ error: 'Failed to delete agent' });
+    handleError(req, res, error, 'AGENT_DELETE_FAILED');
   }
 };
 
@@ -333,15 +267,16 @@ export const deleteAgent = async (req: Request, res: Response): Promise<void> =>
 
 export const testAgent = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const agentId = String(req.params.agentId);
-    const { message, history = [] } = req.body;
+    const b = req.body ?? {};
 
-    if (!message || !message.trim()) {
-      res.status(400).json({ error: 'Message is required' });
-      return;
-    }
+    const v = new Validator();
+    const message = v.requiredString(b.message, 'message', { max: 4000 });
+    const history = b.history === undefined || b.history === null ? [] : b.history;
+    if (!Array.isArray(history)) v.add('history', 'FIELD_INVALID');
+    v.throwIfAny();
 
     // Fetch the agent with products
     const agent = await prisma.agent.findFirst({
@@ -358,7 +293,7 @@ export const testAgent = async (req: Request, res: Response): Promise<void> => {
       },
     });
 
-    if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
+    if (!agent) return fail(req, res, 'AGENT_NOT_FOUND');
 
     // Get products — either all user products or agent-linked products
     let products;
@@ -376,10 +311,10 @@ export const testAgent = async (req: Request, res: Response): Promise<void> => {
         sellingPrice: Number(p.sellingPrice),
         quantity: p.quantity,
         hasVariants: p.hasVariants,
-        variants: p.variants.map((v) => ({
-          name: v.name,
-          sellingPrice: Number(v.sellingPrice),
-          quantity: v.quantity,
+        variants: p.variants.map((vr) => ({
+          name: vr.name,
+          sellingPrice: Number(vr.sellingPrice),
+          quantity: vr.quantity,
         })),
         imageUrl: p.imageUrl,
       }));
@@ -394,39 +329,46 @@ export const testAgent = async (req: Request, res: Response): Promise<void> => {
           sellingPrice: Number(ap.product.sellingPrice),
           quantity: ap.product.quantity,
           hasVariants: ap.product.hasVariants,
-          variants: ap.product.variants?.map((v: any) => ({
-            name: v.name,
-            sellingPrice: Number(v.sellingPrice),
-            quantity: v.quantity,
+          variants: ap.product.variants?.map((vr: any) => ({
+            name: vr.name,
+            sellingPrice: Number(vr.sellingPrice),
+            quantity: vr.quantity,
           })) || [],
           imageUrl: ap.product.imageUrl,
         }));
     }
 
-    const response = await generateAgentResponse({
-      agent: {
-        name: agent.name,
-        personality: agent.personality,
-        customInstructions: agent.customInstructions,
-        productTemplate: agent.productTemplate || null,
-        closingInstructions: agent.closingInstructions || null,
-        humanHandoffRules: agent.humanHandoffRules || null,
-        aiModel: agent.aiModel,
-        temperature: agent.temperature,
-        maxTokens: agent.maxTokens,
-      },
-      products,
-      conversationHistory: history,
-      userMessage: message.trim(),
-      userId: req.user.userId,
-      // Test playground must NEVER create real orders/clients/stock movements
-      dryRun: true,
-    });
+    let response;
+    try {
+      response = await generateAgentResponse({
+        agent: {
+          name: agent.name,
+          personality: agent.personality,
+          customInstructions: agent.customInstructions,
+          productTemplate: agent.productTemplate || null,
+          closingInstructions: agent.closingInstructions || null,
+          humanHandoffRules: agent.humanHandoffRules || null,
+          aiModel: agent.aiModel,
+          temperature: agent.temperature,
+          maxTokens: agent.maxTokens,
+        },
+        products,
+        conversationHistory: history,
+        userMessage: message,
+        userId: req.user.userId,
+        // Test playground must NEVER create real orders/clients/stock movements
+        dryRun: true,
+      });
+    } catch (aiError) {
+      // ApiErrors (e.g. INSUFFICIENT_CREDITS) keep their meaning; anything else is an AI provider failure
+      if (aiError instanceof ApiError) throw aiError;
+      console.error(`[${req.method} ${req.originalUrl}] AGENT_AI_UNAVAILABLE:`, aiError);
+      throw new ApiError('AGENT_AI_UNAVAILABLE');
+    }
 
     res.json({ response });
   } catch (error) {
-    console.error('Test agent error:', error);
-    res.status(500).json({ error: 'Failed to generate response' });
+    handleError(req, res, error, 'AGENT_TEST_FAILED');
   }
 };
 
@@ -436,15 +378,12 @@ export const testAgent = async (req: Request, res: Response): Promise<void> => {
 
 export const getAgentMetrics = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const agentId = String(req.params.agentId);
 
-    const agent = await prisma.agent.findFirst({
-      where: { id: agentId, userId: req.user.userId },
-    });
-
-    if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
+    const agent = await prisma.agent.findFirst({ where: { id: agentId, userId: req.user.userId } });
+    if (!agent) return fail(req, res, 'AGENT_NOT_FOUND');
 
     // Get conversations handled by this agent
     const conversations = await prisma.conversation.findMany({
@@ -507,8 +446,7 @@ export const getAgentMetrics = async (req: Request, res: Response): Promise<void
       },
     });
   } catch (error) {
-    console.error('Get agent metrics error:', error);
-    res.status(500).json({ error: 'Failed to fetch agent metrics' });
+    handleError(req, res, error, 'AGENT_METRICS_FAILED');
   }
 };
 
@@ -518,24 +456,21 @@ export const getAgentMetrics = async (req: Request, res: Response): Promise<void
 
 export const getAgentInsights = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const agentId = String(req.params.agentId);
-    const statusFilter = req.query.status as string | undefined;
 
-    const agent = await prisma.agent.findFirst({
-      where: { id: agentId, userId: req.user.userId },
-    });
+    const v = new Validator();
+    const statusFilter = req.query.status === undefined || req.query.status === ''
+      ? undefined
+      : v.oneOf(req.query.status, 'status', INSIGHT_STATUSES);
+    v.throwIfAny();
 
-    if (!agent) { res.status(404).json({ error: 'Agent not found' }); return; }
-
-    const where: any = { agentId };
-    if (statusFilter) {
-      where.status = statusFilter;
-    }
+    const agent = await prisma.agent.findFirst({ where: { id: agentId, userId: req.user.userId } });
+    if (!agent) return fail(req, res, 'AGENT_NOT_FOUND');
 
     const insights = await prisma.agentInsight.findMany({
-      where,
+      where: { agentId, ...(statusFilter ? { status: statusFilter } : {}) },
       orderBy: { createdAt: 'desc' },
       include: {
         conversation: {
@@ -546,8 +481,7 @@ export const getAgentInsights = async (req: Request, res: Response): Promise<voi
 
     res.json({ insights });
   } catch (error) {
-    console.error('Get agent insights error:', error);
-    res.status(500).json({ error: 'Failed to fetch agent insights' });
+    handleError(req, res, error, 'INSIGHT_LIST_FAILED');
   }
 };
 
@@ -557,32 +491,27 @@ export const getAgentInsights = async (req: Request, res: Response): Promise<voi
 
 export const resolveInsight = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const insightId = String(req.params.insightId);
-    const { action, newInstruction } = req.body;
+    const b = req.body ?? {};
 
-    if (!action || !['resolve', 'dismiss'].includes(action)) {
-      res.status(400).json({ error: 'Action must be "resolve" or "dismiss"' });
-      return;
-    }
+    const v = new Validator();
+    const action = v.oneOf(b.action, 'action', INSIGHT_ACTIONS);
+    const newInstruction = v.optionalString(b.newInstruction, 'newInstruction', { max: 2000 });
+    v.throwIfAny();
 
     const insight = await prisma.agentInsight.findUnique({
       where: { id: insightId },
       include: { agent: true },
     });
 
-    if (!insight || insight.agent.userId !== req.user.userId) {
-      res.status(404).json({ error: 'Insight not found' });
-      return;
-    }
+    if (!insight || insight.agent.userId !== req.user.userId) return fail(req, res, 'INSIGHT_NOT_FOUND');
 
     // If resolving with a new instruction, append to agent's customInstructions
-    if (action === 'resolve' && newInstruction?.trim()) {
+    if (action === 'resolve' && newInstruction) {
       const existing = insight.agent.customInstructions || '';
-      const updated = existing
-        ? `${existing}\n- ${newInstruction.trim()}`
-        : `- ${newInstruction.trim()}`;
+      const updated = existing ? `${existing}\n- ${newInstruction}` : `- ${newInstruction}`;
 
       await prisma.agent.update({
         where: { id: insight.agentId },
@@ -601,7 +530,6 @@ export const resolveInsight = async (req: Request, res: Response): Promise<void>
 
     res.json({ insight: updatedInsight });
   } catch (error) {
-    console.error('Resolve insight error:', error);
-    res.status(500).json({ error: 'Failed to resolve insight' });
+    handleError(req, res, error, 'INSIGHT_RESOLVE_FAILED');
   }
 };

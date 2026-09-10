@@ -1,56 +1,61 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { validationResult } from 'express-validator';
 import prisma from '../config/database';
+import { ApiError, fail, handleError } from '../errors';
+import { Validator } from '../middleware/validate';
+
+const PLANS = ['individual', 'teams'] as const;
+
+/**
+ * Reject non-string values for text fields BEFORE they are coerced.
+ * Without this, `{"password": {...}}` becomes the literal string
+ * "[object Object]" and creates an account nobody can sign in to.
+ */
+function stringOnly(v: Validator, value: unknown, field: string): unknown {
+  if (value !== undefined && value !== null && typeof value !== 'string') {
+    v.add(field, 'FIELD_INVALID');
+    return '';
+  }
+  return value;
+}
+
+function signToken(user: { id: string; email: string }): string {
+  if (!process.env.JWT_SECRET) {
+    console.error('JWT_SECRET is not defined');
+    throw new ApiError('AUTH_NOT_CONFIGURED');
+  }
+  return jwt.sign({ userId: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '30d' });
+}
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      res.status(400).json({ errors: errors.array() });
-      return;
-    }
+    // Route-level express-validator chains already answered 400 for the basics;
+    // this pass normalises values and bounds lengths before they reach Prisma.
+    const v = new Validator();
+    const email = v.email(stringOnly(v, req.body.email, 'email'), 'email') as string;
+    const password = v.requiredString(stringOnly(v, req.body.password, 'password'), 'password', { min: 8, max: 128 });
+    const firstName = v.requiredString(stringOnly(v, req.body.firstName, 'firstName'), 'firstName', { max: 80 });
+    const lastName = v.requiredString(stringOnly(v, req.body.lastName, 'lastName'), 'lastName', { max: 80 });
+    const plan = v.oneOf(req.body.plan, 'plan', PLANS, 'individual');
+    v.throwIfAny();
 
-    const { email, password, firstName, lastName, plan } = req.body;
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) return fail(req, res, 'AUTH_EMAIL_TAKEN');
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (existingUser) {
-      res.status(400).json({
-        error: 'Bad Request',
-        message: 'User with this email already exists',
-      });
-      return;
-    }
-
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
     const user = await prisma.user.create({
       data: {
         email,
         password: hashedPassword,
         firstName,
         lastName,
-        plan: plan || 'individual',
+        plan,
       },
     });
 
-    // Generate JWT token
-    if (!process.env.JWT_SECRET) {
-      throw new Error('JWT_SECRET is not defined');
-    }
-
-    const token = jwt.sign(
-      { userId: user.id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '30d' }
-    );
+    const token = signToken(user);
 
     res.status(201).json({
       message: 'User registered successfully',
@@ -64,58 +69,24 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to register user',
-    });
+    handleError(req, res, error, 'AUTH_REGISTER_FAILED');
   }
 };
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      res.status(400).json({ errors: errors.array() });
-      return;
-    }
+    const v = new Validator();
+    const email = v.email(stringOnly(v, req.body.email, 'email'), 'email') as string;
+    const password = v.requiredString(stringOnly(v, req.body.password, 'password'), 'password', { max: 128 });
+    v.throwIfAny();
 
-    const { email, password } = req.body;
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return fail(req, res, 'AUTH_INVALID_CREDENTIALS');
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (!user) {
-      res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Invalid email or password',
-      });
-      return;
-    }
-
-    // Check password
     const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) return fail(req, res, 'AUTH_INVALID_CREDENTIALS');
 
-    if (!isValidPassword) {
-      res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Invalid email or password',
-      });
-      return;
-    }
-
-    // Generate JWT token
-    if (!process.env.JWT_SECRET) {
-      throw new Error('JWT_SECRET is not defined');
-    }
-
-    const token = jwt.sign(
-      { userId: user.id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '30d' }
-    );
+    const token = signToken(user);
 
     res.status(200).json({
       message: 'Login successful',
@@ -130,23 +101,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to login',
-    });
+    handleError(req, res, error, 'AUTH_LOGIN_FAILED');
   }
 };
 
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({
-        error: 'Unauthorized',
-        message: 'User not authenticated',
-      });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const user = await prisma.user.findUnique({
       where: { id: req.user.userId },
@@ -163,20 +124,10 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
       },
     });
 
-    if (!user) {
-      res.status(404).json({
-        error: 'Not Found',
-        message: 'User not found',
-      });
-      return;
-    }
+    if (!user) return fail(req, res, 'USER_NOT_FOUND');
 
     res.status(200).json({ user });
   } catch (error) {
-    console.error('Get profile error:', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to get profile',
-    });
+    handleError(req, res, error, 'AUTH_PROFILE_FAILED');
   }
 };

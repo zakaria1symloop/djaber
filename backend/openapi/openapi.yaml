@@ -24737,41 +24737,84 @@ components:
         - updatedAt
     ErrorResponse:
       type: object
-      description: Standard error envelope used by every endpoint.
+      description: |-
+        Standard error envelope used by EVERY non-2xx answer.
+        - `code`: stable machine key to branch on (e.g. AUTH_INVALID_CREDENTIALS, PRODUCT_NOT_FOUND, VALIDATION_FAILED, INSUFFICIENT_CREDITS).
+        - `message`: human text ALREADY translated for the caller — send `Accept-Language: fr` / `ar` / `en` (or the `X-Lang` header, or `?lang=`); default English.
+        - `fields`: present on 400 VALIDATION_FAILED — one entry per invalid field, each with its own code and translated message.
+        - `error`: legacy HTTP status label (Bad Request, Not Found…). `errors` mirrors `fields` in the old express-validator shape.
+        Status semantics: 400 validation · 401 not signed in / bad token · 402 credits exhausted · 403 rights / plan limit · 404 not found or not owned · 409 duplicate · 413 too large · 422 business rule · 502/503 external service · 500 unexpected.
       properties:
         error:
           type: string
           example: Not Found
+        code:
+          type: string
+          example: PRODUCT_NOT_FOUND
         message:
           type: string
-          example: Product not found
-      required:
-        - error
-    ValidationErrorResponse:
-      type: object
-      description: express-validator failure (HTTP 400) — one entry per failed rule.
-      properties:
+          description: Translated for the request language.
+          example: Produit introuvable.
+        params:
+          type: object
+          additionalProperties: true
+          description: Values interpolated in the message (e.g. field, max, allowed).
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
         errors:
           type: array
+          description: Legacy mirror of `fields`.
           items:
             type: object
             properties:
-              type:
-                type: string
-                example: field
               msg:
                 type: string
-                example: Please provide a valid email
               path:
                 type: string
-                example: email
               location:
                 type: string
                 example: body
-              value:
-                description: The rejected value
       required:
-        - errors
+        - error
+        - code
+        - message
+    FieldError:
+      type: object
+      description: One invalid field inside a 400 VALIDATION_FAILED answer.
+      properties:
+        field:
+          type: string
+          example: email
+        code:
+          type: string
+          example: FIELD_INVALID_EMAIL
+        message:
+          type: string
+          example: Veuillez saisir une adresse e-mail valide.
+        params:
+          type: object
+          additionalProperties: true
+      required:
+        - field
+        - code
+        - message
+    ValidationErrorResponse:
+      description: 400 VALIDATION_FAILED — same envelope as ErrorResponse with `fields` filled.
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+      example:
+        error: Bad Request
+        code: VALIDATION_FAILED
+        message: Certains champs sont invalides. Veuillez vérifier le formulaire.
+        fields:
+          - field: email
+            code: FIELD_INVALID_EMAIL
+            message: Veuillez saisir une adresse e-mail valide.
+          - field: password
+            code: AUTH_PASSWORD_TOO_SHORT
+            message: Le mot de passe doit contenir au moins 8 caractères.
     Core_HealthResponse:
       type: object
       required:

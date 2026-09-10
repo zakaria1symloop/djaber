@@ -1,3 +1,4 @@
+import { ApiError } from '../errors';
 import axios from 'axios';
 import prisma from '../config/database';
 
@@ -58,7 +59,7 @@ export async function generateAgentFromInbox(
   const page = await prisma.page.findFirst({
     where: { id: internalPageId, userId, isActive: true },
   });
-  if (!page) throw new Error('Page not found');
+  if (!page) throw new ApiError('PAGE_NOT_FOUND');
 
   const apiKey = await getOpenAIKey();
   if (!apiKey) {
@@ -218,7 +219,7 @@ export async function applyGeneratedAgentToPage(args: {
   const page = await prisma.page.findFirst({
     where: { id: pageId, userId, isActive: true },
   });
-  if (!page) throw new Error('Page not found');
+  if (!page) throw new ApiError('PAGE_NOT_FOUND');
 
   // Compose customInstructions for the Agent record. We prepend the tone +
   // length guidance because the Agent schema doesn't have separate fields.

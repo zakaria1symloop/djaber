@@ -5,97 +5,135 @@ import { syncFacebookConversations } from '../services/page-sync.service';
 import { analyzePagePosts, importExtractedProducts } from '../services/page-analysis.service';
 import { getPageSummary } from '../services/page-summary.service';
 import { generateAgentFromInbox, applyGeneratedAgentToPage } from '../services/agent-generation.service';
+import { ApiError, fail, handleError, isApiError } from '../errors';
+import { Validator, pagination } from '../middleware/validate';
+
+// ---------------------------------------------------------------------------
+// Shared enums / helpers
+// ---------------------------------------------------------------------------
+
+const CONVERSATION_STATUSES = ['active', 'resolved', 'archived'] as const;
+const CONVERSATION_FILTERS = ['all', 'active', 'resolved', 'archived'] as const;
+const MESSAGE_TYPES = ['all', 'incoming', 'outgoing'] as const;
+const AI_PERSONALITIES = ['professional', 'friendly', 'casual', 'technical'] as const;
+const AI_TONES = ['balanced', 'formal', 'casual', 'enthusiastic'] as const;
+const AI_LENGTHS = ['short', 'medium', 'detailed'] as const;
+
+const REPLY_MAX_LENGTH = 2000; // Messenger hard limit on text messages
+const CUSTOM_INSTRUCTIONS_MAX = 4000;
+const BUSINESS_SUMMARY_MAX = 600;
+
+/**
+ * Text fields must really be text. `Validator.requiredString/optionalString`
+ * fall back to `String(value)`, which would happily turn `{a:1}` into the
+ * literal "[object Object]" — and for a Messenger reply that string would be
+ * DELIVERED to the customer. Reject the wrong type up front instead.
+ * Returns true when the value is usable (absent, or a real string).
+ */
+function checkTextType(v: Validator, value: unknown, field: string): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value === 'string') return true;
+  v.add(field, 'FIELD_INVALID');
+  return false;
+}
+
+/** Booleans must really be booleans (or their "true"/"false"/0/1 spellings). */
+function checkBooleanType(v: Validator, value: unknown, field: string): boolean {
+  if (value === undefined) return true;
+  if (typeof value === 'boolean') return true;
+  if (value === 'true' || value === 'false' || value === 0 || value === 1 || value === '0' || value === '1') return true;
+  v.add(field, 'FIELD_INVALID');
+  return false;
+}
+
+/** Active page owned by the caller, or throws PAGE_NOT_FOUND. */
+async function requireOwnedPage(pageId: string, userId: string) {
+  const page = await prisma.page.findFirst({
+    where: { id: pageId, userId, isActive: true },
+  });
+  if (!page) throw new ApiError('PAGE_NOT_FOUND');
+  return page;
+}
+
+/** Conversation reachable by the caller (own userId or owner of the page). */
+function ownedConversationWhere(conversationId: string, userId: string) {
+  return {
+    id: conversationId,
+    OR: [{ userId }, { page: { userId } }],
+  };
+}
+
+function platformLabel(platform: string | null | undefined): string {
+  return platform === 'instagram' ? 'Instagram' : 'Facebook';
+}
+
+/** Facebook Graph error payload, when the thrown value is an axios error from Meta. */
+function metaGraphError(err: unknown): { code?: number; subcode?: number; type?: string } | null {
+  const e = err as { response?: { data?: { error?: { code?: number; error_subcode?: number; type?: string } } } } | null;
+  const fb = e?.response?.data?.error;
+  if (!fb) return null;
+  return { code: fb.code, subcode: fb.error_subcode, type: fb.type };
+}
+
+function isAxiosLike(err: unknown): boolean {
+  const e = err as { isAxiosError?: boolean; response?: unknown; request?: unknown } | null;
+  return !!e && (e.isAxiosError === true || e.response !== undefined || e.request !== undefined);
+}
+
+// ---------------------------------------------------------------------------
+// Insights
+// ---------------------------------------------------------------------------
 
 /**
  * Get Facebook page insights (followers, engagement, reach)
  */
 export const getPageInsightsController = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized', message: 'User not authenticated' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const pageId = req.params.pageId as string;
+    const page = await requireOwnedPage(pageId, req.user.userId);
 
-    // Verify page ownership
-    const page = await prisma.page.findFirst({
-      where: {
-        id: pageId,
-        userId: req.user.userId,
-        isActive: true,
-      },
-    });
-
-    if (!page) {
-      res.status(404).json({ error: 'Not Found', message: 'Page not found or access denied' });
-      return;
-    }
-
-    // Fetch insights from Facebook
+    let insights: { data?: unknown[] };
     try {
-      const insights = await getPageInsights({
+      insights = await getPageInsights({
         pageId: page.pageId,
         accessToken: page.pageAccessToken,
       });
-
-      res.json({ data: insights.data || [] });
     } catch (metaError) {
       console.error('Facebook API error:', metaError);
-      res.status(503).json({
-        error: 'Service Unavailable',
-        message: 'Unable to fetch insights from Facebook. The page may need to be reconnected or insights may not be available yet.',
-      });
+      return fail(req, res, 'INBOX_INSIGHTS_UNAVAILABLE');
     }
+
+    res.json({ data: insights.data || [] });
   } catch (error) {
-    console.error('Get page insights error:', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to fetch page insights',
-    });
+    return handleError(req, res, error, 'INBOX_INSIGHTS_FAILED');
   }
 };
+
+// ---------------------------------------------------------------------------
+// Conversations
+// ---------------------------------------------------------------------------
 
 /**
  * Get conversations for a specific page with pagination and filters
  */
 export const getPageConversationsController = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized', message: 'User not authenticated' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const pageId = req.params.pageId as string;
-    const { status = 'active', limit = '50', offset = '0' } = req.query;
 
-    // Verify page ownership
-    const page = await prisma.page.findFirst({
-      where: {
-        id: pageId,
-        userId: req.user.userId,
-        isActive: true,
-      },
-    });
+    const v = new Validator();
+    const status = v.oneOf(req.query.status, 'status', CONVERSATION_FILTERS, 'active');
+    v.throwIfAny();
+    const { limit, offset } = pagination(req.query, { limit: 50, maxLimit: 200 });
 
-    if (!page) {
-      res.status(404).json({ error: 'Not Found', message: 'Page not found or access denied' });
-      return;
-    }
+    const page = await requireOwnedPage(pageId, req.user.userId);
 
-    const limitNum = parseInt(limit as string, 10);
-    const offsetNum = parseInt(offset as string, 10);
+    const where: { pageId: string; status?: string } = { pageId: page.id };
+    if (status !== 'all') where.status = status;
 
-    // Build where clause
-    const where: any = {
-      pageId: page.id,
-    };
-
-    if (status && status !== 'all') {
-      where.status = status;
-    }
-
-    // Get conversations with latest message
     const conversations = await prisma.conversation.findMany({
       where,
       include: {
@@ -105,14 +143,12 @@ export const getPageConversationsController = async (req: Request, res: Response
         },
       },
       orderBy: { updatedAt: 'desc' },
-      skip: offsetNum,
-      take: limitNum,
+      skip: offset,
+      take: limit,
     });
 
-    // Get total count
     const total = await prisma.conversation.count({ where });
 
-    // Format response
     const formattedConversations = conversations.map((conv) => ({
       id: conv.id,
       senderId: conv.senderId,
@@ -134,15 +170,11 @@ export const getPageConversationsController = async (req: Request, res: Response
     res.json({
       conversations: formattedConversations,
       total,
-      page: Math.floor(offsetNum / limitNum) + 1,
-      limit: limitNum,
+      page: Math.floor(offset / limit) + 1,
+      limit,
     });
   } catch (error) {
-    console.error('Get page conversations error:', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to fetch conversations',
-    });
+    return handleError(req, res, error, 'INBOX_LOAD_FAILED');
   }
 };
 
@@ -151,77 +183,47 @@ export const getPageConversationsController = async (req: Request, res: Response
  */
 export const getPageMessagesController = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized', message: 'User not authenticated' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const pageId = req.params.pageId as string;
-    const { dateFrom, dateTo, type, limit = '50', offset = '0' } = req.query;
 
-    // Verify page ownership
-    const page = await prisma.page.findFirst({
-      where: {
-        id: pageId,
-        userId: req.user.userId,
-        isActive: true,
-      },
-    });
+    const v = new Validator();
+    const dateFrom = v.date(req.query.dateFrom, 'dateFrom');
+    const dateTo = v.date(req.query.dateTo, 'dateTo');
+    const type = v.oneOf(req.query.type, 'type', MESSAGE_TYPES, 'all');
+    if (dateFrom && dateTo && dateFrom.getTime() > dateTo.getTime()) throw new ApiError('INVALID_DATE_RANGE');
+    v.throwIfAny();
+    const { limit, offset } = pagination(req.query, { limit: 50, maxLimit: 200 });
 
-    if (!page) {
-      res.status(404).json({ error: 'Not Found', message: 'Page not found or access denied' });
-      return;
-    }
+    const page = await requireOwnedPage(pageId, req.user.userId);
 
-    const limitNum = parseInt(limit as string, 10);
-    const offsetNum = parseInt(offset as string, 10);
-
-    // Build where clause
     const where: any = {
-      conversation: {
-        pageId: page.id,
-      },
+      conversation: { pageId: page.id },
     };
 
-    // Date filters
     if (dateFrom || dateTo) {
       where.timestamp = {};
-      if (dateFrom) {
-        where.timestamp.gte = new Date(dateFrom as string);
-      }
-      if (dateTo) {
-        where.timestamp.lte = new Date(dateTo as string);
-      }
+      if (dateFrom) where.timestamp.gte = dateFrom;
+      if (dateTo) where.timestamp.lte = dateTo;
     }
 
-    // Type filter
-    if (type === 'incoming') {
-      where.isFromPage = false;
-    } else if (type === 'outgoing') {
-      where.isFromPage = true;
-    }
+    if (type === 'incoming') where.isFromPage = false;
+    else if (type === 'outgoing') where.isFromPage = true;
 
-    // Get messages with conversation context
     const messages = await prisma.message.findMany({
       where,
       include: {
         conversation: {
-          select: {
-            id: true,
-            senderId: true,
-            senderName: true,
-          },
+          select: { id: true, senderId: true, senderName: true },
         },
       },
       orderBy: { timestamp: 'desc' },
-      skip: offsetNum,
-      take: limitNum,
+      skip: offset,
+      take: limit,
     });
 
-    // Get total count
     const total = await prisma.message.count({ where });
 
-    // Format response
     const formattedMessages = messages.map((msg) => ({
       id: msg.id,
       messageId: msg.messageId,
@@ -237,49 +239,32 @@ export const getPageMessagesController = async (req: Request, res: Response): Pr
     res.json({
       messages: formattedMessages,
       total,
-      page: Math.floor(offsetNum / limitNum) + 1,
-      limit: limitNum,
+      page: Math.floor(offset / limit) + 1,
+      limit,
     });
   } catch (error) {
-    console.error('Get page messages error:', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to fetch messages',
-    });
+    return handleError(req, res, error, 'INBOX_LOAD_FAILED');
   }
 };
+
+// ---------------------------------------------------------------------------
+// AI settings
+// ---------------------------------------------------------------------------
 
 /**
  * Get AI settings for a specific page
  */
 export const getPageAISettingsController = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized', message: 'User not authenticated' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const pageId = req.params.pageId as string;
-
-    // Verify page ownership and get AI settings
-    const page = await prisma.page.findFirst({
-      where: {
-        id: pageId,
-        userId: req.user.userId,
-        isActive: true,
-      },
-    });
-
-    if (!page) {
-      res.status(404).json({ error: 'Not Found', message: 'Page not found or access denied' });
-      return;
-    }
+    const page = await requireOwnedPage(pageId, req.user.userId);
 
     const aiSettings = await prisma.pageAISettings.findUnique({
       where: { pageId: page.id },
     });
 
-    // If no settings exist, return defaults
     if (!aiSettings) {
       const defaults = {
         pageId: page.id,
@@ -290,18 +275,13 @@ export const getPageAISettingsController = async (req: Request, res: Response): 
         responseTone: 'balanced',
         responseLength: 'medium',
       };
-
       res.json({ settings: defaults });
       return;
     }
 
     res.json({ settings: aiSettings });
   } catch (error) {
-    console.error('Get page AI settings error:', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to fetch AI settings',
-    });
+    return handleError(req, res, error, 'INBOX_AI_SETTINGS_LOAD_FAILED');
   }
 };
 
@@ -310,36 +290,32 @@ export const getPageAISettingsController = async (req: Request, res: Response): 
  */
 export const updatePageAISettingsController = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized', message: 'User not authenticated' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const pageId = req.params.pageId as string;
-    const {
-      aiEnabled,
-      aiPersonality,
-      customInstructions,
-      autoReply,
-      responseTone,
-      responseLength,
-    } = req.body;
+    const body = req.body || {};
 
-    // Verify page ownership
-    const page = await prisma.page.findFirst({
-      where: {
-        id: pageId,
-        userId: req.user.userId,
-        isActive: true,
-      },
-    });
-
-    if (!page) {
-      res.status(404).json({ error: 'Not Found', message: 'Page not found or access denied' });
-      return;
+    const v = new Validator();
+    const aiEnabled = body.aiEnabled === undefined || !checkBooleanType(v, body.aiEnabled, 'aiEnabled')
+      ? undefined
+      : v.boolean(body.aiEnabled, 'aiEnabled');
+    const autoReply = body.autoReply === undefined || !checkBooleanType(v, body.autoReply, 'autoReply')
+      ? undefined
+      : v.boolean(body.autoReply, 'autoReply');
+    // Empty / absent means "leave unchanged" (matches the previous `&&` semantics).
+    const aiPersonality = body.aiPersonality ? v.oneOf(body.aiPersonality, 'aiPersonality', AI_PERSONALITIES) : undefined;
+    const responseTone = body.responseTone ? v.oneOf(body.responseTone, 'responseTone', AI_TONES) : undefined;
+    const responseLength = body.responseLength ? v.oneOf(body.responseLength, 'responseLength', AI_LENGTHS) : undefined;
+    let customInstructions: string | null | undefined;
+    if (body.customInstructions !== undefined && checkTextType(v, body.customInstructions, 'customInstructions')) {
+      customInstructions = body.customInstructions === null
+        ? null
+        : v.optionalString(body.customInstructions, 'customInstructions', { max: CUSTOM_INSTRUCTIONS_MAX });
     }
+    v.throwIfAny();
 
-    // Upsert settings
+    const page = await requireOwnedPage(pageId, req.user.userId);
+
     const settings = await prisma.pageAISettings.upsert({
       where: { pageId: page.id },
       update: {
@@ -363,42 +339,29 @@ export const updatePageAISettingsController = async (req: Request, res: Response
 
     res.json({ settings });
   } catch (error) {
-    console.error('Update page AI settings error:', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to update AI settings',
-    });
+    return handleError(req, res, error, 'INBOX_AI_SETTINGS_UPDATE_FAILED');
   }
 };
 
+// ---------------------------------------------------------------------------
+// Single conversation
+// ---------------------------------------------------------------------------
+
 /**
- * Send a manual reply to a conversation
+ * Messages of one conversation (ownership: conversation → page → user)
  */
 export const getConversationMessagesController = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const conversationId = req.params.conversationId as string;
 
-    // Verify ownership: conversation → page → user
     const conversation = await prisma.conversation.findFirst({
-      where: {
-        id: conversationId,
-        OR: [
-          { userId: req.user.userId },
-          { page: { userId: req.user.userId } },
-        ],
-      },
+      where: ownedConversationWhere(conversationId, req.user.userId),
       select: { id: true, senderName: true, senderId: true, status: true, platform: true, aiPaused: true },
     });
 
-    if (!conversation) {
-      res.status(404).json({ error: 'Conversation not found or access denied' });
-      return;
-    }
+    if (!conversation) return fail(req, res, 'CONVERSATION_NOT_FOUND');
 
     const messages = await prisma.message.findMany({
       where: { conversationId },
@@ -419,37 +382,25 @@ export const getConversationMessagesController = async (req: Request, res: Respo
       })),
     });
   } catch (error) {
-    console.error('Get conversation messages error:', error);
-    res.status(500).json({ error: 'Failed to fetch messages' });
+    return handleError(req, res, error, 'CONVERSATION_LOAD_FAILED');
   }
 };
 
 export const updateConversationController = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return; }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const conversationId = req.params.conversationId as string;
-    const { status } = req.body; // active, resolved, archived
 
-    if (!['active', 'resolved', 'archived'].includes(status)) {
-      res.status(400).json({ error: 'Invalid status. Must be active, resolved, or archived.' });
-      return;
-    }
+    const v = new Validator();
+    const status = v.oneOf(req.body?.status, 'status', CONVERSATION_STATUSES);
+    v.throwIfAny();
 
     const conversation = await prisma.conversation.findFirst({
-      where: {
-        id: conversationId,
-        OR: [
-          { userId: req.user.userId },
-          { page: { userId: req.user.userId } },
-        ],
-      },
+      where: ownedConversationWhere(conversationId, req.user.userId),
     });
 
-    if (!conversation) {
-      res.status(404).json({ error: 'Conversation not found' });
-      return;
-    }
+    if (!conversation) return fail(req, res, 'CONVERSATION_NOT_FOUND');
 
     const updated = await prisma.conversation.update({
       where: { id: conversationId },
@@ -459,108 +410,79 @@ export const updateConversationController = async (req: Request, res: Response):
 
     res.json({ conversation: updated });
   } catch (error) {
-    console.error('Update conversation error:', error);
-    res.status(500).json({ error: 'Failed to update conversation' });
+    return handleError(req, res, error, 'CONVERSATION_UPDATE_FAILED');
   }
 };
 
 export const sendReplyController = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized', message: 'User not authenticated' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const conversationId = req.params.conversationId as string;
-    const { message } = req.body;
 
-    if (!message || !message.trim()) {
-      res.status(400).json({ error: 'Bad Request', message: 'Message text is required' });
-      return;
-    }
+    const v = new Validator();
+    checkTextType(v, req.body?.message, 'message');
+    const message = v.requiredString(req.body?.message, 'message', { max: REPLY_MAX_LENGTH });
+    v.throwIfAny();
 
-    // Get conversation — check ownership via userId OR page.userId
     const conversation = await prisma.conversation.findFirst({
-      where: {
-        id: conversationId,
-        OR: [
-          { userId: req.user.userId },
-          { page: { userId: req.user.userId } },
-        ],
-      },
+      where: ownedConversationWhere(conversationId, req.user.userId),
     });
 
-    if (!conversation) {
-      res.status(404).json({ error: 'Not Found', message: 'Conversation not found or access denied' });
-      return;
-    }
+    if (!conversation) return fail(req, res, 'CONVERSATION_NOT_FOUND');
 
-    // Get the page for this conversation
     const page = await prisma.page.findUnique({
       where: { id: conversation.pageId },
     });
 
-    if (!page) {
-      res.status(404).json({ error: 'Not Found', message: 'Page not found' });
-      return;
-    }
+    if (!page) return fail(req, res, 'PAGE_NOT_FOUND');
 
-    // Send message via Meta API
+    const platform = conversation.platform as 'facebook' | 'instagram';
+
+    let metaResponse: { message_id?: string };
     try {
-      const metaResponse = await sendMessage({
+      metaResponse = await sendMessage({
         pageAccessToken: page.pageAccessToken,
         recipientId: conversation.senderId,
-        message: message.trim(),
-        platform: conversation.platform as 'facebook' | 'instagram',
-      });
-
-      // Save message to database
-      const savedMessage = await prisma.message.create({
-        data: {
-          conversationId: conversation.id,
-          messageId: metaResponse.message_id || `manual_${Date.now()}`,
-          senderId: page.pageId,
-          recipientId: conversation.senderId,
-          text: message.trim(),
-          timestamp: new Date(),
-          isFromPage: true,
-        },
-      });
-
-      // Update conversation timestamp
-      await prisma.conversation.update({
-        where: { id: conversation.id },
-        data: { updatedAt: new Date() },
-      });
-
-      res.json({
-        success: true,
-        message: 'Reply sent successfully',
-        messageId: savedMessage.id,
+        message,
+        platform,
       });
     } catch (metaError: any) {
       console.error('Meta send message error:', metaError?.message || metaError);
-      if (metaError?.outsideWindow) {
-        res.status(409).json({
-          error: 'Outside 24h window',
-          message: metaError.message,
-          outsideWindow: true,
-        });
-        return;
-      }
-      res.status(503).json({
-        error: 'Service Unavailable',
-        message: metaError?.message || 'Failed to send message via Facebook. Please try again.',
-      });
+      if (metaError?.outsideWindow) return fail(req, res, 'REPLY_OUTSIDE_WINDOW');
+      return fail(req, res, 'REPLY_SEND_FAILED', { platform: platformLabel(platform) });
     }
-  } catch (error) {
-    console.error('Send reply error:', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to send reply',
+
+    const savedMessage = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        messageId: metaResponse.message_id || `manual_${Date.now()}`,
+        senderId: page.pageId,
+        recipientId: conversation.senderId,
+        text: message,
+        timestamp: new Date(),
+        isFromPage: true,
+      },
     });
+
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { updatedAt: new Date() },
+    });
+
+    res.json({
+      success: true,
+      message: 'Reply sent successfully',
+      messageId: savedMessage.id,
+    });
+  } catch (error) {
+    return handleError(req, res, error, 'REPLY_FAILED');
   }
 };
+
+// ---------------------------------------------------------------------------
+// Sync / analysis / summary / agent
+// ---------------------------------------------------------------------------
 
 /**
  * Pull the latest conversations + messages from Facebook into our DB.
@@ -568,26 +490,27 @@ export const sendReplyController = async (req: Request, res: Response): Promise<
  */
 export const syncPageConversationsController = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+
     const pageId = req.params.pageId as string;
-    const page = await prisma.page.findFirst({
-      where: { id: pageId, userId: req.user.userId, isActive: true },
-    });
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
+    const page = await requireOwnedPage(pageId, req.user.userId);
+
+    let result;
+    try {
+      result = await syncFacebookConversations(pageId);
+    } catch (syncError: any) {
+      if (isApiError(syncError)) throw syncError;
+      console.error('Sync conversations error:', syncError?.response?.data || syncError?.message || syncError);
+      const fb = metaGraphError(syncError);
+      // 190 = invalid / expired OAuth access token
+      if (fb?.code === 190 || fb?.type === 'OAuthException') return fail(req, res, 'PAGE_SYNC_TOKEN_EXPIRED');
+      if (isAxiosLike(syncError)) return fail(req, res, 'PAGE_SYNC_FAILED', { platform: platformLabel(page.platform) });
+      throw syncError;
     }
-    const result = await syncFacebookConversations(pageId);
+
     res.json(result);
-  } catch (error: any) {
-    console.error('Sync conversations error:', error.response?.data || error.message || error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to sync from Facebook. The page token may have expired — try reconnecting the page.',
-    });
+  } catch (error) {
+    return handleError(req, res, error, 'INBOX_LOAD_FAILED');
   }
 };
 
@@ -596,35 +519,30 @@ export const syncPageConversationsController = async (req: Request, res: Respons
  */
 export const analyzePagePostsController = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+
     const pageId = req.params.pageId as string;
-    const page = await prisma.page.findFirst({
-      where: { id: pageId, userId: req.user.userId, isActive: true },
-    });
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
+
+    const v = new Validator();
+    const limit = v.integer(req.query.limit, 'limit', { min: 1, max: 50, required: false, def: 30 });
+    v.throwIfAny();
+
+    const page = await requireOwnedPage(pageId, req.user.userId);
+
+    let result;
+    try {
+      result = await analyzePagePosts(pageId, limit);
+    } catch (analysisError: any) {
+      if (isApiError(analysisError)) throw analysisError;
+      console.error('Analyze posts error:', analysisError?.message || analysisError);
+      if (analysisError?.name === 'MetaPermissionError') return fail(req, res, 'PAGE_ANALYSIS_PERMISSION_REQUIRED');
+      if (isAxiosLike(analysisError)) return fail(req, res, 'PAGE_ANALYSIS_UPSTREAM_FAILED', { platform: platformLabel(page.platform) });
+      throw analysisError;
     }
-    const limit = parseInt((req.query.limit as string) || '30', 10);
-    const result = await analyzePagePosts(pageId, Math.min(Math.max(limit, 1), 50));
+
     res.json(result);
-  } catch (error: any) {
-    console.error('Analyze posts error:', error?.message || error);
-    if (error?.name === 'MetaPermissionError') {
-      res.status(403).json({
-        error: 'Permission required',
-        message: `Facebook says: ${error.message}. Please reconnect this page so we can request the new "read posts" permission.`,
-        needsReconnect: true,
-      });
-      return;
-    }
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to analyze page posts.',
-    });
+  } catch (error) {
+    return handleError(req, res, error, 'PAGE_ANALYSIS_FAILED');
   }
 };
 
@@ -633,23 +551,15 @@ export const analyzePagePostsController = async (req: Request, res: Response): P
  */
 export const getPageSummaryController = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+
     const pageId = req.params.pageId as string;
     const summary = await getPageSummary(pageId, req.user.userId);
-    if (!summary) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
+    if (!summary) return fail(req, res, 'PAGE_NOT_FOUND');
+
     res.json(summary);
-  } catch (error: any) {
-    console.error('Get page summary error:', error.message || error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to load page summary.',
-    });
+  } catch (error) {
+    return handleError(req, res, error, 'INBOX_SUMMARY_FAILED');
   }
 };
 
@@ -659,19 +569,26 @@ export const getPageSummaryController = async (req: Request, res: Response): Pro
  */
 export const generatePageAgentController = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+
     const pageId = req.params.pageId as string;
-    const result = await generateAgentFromInbox(pageId, req.user.userId);
+
+    let result;
+    try {
+      result = await generateAgentFromInbox(pageId, req.user.userId);
+    } catch (genError: any) {
+      if (isApiError(genError)) throw genError;
+      console.error('Generate agent error:', genError?.message || genError);
+      // The OpenAI call (timeout / HTTP failure / empty completion) is the only upstream here.
+      if (isAxiosLike(genError) || genError?.message === 'Empty response from model') {
+        return fail(req, res, 'PAGE_AGENT_AI_UNAVAILABLE');
+      }
+      throw genError;
+    }
+
     res.json(result);
-  } catch (error: any) {
-    console.error('Generate agent error:', error.message || error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to generate AI agent. Please try again.',
-    });
+  } catch (error) {
+    return handleError(req, res, error, 'PAGE_AGENT_GENERATION_FAILED');
   }
 };
 
@@ -682,23 +599,22 @@ export const generatePageAgentController = async (req: Request, res: Response): 
  */
 export const applyPageAgentController = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+
     const pageId = req.params.pageId as string;
     const body = req.body || {};
 
     // Accept the same shape the generate endpoint returns; allow user edits.
-    const allowedPersonality = ['professional', 'friendly', 'casual', 'technical'];
-    const allowedTone = ['balanced', 'formal', 'casual', 'enthusiastic'];
-    const allowedLength = ['short', 'medium', 'detailed'];
-
-    const personality = allowedPersonality.includes(body.personality) ? body.personality : 'friendly';
-    const responseTone = allowedTone.includes(body.responseTone) ? body.responseTone : 'balanced';
-    const responseLength = allowedLength.includes(body.responseLength) ? body.responseLength : 'medium';
-    const customInstructions = String(body.customInstructions || '').slice(0, 4000);
-    const businessSummary = String(body.businessSummary || '').slice(0, 600);
+    // Absent values fall back to defaults; present values must be valid.
+    const v = new Validator();
+    const personality = v.oneOf(body.personality, 'personality', AI_PERSONALITIES, 'friendly');
+    const responseTone = v.oneOf(body.responseTone, 'responseTone', AI_TONES, 'balanced');
+    const responseLength = v.oneOf(body.responseLength, 'responseLength', AI_LENGTHS, 'medium');
+    checkTextType(v, body.customInstructions, 'customInstructions');
+    checkTextType(v, body.businessSummary, 'businessSummary');
+    const customInstructions = v.optionalString(body.customInstructions, 'customInstructions', { max: CUSTOM_INSTRUCTIONS_MAX }) ?? '';
+    const businessSummary = v.optionalString(body.businessSummary, 'businessSummary', { max: BUSINESS_SUMMARY_MAX }) ?? '';
+    v.throwIfAny();
 
     const result = await applyGeneratedAgentToPage({
       pageId,
@@ -707,12 +623,8 @@ export const applyPageAgentController = async (req: Request, res: Response): Pro
     });
 
     res.json(result);
-  } catch (error: any) {
-    console.error('Apply agent error:', error.message || error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to apply AI agent. Please try again.',
-    });
+  } catch (error) {
+    return handleError(req, res, error, 'PAGE_AGENT_APPLY_FAILED');
   }
 };
 
@@ -721,30 +633,33 @@ export const applyPageAgentController = async (req: Request, res: Response): Pro
  */
 export const importExtractedProductsController = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+
     const pageId = req.params.pageId as string;
-    const page = await prisma.page.findFirst({
-      where: { id: pageId, userId: req.user.userId, isActive: true },
+
+    const v = new Validator();
+    const items = v.nonEmptyArray<{ name: string; priceDA: number }>(req.body?.items, 'items', 'product');
+    // Validate every entry: the importer does `item.name.trim()` and would crash
+    // with a 500 on a malformed item, and a junk price would be written to stock.
+    items.forEach((item, i) => {
+      const raw = item as unknown;
+      if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+        v.add(`items[${i}]`, 'FIELD_INVALID');
+        return;
+      }
+      const entry = raw as { name?: unknown; priceDA?: unknown };
+      if (checkTextType(v, entry.name, `items[${i}].name`)) {
+        v.requiredString(entry.name, `items[${i}].name`, { max: 120 });
+      }
+      v.number(entry.priceDA, `items[${i}].priceDA`, { positive: true });
     });
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
-    const items = Array.isArray(req.body?.items) ? req.body.items : [];
-    if (items.length === 0) {
-      res.status(400).json({ error: 'No items provided' });
-      return;
-    }
-    const result = await importExtractedProducts(req.user.userId, items);
+    v.throwIfAny();
+
+    await requireOwnedPage(pageId, req.user.userId);
+
+    const result = await importExtractedProducts(req.user.userId, items as any);
     res.json(result);
-  } catch (error: any) {
-    console.error('Import extracted products error:', error.message || error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to import products.',
-    });
+  } catch (error) {
+    return handleError(req, res, error, 'PAGE_ANALYSIS_IMPORT_FAILED');
   }
 };

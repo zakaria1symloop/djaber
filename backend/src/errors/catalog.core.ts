@@ -1,0 +1,296 @@
+import type { ErrorCatalog } from './catalog';
+
+/** Cross-cutting codes: auth guard, generic validation, uploads, server faults, "X not found". */
+export const core = {
+  // ---- server / transport ------------------------------------------------
+  INTERNAL_ERROR: {
+    status: 500,
+    en: 'Something went wrong on our side. Please try again.',
+    fr: 'Une erreur est survenue de notre côté. Veuillez réessayer.',
+    ar: 'حدث خطأ من جهتنا. يرجى المحاولة مرة أخرى.',
+  },
+  SERVICE_UNAVAILABLE: {
+    status: 503,
+    en: 'This service is temporarily unavailable. Please try again later.',
+    fr: 'Ce service est temporairement indisponible. Veuillez réessayer plus tard.',
+    ar: 'هذه الخدمة غير متوفرة مؤقتًا. يرجى المحاولة لاحقًا.',
+  },
+  UPSTREAM_ERROR: {
+    status: 502,
+    en: 'An external service did not respond correctly. Please try again.',
+    fr: 'Un service externe n’a pas répondu correctement. Veuillez réessayer.',
+    ar: 'لم تستجب خدمة خارجية بشكل صحيح. يرجى المحاولة مرة أخرى.',
+  },
+  ROUTE_NOT_FOUND: {
+    status: 404,
+    en: 'Cannot {method} {path}.',
+    fr: 'Impossible d’exécuter {method} {path}.',
+    ar: 'لا يمكن تنفيذ {method} {path}.',
+  },
+  INVALID_JSON: {
+    status: 400,
+    en: 'The request body is not valid JSON.',
+    fr: 'Le corps de la requête n’est pas un JSON valide.',
+    ar: 'محتوى الطلب ليس بصيغة JSON صالحة.',
+  },
+  PAYLOAD_TOO_LARGE: {
+    status: 413,
+    en: 'The request is too large.',
+    fr: 'La requête est trop volumineuse.',
+    ar: 'حجم الطلب كبير جدًا.',
+  },
+  RATE_LIMITED: {
+    status: 429,
+    en: 'Too many requests. Please slow down.',
+    fr: 'Trop de requêtes. Veuillez patienter.',
+    ar: 'عدد كبير جدًا من الطلبات. يرجى الانتظار قليلًا.',
+  },
+
+  // ---- auth guard ---------------------------------------------------------
+  UNAUTHORIZED: {
+    status: 401,
+    en: 'You must be signed in to do this.',
+    fr: 'Vous devez être connecté pour effectuer cette action.',
+    ar: 'يجب تسجيل الدخول للقيام بهذا الإجراء.',
+  },
+  INVALID_TOKEN: {
+    status: 401,
+    en: 'Your session is invalid or has expired. Please sign in again.',
+    fr: 'Votre session est invalide ou a expiré. Veuillez vous reconnecter.',
+    ar: 'جلستك غير صالحة أو انتهت صلاحيتها. يرجى تسجيل الدخول مجددًا.',
+  },
+  FORBIDDEN: {
+    status: 403,
+    en: 'You are not allowed to do this.',
+    fr: 'Vous n’êtes pas autorisé à effectuer cette action.',
+    ar: 'غير مسموح لك بالقيام بهذا الإجراء.',
+  },
+  ADMIN_REQUIRED: {
+    status: 403,
+    en: 'Administrator access is required.',
+    fr: 'Un accès administrateur est requis.',
+    ar: 'هذا الإجراء يتطلب صلاحيات المسؤول.',
+  },
+
+  // ---- generic validation ------------------------------------------------
+  VALIDATION_FAILED: {
+    status: 400,
+    en: 'Some fields are invalid. Please check the form.',
+    fr: 'Certains champs sont invalides. Veuillez vérifier le formulaire.',
+    ar: 'بعض الحقول غير صالحة. يرجى مراجعة النموذج.',
+  },
+  FIELD_REQUIRED: {
+    status: 400,
+    en: 'The field "{field}" is required.',
+    fr: 'Le champ « {field} » est obligatoire.',
+    ar: 'الحقل "{field}" إلزامي.',
+  },
+  FIELD_INVALID: {
+    status: 400,
+    en: 'The field "{field}" is invalid.',
+    fr: 'Le champ « {field} » est invalide.',
+    ar: 'الحقل "{field}" غير صالح.',
+  },
+  FIELD_TOO_LONG: {
+    status: 400,
+    en: 'The field "{field}" is too long (maximum {max} characters).',
+    fr: 'Le champ « {field} » est trop long (maximum {max} caractères).',
+    ar: 'الحقل "{field}" طويل جدًا (الحد الأقصى {max} حرفًا).',
+  },
+  FIELD_TOO_SHORT: {
+    status: 400,
+    en: 'The field "{field}" is too short (minimum {min} characters).',
+    fr: 'Le champ « {field} » est trop court (minimum {min} caractères).',
+    ar: 'الحقل "{field}" قصير جدًا (الحد الأدنى {min} أحرف).',
+  },
+  FIELD_MUST_BE_STRING: {
+    status: 400,
+    en: 'The field "{field}" must be text.',
+    fr: 'Le champ « {field} » doit être du texte.',
+    ar: 'يجب أن يكون الحقل "{field}" نصًا.',
+  },
+  FIELD_MUST_BE_NUMBER: {
+    status: 400,
+    en: 'The field "{field}" must be a number.',
+    fr: 'Le champ « {field} » doit être un nombre.',
+    ar: 'يجب أن يكون الحقل "{field}" رقمًا.',
+  },
+  FIELD_MUST_BE_INTEGER: {
+    status: 400,
+    en: 'The field "{field}" must be a whole number.',
+    fr: 'Le champ « {field} » doit être un nombre entier.',
+    ar: 'يجب أن يكون الحقل "{field}" عددًا صحيحًا.',
+  },
+  FIELD_MUST_BE_POSITIVE: {
+    status: 400,
+    en: 'The field "{field}" must be greater than zero.',
+    fr: 'Le champ « {field} » doit être supérieur à zéro.',
+    ar: 'يجب أن يكون الحقل "{field}" أكبر من صفر.',
+  },
+  FIELD_MUST_BE_NON_NEGATIVE: {
+    status: 400,
+    en: 'The field "{field}" cannot be negative.',
+    fr: 'Le champ « {field} » ne peut pas être négatif.',
+    ar: 'لا يمكن أن يكون الحقل "{field}" سالبًا.',
+  },
+  FIELD_OUT_OF_RANGE: {
+    status: 400,
+    en: 'The field "{field}" must be between {min} and {max}.',
+    fr: 'Le champ « {field} » doit être compris entre {min} et {max}.',
+    ar: 'يجب أن يكون الحقل "{field}" بين {min} و {max}.',
+  },
+  FIELD_INVALID_ENUM: {
+    status: 400,
+    en: 'The field "{field}" must be one of: {allowed}.',
+    fr: 'Le champ « {field} » doit être l’une des valeurs : {allowed}.',
+    ar: 'يجب أن يكون الحقل "{field}" إحدى القيم: {allowed}.',
+  },
+  FIELD_INVALID_DATE: {
+    status: 400,
+    en: 'The field "{field}" is not a valid date.',
+    fr: 'Le champ « {field} » n’est pas une date valide.',
+    ar: 'الحقل "{field}" ليس تاريخًا صالحًا.',
+  },
+  FIELD_INVALID_EMAIL: {
+    status: 400,
+    en: 'Please enter a valid e-mail address.',
+    fr: 'Veuillez saisir une adresse e-mail valide.',
+    ar: 'يرجى إدخال بريد إلكتروني صالح.',
+  },
+  FIELD_INVALID_PHONE: {
+    status: 400,
+    en: 'Please enter a valid phone number.',
+    fr: 'Veuillez saisir un numéro de téléphone valide.',
+    ar: 'يرجى إدخال رقم هاتف صالح.',
+  },
+  FIELD_INVALID_URL: {
+    status: 400,
+    en: 'The field "{field}" must be a valid URL.',
+    fr: 'Le champ « {field} » doit être une URL valide.',
+    ar: 'يجب أن يكون الحقل "{field}" رابطًا صالحًا.',
+  },
+  FIELD_INVALID_ID: {
+    status: 400,
+    en: 'The identifier "{field}" is invalid.',
+    fr: 'L’identifiant « {field} » est invalide.',
+    ar: 'المعرّف "{field}" غير صالح.',
+  },
+  LIST_REQUIRED: {
+    status: 400,
+    en: 'At least one {item} is required.',
+    fr: 'Au moins un(e) {item} est requis(e).',
+    ar: 'مطلوب عنصر واحد على الأقل من {item}.',
+  },
+  INVALID_PAGINATION: {
+    status: 400,
+    en: 'Invalid pagination parameters (limit / offset / page).',
+    fr: 'Paramètres de pagination invalides (limit / offset / page).',
+    ar: 'معاملات الترقيم غير صالحة (limit / offset / page).',
+  },
+  INVALID_DATE_RANGE: {
+    status: 400,
+    en: 'The date range is invalid: the start date must be before the end date.',
+    fr: 'La plage de dates est invalide : la date de début doit précéder la date de fin.',
+    ar: 'نطاق التاريخ غير صالح: يجب أن يسبق تاريخ البداية تاريخ النهاية.',
+  },
+  DUPLICATE: {
+    status: 409,
+    en: 'This value already exists ({field}).',
+    fr: 'Cette valeur existe déjà ({field}).',
+    ar: 'هذه القيمة موجودة مسبقًا ({field}).',
+  },
+  INVALID_REFERENCE: {
+    status: 400,
+    en: 'A referenced record does not exist ({field}).',
+    fr: 'Un enregistrement référencé n’existe pas ({field}).',
+    ar: 'أحد السجلات المشار إليها غير موجود ({field}).',
+  },
+  NOT_FOUND: {
+    status: 404,
+    en: 'The requested item was not found.',
+    fr: 'L’élément demandé est introuvable.',
+    ar: 'العنصر المطلوب غير موجود.',
+  },
+
+  // ---- uploads ------------------------------------------------------------
+  FILE_REQUIRED: {
+    status: 400,
+    en: 'Please attach a file.',
+    fr: 'Veuillez joindre un fichier.',
+    ar: 'يرجى إرفاق ملف.',
+  },
+  FILE_TOO_LARGE: {
+    status: 413,
+    en: 'The file is too large (maximum {maxMb} MB).',
+    fr: 'Le fichier est trop volumineux (maximum {maxMb} Mo).',
+    ar: 'حجم الملف كبير جدًا (الحد الأقصى {maxMb} ميغابايت).',
+  },
+  TOO_MANY_FILES: {
+    status: 400,
+    en: 'Too many files (maximum {max}).',
+    fr: 'Trop de fichiers (maximum {max}).',
+    ar: 'عدد الملفات كبير جدًا (الحد الأقصى {max}).',
+  },
+  UPLOAD_INVALID_TYPE: {
+    status: 400,
+    en: 'Only {allowed} images are allowed.',
+    fr: 'Seules les images {allowed} sont acceptées.',
+    ar: 'يُسمح فقط بصور من نوع {allowed}.',
+  },
+  UPLOAD_UNEXPECTED_FIELD: {
+    status: 400,
+    en: 'Unexpected upload field "{field}".',
+    fr: 'Champ de téléversement inattendu « {field} ».',
+    ar: 'حقل رفع غير متوقع "{field}".',
+  },
+  UPLOAD_FAILED: {
+    status: 500,
+    en: 'The upload failed. Please try again.',
+    fr: 'Le téléversement a échoué. Veuillez réessayer.',
+    ar: 'فشل رفع الملف. يرجى المحاولة مرة أخرى.',
+  },
+
+  // ---- credits / plan --------------------------------------------------------
+  INSUFFICIENT_CREDITS: {
+    status: 402,
+    en: 'You have used all your AI credits for this period. Upgrade your plan to continue.',
+    fr: 'Vous avez utilisé tous vos crédits IA pour cette période. Passez à un plan supérieur pour continuer.',
+    ar: 'لقد استهلكت كل رصيد الذكاء الاصطناعي لهذه الفترة. قم بترقية خطتك للمتابعة.',
+  },
+  PLAN_LIMIT_REACHED: {
+    status: 403,
+    en: 'Your plan limit is reached ({limit} {item}). Upgrade to add more.',
+    fr: 'La limite de votre plan est atteinte ({limit} {item}). Passez à un plan supérieur pour en ajouter.',
+    ar: 'وصلت إلى حد خطتك ({limit} {item}). قم بالترقية لإضافة المزيد.',
+  },
+
+  // ---- "X not found" ----------------------------------------------------------
+  USER_NOT_FOUND: { status: 404, en: 'User not found.', fr: 'Utilisateur introuvable.', ar: 'المستخدم غير موجود.' },
+  PAGE_NOT_FOUND: { status: 404, en: 'Page not found or you do not have access to it.', fr: 'Page introuvable ou accès refusé.', ar: 'الصفحة غير موجودة أو ليس لديك صلاحية الوصول إليها.' },
+  CONVERSATION_NOT_FOUND: { status: 404, en: 'Conversation not found.', fr: 'Conversation introuvable.', ar: 'المحادثة غير موجودة.' },
+  MESSAGE_NOT_FOUND: { status: 404, en: 'Message not found.', fr: 'Message introuvable.', ar: 'الرسالة غير موجودة.' },
+  AGENT_NOT_FOUND: { status: 404, en: 'AI agent not found.', fr: 'Agent IA introuvable.', ar: 'وكيل الذكاء الاصطناعي غير موجود.' },
+  INSIGHT_NOT_FOUND: { status: 404, en: 'Insight not found.', fr: 'Signalement introuvable.', ar: 'الملاحظة غير موجودة.' },
+  PRODUCT_NOT_FOUND: { status: 404, en: 'Product not found.', fr: 'Produit introuvable.', ar: 'المنتج غير موجود.' },
+  PRODUCTS_NOT_FOUND: { status: 400, en: 'One or more products were not found.', fr: 'Un ou plusieurs produits sont introuvables.', ar: 'لم يتم العثور على منتج واحد أو أكثر.' },
+  VARIANT_NOT_FOUND: { status: 404, en: 'Product variant not found.', fr: 'Variante du produit introuvable.', ar: 'نسخة المنتج غير موجودة.' },
+  CATEGORY_NOT_FOUND: { status: 404, en: 'Category not found.', fr: 'Catégorie introuvable.', ar: 'الفئة غير موجودة.' },
+  UNIT_NOT_FOUND: { status: 404, en: 'Unit not found.', fr: 'Unité introuvable.', ar: 'الوحدة غير موجودة.' },
+  SUPPLIER_NOT_FOUND: { status: 404, en: 'Supplier not found.', fr: 'Fournisseur introuvable.', ar: 'المورّد غير موجود.' },
+  IMAGE_NOT_FOUND: { status: 404, en: 'Image not found.', fr: 'Image introuvable.', ar: 'الصورة غير موجودة.' },
+  EXPENSE_NOT_FOUND: { status: 404, en: 'Expense not found.', fr: 'Dépense introuvable.', ar: 'المصروف غير موجود.' },
+  CLIENT_NOT_FOUND: { status: 404, en: 'Client not found.', fr: 'Client introuvable.', ar: 'العميل غير موجود.' },
+  ORDER_NOT_FOUND: { status: 404, en: 'Order not found.', fr: 'Commande introuvable.', ar: 'الطلب غير موجود.' },
+  SALE_NOT_FOUND: { status: 404, en: 'Sale not found.', fr: 'Vente introuvable.', ar: 'عملية البيع غير موجودة.' },
+  PURCHASE_NOT_FOUND: { status: 404, en: 'Purchase not found.', fr: 'Achat introuvable.', ar: 'عملية الشراء غير موجودة.' },
+  TRANSACTION_NOT_FOUND: { status: 404, en: 'Cash register entry not found.', fr: 'Opération de caisse introuvable.', ar: 'عملية الصندوق غير موجودة.' },
+  NOTIFICATION_NOT_FOUND: { status: 404, en: 'Notification not found.', fr: 'Notification introuvable.', ar: 'الإشعار غير موجود.' },
+  RECOMMENDATION_NOT_FOUND: { status: 404, en: 'Recommendation not found.', fr: 'Recommandation introuvable.', ar: 'التوصية غير موجودة.' },
+  DELIVERY_PROVIDER_NOT_FOUND: { status: 404, en: 'Delivery provider not found.', fr: 'Transporteur introuvable.', ar: 'شركة التوصيل غير موجودة.' },
+  FEE_RULE_NOT_FOUND: { status: 404, en: 'Delivery fee rule not found.', fr: 'Règle de frais de livraison introuvable.', ar: 'قاعدة رسوم التوصيل غير موجودة.' },
+  PLAN_NOT_FOUND: { status: 404, en: 'Plan not found.', fr: 'Plan introuvable.', ar: 'الخطة غير موجودة.' },
+  SUBSCRIPTION_NOT_FOUND: { status: 404, en: 'Subscription not found.', fr: 'Abonnement introuvable.', ar: 'الاشتراك غير موجود.' },
+  AI_PROVIDER_NOT_FOUND: { status: 404, en: 'AI provider not found.', fr: 'Fournisseur IA introuvable.', ar: 'مزوّد الذكاء الاصطناعي غير موجود.' },
+  CMS_PAGE_NOT_FOUND: { status: 404, en: 'Page not found.', fr: 'Page introuvable.', ar: 'الصفحة غير موجودة.' },
+  DEVICE_NOT_FOUND: { status: 404, en: 'Device not found.', fr: 'Appareil introuvable.', ar: 'الجهاز غير موجود.' },
+} as const satisfies ErrorCatalog;

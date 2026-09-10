@@ -1,5 +1,15 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
+import { ApiError, fail, handleError } from '../errors';
+import { Validator } from '../middleware/validate';
+
+// Enumerations mirrored from the Prisma schema comments (model Client)
+const CLIENT_SOURCES = ['manual', 'ai'] as const;
+const NAME_MAX = 191;
+
+/** Prisma P2002 on [userId, phone] → 409 CLIENT_PHONE_EXISTS. */
+const isPhoneConflict = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && (error as { code?: string }).code === 'P2002';
 
 // ============================================================================
 // Get Clients
@@ -7,23 +17,26 @@ import prisma from '../config/database';
 
 export const getClients = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const { search, phone, isActive, source, minOrders, maxOrders, minSpent, maxSpent, startDate, endDate } = req.query;
+    const { search, phone, isActive, minOrders, maxOrders, minSpent, maxSpent } = req.query;
+
+    const v = new Validator();
+    const startDate = v.date(req.query.startDate, 'startDate');
+    const endDate = v.date(req.query.endDate, 'endDate');
+    const source = v.oneOf(req.query.source, 'source', CLIENT_SOURCES, CLIENT_SOURCES[0]);
+    v.throwIfAny();
+    if (startDate && endDate && startDate > endDate) throw new ApiError('INVALID_DATE_RANGE');
 
     const where: any = { userId: req.user.userId };
 
     // Date filter on client createdAt
     if (startDate || endDate) {
       where.createdAt = {};
-      if (startDate) where.createdAt.gte = new Date(startDate as string);
+      if (startDate) where.createdAt.gte = startDate;
       if (endDate) {
-        const end = new Date(endDate as string);
-        end.setHours(23, 59, 59, 999);
-        where.createdAt.lte = end;
+        endDate.setHours(23, 59, 59, 999);
+        where.createdAt.lte = endDate;
       }
     }
 
@@ -45,8 +58,8 @@ export const getClients = async (req: Request, res: Response): Promise<void> => 
     }
 
     // Source filter
-    if (source) {
-      where.source = source as string;
+    if (req.query.source) {
+      where.source = source;
     }
 
     // Orders range
@@ -77,8 +90,7 @@ export const getClients = async (req: Request, res: Response): Promise<void> => 
 
     res.json({ clients });
   } catch (error) {
-    console.error('Get clients error:', error);
-    res.status(500).json({ error: 'Failed to fetch clients' });
+    return handleError(req, res, error, 'CLIENT_FETCH_FAILED');
   }
 };
 
@@ -88,10 +100,7 @@ export const getClients = async (req: Request, res: Response): Promise<void> => 
 
 export const getClient = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const clientId = req.params.clientId as string;
 
@@ -100,15 +109,11 @@ export const getClient = async (req: Request, res: Response): Promise<void> => {
       include: { _count: { select: { conversations: true } } },
     });
 
-    if (!client) {
-      res.status(404).json({ error: 'Client not found' });
-      return;
-    }
+    if (!client) return fail(req, res, 'CLIENT_NOT_FOUND');
 
     res.json({ client });
   } catch (error) {
-    console.error('Get client error:', error);
-    res.status(500).json({ error: 'Failed to fetch client' });
+    return handleError(req, res, error, 'CLIENT_FETCH_FAILED');
   }
 };
 
@@ -118,38 +123,33 @@ export const getClient = async (req: Request, res: Response): Promise<void> => {
 
 export const createClient = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const { name, phone, email, address, notes, source } = req.body;
-
-    if (!name || !name.trim()) {
-      res.status(400).json({ error: 'Client name is required' });
-      return;
-    }
+    const v = new Validator();
+    const name = v.requiredString(req.body.name, 'name', { max: NAME_MAX });
+    const phone = v.phone(req.body.phone, 'phone', false);
+    const email = v.email(req.body.email, 'email', false);
+    const address = v.optionalString(req.body.address, 'address');
+    const notes = v.optionalString(req.body.notes, 'notes');
+    const source = v.oneOf(req.body.source, 'source', CLIENT_SOURCES, 'manual');
+    v.throwIfAny();
 
     const client = await prisma.client.create({
       data: {
         userId: req.user.userId,
-        name: name.trim(),
-        phone: phone?.trim() || null,
-        email: email?.trim() || null,
-        address: address?.trim() || null,
-        notes: notes?.trim() || null,
-        source: source || 'manual',
+        name,
+        phone,
+        email,
+        address,
+        notes,
+        source,
       },
     });
 
     res.status(201).json({ client });
-  } catch (error: any) {
-    if (error.code === 'P2002') {
-      res.status(400).json({ error: 'A client with this phone number already exists' });
-      return;
-    }
-    console.error('Create client error:', error);
-    res.status(500).json({ error: 'Failed to create client' });
+  } catch (error) {
+    if (isPhoneConflict(error)) return fail(req, res, 'CLIENT_PHONE_EXISTS');
+    return handleError(req, res, error, 'CLIENT_CREATE_FAILED');
   }
 };
 
@@ -159,43 +159,42 @@ export const createClient = async (req: Request, res: Response): Promise<void> =
 
 export const updateClient = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const clientId = req.params.clientId as string;
-    const { name, phone, email, address, notes, isActive } = req.body;
+    const body = req.body ?? {};
+
+    const v = new Validator();
+    const name = body.name === undefined ? undefined : v.requiredString(body.name, 'name', { max: NAME_MAX });
+    const phone = body.phone === undefined ? undefined : v.phone(body.phone, 'phone', false);
+    const email = body.email === undefined ? undefined : v.email(body.email, 'email', false);
+    const address = body.address === undefined ? undefined : v.optionalString(body.address, 'address');
+    const notes = body.notes === undefined ? undefined : v.optionalString(body.notes, 'notes');
+    const isActive = body.isActive === undefined ? undefined : v.boolean(body.isActive, 'isActive');
+    v.throwIfAny();
 
     const existing = await prisma.client.findFirst({
       where: { id: clientId, userId: req.user.userId },
     });
 
-    if (!existing) {
-      res.status(404).json({ error: 'Client not found' });
-      return;
-    }
+    if (!existing) return fail(req, res, 'CLIENT_NOT_FOUND');
 
     const client = await prisma.client.update({
       where: { id: clientId },
       data: {
-        ...(name !== undefined && { name: name.trim() }),
-        ...(phone !== undefined && { phone: phone?.trim() || null }),
-        ...(email !== undefined && { email: email?.trim() || null }),
-        ...(address !== undefined && { address: address?.trim() || null }),
-        ...(notes !== undefined && { notes: notes?.trim() || null }),
+        ...(name !== undefined && { name }),
+        ...(phone !== undefined && { phone }),
+        ...(email !== undefined && { email }),
+        ...(address !== undefined && { address }),
+        ...(notes !== undefined && { notes }),
         ...(isActive !== undefined && { isActive }),
       },
     });
 
     res.json({ client });
-  } catch (error: any) {
-    if (error.code === 'P2002') {
-      res.status(400).json({ error: 'A client with this phone number already exists' });
-      return;
-    }
-    console.error('Update client error:', error);
-    res.status(500).json({ error: 'Failed to update client' });
+  } catch (error) {
+    if (isPhoneConflict(error)) return fail(req, res, 'CLIENT_PHONE_EXISTS');
+    return handleError(req, res, error, 'CLIENT_UPDATE_FAILED');
   }
 };
 
@@ -205,10 +204,7 @@ export const updateClient = async (req: Request, res: Response): Promise<void> =
 
 export const deleteClient = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const clientId = req.params.clientId as string;
 
@@ -216,17 +212,13 @@ export const deleteClient = async (req: Request, res: Response): Promise<void> =
       where: { id: clientId, userId: req.user.userId },
     });
 
-    if (!existing) {
-      res.status(404).json({ error: 'Client not found' });
-      return;
-    }
+    if (!existing) return fail(req, res, 'CLIENT_NOT_FOUND');
 
     await prisma.client.delete({ where: { id: clientId } });
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete client error:', error);
-    res.status(500).json({ error: 'Failed to delete client' });
+    return handleError(req, res, error, 'CLIENT_DELETE_FAILED');
   }
 };
 
@@ -236,10 +228,7 @@ export const deleteClient = async (req: Request, res: Response): Promise<void> =
 
 export const getClientMetrics = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const clientId = req.params.clientId as string;
 
@@ -247,10 +236,7 @@ export const getClientMetrics = async (req: Request, res: Response): Promise<voi
       where: { id: clientId, userId: req.user.userId },
     });
 
-    if (!client) {
-      res.status(404).json({ error: 'Client not found' });
-      return;
-    }
+    if (!client) return fail(req, res, 'CLIENT_NOT_FOUND');
 
     // Get conversations for this client
     const conversations = await prisma.conversation.findMany({
@@ -320,7 +306,6 @@ export const getClientMetrics = async (req: Request, res: Response): Promise<voi
       })),
     });
   } catch (error) {
-    console.error('Get client metrics error:', error);
-    res.status(500).json({ error: 'Failed to fetch client metrics' });
+    return handleError(req, res, error, 'CLIENT_METRICS_FAILED');
   }
 };

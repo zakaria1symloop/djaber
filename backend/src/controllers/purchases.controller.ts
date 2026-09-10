@@ -1,5 +1,18 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
+import { ApiError, fail, handleError } from '../errors';
+import { Validator, pagination } from '../middleware/validate';
+import { ownedPage } from './stock.controller';
+
+const PURCHASE_STATUSES = ['pending', 'partial', 'received', 'cancelled'] as const;
+const PAYMENT_STATUSES = ['pending', 'paid', 'partial'] as const;
+const PERIODS = ['week', 'month', 'year'] as const;
+
+interface PurchaseItemInput {
+  productId: string;
+  quantity: number;
+  unitCost: number | null;
+}
 
 // Generate purchase number
 const generatePurchaseNumber = async (pageId: string): Promise<string> => {
@@ -23,46 +36,52 @@ const generatePurchaseNumber = async (pageId: string): Promise<string> => {
   return `PO-${dateStr}-${sequence.toString().padStart(4, '0')}`;
 };
 
+/** Validate the `items` array of a purchase: non-empty, numeric quantities, no duplicate products. */
+const validatePurchaseItems = (v: Validator, raw: unknown): PurchaseItemInput[] => {
+  const list = v.nonEmptyArray<Record<string, unknown>>(raw, 'items', 'product');
+  const items = list.map((item, i) => {
+    const it = (item ?? {}) as Record<string, unknown>;
+    return {
+      productId: v.requiredString(it.productId, `items[${i}].productId`, { max: 64 }),
+      quantity: v.integer(it.quantity, `items[${i}].quantity`, { positive: true }),
+      unitCost: it.unitCost === undefined || it.unitCost === null || it.unitCost === '' ? null : v.number(it.unitCost, `items[${i}].unitCost`, { min: 0 }),
+    };
+  });
+  const ids = items.map((i) => i.productId).filter(Boolean);
+  if (new Set(ids).size !== ids.length) v.add('items', 'LEGACY_DUPLICATE_PRODUCTS');
+  return items;
+};
+
 // ============================================================================
 // Purchases
 // ============================================================================
 
 export const getPurchases = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const pageId = req.params.pageId as string;
-    const {
-      startDate,
-      endDate,
-      status,
-      supplierId,
-      limit = '50',
-      offset = '0'
-    } = req.query;
+    const { limit, offset } = pagination(req.query);
 
-    const page = await prisma.page.findFirst({
-      where: { id: pageId, userId: req.user.userId, isActive: true },
-    });
+    const v = new Validator();
+    const startDate = v.date(req.query.startDate, 'startDate');
+    const endDate = v.date(req.query.endDate, 'endDate');
+    const status = req.query.status ? v.oneOf(req.query.status, 'status', PURCHASE_STATUSES) : null;
+    const supplierId = v.optionalString(req.query.supplierId, 'supplierId', { max: 64 });
+    if (startDate && endDate && startDate.getTime() > endDate.getTime()) v.add('endDate', 'INVALID_DATE_RANGE');
+    v.throwIfAny();
 
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
+    await ownedPage(req, pageId);
 
     const where: any = { pageId };
 
     if (startDate || endDate) {
       where.purchaseDate = {};
-      if (startDate) where.purchaseDate.gte = new Date(startDate as string);
-      if (endDate) where.purchaseDate.lte = new Date(endDate as string);
+      if (startDate) where.purchaseDate.gte = startDate;
+      if (endDate) where.purchaseDate.lte = endDate;
     }
 
-    if (status) where.status = status as string;
-    if (supplierId) where.supplierId = supplierId as string;
+    if (status) where.status = status;
+    if (supplierId) where.supplierId = supplierId;
 
     const [purchases, total] = await Promise.all([
       prisma.purchase.findMany({
@@ -76,37 +95,25 @@ export const getPurchases = async (req: Request, res: Response): Promise<void> =
           },
         },
         orderBy: { purchaseDate: 'desc' },
-        skip: parseInt(offset as string, 10),
-        take: parseInt(limit as string, 10),
+        skip: offset,
+        take: limit,
       }),
       prisma.purchase.count({ where }),
     ]);
 
     res.json({ purchases, total });
   } catch (error) {
-    console.error('Get purchases error:', error);
-    res.status(500).json({ error: 'Failed to fetch purchases' });
+    return handleError(req, res, error, 'LEGACY_PURCHASE_LIST_FAILED');
   }
 };
 
 export const getPurchase = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const pageId = req.params.pageId as string;
     const purchaseId = req.params.purchaseId as string;
 
-    const page = await prisma.page.findFirst({
-      where: { id: pageId, userId: req.user.userId, isActive: true },
-    });
-
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
+    await ownedPage(req, pageId);
 
     const purchase = await prisma.purchase.findFirst({
       where: { id: purchaseId, pageId },
@@ -120,67 +127,52 @@ export const getPurchase = async (req: Request, res: Response): Promise<void> =>
       },
     });
 
-    if (!purchase) {
-      res.status(404).json({ error: 'Purchase not found' });
-      return;
-    }
+    if (!purchase) return fail(req, res, 'PURCHASE_NOT_FOUND');
 
     res.json({ purchase });
   } catch (error) {
-    console.error('Get purchase error:', error);
-    res.status(500).json({ error: 'Failed to fetch purchase' });
+    return handleError(req, res, error, 'LEGACY_PURCHASE_FETCH_FAILED');
   }
 };
 
 export const createPurchase = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const pageId = req.params.pageId as string;
-    const {
-      supplierId,
-      items,
-      tax = 0,
-      shippingCost = 0,
-      paymentStatus = 'pending',
-      status = 'pending',
-      expectedDate,
-      notes,
-    } = req.body;
+    const body = (req.body ?? {}) as Record<string, unknown>;
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      res.status(400).json({ error: 'At least one item is required' });
-      return;
+    const v = new Validator();
+    const supplierId = v.optionalString(body.supplierId, 'supplierId', { max: 64 });
+    const items = validatePurchaseItems(v, body.items);
+    const tax = v.number(body.tax, 'tax', { required: false, def: 0, min: 0 });
+    const shippingCost = v.number(body.shippingCost, 'shippingCost', { required: false, def: 0, min: 0 });
+    const paymentStatus = v.oneOf(body.paymentStatus, 'paymentStatus', PAYMENT_STATUSES, 'pending');
+    const status = v.oneOf(body.status, 'status', PURCHASE_STATUSES, 'pending');
+    const expectedDate = v.date(body.expectedDate, 'expectedDate');
+    const notes = v.optionalString(body.notes, 'notes', { max: 2000 });
+    v.throwIfAny();
+
+    await ownedPage(req, pageId);
+
+    // Supplier (when given) must belong to this page
+    if (supplierId) {
+      const supplier = await prisma.supplier.findFirst({ where: { id: supplierId, pageId }, select: { id: true } });
+      if (!supplier) return fail(req, res, 'SUPPLIER_NOT_FOUND');
     }
 
-    const page = await prisma.page.findFirst({
-      where: { id: pageId, userId: req.user.userId, isActive: true },
-    });
-
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
-
-    // Verify all products exist
-    const productIds = items.map((item: any) => item.productId);
+    // Verify all products exist on this page
+    const productIds = items.map((item) => item.productId);
     const products = await prisma.product.findMany({
       where: { id: { in: productIds }, pageId },
     });
 
-    if (products.length !== productIds.length) {
-      res.status(400).json({ error: 'One or more products not found' });
-      return;
-    }
+    if (products.length !== productIds.length) return fail(req, res, 'PRODUCTS_NOT_FOUND');
 
     // Calculate totals
     let subtotal = 0;
-    const purchaseItems = items.map((item: any) => {
+    const purchaseItems = items.map((item) => {
       const product = products.find((p) => p.id === item.productId)!;
-      const unitCost = item.unitCost || Number(product.costPrice);
+      const unitCost = item.unitCost ?? Number(product.costPrice);
       const itemTotal = unitCost * item.quantity;
       subtotal += itemTotal;
 
@@ -203,15 +195,15 @@ export const createPurchase = async (req: Request, res: Response): Promise<void>
       data: {
         pageId,
         purchaseNumber,
-        supplierId: supplierId || null,
+        supplierId,
         subtotal,
         tax,
         shippingCost,
         total,
         paymentStatus,
         status,
-        expectedDate: expectedDate ? new Date(expectedDate) : null,
-        notes: notes?.trim() || null,
+        expectedDate,
+        notes,
         items: {
           create: purchaseItems,
         },
@@ -224,48 +216,44 @@ export const createPurchase = async (req: Request, res: Response): Promise<void>
 
     res.status(201).json({ purchase });
   } catch (error) {
-    console.error('Create purchase error:', error);
-    res.status(500).json({ error: 'Failed to create purchase' });
+    return handleError(req, res, error, 'LEGACY_PURCHASE_CREATE_FAILED');
   }
 };
 
 export const updatePurchase = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const pageId = req.params.pageId as string;
     const purchaseId = req.params.purchaseId as string;
-    const { paymentStatus, status, expectedDate, notes } = req.body;
+    const body = (req.body ?? {}) as Record<string, unknown>;
 
-    const page = await prisma.page.findFirst({
-      where: { id: pageId, userId: req.user.userId, isActive: true },
-    });
+    const v = new Validator();
+    const paymentStatus = body.paymentStatus ? v.oneOf(body.paymentStatus, 'paymentStatus', PAYMENT_STATUSES) : undefined;
+    const status = body.status ? v.oneOf(body.status, 'status', PURCHASE_STATUSES) : undefined;
+    const expectedDate = body.expectedDate === undefined ? undefined : v.date(body.expectedDate, 'expectedDate');
+    const notes = body.notes === undefined ? undefined : v.optionalString(body.notes, 'notes', { max: 2000 });
+    v.throwIfAny();
 
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
+    await ownedPage(req, pageId);
+
+    // IDOR guard: the purchase must belong to this page
+    const existing = await prisma.purchase.findFirst({ where: { id: purchaseId, pageId }, select: { id: true } });
+    if (!existing) return fail(req, res, 'PURCHASE_NOT_FOUND');
 
     const purchase = await prisma.purchase.update({
       where: { id: purchaseId },
       data: {
         ...(paymentStatus && { paymentStatus }),
         ...(status && { status }),
-        ...(expectedDate !== undefined && {
-          expectedDate: expectedDate ? new Date(expectedDate) : null,
-        }),
-        ...(notes !== undefined && { notes: notes?.trim() || null }),
+        ...(expectedDate !== undefined && { expectedDate }),
+        ...(notes !== undefined && { notes }),
       },
       include: { supplier: true, items: true },
     });
 
     res.json({ purchase });
   } catch (error) {
-    console.error('Update purchase error:', error);
-    res.status(500).json({ error: 'Failed to update purchase' });
+    return handleError(req, res, error, 'LEGACY_PURCHASE_UPDATE_FAILED');
   }
 };
 
@@ -275,44 +263,46 @@ export const updatePurchase = async (req: Request, res: Response): Promise<void>
 
 export const receivePurchaseItems = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const pageId = req.params.pageId as string;
     const purchaseId = req.params.purchaseId as string;
-    const { items } = req.body; // Array of { itemId, receivedQty }
+    const body = (req.body ?? {}) as Record<string, unknown>;
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      res.status(400).json({ error: 'Items to receive are required' });
-      return;
-    }
-
-    const page = await prisma.page.findFirst({
-      where: { id: pageId, userId: req.user.userId, isActive: true },
+    // Array of { itemId, receivedQty }
+    const v = new Validator();
+    const list = v.nonEmptyArray<Record<string, unknown>>(body.items, 'items', 'item');
+    const items = list.map((item, i) => {
+      const it = (item ?? {}) as Record<string, unknown>;
+      return {
+        itemId: v.requiredString(it.itemId, `items[${i}].itemId`, { max: 64 }),
+        receivedQty: v.integer(it.receivedQty, `items[${i}].receivedQty`, { min: 0 }),
+      };
     });
+    const itemIds = items.map((i) => i.itemId).filter(Boolean);
+    if (new Set(itemIds).size !== itemIds.length) v.add('items', 'FIELD_INVALID');
+    v.throwIfAny();
 
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
+    await ownedPage(req, pageId);
 
     const purchase = await prisma.purchase.findFirst({
       where: { id: purchaseId, pageId },
       include: { items: true },
     });
 
-    if (!purchase) {
-      res.status(404).json({ error: 'Purchase not found' });
-      return;
+    if (!purchase) return fail(req, res, 'PURCHASE_NOT_FOUND');
+
+    // Every line must belong to this purchase
+    for (const item of items) {
+      if (!purchase.items.some((pi) => pi.id === item.itemId)) {
+        return fail(req, res, 'LEGACY_PURCHASE_ITEM_NOT_FOUND', { itemId: item.itemId });
+      }
     }
 
     // Process receiving in transaction
     const updatedPurchase = await prisma.$transaction(async (tx) => {
       for (const item of items) {
         const purchaseItem = purchase.items.find((pi) => pi.id === item.itemId);
-        if (!purchaseItem) continue;
+        if (!purchaseItem) throw new ApiError('LEGACY_PURCHASE_ITEM_NOT_FOUND', { itemId: item.itemId });
 
         const additionalQty = item.receivedQty - purchaseItem.receivedQty;
         if (additionalQty <= 0) continue;
@@ -370,8 +360,7 @@ export const receivePurchaseItems = async (req: Request, res: Response): Promise
 
     res.json({ purchase: updatedPurchase });
   } catch (error) {
-    console.error('Receive purchase items error:', error);
-    res.status(500).json({ error: 'Failed to receive items' });
+    return handleError(req, res, error, 'LEGACY_PURCHASE_RECEIVE_FAILED');
   }
 };
 
@@ -381,22 +370,14 @@ export const receivePurchaseItems = async (req: Request, res: Response): Promise
 
 export const getPurchaseStats = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const pageId = req.params.pageId as string;
-    const { period = 'month' } = req.query;
 
-    const page = await prisma.page.findFirst({
-      where: { id: pageId, userId: req.user.userId, isActive: true },
-    });
+    const v = new Validator();
+    const period = v.oneOf(req.query.period, 'period', PERIODS, 'month');
+    v.throwIfAny();
 
-    if (!page) {
-      res.status(404).json({ error: 'Page not found' });
-      return;
-    }
+    await ownedPage(req, pageId);
 
     // Calculate date range
     const now = new Date();
@@ -470,7 +451,6 @@ export const getPurchaseStats = async (req: Request, res: Response): Promise<voi
       topSuppliers: topSuppliersWithNames,
     });
   } catch (error) {
-    console.error('Get purchase stats error:', error);
-    res.status(500).json({ error: 'Failed to fetch purchase stats' });
+    return handleError(req, res, error, 'LEGACY_PURCHASE_STATS_FAILED');
   }
 };

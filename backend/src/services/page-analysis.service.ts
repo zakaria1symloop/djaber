@@ -1,3 +1,4 @@
+import { ApiError } from '../errors';
 import axios from 'axios';
 import crypto from 'crypto';
 import path from 'path';
@@ -225,7 +226,7 @@ export async function analyzePagePosts(internalPageId: string, limit = 30): Prom
   warning: string | null;
 }> {
   const page = await prisma.page.findUnique({ where: { id: internalPageId } });
-  if (!page) throw new Error('Page not found');
+  if (!page) throw new ApiError('PAGE_NOT_FOUND');
 
   const apiKey = await getOpenAIKey();
   if (!apiKey) {

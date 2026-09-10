@@ -1,21 +1,20 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
+import { ApiError, fail, handleError } from '../errors';
+import { Validator, pagination } from '../middleware/validate';
 import { computeDeliveryFee } from './user-delivery-fees.controller';
 import { recalcParentQuantity } from './user-product-variants.controller';
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
-/**
- * Thrown inside a stock transaction when a conditional decrement finds
- * insufficient quantity. The transaction rolls back and the HTTP handler
- * maps this to a 400 instead of a generic 500.
- */
-class InsufficientStockError extends Error {
-  constructor(public productLabel: string) {
-    super(`Insufficient stock for product: ${productLabel}`);
-    this.name = 'InsufficientStockError';
-  }
-}
+// Enumerations mirrored from the Prisma schema comments (model Order / OrderCall)
+const ORDER_STATUSES = ['pending', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled', 'returned'] as const;
+const PAYMENT_METHODS = ['cash', 'card', 'transfer', 'ccp'] as const;
+const PAYMENT_STATUSES = ['pending', 'partial', 'paid'] as const;
+const DELIVERY_STATUSES = ['not_sent', 'sent', 'in_transit', 'delivered'] as const;
+const CONFIRMATION_STATUSES = ['not_called', 'no_answer', 'confirmed', 'rejected'] as const;
+const CALL_RESULTS = ['picked_up', 'no_answer', 'busy', 'rejected', 'voicemail'] as const;
+const ORDER_SOURCES = ['manual', 'ai'] as const;
 
 /**
  * Order status transition matrix (backend-enforced).
@@ -156,26 +155,21 @@ export const generateOrderNumber = async (
 
 export const getOrders = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const {
-      startDate,
-      endDate,
-      status,
-      paymentStatus,
-      confirmationStatus,
-      deliveryStatus,
-      search,
-      minTotal,
-      maxTotal,
-      hasRemaining,
-      clientId,
-      limit = '50',
-      offset = '0',
-    } = req.query;
+    const { search, hasRemaining, clientId } = req.query;
+    const v = new Validator();
+    const startDate = v.date(req.query.startDate, 'startDate');
+    const endDate = v.date(req.query.endDate, 'endDate');
+    const status = v.oneOf(req.query.status, 'status', ORDER_STATUSES, ORDER_STATUSES[0]);
+    const paymentStatus = v.oneOf(req.query.paymentStatus, 'paymentStatus', PAYMENT_STATUSES, PAYMENT_STATUSES[0]);
+    const confirmationStatus = v.oneOf(req.query.confirmationStatus, 'confirmationStatus', CONFIRMATION_STATUSES, CONFIRMATION_STATUSES[0]);
+    const deliveryStatus = v.oneOf(req.query.deliveryStatus, 'deliveryStatus', DELIVERY_STATUSES, DELIVERY_STATUSES[0]);
+    const minTotal = v.number(req.query.minTotal, 'minTotal', { required: false, min: 0 });
+    const maxTotal = v.number(req.query.maxTotal, 'maxTotal', { required: false, min: 0 });
+    v.throwIfAny();
+    if (startDate && endDate && startDate > endDate) throw new ApiError('INVALID_DATE_RANGE');
+    const { limit, offset } = pagination(req.query);
 
     const where: any = { userId: req.user.userId };
 
@@ -183,23 +177,23 @@ export const getOrders = async (req: Request, res: Response): Promise<void> => {
 
     if (startDate || endDate) {
       where.orderDate = {};
-      if (startDate) where.orderDate.gte = new Date(startDate as string);
-      if (endDate) where.orderDate.lte = new Date(endDate as string);
+      if (startDate) where.orderDate.gte = startDate;
+      if (endDate) where.orderDate.lte = endDate;
     }
 
-    if (status) where.status = status as string;
+    if (req.query.status) where.status = status;
     if (hasRemaining === 'true') {
       where.paymentStatus = { not: 'paid' };
-    } else if (paymentStatus) {
-      where.paymentStatus = paymentStatus as string;
+    } else if (req.query.paymentStatus) {
+      where.paymentStatus = paymentStatus;
     }
-    if (confirmationStatus) where.confirmationStatus = confirmationStatus as string;
-    if (deliveryStatus) where.deliveryStatus = deliveryStatus as string;
+    if (req.query.confirmationStatus) where.confirmationStatus = confirmationStatus;
+    if (req.query.deliveryStatus) where.deliveryStatus = deliveryStatus;
 
-    if (minTotal || maxTotal) {
+    if (req.query.minTotal || req.query.maxTotal) {
       where.total = {};
-      if (minTotal) where.total.gte = parseFloat(minTotal as string);
-      if (maxTotal) where.total.lte = parseFloat(maxTotal as string);
+      if (req.query.minTotal) where.total.gte = minTotal;
+      if (req.query.maxTotal) where.total.lte = maxTotal;
     }
 
     if (search) {
@@ -230,16 +224,15 @@ export const getOrders = async (req: Request, res: Response): Promise<void> => {
           client: { select: { id: true, name: true, phone: true } },
         },
         orderBy: { orderDate: 'desc' },
-        skip: parseInt(offset as string, 10),
-        take: parseInt(limit as string, 10),
+        skip: offset,
+        take: limit,
       }),
       prisma.order.count({ where }),
     ]);
 
     res.json({ orders, total });
-  } catch (error: any) {
-    console.error('Get orders error:', error.message, error.code, error.meta);
-    res.status(500).json({ error: 'Failed to fetch orders', details: error.message });
+  } catch (error) {
+    return handleError(req, res, error, 'ORDER_FETCH_FAILED');
   }
 };
 
@@ -249,10 +242,7 @@ export const getOrders = async (req: Request, res: Response): Promise<void> => {
 
 export const getOrder = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const orderId = req.params.orderId as string;
 
@@ -271,15 +261,11 @@ export const getOrder = async (req: Request, res: Response): Promise<void> => {
       },
     });
 
-    if (!order) {
-      res.status(404).json({ error: 'Order not found' });
-      return;
-    }
+    if (!order) return fail(req, res, 'ORDER_NOT_FOUND');
 
     res.json({ order });
   } catch (error) {
-    console.error('Get order error:', error);
-    res.status(500).json({ error: 'Failed to fetch order' });
+    return handleError(req, res, error, 'ORDER_FETCH_FAILED');
   }
 };
 
@@ -289,69 +275,61 @@ export const getOrder = async (req: Request, res: Response): Promise<void> => {
 
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const {
-      clientId,
-      clientName,
-      clientPhone,
-      clientAddress,
-      items,
-      discount = 0,
-      tax = 0,
-      amountPaid = 0,
-      paymentMethod = 'cash',
-      status = 'pending',
-      source = 'manual',
-      notes,
-      wilayaId,
-      communeName,
-      isStopdesk = false,
-      deliveryFee: providedDeliveryFee,
-      orderDate,
-    } = req.body;
+    const { clientAddress, wilayaId, communeName, deliveryFee: providedDeliveryFee } = req.body;
 
-    if (!clientName || !clientName.trim()) {
-      res.status(400).json({ error: 'Client name is required' });
-      return;
-    }
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      res.status(400).json({ error: 'At least one item is required' });
-      return;
-    }
-
+    const v = new Validator();
+    const clientId = v.id(req.body.clientId, 'clientId', false);
+    const clientName = v.requiredString(req.body.clientName, 'clientName', { max: 191 });
+    const clientPhone = v.optionalString(req.body.clientPhone, 'clientPhone', { max: 50 });
+    const notes = v.optionalString(req.body.notes, 'notes');
+    const items = v.nonEmptyArray<any>(req.body.items, 'items', 'item');
+    const discount = v.number(req.body.discount, 'discount', { required: false, def: 0, min: 0 });
+    const tax = v.number(req.body.tax, 'tax', { required: false, def: 0, min: 0 });
+    const amountPaid = v.number(req.body.amountPaid, 'amountPaid', { required: false, def: 0, min: 0 });
+    const paymentMethod = v.oneOf(req.body.paymentMethod, 'paymentMethod', PAYMENT_METHODS, 'cash');
+    const status = v.oneOf(req.body.status, 'status', ORDER_STATUSES, 'pending');
+    const source = v.oneOf(req.body.source, 'source', ORDER_SOURCES, 'manual');
+    const isStopdesk = v.boolean(req.body.isStopdesk, 'isStopdesk', false);
     // Optional explicit order date (backdated entries). Reject dates more
     // than one day in the future.
-    let effectiveOrderDate = new Date();
-    if (orderDate !== undefined && orderDate !== null && orderDate !== '') {
-      const parsedDate = new Date(orderDate);
-      if (isNaN(parsedDate.getTime())) {
-        res.status(400).json({ error: 'Invalid order date' });
-        return;
-      }
-      if (parsedDate.getTime() > Date.now() + 24 * 60 * 60 * 1000) {
-        res.status(400).json({ error: 'Order date cannot be in the future' });
-        return;
-      }
-      effectiveOrderDate = parsedDate;
+    const effectiveOrderDate = v.date(req.body.orderDate, 'orderDate', { notFuture: true }) ?? new Date();
+    const explicitDeliveryFee = v.number(providedDeliveryFee, 'deliveryFee', { required: false, def: 0, min: 0 });
+
+    // Per-line scalar checks (product existence / variants / stock come after)
+    const lineInputs = items.map((item, i) => ({
+      productId: v.id(item?.productId, `items[${i}].productId`),
+      variantId: item?.variantId ? String(item.variantId) : null,
+      variantName: item?.variantName ? String(item.variantName) : null,
+      quantity: v.integer(item?.quantity, `items[${i}].quantity`, { positive: true }),
+      // `??` (not `||`) so an explicit unitPrice of 0 — a free item — is legal;
+      // absent → NaN marker, resolved from the product / variant below
+      unitPrice: item?.unitPrice === undefined || item?.unitPrice === null || item?.unitPrice === ''
+        ? null
+        : v.number(item.unitPrice, `items[${i}].unitPrice`, { min: 0 }),
+      discount: v.number(item?.discount, `items[${i}].discount`, { required: false, def: 0, min: 0 }),
+    }));
+    v.throwIfAny();
+
+    // A linked client must exist AND belong to the caller (never touch another
+    // tenant's client stats).
+    if (clientId) {
+      const client = await prisma.client.findFirst({
+        where: { id: clientId, userId: req.user.userId },
+        select: { id: true },
+      });
+      if (!client) throw new ApiError('CLIENT_NOT_FOUND');
     }
 
     // Verify all products exist (items may repeat a product across variants)
-    const productIds: string[] = items.map((item: any) => item.productId);
-    const uniqueProductIds = Array.from(new Set(productIds));
+    const uniqueProductIds = Array.from(new Set(lineInputs.map((l) => l.productId as string)));
     const products = await prisma.product.findMany({
       where: { id: { in: uniqueProductIds }, userId: req.user.userId, isActive: true },
       include: { variants: true },
     });
 
-    if (products.length !== uniqueProductIds.length) {
-      res.status(400).json({ error: 'One or more products not found' });
-      return;
-    }
+    if (products.length !== uniqueProductIds.length) throw new ApiError('PRODUCTS_NOT_FOUND');
 
     // Resolve lines: validate variants, check stock (fast-path friendly error —
     // the conditional decrement inside the transaction is authoritative) and
@@ -368,48 +346,27 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       total: number;
     }[] = [];
 
-    for (const item of items) {
-      const product = products.find((p) => p.id === item.productId)!;
-      const quantity = Number(item.quantity);
-      if (!Number.isInteger(quantity) || quantity <= 0) {
-        res.status(400).json({ error: `Invalid quantity for product: ${product.name}` });
-        return;
-      }
+    for (const line of lineInputs) {
+      const product = products.find((p) => p.id === line.productId)!;
+      const quantity = line.quantity;
 
       let variant: (typeof product.variants)[number] | null = null;
       if (product.hasVariants) {
         // Variant products must say WHICH variant is being sold — otherwise
         // variant stock is never touched and any variant edit erases the
         // order's deduction (parent qty = sum of variants).
-        if (!item.variantId) {
-          res.status(400).json({ error: `Variant is required for product: ${product.name}` });
-          return;
-        }
-        variant = product.variants.find((v) => v.id === item.variantId) || null;
-        if (!variant || !variant.isActive) {
-          res.status(400).json({ error: `Variant not found for product: ${product.name}` });
-          return;
-        }
+        if (!line.variantId) throw new ApiError('ORDER_VARIANT_REQUIRED', { product: product.name });
+        variant = product.variants.find((vr) => vr.id === line.variantId) || null;
+        if (!variant || !variant.isActive) throw new ApiError('ORDER_VARIANT_NOT_FOUND', { product: product.name });
         if (variant.quantity < quantity) {
-          res.status(400).json({
-            error: `Insufficient stock for product: ${product.name} (${variant.name})`,
-          });
-          return;
+          throw new ApiError('ORDER_INSUFFICIENT_STOCK', { product: `${product.name} (${variant.name})` });
         }
       } else if (product.quantity < quantity) {
-        res.status(400).json({ error: `Insufficient stock for product: ${product.name}` });
-        return;
+        throw new ApiError('ORDER_INSUFFICIENT_STOCK', { product: product.name });
       }
 
-      // `??` (not `||`) so an explicit unitPrice of 0 — a free item — is legal
-      const unitPrice = Number(
-        item.unitPrice ?? (variant ? variant.sellingPrice : product.sellingPrice)
-      );
-      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-        res.status(400).json({ error: `Invalid unit price for product: ${product.name}` });
-        return;
-      }
-      const itemDiscount = Number(item.discount ?? 0) || 0;
+      const unitPrice = line.unitPrice ?? Number(variant ? variant.sellingPrice : product.sellingPrice);
+      const itemDiscount = line.discount;
       const itemTotal = unitPrice * quantity - itemDiscount;
       subtotal += itemTotal;
 
@@ -417,7 +374,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         productId: product.id,
         productName: product.name,
         variantId: variant ? variant.id : null,
-        variantName: variant ? variant.name : item.variantName || null,
+        variantName: variant ? variant.name : line.variantName,
         quantity,
         unitPrice,
         discount: itemDiscount,
@@ -428,10 +385,10 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
     // Compute delivery fee: explicit override > auto-compute from wilaya
     let deliveryFee = 0;
     if (providedDeliveryFee !== undefined && providedDeliveryFee !== null && providedDeliveryFee !== '') {
-      deliveryFee = Number(providedDeliveryFee) || 0;
+      deliveryFee = explicitDeliveryFee;
     } else if (wilayaId) {
       try {
-        const quote = await computeDeliveryFee(req.user.userId, Number(wilayaId), Boolean(isStopdesk));
+        const quote = await computeDeliveryFee(req.user.userId, Number(wilayaId), isStopdesk);
         deliveryFee = quote.fee;
       } catch {
         deliveryFee = 0;
@@ -440,7 +397,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 
     const total = subtotal - discount + tax + deliveryFee;
     // Clamp: 0 <= amountPaid <= total; paymentStatus is always derived
-    const actualPaid = Math.min(Math.max(0, Number(amountPaid) || 0), total);
+    const actualPaid = Math.min(Math.max(0, amountPaid), total);
     const computedPaymentStatus =
       actualPaid >= total ? 'paid' : actualPaid > 0 ? 'partial' : 'pending';
 
@@ -457,9 +414,9 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
               userId: req.user!.userId,
               orderNumber,
               clientId: clientId || null,
-              clientName: clientName.trim(),
-              clientPhone: clientPhone?.trim() || null,
-              clientAddress: clientAddress?.trim() || null,
+              clientName,
+              clientPhone,
+              clientAddress: typeof clientAddress === 'string' && clientAddress.trim() ? clientAddress.trim() : null,
               subtotal,
               discount,
               tax,
@@ -469,10 +426,10 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
               paymentStatus: computedPaymentStatus,
               status,
               source,
-              notes: notes?.trim() || null,
+              notes,
               wilayaId: wilayaId ? Number(wilayaId) : null,
-              communeName: communeName?.trim() || null,
-              isStopdesk: Boolean(isStopdesk),
+              communeName: typeof communeName === 'string' && communeName.trim() ? communeName.trim() : null,
+              isStopdesk,
               deliveryFee,
               orderDate: effectiveOrderDate,
               items: {
@@ -501,9 +458,9 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                 data: { quantity: { decrement: line.quantity } },
               });
               if (deducted.count !== 1) {
-                throw new InsufficientStockError(
-                  `${line.productName} (${line.variantName})`
-                );
+                throw new ApiError('ORDER_INSUFFICIENT_STOCK', {
+                  product: `${line.productName} (${line.variantName})`,
+                });
               }
               productsToRecalc.add(line.productId);
             } else {
@@ -516,7 +473,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                 data: { quantity: { decrement: line.quantity } },
               });
               if (deducted.count !== 1) {
-                throw new InsufficientStockError(line.productName);
+                throw new ApiError('ORDER_INSUFFICIENT_STOCK', { product: line.productName });
               }
             }
 
@@ -581,14 +538,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 
     res.status(201).json({ order });
   } catch (error) {
-    if (error instanceof InsufficientStockError) {
-      res.status(400).json({
-        error: `Insufficient stock for product: ${error.productLabel}`,
-      });
-      return;
-    }
-    console.error('Create order error:', error);
-    res.status(500).json({ error: 'Failed to create order' });
+    return handleError(req, res, error, 'ORDER_CREATE_FAILED');
   }
 };
 
@@ -598,41 +548,36 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 
 export const updateOrder = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const orderId = req.params.orderId as string;
-    const { status, paymentStatus, paymentMethod, deliveryStatus, amountPaid, notes, clientPhone, clientAddress } = req.body;
+    const { notes, clientPhone, clientAddress } = req.body;
+
+    const v = new Validator();
+    const status = req.body.status === undefined ? undefined : v.oneOf(req.body.status, 'status', ORDER_STATUSES);
+    const paymentStatus = req.body.paymentStatus === undefined ? undefined : v.oneOf(req.body.paymentStatus, 'paymentStatus', PAYMENT_STATUSES);
+    const paymentMethod = req.body.paymentMethod === undefined ? undefined : v.oneOf(req.body.paymentMethod, 'paymentMethod', PAYMENT_METHODS);
+    const deliveryStatus = req.body.deliveryStatus === undefined ? undefined : v.oneOf(req.body.deliveryStatus, 'deliveryStatus', DELIVERY_STATUSES);
+    const amountPaid = req.body.amountPaid === undefined ? undefined : v.number(req.body.amountPaid, 'amountPaid', { min: 0 });
+    v.throwIfAny();
 
     const existing = await prisma.order.findFirst({
       where: { id: orderId, userId: req.user.userId },
       include: { items: true },
     });
 
-    if (!existing) {
-      res.status(404).json({ error: 'Order not found' });
-      return;
-    }
+    if (!existing) return fail(req, res, 'ORDER_NOT_FOUND');
 
     // Enforce the status transition matrix (same-status is a no-op).
     // cancelled/returned are terminal — resurrection is forbidden.
     if (status !== undefined && status !== existing.status) {
-      if (!(status in ORDER_STATUS_TRANSITIONS)) {
-        res.status(400).json({ error: `Invalid status: ${status}` });
-        return;
-      }
       const allowedTargets = ORDER_STATUS_TRANSITIONS[existing.status] || [];
       if (!allowedTargets.includes(status)) {
         const terminal =
           existing.status === 'cancelled' || existing.status === 'returned';
-        res.status(400).json({
-          error: terminal
-            ? `Order is ${existing.status} and cannot be changed. Create a new order instead.`
-            : `Cannot change order status from '${existing.status}' to '${status}'.`,
-        });
-        return;
+        return terminal
+          ? fail(req, res, 'ORDER_TERMINAL', { status: existing.status })
+          : fail(req, res, 'ORDER_INVALID_TRANSITION', { from: existing.status, to: status });
       }
     }
 
@@ -644,10 +589,7 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
       isTerminal &&
       (amountPaid !== undefined || paymentStatus !== undefined || paymentMethod !== undefined || deliveryStatus !== undefined)
     ) {
-      res.status(400).json({
-        error: `Order is ${existing.status} — payment and delivery fields cannot be modified.`,
-      });
-      return;
+      return fail(req, res, 'ORDER_TERMINAL_PAYMENT_LOCKED', { status: existing.status });
     }
 
     const updateData: any = {};
@@ -655,13 +597,8 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
     let isAutoPay = false;
 
     if (amountPaid !== undefined) {
-      const parsedPaid = Number(amountPaid);
-      if (!Number.isFinite(parsedPaid)) {
-        res.status(400).json({ error: 'amountPaid must be a number' });
-        return;
-      }
       // Clamp: 0 <= amountPaid <= total
-      newPaid = Math.min(Math.max(0, parsedPaid), Number(existing.total));
+      newPaid = Math.min(Math.max(0, amountPaid), Number(existing.total));
     }
 
     if (status !== undefined) {
@@ -674,10 +611,10 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
     }
     if (paymentMethod !== undefined) updateData.paymentMethod = paymentMethod;
     if (deliveryStatus !== undefined) updateData.deliveryStatus = deliveryStatus;
-    if (notes !== undefined) updateData.notes = notes?.trim() || null;
+    if (notes !== undefined) updateData.notes = (typeof notes === 'string' ? notes.trim() : '') || null;
     // Contact corrections from the call-confirmation modal
-    if (clientPhone !== undefined) updateData.clientPhone = String(clientPhone).trim() || null;
-    if (clientAddress !== undefined) updateData.clientAddress = String(clientAddress).trim() || null;
+    if (clientPhone !== undefined) updateData.clientPhone = (clientPhone === null ? '' : String(clientPhone).trim()) || null;
+    if (clientAddress !== undefined) updateData.clientAddress = (clientAddress === null ? '' : String(clientAddress).trim()) || null;
 
     // paymentStatus is DERIVED whenever amountPaid changes — a caller-supplied
     // value is only kept when amountPaid is untouched (backward compat).
@@ -756,8 +693,7 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
 
     res.json({ order });
   } catch (error) {
-    console.error('Update order error:', error);
-    res.status(500).json({ error: 'Failed to update order' });
+    return handleError(req, res, error, 'ORDER_UPDATE_FAILED');
   }
 };
 
@@ -767,10 +703,7 @@ export const updateOrder = async (req: Request, res: Response): Promise<void> =>
 
 export const deleteOrder = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const orderId = req.params.orderId as string;
 
@@ -779,15 +712,9 @@ export const deleteOrder = async (req: Request, res: Response): Promise<void> =>
       include: { items: true },
     });
 
-    if (!order) {
-      res.status(404).json({ error: 'Order not found' });
-      return;
-    }
+    if (!order) return fail(req, res, 'ORDER_NOT_FOUND');
 
-    if (order.status === 'delivered') {
-      res.status(400).json({ error: 'Cannot delete a delivered order' });
-      return;
-    }
+    if (order.status === 'delivered') return fail(req, res, 'ORDER_DELETE_DELIVERED');
 
     // Delete order. If the order is still "alive" (not already cancelled or
     // returned) we need to roll back stock + caisse + client stats. If it
@@ -856,8 +783,7 @@ export const deleteOrder = async (req: Request, res: Response): Promise<void> =>
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete order error:', error);
-    res.status(500).json({ error: 'Failed to delete order' });
+    return handleError(req, res, error, 'ORDER_DELETE_FAILED');
   }
 };
 
@@ -867,34 +793,21 @@ export const deleteOrder = async (req: Request, res: Response): Promise<void> =>
 
 export const addOrderCall = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const orderId = req.params.orderId as string;
-    const { result, notes } = req.body;
 
-    if (!result) {
-      res.status(400).json({ error: 'Call result is required' });
-      return;
-    }
-
-    const validResults = ['picked_up', 'no_answer', 'busy', 'rejected', 'voicemail'];
-    if (!validResults.includes(result)) {
-      res.status(400).json({ error: `Invalid result. Must be one of: ${validResults.join(', ')}` });
-      return;
-    }
+    const v = new Validator();
+    const result = v.oneOf(req.body.result, 'result', CALL_RESULTS);
+    const notes = v.optionalString(req.body.notes, 'notes');
+    v.throwIfAny();
 
     const order = await prisma.order.findFirst({
       where: { id: orderId, userId: req.user.userId },
       include: { items: true },
     });
 
-    if (!order) {
-      res.status(404).json({ error: 'Order not found' });
-      return;
-    }
+    if (!order) return fail(req, res, 'ORDER_NOT_FOUND');
 
     // A picked-up call must NOT re-confirm a terminal order — cancelled and
     // returned are final. Log the call, return the order unchanged with a
@@ -907,7 +820,7 @@ export const addOrderCall = async (req: Request, res: Response): Promise<void> =
         data: {
           orderId,
           result,
-          notes: notes?.trim() || null,
+          notes,
         },
       });
       const unchangedOrder = await prisma.order.findFirst({
@@ -953,7 +866,7 @@ export const addOrderCall = async (req: Request, res: Response): Promise<void> =
         data: {
           orderId,
           result,
-          notes: notes?.trim() || null,
+          notes,
         },
       });
 
@@ -983,8 +896,7 @@ export const addOrderCall = async (req: Request, res: Response): Promise<void> =
     const call = updatedOrder.calls[0];
     res.json({ call, order: updatedOrder });
   } catch (error) {
-    console.error('Add order call error:', error);
-    res.status(500).json({ error: 'Failed to add call record' });
+    return handleError(req, res, error, 'ORDER_CALL_FAILED');
   }
 };
 
@@ -994,10 +906,7 @@ export const addOrderCall = async (req: Request, res: Response): Promise<void> =
 
 export const getOrderCalls = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const orderId = req.params.orderId as string;
 
@@ -1006,10 +915,7 @@ export const getOrderCalls = async (req: Request, res: Response): Promise<void> 
       select: { id: true },
     });
 
-    if (!order) {
-      res.status(404).json({ error: 'Order not found' });
-      return;
-    }
+    if (!order) return fail(req, res, 'ORDER_NOT_FOUND');
 
     const calls = await prisma.orderCall.findMany({
       where: { orderId },
@@ -1018,8 +924,7 @@ export const getOrderCalls = async (req: Request, res: Response): Promise<void> 
 
     res.json({ calls });
   } catch (error) {
-    console.error('Get order calls error:', error);
-    res.status(500).json({ error: 'Failed to fetch call records' });
+    return handleError(req, res, error, 'ORDER_CALLS_FETCH_FAILED');
   }
 };
 
@@ -1029,10 +934,7 @@ export const getOrderCalls = async (req: Request, res: Response): Promise<void> 
 
 export const getOrderStats = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const { period = 'month' } = req.query;
     const now = new Date();
@@ -1133,7 +1035,6 @@ export const getOrderStats = async (req: Request, res: Response): Promise<void> 
       topProducts,
     });
   } catch (error) {
-    console.error('Get order stats error:', error);
-    res.status(500).json({ error: 'Failed to fetch order stats' });
+    return handleError(req, res, error, 'ORDER_STATS_FAILED');
   }
 };

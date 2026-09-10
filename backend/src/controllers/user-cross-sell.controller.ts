@@ -1,6 +1,10 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { generateRecommendations as runEngine } from '../services/recommendation.service';
+import { fail, handleError } from '../errors';
+import { Validator } from '../middleware/validate';
+
+const RECOMMENDATION_TYPES = ['cross_sell', 'up_sell'] as const;
 
 // ============================================================================
 // GET /cross-sell — List all recommendations
@@ -8,19 +12,18 @@ import { generateRecommendations as runEngine } from '../services/recommendation
 
 export const getRecommendations = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user.userId;
-    const search = req.query.search as string | undefined;
-    const type = req.query.type as string | undefined;
-    const isActive = req.query.isActive as string | undefined;
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+    const userId = req.user.userId;
 
-    const where: any = { userId };
+    const v = new Validator();
+    const search = v.optionalString(req.query.search, 'search', { max: 200 });
+    const type = req.query.type === undefined || req.query.type === '' ? undefined : v.oneOf(req.query.type, 'type', RECOMMENDATION_TYPES);
+    const isActive = req.query.isActive === undefined || req.query.isActive === '' ? undefined : v.boolean(req.query.isActive, 'isActive');
+    v.throwIfAny();
 
-    if (type && (type === 'cross_sell' || type === 'up_sell')) {
-      where.type = type;
-    }
-
-    if (isActive === 'true') where.isActive = true;
-    else if (isActive === 'false') where.isActive = false;
+    const where: Record<string, unknown> = { userId };
+    if (type) where.type = type;
+    if (isActive !== undefined) where.isActive = isActive;
 
     const recommendations = await prisma.productRecommendation.findMany({
       where,
@@ -46,8 +49,7 @@ export const getRecommendations = async (req: Request, res: Response): Promise<v
 
     res.json(filtered);
   } catch (error) {
-    console.error('Error fetching recommendations:', error);
-    res.status(500).json({ error: 'Failed to fetch recommendations' });
+    handleError(req, res, error, 'CROSS_SELL_LIST_FAILED');
   }
 };
 
@@ -57,7 +59,8 @@ export const getRecommendations = async (req: Request, res: Response): Promise<v
 
 export const getRecommendationStats = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user.userId;
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+    const userId = req.user.userId;
 
     const [total, active, aggregates] = await Promise.all([
       prisma.productRecommendation.count({ where: { userId } }),
@@ -84,8 +87,7 @@ export const getRecommendationStats = async (req: Request, res: Response): Promi
       totalRevenue,
     });
   } catch (error) {
-    console.error('Error fetching recommendation stats:', error);
-    res.status(500).json({ error: 'Failed to fetch stats' });
+    handleError(req, res, error, 'CROSS_SELL_STATS_FAILED');
   }
 };
 
@@ -95,8 +97,9 @@ export const getRecommendationStats = async (req: Request, res: Response): Promi
 
 export const getProductRecommendations = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user.userId;
-    const productId = req.params.productId as string;
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+    const userId = req.user.userId;
+    const productId = String(req.params.productId);
 
     const recommendations = await prisma.productRecommendation.findMany({
       where: { userId, productId, isActive: true },
@@ -109,8 +112,7 @@ export const getProductRecommendations = async (req: Request, res: Response): Pr
 
     res.json(recommendations);
   } catch (error) {
-    console.error('Error fetching product recommendations:', error);
-    res.status(500).json({ error: 'Failed to fetch product recommendations' });
+    handleError(req, res, error, 'CROSS_SELL_LIST_FAILED');
   }
 };
 
@@ -120,12 +122,11 @@ export const getProductRecommendations = async (req: Request, res: Response): Pr
 
 export const generateRecommendationsEndpoint = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user.userId;
-    const count = await runEngine(userId);
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+    const count = await runEngine(req.user.userId);
     res.json({ success: true, count, message: `Generated ${count} recommendations` });
   } catch (error) {
-    console.error('Error generating recommendations:', error);
-    res.status(500).json({ error: 'Failed to generate recommendations' });
+    handleError(req, res, error, 'CROSS_SELL_GENERATE_FAILED');
   }
 };
 
@@ -135,18 +136,17 @@ export const generateRecommendationsEndpoint = async (req: Request, res: Respons
 
 export const updateRecommendation = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user.userId;
-    const id = req.params.id as string;
-    const { isActive } = req.body;
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+    const userId = req.user.userId;
+    const id = String(req.params.id);
+    const b = req.body ?? {};
 
-    const existing = await prisma.productRecommendation.findFirst({
-      where: { id, userId },
-    });
+    const v = new Validator();
+    const isActive = b.isActive === undefined || b.isActive === null ? undefined : v.boolean(b.isActive, 'isActive');
+    v.throwIfAny();
 
-    if (!existing) {
-      res.status(404).json({ error: 'Recommendation not found' });
-      return;
-    }
+    const existing = await prisma.productRecommendation.findFirst({ where: { id, userId } });
+    if (!existing) return fail(req, res, 'RECOMMENDATION_NOT_FOUND');
 
     const updated = await prisma.productRecommendation.update({
       where: { id },
@@ -155,8 +155,7 @@ export const updateRecommendation = async (req: Request, res: Response): Promise
 
     res.json(updated);
   } catch (error) {
-    console.error('Error updating recommendation:', error);
-    res.status(500).json({ error: 'Failed to update recommendation' });
+    handleError(req, res, error, 'CROSS_SELL_UPDATE_FAILED');
   }
 };
 
@@ -166,22 +165,16 @@ export const updateRecommendation = async (req: Request, res: Response): Promise
 
 export const deleteRecommendation = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = (req as any).user.userId;
-    const id = req.params.id as string;
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+    const userId = req.user.userId;
+    const id = String(req.params.id);
 
-    const existing = await prisma.productRecommendation.findFirst({
-      where: { id, userId },
-    });
-
-    if (!existing) {
-      res.status(404).json({ error: 'Recommendation not found' });
-      return;
-    }
+    const existing = await prisma.productRecommendation.findFirst({ where: { id, userId } });
+    if (!existing) return fail(req, res, 'RECOMMENDATION_NOT_FOUND');
 
     await prisma.productRecommendation.delete({ where: { id } });
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting recommendation:', error);
-    res.status(500).json({ error: 'Failed to delete recommendation' });
+    handleError(req, res, error, 'CROSS_SELL_DELETE_FAILED');
   }
 };

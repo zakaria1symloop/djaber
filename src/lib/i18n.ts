@@ -3173,9 +3173,18 @@ export function translateFor(lang: Lang, key: string, fallback?: string): string
 }
 
 /**
- * Map a backend error message (English) to a translation key.
+ * Backend errors arrive already translated (the API reads `Accept-Language`
+ * and answers `{ code, message, fields }`). When the error carries a `code`
+ * we trust its message as-is; the substring heuristics below only remain for
+ * legacy / network errors without a code.
  */
-export function translateBackendError(message: string): string {
+export function translateBackendError(message: string | (Error & { code?: string })): string {
+  if (typeof message === 'object' && message !== null) {
+    const err = message;
+    if (err.code === 'NETWORK_ERROR') return t('auth.errors.networkError');
+    if (err.code && err.code !== 'UNKNOWN') return err.message;
+    return translateBackendError(err.message);
+  }
   const m = (message || '').toLowerCase();
   if (m.includes('already exists')) return t('auth.errors.userExists');
   if (m.includes('invalid email or password')) return t('auth.errors.invalidCredentials');

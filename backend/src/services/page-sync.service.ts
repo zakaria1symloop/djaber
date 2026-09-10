@@ -1,3 +1,4 @@
+import { ApiError } from '../errors';
 import prisma from '../config/database';
 import {
   fetchPageConversationsFromMeta,
@@ -13,7 +14,7 @@ import {
  */
 export async function syncFacebookConversations(internalPageId: string) {
   const page = await prisma.page.findUnique({ where: { id: internalPageId } });
-  if (!page) throw new Error('Page not found');
+  if (!page) throw new ApiError('PAGE_NOT_FOUND');
   if (!page.pageAccessToken) {
     return { newConversations: 0, newMessages: 0, totalConversations: 0, totalMessages: 0 };
   }

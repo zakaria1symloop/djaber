@@ -1,18 +1,56 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../i18n.dart';
 
 /// The app talks directly to the production backend, same API as the web.
 /// NOTE: IP-based sslip.io host — if the VPS IP changes, update it here.
 const String baseUrl = 'https://djaber.72-60-190-211.sslip.io';
 
+/// One field-level validation error returned by the API (message already translated).
+class ApiFieldError {
+  final String field;
+  final String code;
+  final String message;
+  ApiFieldError(this.field, this.code, this.message);
+}
+
+/// Error contract of the backend: `message` is translated by the server for
+/// the app language (sent as Accept-Language), `code` is a stable key to
+/// branch on (e.g. AUTH_INVALID_CREDENTIALS, PRODUCT_NOT_FOUND,
+/// VALIDATION_FAILED), `fields` lists per-field validation errors (HTTP 400).
 class ApiException implements Exception {
   final int status;
   final String message;
+  final String code;
+  final List<ApiFieldError> fields;
   final Map<String, dynamic>? body;
-  ApiException(this.status, this.message, [this.body]);
+
+  ApiException(this.status, this.message, [this.body])
+      : code = (body?['code'] ?? (status >= 500 ? 'INTERNAL_ERROR' : 'UNKNOWN'))
+            .toString(),
+        fields = ((body?['fields'] as List?) ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map((f) => ApiFieldError(
+                  f['field']?.toString() ?? '',
+                  f['code']?.toString() ?? '',
+                  f['message']?.toString() ?? '',
+                ))
+            .toList();
+
+  bool get isValidation => status == 400 && fields.isNotEmpty;
+  bool get isUnauthorized => status == 401;
+
+  /// Translated message for one field, or null.
+  String? fieldMessage(String field) {
+    for (final f in fields) {
+      if (f.field == field) return f.message;
+    }
+    return null;
+  }
+
   @override
-  String toString() => 'ApiException($status): $message';
+  String toString() => 'ApiException($status $code): $message';
 }
 
 class ApiClient {
@@ -43,7 +81,11 @@ class ApiClient {
     bool auth = true,
   }) async {
     final uri = Uri.parse('$baseUrl$path');
-    final headers = <String, String>{'Content-Type': 'application/json'};
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      // The backend translates its error messages from this header (en / fr / ar).
+      'Accept-Language': I18n.lang.value,
+    };
     if (auth) {
       final token = await getToken();
       if (token != null) headers['Authorization'] = 'Bearer $token';

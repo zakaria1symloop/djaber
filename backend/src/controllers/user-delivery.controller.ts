@@ -4,6 +4,76 @@ import { encrypt, decrypt } from '../utils/encryption';
 import { wilayas } from '../data/wilayas';
 import * as deliveryService from '../services/delivery.service';
 import { createNotification } from '../services/notification.service';
+import { ApiError, fail, handleError, type ErrorCode } from '../errors';
+import { Validator } from '../middleware/validate';
+
+const PROVIDERS = ['yalidine', 'zrexpress', 'maystro'] as const;
+
+// ----------------------------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------------------------
+
+/** Credentials must be a non-empty plain object of strings; returns it or records a field error. */
+function credentialsObject(v: Validator, value: unknown, required: boolean): Record<string, string> | undefined {
+  if (value === undefined || value === null) {
+    if (required) v.add('credentials', 'FIELD_REQUIRED');
+    return undefined;
+  }
+  if (typeof value !== 'object' || Array.isArray(value) || Object.keys(value as object).length === 0) {
+    v.add('credentials', 'FIELD_INVALID');
+    return undefined;
+  }
+  const out: Record<string, string> = {};
+  for (const [k, val] of Object.entries(value as Record<string, unknown>)) {
+    if (val === undefined || val === null) continue;
+    if (typeof val !== 'string' && typeof val !== 'number') {
+      v.add('credentials', 'FIELD_INVALID');
+      return undefined;
+    }
+    out[k] = String(val);
+  }
+  if (Object.keys(out).length === 0) {
+    v.add('credentials', 'FIELD_INVALID');
+    return undefined;
+  }
+  return out;
+}
+
+/** Optional wilaya id (1–58); `undefined` when absent, `null` when explicitly cleared. */
+function wilayaId(v: Validator, value: unknown, field: string): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  return v.integer(value, field, { min: 1, max: 58 });
+}
+
+/** Decrypt stored courier credentials or throw a 500 DELIVERY_CREDENTIALS_UNREADABLE. */
+function readCredentials(encrypted: string): Record<string, string> {
+  try {
+    return JSON.parse(decrypt(encrypted));
+  } catch {
+    throw new ApiError('DELIVERY_CREDENTIALS_UNREADABLE');
+  }
+}
+
+/** Message an HTTP client (axios) error carries from the courier, if any. */
+function courierMessage(error: unknown): string | null {
+  const e = error as { isAxiosError?: boolean; response?: { data?: { message?: unknown; error?: unknown } }; code?: string; message?: string };
+  if (!e || typeof e !== 'object') return null;
+  if (!e.isAxiosError && !e.response) return null;
+  const data = e.response?.data;
+  const msg = typeof data?.message === 'string' ? data.message : typeof data?.error === 'string' ? data.error : null;
+  return msg || (e.response ? `HTTP ${(e.response as { status?: number }).status ?? ''}`.trim() : 'connection failed');
+}
+
+/** Courier HTTP failures → 502 DELIVERY_PROVIDER_ERROR; everything else → handleError with `fallback`. */
+function handleCourierError(req: Request, res: Response, error: unknown, fallback: ErrorCode): void {
+  const msg = courierMessage(error);
+  if (msg) {
+    console.error(`[${req.method} ${req.originalUrl}] DELIVERY_PROVIDER_ERROR:`, msg);
+    return fail(req, res, 'DELIVERY_PROVIDER_ERROR', { message: msg });
+  }
+  handleError(req, res, error, fallback);
+}
 
 // ============================================================================
 // Get Wilayas
@@ -28,10 +98,7 @@ export const getAvailableProviders = async (_req: Request, res: Response): Promi
 
 export const getProviders = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const providers = await prisma.deliveryProvider.findMany({
       where: { userId: req.user.userId },
@@ -47,8 +114,7 @@ export const getProviders = async (req: Request, res: Response): Promise<void> =
 
     res.json({ providers: sanitized });
   } catch (error) {
-    console.error('Get providers error:', error);
-    res.status(500).json({ error: 'Failed to fetch providers' });
+    handleError(req, res, error, 'DELIVERY_PROVIDER_LIST_FAILED');
   }
 };
 
@@ -58,42 +124,25 @@ export const getProviders = async (req: Request, res: Response): Promise<void> =
 
 export const addProvider = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const {
-      provider,
-      displayName,
-      credentials,
-      isDefault,
-      senderName,
-      senderPhone,
-      senderAddress,
-      senderWilayaId,
-    } = req.body;
-
-    if (!provider || !credentials) {
-      res.status(400).json({ error: 'Provider and credentials are required' });
-      return;
-    }
-
-    const validProviders = ['yalidine', 'zrexpress', 'maystro'];
-    if (!validProviders.includes(provider)) {
-      res.status(400).json({ error: `Invalid provider. Must be one of: ${validProviders.join(', ')}` });
-      return;
-    }
+    const b = req.body ?? {};
+    const v = new Validator();
+    const provider = v.oneOf(b.provider, 'provider', PROVIDERS);
+    const displayName = v.optionalString(b.displayName, 'displayName', { max: 100 });
+    const credentials = credentialsObject(v, b.credentials, true);
+    const isDefault = v.boolean(b.isDefault, 'isDefault', false);
+    const senderName = v.optionalString(b.senderName, 'senderName', { max: 100 });
+    const senderPhone = v.optionalString(b.senderPhone, 'senderPhone', { max: 30 });
+    const senderAddress = v.optionalString(b.senderAddress, 'senderAddress', { max: 255 });
+    const senderWilayaId = wilayaId(v, b.senderWilayaId, 'senderWilayaId') ?? null;
+    v.throwIfAny();
 
     // Check for existing
     const existing = await prisma.deliveryProvider.findUnique({
       where: { userId_provider: { userId: req.user.userId, provider } },
     });
-
-    if (existing) {
-      res.status(409).json({ error: `Provider ${provider} is already configured` });
-      return;
-    }
+    if (existing) return fail(req, res, 'DELIVERY_PROVIDER_ALREADY_ADDED', { provider });
 
     // Encrypt credentials
     const encryptedCreds = encrypt(JSON.stringify(credentials));
@@ -112,11 +161,11 @@ export const addProvider = async (req: Request, res: Response): Promise<void> =>
         provider,
         displayName: displayName || provider,
         credentials: encryptedCreds,
-        isDefault: isDefault || false,
-        senderName: senderName || null,
-        senderPhone: senderPhone || null,
-        senderAddress: senderAddress || null,
-        senderWilayaId: senderWilayaId ? Number(senderWilayaId) : null,
+        isDefault,
+        senderName,
+        senderPhone,
+        senderAddress,
+        senderWilayaId,
       },
     });
 
@@ -128,8 +177,8 @@ export const addProvider = async (req: Request, res: Response): Promise<void> =>
       },
     });
   } catch (error) {
-    console.error('Add provider error:', error);
-    res.status(500).json({ error: 'Failed to add provider' });
+    if ((error as { code?: string })?.code === 'P2002') return fail(req, res, 'DELIVERY_PROVIDER_ALREADY_ADDED', { provider: String(req.body?.provider ?? '') });
+    handleError(req, res, error, 'DELIVERY_PROVIDER_ADD_FAILED');
   }
 };
 
@@ -139,45 +188,34 @@ export const addProvider = async (req: Request, res: Response): Promise<void> =>
 
 export const updateProvider = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const id = req.params.id as string;
-    const {
-      displayName,
-      credentials,
-      isActive,
-      isDefault,
-      senderName,
-      senderPhone,
-      senderAddress,
-      senderWilayaId,
-    } = req.body;
+    const id = String(req.params.id);
+    const b = req.body ?? {};
+
+    const v = new Validator();
+    const updateData: Record<string, unknown> = {};
+    if (b.displayName !== undefined) updateData.displayName = v.requiredString(b.displayName, 'displayName', { max: 100 });
+    if (b.isActive !== undefined) updateData.isActive = v.boolean(b.isActive, 'isActive');
+    if (b.senderName !== undefined) updateData.senderName = v.optionalString(b.senderName, 'senderName', { max: 100 });
+    if (b.senderPhone !== undefined) updateData.senderPhone = v.optionalString(b.senderPhone, 'senderPhone', { max: 30 });
+    if (b.senderAddress !== undefined) updateData.senderAddress = v.optionalString(b.senderAddress, 'senderAddress', { max: 255 });
+    const senderWilayaId = wilayaId(v, b.senderWilayaId, 'senderWilayaId');
+    if (senderWilayaId !== undefined) updateData.senderWilayaId = senderWilayaId;
+    const credentials = credentialsObject(v, b.credentials, false);
+    const isDefault = b.isDefault === undefined || b.isDefault === null ? undefined : v.boolean(b.isDefault, 'isDefault');
+    v.throwIfAny();
 
     const existing = await prisma.deliveryProvider.findFirst({
       where: { id, userId: req.user.userId },
     });
-
-    if (!existing) {
-      res.status(404).json({ error: 'Provider not found' });
-      return;
-    }
-
-    const updateData: any = {};
-    if (displayName !== undefined) updateData.displayName = displayName;
-    if (isActive !== undefined) updateData.isActive = isActive;
-    if (senderName !== undefined) updateData.senderName = senderName || null;
-    if (senderPhone !== undefined) updateData.senderPhone = senderPhone || null;
-    if (senderAddress !== undefined) updateData.senderAddress = senderAddress || null;
-    if (senderWilayaId !== undefined) updateData.senderWilayaId = senderWilayaId ? Number(senderWilayaId) : null;
+    if (!existing) return fail(req, res, 'DELIVERY_PROVIDER_NOT_FOUND');
 
     if (credentials) {
       updateData.credentials = encrypt(JSON.stringify(credentials));
     }
 
-    if (isDefault) {
+    if (isDefault === true) {
       await prisma.deliveryProvider.updateMany({
         where: { userId: req.user.userId, isDefault: true, id: { not: id } },
         data: { isDefault: false },
@@ -200,8 +238,7 @@ export const updateProvider = async (req: Request, res: Response): Promise<void>
       },
     });
   } catch (error) {
-    console.error('Update provider error:', error);
-    res.status(500).json({ error: 'Failed to update provider' });
+    handleError(req, res, error, 'DELIVERY_PROVIDER_UPDATE_FAILED');
   }
 };
 
@@ -211,28 +248,20 @@ export const updateProvider = async (req: Request, res: Response): Promise<void>
 
 export const deleteProvider = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const id = req.params.id as string;
+    const id = String(req.params.id);
 
     const existing = await prisma.deliveryProvider.findFirst({
       where: { id, userId: req.user.userId },
     });
-
-    if (!existing) {
-      res.status(404).json({ error: 'Provider not found' });
-      return;
-    }
+    if (!existing) return fail(req, res, 'DELIVERY_PROVIDER_NOT_FOUND');
 
     await prisma.deliveryProvider.delete({ where: { id } });
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete provider error:', error);
-    res.status(500).json({ error: 'Failed to delete provider' });
+    handleError(req, res, error, 'DELIVERY_PROVIDER_DELETE_FAILED');
   }
 };
 
@@ -242,24 +271,19 @@ export const deleteProvider = async (req: Request, res: Response): Promise<void>
 
 export const testProviderCredentials = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const { provider, credentials } = req.body;
+    const b = req.body ?? {};
+    const v = new Validator();
+    const provider = v.oneOf(b.provider, 'provider', PROVIDERS);
+    const credentials = credentialsObject(v, b.credentials, true);
+    v.throwIfAny();
 
-    if (!provider || !credentials) {
-      res.status(400).json({ error: 'Provider and credentials are required' });
-      return;
-    }
-
-    const result = await deliveryService.testCredentials(provider, credentials);
+    // 200 { success, message } is the contract the settings page relies on (it renders `message`)
+    const result = await deliveryService.testCredentials(provider, credentials!);
     res.json(result);
-  } catch (error: any) {
-    console.error('Test credentials error:', error.message);
-    const msg = error.response?.data?.message || error.message || 'Failed to test credentials';
-    res.status(400).json({ success: false, message: msg });
+  } catch (error) {
+    handleCourierError(req, res, error, 'DELIVERY_CREDENTIALS_TEST_FAILED');
   }
 };
 
@@ -269,40 +293,29 @@ export const testProviderCredentials = async (req: Request, res: Response): Prom
 
 export const sendOrderToDelivery = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const orderId = req.params.orderId as string;
-    const {
-      providerId,
-      toWilayaId,
-      toCommuneId,
-      isStopdesk,
-      note,
-    } = req.body;
+    const orderId = String(req.params.orderId);
+    const b = req.body ?? {};
+
+    const v = new Validator();
+    const providerId = v.optionalString(b.providerId, 'providerId', { max: 64 });
+    const toWilayaId = b.toWilayaId === undefined || b.toWilayaId === null || b.toWilayaId === ''
+      ? null
+      : v.integer(b.toWilayaId, 'toWilayaId', { min: 1, max: 58 });
+    const toCommuneId = v.optionalString(b.toCommuneId, 'toCommuneId', { max: 100 });
+    const isStopdesk = v.boolean(b.isStopdesk, 'isStopdesk', false);
+    const note = v.optionalString(b.note, 'note', { max: 1000 });
+    v.throwIfAny();
 
     // 1. Find order
     const order = await prisma.order.findFirst({
       where: { id: orderId, userId: req.user.userId },
       include: { items: { include: { product: true } } },
     });
-
-    if (!order) {
-      res.status(404).json({ error: 'Order not found' });
-      return;
-    }
-
-    if (order.status === 'cancelled') {
-      res.status(400).json({ error: 'Cannot send a cancelled order' });
-      return;
-    }
-
-    if (order.deliveryStatus !== 'not_sent') {
-      res.status(400).json({ error: 'Order has already been sent to delivery' });
-      return;
-    }
+    if (!order) return fail(req, res, 'ORDER_NOT_FOUND');
+    if (order.status === 'cancelled') return fail(req, res, 'DELIVERY_ORDER_CANCELLED');
+    if (order.deliveryStatus !== 'not_sent') return fail(req, res, 'DELIVERY_ORDER_ALREADY_SENT');
 
     // 2. Get delivery provider config
     let providerConfig;
@@ -310,6 +323,7 @@ export const sendOrderToDelivery = async (req: Request, res: Response): Promise<
       providerConfig = await prisma.deliveryProvider.findFirst({
         where: { id: providerId, userId: req.user.userId, isActive: true },
       });
+      if (!providerConfig) return fail(req, res, 'DELIVERY_PROVIDER_NOT_FOUND');
     } else {
       providerConfig = await prisma.deliveryProvider.findFirst({
         where: { userId: req.user.userId, isActive: true, isDefault: true },
@@ -319,21 +333,11 @@ export const sendOrderToDelivery = async (req: Request, res: Response): Promise<
           where: { userId: req.user.userId, isActive: true },
         });
       }
-    }
-
-    if (!providerConfig) {
-      res.status(400).json({ error: 'No delivery provider configured. Add one in Settings.' });
-      return;
+      if (!providerConfig) return fail(req, res, 'DELIVERY_NO_ACTIVE_PROVIDER');
     }
 
     // 3. Decrypt credentials
-    let credentials: Record<string, string>;
-    try {
-      credentials = JSON.parse(decrypt(providerConfig.credentials));
-    } catch {
-      res.status(500).json({ error: 'Failed to decrypt provider credentials' });
-      return;
-    }
+    const credentials = readCredentials(providerConfig.credentials);
 
     // 4. Build product description
     const orderWithItems = order as typeof order & { items: Array<{ productName: string; quantity: number }> };
@@ -358,7 +362,7 @@ export const sendOrderToDelivery = async (req: Request, res: Response): Promise<
       from_wilaya_name: fromWilaya?.nameFr || '',
       price: Number(order.total),
       product: productDesc,
-      is_stopdesk: isStopdesk || false,
+      is_stopdesk: isStopdesk,
       note: note || order.notes || '',
       external_id: order.orderNumber,
     };
@@ -370,8 +374,7 @@ export const sendOrderToDelivery = async (req: Request, res: Response): Promise<
     );
 
     if (!result.success) {
-      res.status(400).json({ error: result.error || 'Failed to create shipment' });
-      return;
+      return fail(req, res, 'DELIVERY_PROVIDER_ERROR', { message: result.error || 'shipment refused' });
     }
 
     // 6. Update order
@@ -414,12 +417,34 @@ export const sendOrderToDelivery = async (req: Request, res: Response): Promise<
       shipment: result.data,
       tracking: result.tracking,
     });
-  } catch (error: any) {
-    console.error('Send to delivery error:', error.message);
-    const msg = error.response?.data?.message || error.message || 'Failed to send to delivery';
-    res.status(500).json({ error: msg });
+  } catch (error) {
+    handleCourierError(req, res, error, 'DELIVERY_SEND_FAILED');
   }
 };
+
+// ============================================================================
+// Tracking / label share the same lookup
+// ============================================================================
+
+async function loadTrackedOrder(req: Request, res: Response): Promise<{ order: { trackingNumber: string; deliveryProvider: string }; credentials: Record<string, string> } | null> {
+  const orderId = String(req.params.orderId);
+
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, userId: req.user!.userId },
+  });
+  if (!order) { fail(req, res, 'ORDER_NOT_FOUND'); return null; }
+  if (!order.trackingNumber || !order.deliveryProvider) { fail(req, res, 'DELIVERY_ORDER_NOT_TRACKED'); return null; }
+
+  const providerConfig = await prisma.deliveryProvider.findFirst({
+    where: { userId: req.user!.userId, provider: order.deliveryProvider },
+  });
+  if (!providerConfig) { fail(req, res, 'DELIVERY_PROVIDER_NOT_CONFIGURED'); return null; }
+
+  return {
+    order: { trackingNumber: order.trackingNumber, deliveryProvider: order.deliveryProvider },
+    credentials: readCredentials(providerConfig.credentials),
+  };
+}
 
 // ============================================================================
 // Get Tracking Info
@@ -427,56 +452,24 @@ export const sendOrderToDelivery = async (req: Request, res: Response): Promise<
 
 export const getTrackingInfo = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const orderId = req.params.orderId as string;
-
-    const order = await prisma.order.findFirst({
-      where: { id: orderId, userId: req.user.userId },
-    });
-
-    if (!order) {
-      res.status(404).json({ error: 'Order not found' });
-      return;
-    }
-
-    if (!order.trackingNumber || !order.deliveryProvider) {
-      res.status(400).json({ error: 'Order has no tracking information' });
-      return;
-    }
-
-    // Get provider credentials
-    const providerConfig = await prisma.deliveryProvider.findFirst({
-      where: { userId: req.user.userId, provider: order.deliveryProvider },
-    });
-
-    if (!providerConfig) {
-      res.status(400).json({ error: 'Delivery provider no longer configured' });
-      return;
-    }
-
-    let credentials: Record<string, string>;
-    try {
-      credentials = JSON.parse(decrypt(providerConfig.credentials));
-    } catch {
-      res.status(500).json({ error: 'Failed to decrypt provider credentials' });
-      return;
-    }
+    const ctx = await loadTrackedOrder(req, res);
+    if (!ctx) return;
 
     const result = await deliveryService.getShipmentStatus(
-      order.deliveryProvider,
-      credentials,
-      order.trackingNumber
+      ctx.order.deliveryProvider,
+      ctx.credentials,
+      ctx.order.trackingNumber
     );
 
+    if (!result.success) {
+      return fail(req, res, 'DELIVERY_PROVIDER_ERROR', { message: String(result.data?.error || 'tracking unavailable') });
+    }
+
     res.json(result);
-  } catch (error: any) {
-    console.error('Get tracking error:', error.message);
-    const msg = error.response?.data?.message || error.message || 'Failed to get tracking';
-    res.status(500).json({ error: msg });
+  } catch (error) {
+    handleCourierError(req, res, error, 'DELIVERY_TRACKING_FAILED');
   }
 };
 
@@ -486,55 +479,24 @@ export const getTrackingInfo = async (req: Request, res: Response): Promise<void
 
 export const getShippingLabel = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const orderId = req.params.orderId as string;
-
-    const order = await prisma.order.findFirst({
-      where: { id: orderId, userId: req.user.userId },
-    });
-
-    if (!order) {
-      res.status(404).json({ error: 'Order not found' });
-      return;
-    }
-
-    if (!order.trackingNumber || !order.deliveryProvider) {
-      res.status(400).json({ error: 'Order has no tracking information' });
-      return;
-    }
-
-    const providerConfig = await prisma.deliveryProvider.findFirst({
-      where: { userId: req.user.userId, provider: order.deliveryProvider },
-    });
-
-    if (!providerConfig) {
-      res.status(400).json({ error: 'Delivery provider no longer configured' });
-      return;
-    }
-
-    let credentials: Record<string, string>;
-    try {
-      credentials = JSON.parse(decrypt(providerConfig.credentials));
-    } catch {
-      res.status(500).json({ error: 'Failed to decrypt provider credentials' });
-      return;
-    }
+    const ctx = await loadTrackedOrder(req, res);
+    if (!ctx) return;
 
     const result = await deliveryService.getShipmentLabel(
-      order.deliveryProvider,
-      credentials,
-      order.trackingNumber
+      ctx.order.deliveryProvider,
+      ctx.credentials,
+      ctx.order.trackingNumber
     );
 
+    if (!result.success) {
+      return fail(req, res, 'DELIVERY_PROVIDER_ERROR', { message: String(result.data?.error || 'label unavailable') });
+    }
+
     res.json(result);
-  } catch (error: any) {
-    console.error('Get label error:', error.message);
-    const msg = error.response?.data?.message || error.message || 'Failed to get label';
-    res.status(500).json({ error: msg });
+  } catch (error) {
+    handleCourierError(req, res, error, 'DELIVERY_LABEL_FAILED');
   }
 };
 
@@ -544,50 +506,34 @@ export const getShippingLabel = async (req: Request, res: Response): Promise<voi
 
 export const getDeliveryRates = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const { provider, toWilaya, fromWilaya } = req.query;
-
-    if (!provider || !toWilaya) {
-      res.status(400).json({ error: 'Provider and toWilaya query params are required' });
-      return;
-    }
+    const v = new Validator();
+    const provider = v.oneOf(req.query.provider, 'provider', PROVIDERS);
+    const toWilaya = v.integer(req.query.toWilaya, 'toWilaya', { min: 1, max: 58 });
+    const fromWilaya = req.query.fromWilaya === undefined || req.query.fromWilaya === ''
+      ? null
+      : v.integer(req.query.fromWilaya, 'fromWilaya', { min: 1, max: 58 });
+    v.throwIfAny();
 
     const providerConfig = await prisma.deliveryProvider.findFirst({
-      where: {
-        userId: req.user.userId,
-        provider: provider as string,
-        isActive: true,
-      },
+      where: { userId: req.user.userId, provider, isActive: true },
     });
+    if (!providerConfig) return fail(req, res, 'DELIVERY_PROVIDER_NOT_FOUND');
 
-    if (!providerConfig) {
-      res.status(404).json({ error: 'Provider not configured' });
-      return;
-    }
-
-    let credentials: Record<string, string>;
-    try {
-      credentials = JSON.parse(decrypt(providerConfig.credentials));
-    } catch {
-      res.status(500).json({ error: 'Failed to decrypt provider credentials' });
-      return;
-    }
+    const credentials = readCredentials(providerConfig.credentials);
 
     const result = await deliveryService.getDeliveryRates(
-      provider as string,
+      provider,
       credentials,
-      Number(fromWilaya) || providerConfig.senderWilayaId || 16,
-      Number(toWilaya)
+      fromWilaya || providerConfig.senderWilayaId || 16,
+      toWilaya
     );
 
+    if (!result.success) return fail(req, res, 'DELIVERY_RATES_UNAVAILABLE');
+
     res.json(result);
-  } catch (error: any) {
-    console.error('Get rates error:', error.message);
-    const msg = error.response?.data?.message || error.message || 'Failed to get rates';
-    res.status(500).json({ error: msg });
+  } catch (error) {
+    handleCourierError(req, res, error, 'DELIVERY_RATES_FAILED');
   }
 };

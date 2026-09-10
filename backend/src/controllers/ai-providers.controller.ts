@@ -1,6 +1,10 @@
 import { Request, Response } from 'express';
 import axios from 'axios';
 import prisma from '../config/database';
+import { ApiError, fail, handleError, type ErrorCode, type Params } from '../errors';
+import { Validator } from '../middleware/validate';
+
+const AI_PROVIDERS = ['openai', 'anthropic', 'google', 'groq'] as const;
 
 // ============================================================================
 // Get active providers + models (public — for agent form)
@@ -26,8 +30,7 @@ export const getActiveProviders = async (_req: Request, res: Response): Promise<
 
     res.json({ providers: result });
   } catch (error) {
-    console.error('Get active providers error:', error);
-    res.status(500).json({ error: 'Failed to fetch providers' });
+    handleError(_req, res, error);
   }
 };
 
@@ -35,7 +38,7 @@ export const getActiveProviders = async (_req: Request, res: Response): Promise<
 // Get all providers (admin)
 // ============================================================================
 
-export const getAllProviders = async (_req: Request, res: Response): Promise<void> => {
+export const getAllProviders = async (req: Request, res: Response): Promise<void> => {
   try {
     const providers = await prisma.aIProvider.findMany({
       orderBy: { createdAt: 'asc' },
@@ -50,8 +53,7 @@ export const getAllProviders = async (_req: Request, res: Response): Promise<voi
 
     res.json({ providers: result });
   } catch (error) {
-    console.error('Get all providers error:', error);
-    res.status(500).json({ error: 'Failed to fetch providers' });
+    return handleError(req, res, error, 'AI_PROVIDER_LIST_FAILED');
   }
 };
 
@@ -61,16 +63,34 @@ export const getAllProviders = async (_req: Request, res: Response): Promise<voi
 
 export const updateProvider = async (req: Request, res: Response): Promise<void> => {
   try {
-    const provider = String(req.params.provider);
-    const { apiKey, isActive, models } = req.body;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+
+    const v = new Validator();
+    const provider = v.oneOf(req.params.provider, 'provider', AI_PROVIDERS);
+    let apiKey: string | undefined;
+    if (body.apiKey !== undefined && body.apiKey !== null) {
+      if (typeof body.apiKey !== 'string') v.add('apiKey', 'FIELD_INVALID');
+      else apiKey = body.apiKey.trim();
+    }
+    let isActive: boolean | undefined;
+    if (body.isActive !== undefined && body.isActive !== null) {
+      if (typeof body.isActive !== 'boolean') v.add('isActive', 'FIELD_INVALID');
+      else isActive = body.isActive;
+    }
+    let models: string[] | undefined;
+    if (body.models !== undefined && body.models !== null) {
+      if (!Array.isArray(body.models) || body.models.some((m) => typeof m !== 'string' || m.trim() === '')) {
+        v.add('models', 'FIELD_INVALID');
+      } else {
+        models = (body.models as string[]).map((m) => m.trim());
+      }
+    }
+    v.throwIfAny();
 
     const existing = await prisma.aIProvider.findUnique({ where: { provider } });
-    if (!existing) {
-      res.status(404).json({ error: 'Provider not found' });
-      return;
-    }
+    if (!existing) return fail(req, res, 'AI_PROVIDER_NOT_FOUND');
 
-    const updateData: any = {};
+    const updateData: { apiKey?: string; isActive?: boolean; models?: string } = {};
     if (apiKey !== undefined) updateData.apiKey = apiKey;
     if (isActive !== undefined) updateData.isActive = isActive;
     if (models !== undefined) updateData.models = JSON.stringify(models);
@@ -88,8 +108,7 @@ export const updateProvider = async (req: Request, res: Response): Promise<void>
       },
     });
   } catch (error) {
-    console.error('Update provider error:', error);
-    res.status(500).json({ error: 'Failed to update provider' });
+    return handleError(req, res, error, 'AI_PROVIDER_UPDATE_FAILED');
   }
 };
 
@@ -98,11 +117,19 @@ export const updateProvider = async (req: Request, res: Response): Promise<void>
 // ============================================================================
 
 interface TestResult {
-  ok: boolean;
+  ok: true;
   message: string;
   models?: string[]; // Chat-capable models the key actually has access to
   modelsAvailable?: number; // Count, may be larger than models.length
   latencyMs?: number;
+}
+
+/** Failure of the connectivity test: carries the error code + params answered to the client. */
+class ProviderTestError extends Error {
+  constructor(readonly code: ErrorCode, readonly params?: Params) {
+    super(String(code));
+    this.name = 'ProviderTestError';
+  }
 }
 
 /**
@@ -207,8 +234,9 @@ async function testProviderKey(provider: string, apiKey: string): Promise<TestRe
         'claude-3-opus-20240229',
         'claude-3-sonnet-20240229',
       ];
+      if (!r.data) throw new ProviderTestError('AI_PROVIDER_UNREACHABLE', { detail: 'empty response' });
       return {
-        ok: !!r.data,
+        ok: true,
         message: 'Key valid. Anthropic responded successfully.',
         models,
         modelsAvailable: models.length,
@@ -232,8 +260,9 @@ async function testProviderKey(provider: string, apiKey: string): Promise<TestRe
       };
     }
 
-    return { ok: false, message: `Test not implemented for provider "${provider}".` };
+    throw new ProviderTestError('AI_PROVIDER_TEST_UNSUPPORTED', { provider });
   } catch (err: any) {
+    if (err instanceof ProviderTestError) throw err;
     const status = err.response?.status;
     let apiMsg =
       err.response?.data?.error?.message ||
@@ -255,31 +284,35 @@ async function testProviderKey(provider: string, apiKey: string): Promise<TestRe
     if (apiMsg.length > 240) apiMsg = apiMsg.slice(0, 240) + '…';
 
     if (status === 401 || status === 403) {
-      return { ok: false, message: `Key rejected (${status}). ${apiMsg || 'Provider rejected the key.'}` };
+      throw new ProviderTestError('AI_PROVIDER_KEY_REJECTED', { status, detail: apiMsg });
     }
     if (status === 429) {
-      return { ok: false, message: `Rate-limited (429). Key looks valid but the provider is throttling: ${apiMsg}` };
+      throw new ProviderTestError('AI_PROVIDER_RATE_LIMITED', { detail: apiMsg });
     }
-    return {
-      ok: false,
-      message: status ? `HTTP ${status}: ${apiMsg}` : `Network error: ${apiMsg || err.code || 'unknown'}`,
-    };
+    throw new ProviderTestError('AI_PROVIDER_UNREACHABLE', {
+      status: status ?? null,
+      detail: status ? `HTTP ${status}${apiMsg ? `: ${apiMsg}` : ''}` : apiMsg || err.code || 'network error',
+    });
   }
 }
 
 export const testProvider = async (req: Request, res: Response): Promise<void> => {
   try {
-    const provider = String(req.params.provider);
+    const v = new Validator();
+    const provider = v.oneOf(req.params.provider, 'provider', AI_PROVIDERS);
+    v.throwIfAny();
+
     const row = await prisma.aIProvider.findUnique({ where: { provider } });
-    if (!row) {
-      res.status(404).json({ ok: false, message: 'Provider not found' });
-      return;
+    if (!row) return fail(req, res, 'AI_PROVIDER_NOT_FOUND');
+    if (!row.apiKey) return fail(req, res, 'AI_PROVIDER_NO_KEY');
+
+    let result: TestResult;
+    try {
+      result = await testProviderKey(provider, row.apiKey);
+    } catch (testErr) {
+      if (testErr instanceof ProviderTestError) throw new ApiError(testErr.code, testErr.params);
+      throw testErr;
     }
-    if (!row.apiKey) {
-      res.status(400).json({ ok: false, message: 'No API key is set for this provider yet.' });
-      return;
-    }
-    const result = await testProviderKey(provider, row.apiKey);
 
     // On success, persist the live model list so the agent form auto-shows
     // exactly what this key has access to (no stale seed values).
@@ -295,8 +328,7 @@ export const testProvider = async (req: Request, res: Response): Promise<void> =
     }
 
     res.json(result);
-  } catch (error: any) {
-    console.error('Test provider error:', error?.message || error);
-    res.status(500).json({ ok: false, message: 'Internal error while testing the key.' });
+  } catch (error) {
+    return handleError(req, res, error, 'AI_PROVIDER_TEST_FAILED');
   }
 };

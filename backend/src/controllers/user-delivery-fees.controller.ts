@@ -3,6 +3,8 @@ import prisma from '../config/database';
 import { wilayas } from '../data/wilayas';
 import { decrypt } from '../utils/encryption';
 import * as deliveryService from '../services/delivery.service';
+import { fail, handleError } from '../errors';
+import { Validator } from '../middleware/validate';
 
 // Default fallback pricing (DA) — user can override per-wilaya
 const DEFAULT_FEES: Record<number, { home: number; stopdesk: number; return: number }> = {
@@ -44,10 +46,7 @@ const defaultFor = (wilayaId: number) => DEFAULT_FEES[wilayaId] || { home: 800, 
 
 export const getDeliveryFeeRules = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const rules = await prisma.deliveryFeeRule.findMany({
       where: { userId: req.user.userId },
@@ -72,8 +71,7 @@ export const getDeliveryFeeRules = async (req: Request, res: Response): Promise<
 
     res.json({ rules: table });
   } catch (error) {
-    console.error('Get delivery fees error:', error);
-    res.status(500).json({ error: 'Failed to fetch delivery fees' });
+    handleError(req, res, error, 'FEE_LIST_FAILED');
   }
 };
 
@@ -83,41 +81,33 @@ export const getDeliveryFeeRules = async (req: Request, res: Response): Promise<
 
 export const upsertDeliveryFeeRule = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const { wilayaId, homePrice, stopdeskPrice, returnPrice, isActive } = req.body;
-
-    const wid = Number(wilayaId);
-    if (!wid || wid < 1 || wid > 58) {
-      res.status(400).json({ error: 'Invalid wilayaId (1-58)' });
-      return;
-    }
+    const b = req.body ?? {};
+    const v = new Validator();
+    const wid = v.integer(b.wilayaId, 'wilayaId', { min: 1, max: 58 });
+    const homePrice = b.homePrice === undefined || b.homePrice === null ? undefined : v.number(b.homePrice, 'homePrice', { min: 0 });
+    const stopdeskPrice = b.stopdeskPrice === undefined || b.stopdeskPrice === null ? undefined : v.number(b.stopdeskPrice, 'stopdeskPrice', { min: 0 });
+    const returnPrice = b.returnPrice === undefined || b.returnPrice === null ? undefined : v.number(b.returnPrice, 'returnPrice', { min: 0 });
+    const isActive = b.isActive === undefined || b.isActive === null ? undefined : v.boolean(b.isActive, 'isActive');
+    v.throwIfAny();
 
     const rule = await prisma.deliveryFeeRule.upsert({
       where: { userId_wilayaId: { userId: req.user.userId, wilayaId: wid } },
       create: {
         userId: req.user.userId,
         wilayaId: wid,
-        homePrice: Number(homePrice) || 0,
-        stopdeskPrice: Number(stopdeskPrice) || 0,
-        returnPrice: Number(returnPrice) || 0,
+        homePrice: homePrice ?? 0,
+        stopdeskPrice: stopdeskPrice ?? 0,
+        returnPrice: returnPrice ?? 0,
         isActive: isActive !== false,
       },
-      update: {
-        homePrice: homePrice !== undefined ? Number(homePrice) : undefined,
-        stopdeskPrice: stopdeskPrice !== undefined ? Number(stopdeskPrice) : undefined,
-        returnPrice: returnPrice !== undefined ? Number(returnPrice) : undefined,
-        isActive: isActive !== undefined ? isActive : undefined,
-      },
+      update: { homePrice, stopdeskPrice, returnPrice, isActive },
     });
 
     res.json({ rule });
   } catch (error) {
-    console.error('Upsert delivery fee error:', error);
-    res.status(500).json({ error: 'Failed to save delivery fee' });
+    handleError(req, res, error, 'FEE_SAVE_FAILED');
   }
 };
 
@@ -127,12 +117,11 @@ export const upsertDeliveryFeeRule = async (req: Request, res: Response): Promis
 
 export const seedDeliveryFees = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const { overwrite = false } = req.body;
+    const v = new Validator();
+    const overwrite = v.boolean(req.body?.overwrite, 'overwrite', false);
+    v.throwIfAny();
 
     const existing = await prisma.deliveryFeeRule.findMany({
       where: { userId: req.user.userId },
@@ -163,8 +152,7 @@ export const seedDeliveryFees = async (req: Request, res: Response): Promise<voi
 
     res.json({ success: true, seeded: ops.length });
   } catch (error) {
-    console.error('Seed delivery fees error:', error);
-    res.status(500).json({ error: 'Failed to seed delivery fees' });
+    handleError(req, res, error, 'FEE_SEED_FAILED');
   }
 };
 
@@ -174,21 +162,20 @@ export const seedDeliveryFees = async (req: Request, res: Response): Promise<voi
 
 export const deleteDeliveryFeeRule = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const wilayaId = Number(req.params.wilayaId);
+    const v = new Validator();
+    const wilayaId = v.integer(req.params.wilayaId, 'wilayaId', { min: 1, max: 58 });
+    v.throwIfAny();
 
-    await prisma.deliveryFeeRule.deleteMany({
+    const deleted = await prisma.deliveryFeeRule.deleteMany({
       where: { userId: req.user.userId, wilayaId },
     });
+    if (deleted.count === 0) return fail(req, res, 'FEE_RULE_NOT_FOUND');
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete delivery fee error:', error);
-    res.status(500).json({ error: 'Failed to delete rule' });
+    handleError(req, res, error, 'FEE_DELETE_FAILED');
   }
 };
 
@@ -244,18 +231,12 @@ export async function computeDeliveryFee(
 
 export const quoteDeliveryFee = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
-    const wilayaId = Number(req.query.wilayaId);
-    const isStopdesk = req.query.isStopdesk === 'true';
-
-    if (!wilayaId || wilayaId < 1 || wilayaId > 58) {
-      res.status(400).json({ error: 'Invalid wilayaId' });
-      return;
-    }
+    const v = new Validator();
+    const wilayaId = v.integer(req.query.wilayaId, 'wilayaId', { min: 1, max: 58 });
+    const isStopdesk = v.boolean(req.query.isStopdesk, 'isStopdesk', false);
+    v.throwIfAny();
 
     const quote = await computeDeliveryFee(req.user.userId, wilayaId, isStopdesk);
     const wilaya = wilayas.find(w => w.id === wilayaId);
@@ -267,7 +248,6 @@ export const quoteDeliveryFee = async (req: Request, res: Response): Promise<voi
       isStopdesk,
     });
   } catch (error) {
-    console.error('Quote delivery fee error:', error);
-    res.status(500).json({ error: 'Failed to quote fee' });
+    handleError(req, res, error, 'FEE_QUOTE_FAILED');
   }
 };

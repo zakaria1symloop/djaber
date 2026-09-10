@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
-import { resolveWindow } from '../utils/period';
+import { fail, handleError } from '../errors';
+import { parseWindow } from '../utils/period';
 
 // ============================================================================
 // AI Analytics — conversations / responses / consumption
@@ -70,16 +71,9 @@ const isAiReplyMsg = (m: { isFromPage: boolean; messageId: string }): boolean =>
 
 export const getConversationsAnalytics = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const userId = req.user.userId;
-    const { period, start, end, bucket, custom, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, start, end, bucket, custom, dateFilter } = parseWindow(req.query);
     const { buckets, indexByKey, keyOf } = buildSeriesScaffold(start, end, bucket);
 
     const [allConvs, windowMessages, activeConvs, pages, clients] = await Promise.all([
@@ -226,8 +220,7 @@ export const getConversationsAnalytics = async (req: Request, res: Response): Pr
       topCustomers,
     });
   } catch (error) {
-    console.error('Get conversations analytics error:', error);
-    res.status(500).json({ error: 'Failed to fetch conversations analytics' });
+    return handleError(req, res, error, 'ANALYTICS_FAILED');
   }
 };
 
@@ -241,16 +234,9 @@ const RESPONSE_TIME_CONV_CAP = 300;
 
 export const getResponsesAnalytics = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const userId = req.user.userId;
-    const { period, start, end, bucket, custom, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, start, end, bucket, custom, dateFilter } = parseWindow(req.query);
     const { buckets, indexByKey, keyOf } = buildSeriesScaffold(start, end, bucket);
 
     const [windowMessages, convMeta, insightRows, pages, agents] = await Promise.all([
@@ -445,8 +431,7 @@ export const getResponsesAnalytics = async (req: Request, res: Response): Promis
       byAgent,
     });
   } catch (error) {
-    console.error('Get responses analytics error:', error);
-    res.status(500).json({ error: 'Failed to fetch responses analytics' });
+    return handleError(req, res, error, 'ANALYTICS_FAILED');
   }
 };
 
@@ -467,16 +452,9 @@ const ACTION_LABELS: Record<string, string> = {
 
 export const getConsumptionAnalytics = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const userId = req.user.userId;
-    const { period, start, end, days, bucket, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, start, end, days, bucket, dateFilter } = parseWindow(req.query);
     const { buckets, indexByKey, keyOf } = buildSeriesScaffold(start, end, bucket);
 
     const [user, ledgerRows, pages, agents] = await Promise.all([
@@ -492,10 +470,7 @@ export const getConsumptionAnalytics = async (req: Request, res: Response): Prom
       prisma.agent.findMany({ where: { userId }, select: { id: true, name: true } }),
     ]);
 
-    if (!user) {
-      res.status(404).json({ error: 'User not found' });
-      return;
-    }
+    if (!user) return fail(req, res, 'USER_NOT_FOUND');
 
     const pageNameById = new Map(pages.map((p) => [p.id, p.pageName]));
     const agentNameById = new Map(agents.map((a) => [a.id, a.name]));
@@ -665,7 +640,6 @@ export const getConsumptionAnalytics = async (req: Request, res: Response): Prom
       ledgerReady,
     });
   } catch (error) {
-    console.error('Get consumption analytics error:', error);
-    res.status(500).json({ error: 'Failed to fetch consumption analytics' });
+    return handleError(req, res, error, 'ANALYTICS_FAILED');
   }
 };

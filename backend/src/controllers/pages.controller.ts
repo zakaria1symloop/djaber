@@ -1,6 +1,14 @@
 ﻿import { Request, Response } from 'express';
 import axios from 'axios';
 import prisma from '../config/database';
+import { fail, handleError, resolveLang, translate, type ErrorCode } from '../errors';
+
+const DEFAULT_BACKEND_URL = 'https://djaberio.symloop.com';
+const ID_RE = /^[0-9a-fA-F-]{8,64}$/;
+
+function frontendUrlOf(): string {
+  return (process.env.FRONTEND_URL || 'http://localhost:5175').split(',')[0].trim();
+}
 
 /**
  * Finish an OAuth flow that may have run in a popup OR a full-page redirect
@@ -36,17 +44,45 @@ function sendOAuthPopupResult(
 }
 
 /**
+ * OAuth callback failure: same popup/redirect mechanics, but the payload carries
+ * a stable `code` and the human text is translated for the caller's language.
+ */
+function sendOAuthError(
+  req: Request,
+  res: Response,
+  platform: 'facebook' | 'instagram',
+  code: ErrorCode,
+  extra: Record<string, unknown> = {}
+): void {
+  const message = translate(resolveLang(req), code);
+  sendOAuthPopupResult(
+    res,
+    frontendUrlOf(),
+    { type: `${platform}-oauth-error`, code, error: message, ...extra },
+    `${message} Returning to Djaber…`
+  );
+}
+
+/**
+ * The OAuth `state` is the id of the user who started the flow. Make sure it
+ * is a real user before saving pages under it (else Prisma throws P2003).
+ */
+async function resolveStateUser(state: unknown): Promise<string | null> {
+  if (typeof state !== 'string' || !ID_RE.test(state)) return null;
+  const user = await prisma.user.findUnique({ where: { id: state }, select: { id: true } });
+  return user?.id ?? null;
+}
+
+/**
  * Initiate Facebook OAuth flow
  */
 export const connectFacebookPage = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized', message: 'User not authenticated' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+    if (!process.env.META_APP_ID || !process.env.META_APP_SECRET) return fail(req, res, 'PAGE_META_NOT_CONFIGURED');
 
     // Use environment variable or default to production URL
-    const baseUrl = process.env.BACKEND_URL || 'https://djaberio.symloop.com';
+    const baseUrl = process.env.BACKEND_URL || DEFAULT_BACKEND_URL;
     const redirectUri = `${baseUrl}/api/pages/callback/facebook`;
     const scope = 'pages_show_list,pages_manage_metadata,pages_messaging,pages_read_engagement';
 
@@ -58,11 +94,7 @@ export const connectFacebookPage = async (req: Request, res: Response): Promise<
 
     res.json({ authUrl });
   } catch (error) {
-    console.error('Facebook connect error:', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to initiate Facebook connection',
-    });
+    handleError(req, res, error, 'PAGE_CONNECT_FAILED');
   }
 };
 
@@ -72,32 +104,18 @@ export const connectFacebookPage = async (req: Request, res: Response): Promise<
 export const facebookCallback = async (req: Request, res: Response): Promise<void> => {
   try {
     const { code, state, error: fbError } = req.query;
-    const userId = state as string;
-    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5175').split(',')[0].trim();
+    const frontendUrl = frontendUrlOf();
 
     // Handle user cancellation or errors
-    if (fbError) {
-      sendOAuthPopupResult(
-        res,
-        frontendUrl,
-        { type: 'facebook-oauth-error', error: String(fbError) },
-        'Authorization cancelled. Returning to Djaber…'
-      );
-      return;
-    }
+    if (fbError) return sendOAuthError(req, res, 'facebook', 'PAGE_OAUTH_CANCELLED', { reason: String(fbError) });
+    if (!code || typeof code !== 'string') return sendOAuthError(req, res, 'facebook', 'PAGE_OAUTH_CODE_MISSING');
+    if (!process.env.META_APP_ID || !process.env.META_APP_SECRET) return sendOAuthError(req, res, 'facebook', 'PAGE_META_NOT_CONFIGURED');
 
-    if (!code) {
-      sendOAuthPopupResult(
-        res,
-        frontendUrl,
-        { type: 'facebook-oauth-error', error: 'No authorization code' },
-        'Authorization failed. Returning to Djaber…'
-      );
-      return;
-    }
+    const userId = await resolveStateUser(state);
+    if (!userId) return sendOAuthError(req, res, 'facebook', 'PAGE_OAUTH_STATE_INVALID');
 
     // Exchange code for access token
-    const baseUrl = process.env.BACKEND_URL || 'https://djaberio.symloop.com';
+    const baseUrl = process.env.BACKEND_URL || DEFAULT_BACKEND_URL;
     const redirectUri = `${baseUrl}/api/pages/callback/facebook`;
     const tokenResponse = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
       params: {
@@ -213,15 +231,10 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
       { type: 'facebook-oauth-success', pages: pages.length },
       `Successfully connected ${pages.length} page(s). Returning to Djaber…`
     );
-  } catch (error) {
-    console.error('Facebook callback error:', error);
-    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5175').split(',')[0].trim();
-    sendOAuthPopupResult(
-      res,
-      frontendUrl,
-      { type: 'facebook-oauth-error', error: 'Connection failed' },
-      'Failed to connect pages. Returning to Djaber…'
-    );
+  } catch (error: any) {
+    console.error('Facebook callback error:', error?.response?.data || error);
+    if (res.headersSent) return;
+    sendOAuthError(req, res, 'facebook', 'PAGE_OAUTH_FAILED');
   }
 };
 
@@ -230,10 +243,7 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
  */
 export const getUserPages = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized', message: 'User not authenticated' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const pages = await prisma.page.findMany({
       where: {
@@ -253,11 +263,7 @@ export const getUserPages = async (req: Request, res: Response): Promise<void> =
 
     res.json({ pages });
   } catch (error) {
-    console.error('Get pages error:', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to fetch pages',
-    });
+    handleError(req, res, error, 'PAGE_LIST_FAILED');
   }
 };
 
@@ -266,12 +272,10 @@ export const getUserPages = async (req: Request, res: Response): Promise<void> =
  */
 export const connectInstagramPage = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized', message: 'User not authenticated' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
+    if (!process.env.INSTAGRAM_APP_ID || !process.env.INSTAGRAM_APP_SECRET) return fail(req, res, 'PAGE_INSTAGRAM_NOT_CONFIGURED');
 
-    const baseUrl = process.env.BACKEND_URL || 'https://djaberio.symloop.com';
+    const baseUrl = process.env.BACKEND_URL || DEFAULT_BACKEND_URL;
     const redirectUri = `${baseUrl}/api/pages/callback/instagram`;
     const scope = 'instagram_business_basic,instagram_business_manage_messages';
 
@@ -284,11 +288,7 @@ export const connectInstagramPage = async (req: Request, res: Response): Promise
 
     res.json({ authUrl });
   } catch (error) {
-    console.error('Instagram connect error:', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to initiate Instagram connection',
-    });
+    handleError(req, res, error, 'PAGE_CONNECT_FAILED');
   }
 };
 
@@ -298,42 +298,28 @@ export const connectInstagramPage = async (req: Request, res: Response): Promise
 export const instagramCallback = async (req: Request, res: Response): Promise<void> => {
   try {
     const { code, state, error: igError } = req.query;
-    const userId = state as string;
-    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5175').split(',')[0].trim();
+    const frontendUrl = frontendUrlOf();
 
     // Handle user cancellation or errors
-    if (igError) {
-      sendOAuthPopupResult(
-        res,
-        frontendUrl,
-        { type: 'instagram-oauth-error', error: String(igError) },
-        'Authorization cancelled. Returning to Djaber…'
-      );
-      return;
-    }
+    if (igError) return sendOAuthError(req, res, 'instagram', 'PAGE_OAUTH_CANCELLED', { reason: String(igError) });
+    if (!code || typeof code !== 'string') return sendOAuthError(req, res, 'instagram', 'PAGE_OAUTH_CODE_MISSING');
+    if (!process.env.INSTAGRAM_APP_ID || !process.env.INSTAGRAM_APP_SECRET) return sendOAuthError(req, res, 'instagram', 'PAGE_INSTAGRAM_NOT_CONFIGURED');
 
-    if (!code) {
-      sendOAuthPopupResult(
-        res,
-        frontendUrl,
-        { type: 'instagram-oauth-error', error: 'No authorization code' },
-        'Authorization failed. Returning to Djaber…'
-      );
-      return;
-    }
+    const userId = await resolveStateUser(state);
+    if (!userId) return sendOAuthError(req, res, 'instagram', 'PAGE_OAUTH_STATE_INVALID');
 
     // Step 1: Exchange code for short-lived token
-    const baseUrl = process.env.BACKEND_URL || 'https://djaberio.symloop.com';
+    const baseUrl = process.env.BACKEND_URL || DEFAULT_BACKEND_URL;
     const redirectUri = `${baseUrl}/api/pages/callback/instagram`;
 
     const tokenResponse = await axios.post(
       'https://api.instagram.com/oauth/access_token',
       new URLSearchParams({
-        client_id: process.env.INSTAGRAM_APP_ID || '',
-        client_secret: process.env.INSTAGRAM_APP_SECRET || '',
+        client_id: process.env.INSTAGRAM_APP_ID,
+        client_secret: process.env.INSTAGRAM_APP_SECRET,
         grant_type: 'authorization_code',
         redirect_uri: redirectUri,
-        code: code as string,
+        code,
       }),
       {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -391,16 +377,7 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
       await prisma.page
         .deleteMany({ where: { platform: 'instagram', pageId: String(igUserId) } })
         .catch(() => {});
-      const pendingMsg =
-        'This Instagram account cannot be connected yet: the app is pending Meta approval. ' +
-        'To test now, add this account as an Instagram Tester (App Roles) and accept the invite in the Instagram app.';
-      sendOAuthPopupResult(
-        res,
-        frontendUrl,
-        { type: 'instagram-oauth-error', error: pendingMsg },
-        pendingMsg
-      );
-      return;
+      return sendOAuthError(req, res, 'instagram', 'PAGE_INSTAGRAM_PENDING_APPROVAL');
     }
 
     // Step 4: Save to database using IGSID as pageId (matches webhook entry.id)
@@ -461,14 +438,9 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
       `Successfully connected Instagram account @${username}. Returning to Djaber…`
     );
   } catch (error: any) {
-    console.error('Instagram callback error:', error.response?.data || error);
-    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5175').split(',')[0].trim();
-    sendOAuthPopupResult(
-      res,
-      frontendUrl,
-      { type: 'instagram-oauth-error', error: 'Connection failed' },
-      'Failed to connect Instagram. Returning to Djaber…'
-    );
+    console.error('Instagram callback error:', error?.response?.data || error);
+    if (res.headersSent) return;
+    sendOAuthError(req, res, 'instagram', 'PAGE_OAUTH_FAILED');
   }
 };
 
@@ -477,13 +449,11 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
  */
 export const disconnectPage = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized', message: 'User not authenticated' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const { pageId } = req.params;
     const pageIdString = Array.isArray(pageId) ? pageId[0] : pageId;
+    if (!pageIdString || !ID_RE.test(pageIdString)) return fail(req, res, 'PAGE_NOT_FOUND');
 
     const page = await prisma.page.findFirst({
       where: {
@@ -492,10 +462,7 @@ export const disconnectPage = async (req: Request, res: Response): Promise<void>
       },
     });
 
-    if (!page) {
-      res.status(404).json({ error: 'Not Found', message: 'Page not found' });
-      return;
-    }
+    if (!page) return fail(req, res, 'PAGE_NOT_FOUND');
 
     await prisma.page.update({
       where: { id: pageIdString },
@@ -507,10 +474,6 @@ export const disconnectPage = async (req: Request, res: Response): Promise<void>
       message: 'Page disconnected successfully',
     });
   } catch (error) {
-    console.error('Disconnect page error:', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to disconnect page',
-    });
+    handleError(req, res, error, 'PAGE_DISCONNECT_FAILED');
   }
 };

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../config/database';
+import { fail, handleError } from '../errors';
 
 interface JwtPayload {
   userId: string;
@@ -15,6 +16,10 @@ declare global {
   }
 }
 
+/**
+ * Bearer JWT guard. Answers 401 UNAUTHORIZED (no token) or 401 INVALID_TOKEN
+ * (bad / expired token) — both translated per Accept-Language.
+ */
 export const authenticate = async (
   req: Request,
   res: Response,
@@ -24,11 +29,7 @@ export const authenticate = async (
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({
-        error: 'Unauthorized',
-        message: 'No token provided',
-      });
-      return;
+      return fail(req, res, 'UNAUTHORIZED');
     }
 
     const token = authHeader.substring(7);
@@ -43,17 +44,9 @@ export const authenticate = async (
     next();
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {
-      res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Invalid token',
-      });
-      return;
+      return fail(req, res, 'INVALID_TOKEN');
     }
-
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Authentication failed',
-    });
+    handleError(req, res, error);
   }
 };
 
@@ -67,21 +60,14 @@ export const requireAdmin = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const user = await prisma.user.findUnique({
       where: { id: req.user.userId },
       select: { isAdmin: true },
     });
-    if (!user?.isAdmin) {
-      res.status(403).json({ error: 'Forbidden', message: 'Admin access required' });
-      return;
-    }
+    if (!user?.isAdmin) return fail(req, res, 'ADMIN_REQUIRED');
     next();
   } catch (error) {
-    console.error('requireAdmin error:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    handleError(req, res, error);
   }
 };

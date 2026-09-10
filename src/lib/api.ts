@@ -2,8 +2,14 @@
  * API Client for Djaber.ai Backend
  */
 
-import { API_BASE_URL, getAuthHeader, apiRequest as baseApiRequest } from './api-config';
+import { API_BASE_URL, getAuthHeader, apiRequest as baseApiRequest, ApiError, getLangHeader } from './api-config';
 
+/**
+ * Unauthenticated variant (login / register): same ApiError contract as
+ * api-config — `message` is translated by the backend, `code` is stable and
+ * `fields` carries per-field validation errors. For a validation failure the
+ * message becomes the joined field messages so forms can show them directly.
+ */
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -13,29 +19,34 @@ async function apiRequest<T>(
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...getLangHeader(),
       ...options.headers,
     },
   };
 
+  let response: Response;
   try {
-    const response = await fetch(url, config);
-    const data = await response.json();
-
-    if (!response.ok) {
-      if (data.errors && Array.isArray(data.errors)) {
-        const errorMessages = data.errors.map((err: any) => err.msg).join(', ');
-        throw new Error(errorMessages);
-      }
-      throw new Error(data.message || data.error || 'Something went wrong');
-    }
-
-    return data as T;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error('Network error occurred');
+    response = await fetch(url, config);
+  } catch {
+    throw new ApiError(0, { code: 'NETWORK_ERROR' });
   }
+  const text = await response.text();
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { message: text };
+  }
+
+  if (!response.ok) {
+    const err = new ApiError(response.status, data);
+    if (err.fields.length > 0) {
+      err.message = err.fields.map((f) => f.message).join(', ');
+    }
+    throw err;
+  }
+
+  return data as T;
 }
 
 // ============================================================================

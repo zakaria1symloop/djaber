@@ -3,22 +3,34 @@ import prisma from '../config/database';
 import fs from 'fs';
 import path from 'path';
 import { uploadToCloud } from '../config/upload';
+import { ApiError, fail, handleError } from '../errors';
+
+const MAX_REORDER = 100;
+
+/** Product owned by the caller or 404 PRODUCT_NOT_FOUND. */
+async function findOwnProduct(productId: string, userId: string): Promise<{ id: string }> {
+  const product = await prisma.product.findFirst({
+    where: { id: productId, userId },
+    select: { id: true },
+  });
+  if (!product) throw new ApiError('PRODUCT_NOT_FOUND');
+  return product;
+}
 
 // Upload images to a product
 export const uploadImages = async (req: Request, res: Response): Promise<void> => {
+  const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+  const cleanup = () => {
+    for (const file of files) fs.unlink(file.path, () => {});
+  };
   try {
     if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
+      cleanup();
+      return fail(req, res, 'UNAUTHORIZED');
     }
 
     const productId = req.params.productId as string;
-    const files = req.files as Express.Multer.File[];
-
-    if (!files || files.length === 0) {
-      res.status(400).json({ error: 'No files uploaded' });
-      return;
-    }
+    if (files.length === 0) return fail(req, res, 'FILE_REQUIRED');
 
     // Verify product ownership
     const product = await prisma.product.findFirst({
@@ -26,12 +38,8 @@ export const uploadImages = async (req: Request, res: Response): Promise<void> =
     });
 
     if (!product) {
-      // Clean up uploaded files
-      for (const file of files) {
-        fs.unlink(file.path, () => {});
-      }
-      res.status(404).json({ error: 'Product not found' });
-      return;
+      cleanup();
+      return fail(req, res, 'PRODUCT_NOT_FOUND');
     }
 
     // Upload files to cloud (GCS in prod, local in dev)
@@ -76,31 +84,18 @@ export const uploadImages = async (req: Request, res: Response): Promise<void> =
 
     res.status(201).json({ images });
   } catch (error) {
-    console.error('Upload images error:', error);
-    res.status(500).json({ error: 'Failed to upload images' });
+    cleanup();
+    handleError(req, res, error, 'IMAGE_UPLOAD_FAILED');
   }
 };
 
 // Get images for a product
 export const getImages = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const productId = req.params.productId as string;
-
-    // Verify product ownership
-    const product = await prisma.product.findFirst({
-      where: { id: productId, userId: req.user.userId },
-      select: { id: true },
-    });
-
-    if (!product) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
-    }
+    await findOwnProduct(productId, req.user.userId);
 
     const images = await prisma.productImage.findMany({
       where: { productId },
@@ -109,41 +104,24 @@ export const getImages = async (req: Request, res: Response): Promise<void> => {
 
     res.json({ images });
   } catch (error) {
-    console.error('Get images error:', error);
-    res.status(500).json({ error: 'Failed to fetch images' });
+    handleError(req, res, error, 'IMAGE_LIST_FAILED');
   }
 };
 
 // Delete an image
 export const deleteImage = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const productId = req.params.productId as string;
     const imageId = req.params.imageId as string;
 
-    // Verify product ownership
-    const product = await prisma.product.findFirst({
-      where: { id: productId, userId: req.user.userId },
-      select: { id: true },
-    });
-
-    if (!product) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
-    }
+    await findOwnProduct(productId, req.user.userId);
 
     const image = await prisma.productImage.findFirst({
       where: { id: imageId, productId },
     });
-
-    if (!image) {
-      res.status(404).json({ error: 'Image not found' });
-      return;
-    }
+    if (!image) return fail(req, res, 'IMAGE_NOT_FOUND');
 
     // Delete file from disk
     const filePath = path.join(__dirname, '../../uploads/products', image.filename);
@@ -168,46 +146,33 @@ export const deleteImage = async (req: Request, res: Response): Promise<void> =>
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete image error:', error);
-    res.status(500).json({ error: 'Failed to delete image' });
+    handleError(req, res, error, 'IMAGE_DELETE_FAILED');
   }
 };
 
 // Reorder images
 export const reorderImages = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const productId = req.params.productId as string;
-    const { imageIds } = req.body as { imageIds: string[] };
+    const { imageIds } = (req.body ?? {}) as { imageIds?: unknown };
 
-    if (!Array.isArray(imageIds) || imageIds.length === 0) {
-      res.status(400).json({ error: 'imageIds array is required' });
-      return;
-    }
+    if (!Array.isArray(imageIds) || imageIds.length === 0) return fail(req, res, 'LIST_REQUIRED', { item: 'image' });
+    if (imageIds.length > MAX_REORDER) return fail(req, res, 'TOO_MANY_FILES', { max: MAX_REORDER });
+    if (imageIds.some((id) => typeof id !== 'string' || id.trim() === '')) return fail(req, res, 'FIELD_INVALID_ID', { field: 'imageIds' });
+    const ids = imageIds as string[];
+    if (new Set(ids).size !== ids.length) return fail(req, res, 'IMAGE_IDS_INVALID');
 
-    if (imageIds.length > 100) {
-      res.status(400).json({ error: 'Too many images (max 100)' });
-      return;
-    }
+    await findOwnProduct(productId, req.user.userId);
 
-    // Verify product ownership
-    const product = await prisma.product.findFirst({
-      where: { id: productId, userId: req.user.userId },
-      select: { id: true },
-    });
-
-    if (!product) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
-    }
+    // Every id must belong to this product
+    const owned = await prisma.productImage.count({ where: { productId, id: { in: ids } } });
+    if (owned !== ids.length) return fail(req, res, 'IMAGE_IDS_INVALID');
 
     // Update sort orders
     await prisma.$transaction(
-      imageIds.map((id, index) =>
+      ids.map((id, index) =>
         prisma.productImage.updateMany({
           where: { id, productId },
           data: { sortOrder: index },
@@ -222,41 +187,24 @@ export const reorderImages = async (req: Request, res: Response): Promise<void> 
 
     res.json({ images });
   } catch (error) {
-    console.error('Reorder images error:', error);
-    res.status(500).json({ error: 'Failed to reorder images' });
+    handleError(req, res, error, 'IMAGE_REORDER_FAILED');
   }
 };
 
 // Set primary image
 export const setPrimaryImage = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
 
     const productId = req.params.productId as string;
     const imageId = req.params.imageId as string;
 
-    // Verify product ownership
-    const product = await prisma.product.findFirst({
-      where: { id: productId, userId: req.user.userId },
-      select: { id: true },
-    });
-
-    if (!product) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
-    }
+    await findOwnProduct(productId, req.user.userId);
 
     const image = await prisma.productImage.findFirst({
       where: { id: imageId, productId },
     });
-
-    if (!image) {
-      res.status(404).json({ error: 'Image not found' });
-      return;
-    }
+    if (!image) return fail(req, res, 'IMAGE_NOT_FOUND');
 
     // Unset all, then set the chosen one
     await prisma.$transaction([
@@ -272,7 +220,6 @@ export const setPrimaryImage = async (req: Request, res: Response): Promise<void
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Set primary image error:', error);
-    res.status(500).json({ error: 'Failed to set primary image' });
+    handleError(req, res, error, 'IMAGE_SET_PRIMARY_FAILED');
   }
 };

@@ -2,7 +2,8 @@ import { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import prisma from '../config/database';
 import { getWilayaById } from '../data/wilayas';
-import { resolveWindow, WindowDateFilter } from '../utils/period';
+import { fail, handleError } from '../errors';
+import { parseWindow, WindowDateFilter } from '../utils/period';
 
 // ============================================================================
 // Deep Analytics — products / channels / agents / orders
@@ -18,16 +19,9 @@ const EXCLUDED_ORDER_STATUSES = ['cancelled', 'returned'];
 
 export const getProductsAnalytics = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const userId = req.user.userId;
-    const { period, days, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, days, dateFilter } = parseWindow(req.query);
 
     const [allProducts, orderAgg, saleAgg] = await Promise.all([
       prisma.product.findMany({
@@ -171,8 +165,7 @@ export const getProductsAnalytics = async (req: Request, res: Response): Promise
       })),
     });
   } catch (error) {
-    console.error('Get products analytics error:', error);
-    res.status(500).json({ error: 'Failed to fetch products analytics' });
+    return handleError(req, res, error, 'ANALYTICS_FAILED');
   }
 };
 
@@ -229,16 +222,9 @@ const fetchAiOrderAttribution = async (
 
 export const getChannelsAnalytics = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const userId = req.user.userId;
-    const { period, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, dateFilter } = parseWindow(req.query);
 
     const [pages, attribution] = await Promise.all([
       prisma.page.findMany({
@@ -328,8 +314,7 @@ export const getChannelsAnalytics = async (req: Request, res: Response): Promise
 
     res.json({ period, channels });
   } catch (error) {
-    console.error('Get channels analytics error:', error);
-    res.status(500).json({ error: 'Failed to fetch channels analytics' });
+    return handleError(req, res, error, 'ANALYTICS_FAILED');
   }
 };
 
@@ -339,16 +324,9 @@ export const getChannelsAnalytics = async (req: Request, res: Response): Promise
 
 export const getAgentsAnalytics = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const userId = req.user.userId;
-    const { period, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, dateFilter } = parseWindow(req.query);
 
     const [agents, attribution] = await Promise.all([
       prisma.agent.findMany({
@@ -434,8 +412,7 @@ export const getAgentsAnalytics = async (req: Request, res: Response): Promise<v
 
     res.json({ period, agents: result });
   } catch (error) {
-    console.error('Get agents analytics error:', error);
-    res.status(500).json({ error: 'Failed to fetch agents analytics' });
+    return handleError(req, res, error, 'ANALYTICS_FAILED');
   }
 };
 
@@ -449,16 +426,9 @@ const monthKey = (d: Date): string => `${d.getFullYear()}-${pad2(d.getMonth() + 
 
 export const getOrdersAnalytics = async (req: Request, res: Response): Promise<void> => {
   try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
+    if (!req.user) return fail(req, res, 'UNAUTHORIZED');
     const userId = req.user.userId;
-    const { period, start, end, bucket, dateFilter } = resolveWindow(
-      req.query.period,
-      req.query.startDate,
-      req.query.endDate
-    );
+    const { period, start, end, bucket, dateFilter } = parseWindow(req.query);
 
     const orders = await prisma.order.findMany({
       where: { userId, orderDate: dateFilter },
@@ -591,7 +561,6 @@ export const getOrdersAnalytics = async (req: Request, res: Response): Promise<v
       series,
     });
   } catch (error) {
-    console.error('Get orders analytics error:', error);
-    res.status(500).json({ error: 'Failed to fetch orders analytics' });
+    return handleError(req, res, error, 'ANALYTICS_FAILED');
   }
 };

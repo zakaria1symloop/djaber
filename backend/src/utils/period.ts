@@ -17,7 +17,17 @@
 // ranges add the `lte` bound because that is the whole point of a range.
 // ============================================================================
 
+import { ApiError } from '../errors';
+import { Validator } from '../middleware/validate';
+
 export type AnalyticsPeriod = 'today' | 'week' | 'month' | 'year';
+
+/** Presets accepted on the wire. 'custom' means "use startDate / endDate". */
+export const ANALYTICS_PERIODS = ['today', 'week', 'month', 'year', 'custom'] as const;
+export type AnalyticsPeriodParam = (typeof ANALYTICS_PERIODS)[number];
+
+/** Longest custom range we agree to compute (in days, ~2 years). */
+export const MAX_CUSTOM_RANGE_DAYS = 2 * 366;
 
 // Prisma DateTime filter for a window's primary date column.
 export type WindowDateFilter = { gte: Date; lte?: Date };
@@ -133,4 +143,60 @@ export const resolveWindow = (
     default:
       return periodResult('month', new Date(now.getTime() - 30 * DAY_MS), now, 30, 'day');
   }
+};
+
+// ============================================================================
+// Strict variant used by the controllers: same windows as `resolveWindow`,
+// but bad input is REJECTED (400) instead of silently falling back.
+//
+//   period      optional, one of ANALYTICS_PERIODS (default 'month')
+//               → FIELD_INVALID_ENUM
+//   startDate / endDate
+//               optional; if one is given the other is required
+//               (FIELD_REQUIRED), each must parse (FIELD_INVALID_DATE),
+//               start ≤ end (INVALID_DATE_RANGE), span ≤ 2 years
+//               (ANALYTICS_RANGE_TOO_LONG). `period=custom` without both
+//               dates → ANALYTICS_CUSTOM_RANGE_REQUIRED.
+//
+// The computed window is byte-identical to `resolveWindow` for valid input.
+// ============================================================================
+
+type QueryLike = Record<string, unknown>;
+
+const isBlank = (raw: unknown): boolean =>
+  raw === undefined || raw === null || (typeof raw === 'string' && raw.trim() === '');
+
+export const parseWindow = (query: QueryLike): ResolvedWindow => {
+  const v = new Validator();
+  const period = v.oneOf(query.period, 'period', ANALYTICS_PERIODS, 'month');
+
+  const hasStart = !isBlank(query.startDate);
+  const hasEnd = !isBlank(query.endDate);
+  let startDate: Date | null = null;
+  let endDate: Date | null = null;
+
+  if (hasStart || hasEnd) {
+    if (!hasStart) v.add('startDate', 'FIELD_REQUIRED');
+    else if (typeof query.startDate !== 'string' || !(startDate = parseDateParam(query.startDate))) {
+      v.add('startDate', 'FIELD_INVALID_DATE');
+    }
+    if (!hasEnd) v.add('endDate', 'FIELD_REQUIRED');
+    else if (typeof query.endDate !== 'string' || !(endDate = parseDateParam(query.endDate))) {
+      v.add('endDate', 'FIELD_INVALID_DATE');
+    }
+  }
+  v.throwIfAny();
+
+  if (period === 'custom' && !(startDate && endDate)) {
+    throw new ApiError('ANALYTICS_CUSTOM_RANGE_REQUIRED');
+  }
+
+  if (startDate && endDate) {
+    if (startDate.getTime() > endDate.getTime()) throw new ApiError('INVALID_DATE_RANGE');
+    const span = Math.round((endOfDay(endDate).getTime() - startOfDay(startDate).getTime()) / DAY_MS);
+    if (span > MAX_CUSTOM_RANGE_DAYS) throw new ApiError('ANALYTICS_RANGE_TOO_LONG', { maxYears: 2 });
+    return resolveWindow(period, query.startDate, query.endDate);
+  }
+
+  return resolveWindow(period);
 };
