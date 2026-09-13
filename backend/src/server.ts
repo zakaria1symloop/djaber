@@ -133,12 +133,20 @@ if (fs.existsSync(openapiPath)) {
   app.get('/api/docs/openapi.yaml', (_req: Request, res: Response) => {
     res.type('text/yaml').sendFile(openapiPath);
   });
+  // The UI FETCHES the spec from /api/docs/openapi.json instead of receiving it
+  // inline. Do not pass the spec object to setup(): swagger-ui-express injects
+  // it with `template.replace('<% swaggerOptions %>', json)`, a STRING replace,
+  // so any `$` pattern in a description (e.g. "`…\]$`" → `$\`` means "insert
+  // the text before the match") splices template code into the JSON, the init
+  // script stops parsing, and the page renders blank. Loading by URL keeps the
+  // spec out of that replace entirely (and the init script tiny).
   app.use(
     '/api/docs',
     swaggerUi.serve,
-    swaggerUi.setup(openapiSpec, {
+    swaggerUi.setup(null, {
       customSiteTitle: 'Djaber.ai API docs',
       swaggerOptions: {
+        url: '/api/docs/openapi.json',
         persistAuthorization: true,
         displayRequestDuration: true,
         docExpansion: 'none',
