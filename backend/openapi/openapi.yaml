@@ -644,6 +644,209 @@ paths:
               example:
                 error: Internal Server Error
                 message: Failed to register user
+  /api/auth/forgot-password:
+    post:
+      tags:
+        - Auth
+      summary: Send a password reset link by e-mail
+      operationId: core_forgotPassword
+      security: []
+      description: |
+        **URL:** `POST https://djaber.72-60-190-211.sslip.io/api/auth/forgot-password`
+
+        Public. If an account exists for `email`, e-mails it a one-time reset link that opens
+        `https://djaber.vercel.app/reset-password?token=<token>`.
+
+        - The answer is **always the same 200**, whether or not the account exists, and the e-mail is sent
+          after responding — so neither the body nor the response time reveals which e-mails are registered.
+          Show a neutral "check your inbox" screen.
+        - The e-mail is written in the request language (`Accept-Language` / `X-Lang` / `?lang=`): en, fr or ar.
+        - The link expires after **60 minutes** and works **once**. Requesting again replaces the previous link;
+          within 60 seconds of the last request no new e-mail is sent (inbox spam guard).
+        - **503 `MAIL_NOT_CONFIGURED`** only if outgoing e-mail is not set up on the server.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+            example:
+              email: sara@example.com
+      responses:
+        '200':
+          description: Accepted. Same answer whether or not the account exists.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: If an account exists for this e-mail, a reset link has been sent.
+        '400':
+          description: Invalid e-mail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              example:
+                error: Bad Request
+                code: VALIDATION_FAILED
+                message: Some fields are invalid. Please check the form.
+                fields:
+                  - field: email
+                    code: FIELD_INVALID_EMAIL
+                    message: Please enter a valid e-mail address.
+        '503':
+          description: Outgoing e-mail is not configured on the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Service Unavailable
+                code: MAIL_NOT_CONFIGURED
+                message: Password recovery by e-mail is not available yet. Please contact support.
+  /api/auth/reset-password/{token}:
+    get:
+      tags:
+        - Auth
+      summary: Check that a reset link is still usable
+      operationId: core_verifyResetToken
+      security: []
+      description: |
+        **URL:** `GET https://djaber.72-60-190-211.sslip.io/api/auth/reset-password/{token}`
+
+        Public. Call it when the reset screen opens, so a dead link shows "request a new one" before the
+        user types a password. Does not consume the link.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: The `token` query parameter of the link from the e-mail (64 hex characters).
+          schema:
+            type: string
+            pattern: '^[a-f0-9]{64}$'
+      responses:
+        '200':
+          description: The link can be used.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+              example:
+                valid: true
+        '400':
+          description: Link invalid, already used, or expired.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid:
+                  summary: Unknown or already used
+                  value:
+                    error: Bad Request
+                    code: AUTH_RESET_TOKEN_INVALID
+                    message: This reset link is invalid or has already been used. Request a new one.
+                expired:
+                  summary: Older than 60 minutes
+                  value:
+                    error: Bad Request
+                    code: AUTH_RESET_TOKEN_EXPIRED
+                    message: This reset link has expired. Request a new one.
+  /api/auth/reset-password:
+    post:
+      tags:
+        - Auth
+      summary: Set a new password with a reset link
+      operationId: core_resetPassword
+      security: []
+      description: |
+        **URL:** `POST https://djaber.72-60-190-211.sslip.io/api/auth/reset-password`
+
+        Public. Sets the new password, burns the link (a second submit of the same link fails) and removes
+        any other open link of that user. The answer has the **same shape as login**: store `token` to sign
+        the user straight in, or send them to the login screen.
+
+        `password`: 8 to 128 characters.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - password
+              properties:
+                token:
+                  type: string
+                  pattern: '^[a-f0-9]{64}$'
+                  description: The `token` query parameter of the link from the e-mail.
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+            example:
+              token: 3f9a1c0e7b2d4a6f8e1c3b5d7a9f0e2c4b6d8a0f1e3c5b7d9a2f4e6c8b0d1a3f
+              password: N3wS3cretPass
+      responses:
+        '200':
+          description: Password updated; the user is signed in.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Core_LoginResponse'
+              example:
+                message: Password updated
+                token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4ZjJjIn0.sig
+                user:
+                  id: 8f2c1a2b-3c4d-4e5f-8a9b-0c1d2e3f4a5b
+                  email: sara@example.com
+                  firstName: Sara
+                  lastName: Benali
+                  plan: individual
+                  isAdmin: false
+        '400':
+          description: Weak password, or the link is invalid, used or expired.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                validation:
+                  summary: Password too short
+                  value:
+                    error: Bad Request
+                    code: VALIDATION_FAILED
+                    message: Some fields are invalid. Please check the form.
+                    fields:
+                      - field: password
+                        code: FIELD_TOO_SHORT
+                        message: The field "password" is too short (minimum 8 characters).
+                invalid:
+                  summary: Unknown or already used link
+                  value:
+                    error: Bad Request
+                    code: AUTH_RESET_TOKEN_INVALID
+                    message: This reset link is invalid or has already been used. Request a new one.
+                expired:
+                  summary: Link older than 60 minutes
+                  value:
+                    error: Bad Request
+                    code: AUTH_RESET_TOKEN_EXPIRED
+                    message: This reset link has expired. Request a new one.
   /api/devices/register:
     post:
       tags:
