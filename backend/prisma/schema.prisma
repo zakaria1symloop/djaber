@@ -29,6 +29,22 @@ model User {
   agents        Agent[]
   notifications Notification[]
   deviceTokens  DeviceToken[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+// One-time password reset links. Only the SHA-256 of the token is stored, so a
+// database leak cannot be turned into working reset links.
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model DeviceToken {

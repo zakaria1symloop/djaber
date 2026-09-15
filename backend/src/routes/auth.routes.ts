@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
-import { register, login, getProfile } from '../controllers/auth.controller';
+import { register, login, getProfile, forgotPassword, resetPassword, verifyResetToken } from '../controllers/auth.controller';
 import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 
@@ -34,6 +34,11 @@ router.post(
   validate,
   login
 );
+
+// Password recovery (public). Validation lives in the controller.
+router.post('/forgot-password', forgotPassword);
+router.get('/reset-password/:token', verifyResetToken);
+router.post('/reset-password', resetPassword);
 
 // Get profile (protected route)
 router.get('/profile', authenticate, getProfile);

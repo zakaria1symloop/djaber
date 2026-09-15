@@ -98,6 +98,36 @@ export const auth = {
     fr: 'Impossible de désinscrire cet appareil. Veuillez réessayer.',
     ar: 'تعذّر إلغاء تسجيل هذا الجهاز. يرجى المحاولة مرة أخرى.',
   },
+  AUTH_RESET_TOKEN_INVALID: {
+    status: 400,
+    en: 'This reset link is invalid or has already been used. Request a new one.',
+    fr: 'Ce lien de réinitialisation est invalide ou a déjà été utilisé. Demandez-en un nouveau.',
+    ar: 'رابط إعادة التعيين غير صالح أو سبق استخدامه. اطلب رابطًا جديدًا.',
+  },
+  AUTH_RESET_TOKEN_EXPIRED: {
+    status: 400,
+    en: 'This reset link has expired. Request a new one.',
+    fr: 'Ce lien de réinitialisation a expiré. Demandez-en un nouveau.',
+    ar: 'انتهت صلاحية رابط إعادة التعيين. اطلب رابطًا جديدًا.',
+  },
+  AUTH_FORGOT_FAILED: {
+    status: 500,
+    en: 'We could not process your request. Please try again.',
+    fr: 'Impossible de traiter votre demande. Veuillez réessayer.',
+    ar: 'تعذّرت معالجة طلبك. يرجى المحاولة مرة أخرى.',
+  },
+  AUTH_RESET_FAILED: {
+    status: 500,
+    en: 'We could not reset your password. Please try again.',
+    fr: 'Impossible de réinitialiser votre mot de passe. Veuillez réessayer.',
+    ar: 'تعذّرت إعادة تعيين كلمة مرورك. يرجى المحاولة مرة أخرى.',
+  },
+  MAIL_NOT_CONFIGURED: {
+    status: 503,
+    en: 'Password recovery by e-mail is not available yet. Please contact support.',
+    fr: 'La récupération du mot de passe par e-mail n’est pas encore disponible. Contactez le support.',
+    ar: 'استعادة كلمة المرور عبر البريد غير متاحة حاليًا. يرجى التواصل مع الدعم.',
+  },
   PAYMENT_GATEWAY_NOT_CONFIGURED: {
     status: 503,
     en: 'Online payment is not available yet.',
