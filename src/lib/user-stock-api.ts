@@ -349,6 +349,8 @@ export async function createProduct(
     unit?: string;
     imageUrl?: string;
     hasVariants?: boolean;
+    /** false = digital product: no stock is tracked, `quantity` is ignored. */
+    trackStock?: boolean;
   }
 ): Promise<{ product: Product }> {
   return apiRequest('/api/user-stock/products', {
@@ -371,6 +373,8 @@ export async function updateProduct(
     unit: string;
     imageUrl: string;
     isActive: boolean;
+    /** Flip stock tracking. Turning it back on resets the quantity to 0. */
+    trackStock: boolean;
   }>
 ): Promise<{ product: Product }> {
   return apiRequest(`/api/user-stock/products/${productId}`, {

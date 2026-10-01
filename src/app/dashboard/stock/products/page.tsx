@@ -132,6 +132,8 @@ export default function ProductsPage() {
 
   // Variant state
   const [hasVariants, setHasVariants] = useState(false);
+  // false = digital product: no stock is tracked for it.
+  const [trackStock, setTrackStock] = useState(true);
   const [variantRows, setVariantRows] = useState<VariantRow[]>([]);
 
   // Adjust form
@@ -285,6 +287,7 @@ export default function ProductsPage() {
     setExistingImages([]);
     setNewImageFiles([]);
     setHasVariants(false);
+    setTrackStock(true);
     setVariantRows([]);
     setShowModal(true);
   };
@@ -308,6 +311,7 @@ export default function ProductsPage() {
     setExistingImages(product.images || []);
     setNewImageFiles([]);
     setHasVariants(product.hasVariants);
+    setTrackStock(product.trackStock !== false);
     setVariantRows(
       (product.variants || []).map((v) => ({
         id: v.id,
@@ -332,7 +336,7 @@ export default function ProductsPage() {
     if (!editing) {
       if (!form.costPrice || parseFloat(form.costPrice) <= 0) errors.costPrice = 'Cost price is required';
       if (!form.sellingPrice || parseFloat(form.sellingPrice) <= 0) errors.sellingPrice = 'Selling price is required';
-      if (!hasVariants && (!form.quantity || parseInt(form.quantity) <= 0)) errors.quantity = 'Initial quantity is required';
+      if (trackStock && !hasVariants && (!form.quantity || parseInt(form.quantity) <= 0)) errors.quantity = 'Initial quantity is required';
     }
     if (form.sellingPrice && form.costPrice && parseFloat(form.sellingPrice) < parseFloat(form.costPrice)) {
       errors.sellingPrice = 'Selling price should be ≥ cost price';
@@ -375,6 +379,7 @@ export default function ProductsPage() {
           sellingPrice: parseFloat(form.sellingPrice) || 0,
           minQuantity: parseInt(form.minQuantity) || 0,
           unitId: form.unitId || undefined,
+          trackStock,
         });
         productId = res.product.id;
 
@@ -420,10 +425,11 @@ export default function ProductsPage() {
           categoryId: form.categoryId || undefined,
           costPrice: parseFloat(form.costPrice) || 0,
           sellingPrice: parseFloat(form.sellingPrice) || 0,
-          quantity: hasVariants ? 0 : (parseInt(form.quantity) || 0),
+          quantity: hasVariants || !trackStock ? 0 : (parseInt(form.quantity) || 0),
           minQuantity: parseInt(form.minQuantity) || 0,
           unitId: form.unitId || undefined,
           hasVariants,
+          trackStock,
         });
         productId = res.product.id;
 
@@ -915,7 +921,7 @@ export default function ProductsPage() {
                           {exps.length === 0 ? (
                             <span className="text-zinc-400">{Number(product.costPrice).toLocaleString()} DA</span>
                           ) : trueCost === null ? (
-                            <span className="text-zinc-500" title="Out of stock — fixed expenses cannot be allocated per unit">—</span>
+                            <span className="text-zinc-500" title={t('stk.prod.perUnitNA')}>—</span>
                           ) : (
                             <div className="relative group/cost">
                               <div className="flex items-center justify-end gap-1 cursor-help">
@@ -924,7 +930,7 @@ export default function ProductsPage() {
                               </div>
                               <div className="absolute right-0 top-full mt-1 z-50 hidden group-hover/cost:block w-56 bg-zinc-800 border border-white/10 rounded-lg shadow-xl p-3 space-y-1.5">
                                 <div className="flex justify-between text-xs">
-                                  <span className="text-zinc-400">Base Cost</span>
+                                  <span className="text-zinc-400">{t('stk.prod.baseCost')}</span>
                                   <span className="text-white">{Number(product.costPrice).toLocaleString()} DA</span>
                                 </div>
                                 {exps.map((exp) => (
@@ -939,7 +945,7 @@ export default function ProductsPage() {
                                   </div>
                                 ))}
                                 <div className="border-t border-white/10 pt-1.5 flex justify-between text-xs font-medium">
-                                  <span className="text-zinc-300">True Cost</span>
+                                  <span className="text-zinc-300">{t('stk.prod.trueCost')}</span>
                                   <span className="text-white">{trueCost.toLocaleString(undefined, { maximumFractionDigits: 2 })} DA</span>
                                 </div>
                               </div>
@@ -989,7 +995,7 @@ export default function ProductsPage() {
                                   ? 'bg-white/10 text-white'
                                   : 'text-zinc-400 hover:text-white hover:bg-white/10'
                               }`}
-                              title="Actions"
+                              title={t('stk.prod.actions')}
                               aria-expanded={expandedRowId === product.id}
                             >
                               <ChevronDownIcon className={`w-4 h-4 transition-transform ${expandedRowId === product.id ? 'rotate-180' : ''}`} />
@@ -1013,35 +1019,35 @@ export default function ProductsPage() {
                                 }}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors"
                               >
-                                Adjust Stock
+                                {t('stk.prod.adjustStock')}
                               </button>
                               <button
                                 onClick={() => openExpensePanel(product)}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors"
                               >
                                 <DollarIcon className="w-3.5 h-3.5" />
-                                Expenses
+                                {t('stk.prod.expenses')}
                               </button>
                               <button
                                 onClick={() => openView(product)}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors"
                               >
                                 <EyeIcon className="w-3.5 h-3.5" />
-                                View
+                                {t('stk.prod.view')}
                               </button>
                               <button
                                 onClick={() => openEdit(product)}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors"
                               >
                                 <EditIcon className="w-3.5 h-3.5" />
-                                Edit
+                                {t('stk.prod.edit')}
                               </button>
                               <button
                                 onClick={() => setDeleteConfirm(product)}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors"
                               >
                                 <TrashIcon className="w-3.5 h-3.5" />
-                                Delete
+                                {t('stk.prod.delete')}
                               </button>
                             </div>
                           </td>
@@ -1057,14 +1063,14 @@ export default function ProductsPage() {
         ) : (
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-12 text-center">
             <div className="text-zinc-600 mb-4 flex justify-center"><BoxIcon className="w-16 h-16" /></div>
-            <h3 className="text-lg font-medium text-zinc-300 mb-1">No Products</h3>
+            <h3 className="text-lg font-medium text-zinc-300 mb-1">{t('stk.prod.noProducts')}</h3>
             <p className="text-sm text-zinc-500 mb-4">
               {activeFilterCount > 0 ? 'No products match your filters' : 'Add your first product to get started'}
             </p>
             {activeFilterCount > 0 ? (
-              <Button onClick={clearAllFilters} variant="outline">Clear Filters</Button>
+              <Button onClick={clearAllFilters} variant="outline">{t('stk.prod.clearFilters')}</Button>
             ) : (
-              <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>Add Product</Button>
+              <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>{t('stk.prod.addProduct')}</Button>
             )}
           </div>
         )}
@@ -1095,36 +1101,36 @@ export default function ProductsPage() {
 
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
             {expenseLoading ? (
-              <div className="text-center text-zinc-500 text-sm py-8">Loading...</div>
+              <div className="text-center text-zinc-500 text-sm py-8">{t('stk.prod.loading')}</div>
             ) : (
               <>
                 {/* Margin Summary */}
                 {margins && (
                   <div className="bg-zinc-800/50 border border-white/10 rounded-xl p-4 space-y-3">
-                    <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Margin Summary</h3>
+                    <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">{t('stk.prod.marginSummary')}</h3>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span className="text-zinc-400">Cost Price</span>
+                        <span className="text-zinc-400">{t('stk.prod.costPrice')}</span>
                         <span className="text-white">{margins.costPrice.toLocaleString()} DA</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-zinc-400">Selling Price</span>
+                        <span className="text-zinc-400">{t('stk.prod.sellingPrice')}</span>
                         <span className="text-white">{margins.sellingPrice.toLocaleString()} DA</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-zinc-400">Total Expenses</span>
+                        <span className="text-zinc-400">{t('stk.prod.totalExpenses')}</span>
                         <span className="text-zinc-300">{margins.totalExpenses.toLocaleString()} DA</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-zinc-400">Expense/Unit</span>
+                        <span className="text-zinc-400">{t('stk.prod.expensePerUnit')}</span>
                         <span className="text-zinc-300">{margins.expensePerUnit.toFixed(2)} DA</span>
                       </div>
                       <div className="border-t border-white/10 pt-2 flex justify-between">
-                        <span className="text-zinc-400">True Cost</span>
+                        <span className="text-zinc-400">{t('stk.prod.trueCost')}</span>
                         <span className="text-white font-semibold">{margins.trueCost.toFixed(2)} DA</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-zinc-400">Net Margin</span>
+                        <span className="text-zinc-400">{t('stk.prod.netMargin')}</span>
                         <span className={`font-semibold ${margins.netMargin >= 0 ? 'text-white' : 'text-zinc-500'}`}>
                           {margins.netMargin.toFixed(2)} DA ({margins.marginPercent.toFixed(1)}%)
                         </span>
@@ -1137,7 +1143,7 @@ export default function ProductsPage() {
                 <div>
                   <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Expenses ({expenses.length})</h3>
                   {expenses.length === 0 ? (
-                    <p className="text-xs text-zinc-500 py-3">No expenses yet</p>
+                    <p className="text-xs text-zinc-500 py-3">{t('stk.prod.noExpenses')}</p>
                   ) : (
                     <div className="space-y-2 max-h-[300px] overflow-y-auto">
                       {expenses.map((exp) => (
@@ -1172,25 +1178,25 @@ export default function ProductsPage() {
 
                 {/* Add Expense Form */}
                 <div className="border-t border-white/10 pt-4 space-y-3">
-                  <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Add Expense</h3>
+                  <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">{t('stk.prod.addExpense')}</h3>
                   <select
                     value={expenseForm.category}
                     onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}
                     className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20"
                   >
-                    <option value="marketing">Marketing</option>
-                    <option value="shipping">Shipping</option>
-                    <option value="packaging">Packaging</option>
-                    <option value="customs">Customs</option>
-                    <option value="storage">Storage</option>
-                    <option value="other">Other</option>
+                    <option value="marketing">{t('stk.prod.exp.marketing')}</option>
+                    <option value="shipping">{t('stk.prod.exp.shipping')}</option>
+                    <option value="packaging">{t('stk.prod.exp.packaging')}</option>
+                    <option value="customs">{t('stk.prod.exp.customs')}</option>
+                    <option value="storage">{t('stk.prod.exp.storage')}</option>
+                    <option value="other">{t('stk.prod.exp.other')}</option>
                   </select>
                   <div className="flex gap-2">
                     <input
                       type="number"
                       min="0"
                       step="0.01"
-                      placeholder="Amount"
+                      placeholder={t('stk.prod.amount')}
                       value={expenseForm.amount}
                       onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
                       className="flex-1 px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20"
@@ -1208,7 +1214,7 @@ export default function ProductsPage() {
                   </div>
                   <input
                     type="text"
-                    placeholder="Description (optional)"
+                    placeholder={t('stk.prod.descriptionOptional')}
                     value={expenseForm.description}
                     onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
                     className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20"
@@ -1238,7 +1244,7 @@ export default function ProductsPage() {
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
           <div className="flex items-center gap-2">
             <FilterIcon className="w-4 h-4 text-zinc-500" />
-            <h2 className="text-sm font-semibold text-white">Filters</h2>
+            <h2 className="text-sm font-semibold text-white">{t('stk.prod.filters')}</h2>
             {activeFilterCount > 0 && (
               <span className="text-[10px] text-zinc-300 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-full font-medium">
                 {activeFilterCount} active
@@ -1466,10 +1472,10 @@ export default function ProductsPage() {
             </div>
           )}
           <div className="grid grid-cols-2 gap-4">
-            <Input label="SKU *" value={form.sku} onChange={(e) => { setForm({ ...form, sku: e.target.value }); setFieldErrors(prev => { const { sku, ...rest } = prev; return rest; }); }} error={fieldErrors.sku} placeholder="e.g., PRD-001" />
-            <Input label="Name *" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setFieldErrors(prev => { const { name, ...rest } = prev; return rest; }); }} error={fieldErrors.name} placeholder="Product name" />
+            <Input label={t('stk.prod.skuRequired')} value={form.sku} onChange={(e) => { setForm({ ...form, sku: e.target.value }); setFieldErrors(prev => { const { sku, ...rest } = prev; return rest; }); }} error={fieldErrors.sku} placeholder={t('stk.prod.skuPlaceholder')} />
+            <Input label={t('stk.prod.nameRequired')} value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setFieldErrors(prev => { const { name, ...rest } = prev; return rest; }); }} error={fieldErrors.name} placeholder={t('stk.prod.namePlaceholder')} />
           </div>
-          <Input label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the product — the AI agent uses this to sell it" />
+          <Input label={t('stk.prod.description')} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder={t('stk.prod.descriptionPlaceholder')} />
           <div className="grid grid-cols-2 gap-4">
             <Input label={editing ? "Cost Price (DA)" : "Cost Price (DA) *"} type="number" min="0" step="0.01" value={form.costPrice} onChange={(e) => { setForm({ ...form, costPrice: e.target.value }); setFieldErrors(prev => { const { costPrice, ...rest } = prev; return rest; }); }} error={fieldErrors.costPrice} placeholder="0" />
             <Input label={editing ? "Selling Price (DA)" : "Selling Price (DA) *"} type="number" min="0" step="0.01" value={form.sellingPrice} onChange={(e) => { setForm({ ...form, sellingPrice: e.target.value }); setFieldErrors(prev => { const { sellingPrice, ...rest } = prev; return rest; }); }} error={fieldErrors.sellingPrice} placeholder="0" />
@@ -1477,23 +1483,23 @@ export default function ProductsPage() {
 
           {/* Quantity / Min — hide product-level qty when variants are on */}
           <div className="grid grid-cols-2 gap-4">
-            {!editing && !hasVariants && (
-              <Input label="Initial Quantity *" type="number" min="0" value={form.quantity} onChange={(e) => { setForm({ ...form, quantity: e.target.value }); setFieldErrors(prev => { const { quantity, ...rest } = prev; return rest; }); }} error={fieldErrors.quantity} placeholder="0" />
+            {!editing && !hasVariants && trackStock && (
+              <Input label={t('stk.prod.initialQuantityRequired')} type="number" min="0" value={form.quantity} onChange={(e) => { setForm({ ...form, quantity: e.target.value }); setFieldErrors(prev => { const { quantity, ...rest } = prev; return rest; }); }} error={fieldErrors.quantity} placeholder="0" />
             )}
-            {hasVariants && !editing && <div />}
-            <Input label="Min Quantity (Alert)" type="number" min="0" value={form.minQuantity} onChange={(e) => setForm({ ...form, minQuantity: e.target.value })} placeholder="0" />
+            {(hasVariants || !trackStock) && !editing && <div />}
+            <Input label={t('stk.prod.minQuantity')} type="number" min="0" value={form.minQuantity} onChange={(e) => setForm({ ...form, minQuantity: e.target.value })} placeholder="0" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <Select label="Category" value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
-              <option value="">No Category</option>
+            <Select label={t('stk.prod.category')} value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
+              <option value="">{t('stk.prod.noCategory')}</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
             <div>
               <div className="flex items-center gap-2">
                 <div className="flex-1">
-                  <Select label="Unit" value={form.unitId} onChange={(e) => setForm({ ...form, unitId: e.target.value })}>
-                    <option value="">Select Unit</option>
+                  <Select label={t('stk.prod.unit')} value={form.unitId} onChange={(e) => setForm({ ...form, unitId: e.target.value })}>
+                    <option value="">{t('stk.prod.selectUnit')}</option>
                     {units.map((u) => (
                       <option key={u.id} value={u.id}>{u.name} ({u.abbreviation})</option>
                     ))}
@@ -1503,7 +1509,7 @@ export default function ProductsPage() {
                   type="button"
                   onClick={() => setShowNewUnit(true)}
                   className="mt-6 p-2 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg border border-white/10 transition-colors"
-                  title="Add custom unit"
+                  title={t('stk.prod.addCustomUnitShort')}
                 >
                   <PlusIcon className="w-4 h-4" />
                 </button>
@@ -1544,6 +1550,22 @@ export default function ProductsPage() {
             )}
           </div>
 
+          {/* Stock tracking — off means a digital product (no stock at all) */}
+          <div className="border-t border-white/10 pt-4">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={trackStock}
+                onChange={(e) => setTrackStock(e.target.checked)}
+                className="mt-0.5 rounded border-white/20 bg-black text-white focus:ring-white/30"
+              />
+              <span>
+                <span className="text-sm text-zinc-300">{t('stk.prod.trackStock')}</span>
+                <span className="block text-xs text-zinc-500">{t('stk.prod.trackStockHint')}</span>
+              </span>
+            </label>
+          </div>
+
           {/* Variants Section */}
           <div className="border-t border-white/10 pt-4 space-y-3">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -1553,7 +1575,7 @@ export default function ProductsPage() {
                 onChange={(e) => setHasVariants(e.target.checked)}
                 className="rounded border-white/20 bg-black text-white focus:ring-white/30"
               />
-              <span className="text-sm text-zinc-300">This product has variants</span>
+              <span className="text-sm text-zinc-300">{t('stk.prod.hasVariants')}</span>
             </label>
 
             {hasVariants && (
@@ -1572,7 +1594,7 @@ export default function ProductsPage() {
           </div>
 
           <div className="flex gap-3 pt-4 border-t border-white/10">
-            <Button type="button" variant="outline" className="flex-1" onClick={() => setShowModal(false)}>Cancel</Button>
+            <Button type="button" variant="outline" className="flex-1" onClick={() => setShowModal(false)}>{t('stk.prod.cancel')}</Button>
             <Button type="submit" className="flex-1" disabled={saving}>
               {saving ? 'Saving...' : (editing ? 'Update' : 'Add')} {!saving && 'Product'}
             </Button>
@@ -1584,27 +1606,27 @@ export default function ProductsPage() {
       <Modal
         isOpen={showNewUnit}
         onClose={() => setShowNewUnit(false)}
-        title="Add Custom Unit"
+        title={t('stk.prod.addCustomUnit')}
         size="sm"
       >
         <form onSubmit={handleCreateUnit} className="space-y-4">
           <Input
-            label="Unit Name *"
+            label={t('stk.prod.unitNameRequired')}
             value={newUnitForm.name}
             onChange={(e) => setNewUnitForm({ ...newUnitForm, name: e.target.value })}
             required
-            placeholder="e.g., Dozen"
+            placeholder={t('stk.prod.unitNamePlaceholder')}
           />
           <Input
-            label="Abbreviation *"
+            label={t('stk.prod.abbreviationRequired')}
             value={newUnitForm.abbreviation}
             onChange={(e) => setNewUnitForm({ ...newUnitForm, abbreviation: e.target.value })}
             required
-            placeholder="e.g., dz"
+            placeholder={t('stk.prod.abbreviationPlaceholder')}
           />
           <div className="flex gap-3 pt-2">
-            <Button type="button" variant="outline" className="flex-1" onClick={() => setShowNewUnit(false)}>Cancel</Button>
-            <Button type="submit" className="flex-1">Add Unit</Button>
+            <Button type="button" variant="outline" className="flex-1" onClick={() => setShowNewUnit(false)}>{t('stk.prod.cancel')}</Button>
+            <Button type="submit" className="flex-1">{t('stk.prod.addUnit')}</Button>
           </div>
         </form>
       </Modal>
@@ -1613,7 +1635,7 @@ export default function ProductsPage() {
       <Modal
         isOpen={!!showAdjust}
         onClose={() => setShowAdjust(null)}
-        title="Adjust Stock"
+        title={t('stk.prod.adjustStock')}
         size={showAdjust?.hasVariants ? 'lg' : 'md'}
       >
         {showAdjust && (
@@ -1621,7 +1643,7 @@ export default function ProductsPage() {
             <div className="bg-zinc-800/50 rounded-lg p-3 mb-2">
               <p className="text-white font-medium">{showAdjust.name}</p>
               <p className="text-sm text-zinc-400">
-                Current stock: <span className="text-white font-medium">{showAdjust.quantity}</span> {showAdjust.unitRef?.abbreviation || showAdjust.unit}
+                {t('stk.prod.currentStock')} <span className="text-white font-medium">{showAdjust.quantity}</span> {showAdjust.unitRef?.abbreviation || showAdjust.unit}
               </p>
             </div>
 
@@ -1638,8 +1660,8 @@ export default function ProductsPage() {
                         value={adjustVariantForms[v.id]?.type || 'in'}
                         onChange={(e) => setAdjustVariantForms((prev) => ({ ...prev, [v.id]: { ...prev[v.id], type: e.target.value } }))}
                       >
-                        <option value="in">In (+)</option>
-                        <option value="out">Out (-)</option>
+                        <option value="in">{t('stk.prod.inShort')}</option>
+                        <option value="out">{t('stk.prod.outShort')}</option>
                         <option value="adjustment">Set</option>
                       </Select>
                       <Input
@@ -1647,12 +1669,12 @@ export default function ProductsPage() {
                         min="0"
                         value={adjustVariantForms[v.id]?.quantity || ''}
                         onChange={(e) => setAdjustVariantForms((prev) => ({ ...prev, [v.id]: { ...prev[v.id], quantity: e.target.value } }))}
-                        placeholder="Qty"
+                        placeholder={t('stk.prod.qty')}
                       />
                       <Input
                         value={adjustVariantForms[v.id]?.reason || ''}
                         onChange={(e) => setAdjustVariantForms((prev) => ({ ...prev, [v.id]: { ...prev[v.id], reason: e.target.value } }))}
-                        placeholder="Reason"
+                        placeholder={t('stk.prod.reason')}
                       />
                     </div>
                   </div>
@@ -1661,34 +1683,34 @@ export default function ProductsPage() {
             ) : (
               <>
                 <Select
-                  label="Adjustment Type"
+                  label={t('stk.prod.adjustmentType')}
                   value={adjustForm.type}
                   onChange={(e) => setAdjustForm({ ...adjustForm, type: e.target.value as any })}
                 >
-                  <option value="in">Stock In (+)</option>
-                  <option value="out">Stock Out (-)</option>
-                  <option value="adjustment">Set Exact Quantity</option>
+                  <option value="in">{t('stk.prod.stockIn')}</option>
+                  <option value="out">{t('stk.prod.stockOut')}</option>
+                  <option value="adjustment">{t('stk.prod.setExactQuantity')}</option>
                 </Select>
                 <Input
-                  label="Quantity *"
+                  label={t('stk.prod.quantityRequired')}
                   type="number"
                   min="0"
                   value={adjustForm.quantity}
                   onChange={(e) => setAdjustForm({ ...adjustForm, quantity: e.target.value })}
                   required
-                  placeholder="Enter quantity"
+                  placeholder={t('stk.prod.enterQuantity')}
                 />
                 <Input
-                  label="Reason"
+                  label={t('stk.prod.reason')}
                   value={adjustForm.reason}
                   onChange={(e) => setAdjustForm({ ...adjustForm, reason: e.target.value })}
-                  placeholder="e.g., Inventory count, damaged goods"
+                  placeholder={t('stk.prod.reasonPlaceholder')}
                 />
               </>
             )}
 
             <div className="flex gap-3 pt-4">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => setShowAdjust(null)} disabled={adjusting}>Cancel</Button>
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setShowAdjust(null)} disabled={adjusting}>{t('stk.prod.cancel')}</Button>
               <Button type="submit" className="flex-1" disabled={adjusting}>
                 {adjusting ? 'Adjusting...' : 'Adjust Stock'}
               </Button>
@@ -1701,13 +1723,13 @@ export default function ProductsPage() {
       <Modal
         isOpen={!!viewing}
         onClose={() => setViewing(null)}
-        title="Product Details"
+        title={t('stk.prod.productDetails')}
         size="lg"
       >
         {viewing && viewLoading && (
           <div className="py-12 text-center">
             <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm text-zinc-500">Loading product details...</p>
+            <p className="text-sm text-zinc-500">{t('stk.prod.loadingDetails')}</p>
           </div>
         )}
         {viewing && !viewLoading && (() => {
@@ -1747,7 +1769,7 @@ export default function ProductsPage() {
                 <div className="w-full h-40 bg-zinc-800/50 rounded-lg flex items-center justify-center">
                   <div className="text-center">
                     <ImageIcon className="w-10 h-10 text-zinc-600 mx-auto mb-2" />
-                    <p className="text-xs text-zinc-500">No images</p>
+                    <p className="text-xs text-zinc-500">{t('stk.prod.noImages')}</p>
                   </div>
                 </div>
               )}
@@ -1764,21 +1786,21 @@ export default function ProductsPage() {
               {/* Stats Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
-                  <p className="text-xs text-zinc-500">Cost Price</p>
+                  <p className="text-xs text-zinc-500">{t('stk.prod.costPrice')}</p>
                   <p className="text-sm font-bold text-zinc-300 mt-0.5">{Number(viewing.costPrice).toLocaleString()} DA</p>
                 </div>
                 <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
-                  <p className="text-xs text-zinc-500">Selling Price</p>
+                  <p className="text-xs text-zinc-500">{t('stk.prod.sellingPrice')}</p>
                   <p className="text-sm font-bold text-white mt-0.5">{Number(viewing.sellingPrice).toLocaleString()} DA</p>
                 </div>
                 <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
-                  <p className="text-xs text-zinc-500">Profit / Margin</p>
+                  <p className="text-xs text-zinc-500">{t('stk.prod.profitMargin')}</p>
                   <p className={`text-sm font-bold mt-0.5 ${profit >= 0 ? 'text-white' : 'text-zinc-500'}`}>
                     {profit.toLocaleString()} DA ({margin}%)
                   </p>
                 </div>
                 <div className="bg-zinc-800/50 rounded-lg p-3 text-center">
-                  <p className="text-xs text-zinc-500">In Stock</p>
+                  <p className="text-xs text-zinc-500">{t('stk.prod.inStock')}</p>
                   <p className="text-sm font-bold mt-0.5 text-white">
                     {viewing.quantity} {viewing.unitRef?.abbreviation || viewing.unit}
                   </p>
@@ -1788,24 +1810,24 @@ export default function ProductsPage() {
               {/* Details */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-xs text-zinc-500">Category</p>
+                  <p className="text-xs text-zinc-500">{t('stk.prod.category')}</p>
                   <p className="text-sm text-white">{viewing.category?.name || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-500">Unit</p>
+                  <p className="text-xs text-zinc-500">{t('stk.prod.unit')}</p>
                   <p className="text-sm text-white">{viewing.unitRef ? `${viewing.unitRef.name} (${viewing.unitRef.abbreviation})` : viewing.unit}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-500">Min Quantity (Alert)</p>
+                  <p className="text-xs text-zinc-500">{t('stk.prod.minQuantity')}</p>
                   <p className="text-sm text-white">{viewing.minQuantity}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-500">Status</p>
+                  <p className="text-xs text-zinc-500">{t('stk.prod.status')}</p>
                   <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
                     {viewing.isActive ? (
-                      <><span className="w-1.5 h-1.5 rounded-full bg-white" />Active</>
+                      <><span className="w-1.5 h-1.5 rounded-full bg-white" />{t('stk.prod.active')}</>
                     ) : (
-                      <span className="text-zinc-600">Inactive</span>
+                      <span className="text-zinc-600">{t('stk.prod.inactive')}</span>
                     )}
                   </span>
                 </div>
@@ -1819,12 +1841,12 @@ export default function ProductsPage() {
                     <table className="w-full">
                       <thead>
                         <tr className="bg-zinc-800/50">
-                          <th className="text-left text-xs font-medium text-zinc-400 px-3 py-2">Name</th>
+                          <th className="text-left text-xs font-medium text-zinc-400 px-3 py-2">{t('stk.prod.name')}</th>
                           <th className="text-left text-xs font-medium text-zinc-400 px-3 py-2">SKU</th>
-                          <th className="text-right text-xs font-medium text-zinc-400 px-3 py-2">Cost</th>
-                          <th className="text-right text-xs font-medium text-zinc-400 px-3 py-2">Price</th>
-                          <th className="text-center text-xs font-medium text-zinc-400 px-3 py-2">Qty</th>
-                          <th className="text-center text-xs font-medium text-zinc-400 px-3 py-2">Status</th>
+                          <th className="text-right text-xs font-medium text-zinc-400 px-3 py-2">{t('stk.prod.cost')}</th>
+                          <th className="text-right text-xs font-medium text-zinc-400 px-3 py-2">{t('stk.prod.price')}</th>
+                          <th className="text-center text-xs font-medium text-zinc-400 px-3 py-2">{t('stk.prod.qty')}</th>
+                          <th className="text-center text-xs font-medium text-zinc-400 px-3 py-2">{t('stk.prod.status')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1847,9 +1869,9 @@ export default function ProductsPage() {
                             <td className="px-3 py-2 text-center">
                               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
                                 {v.isActive ? (
-                                  <><span className="w-1.5 h-1.5 rounded-full bg-white" />Active</>
+                                  <><span className="w-1.5 h-1.5 rounded-full bg-white" />{t('stk.prod.active')}</>
                                 ) : (
-                                  <span className="text-zinc-600">Inactive</span>
+                                  <span className="text-zinc-600">{t('stk.prod.inactive')}</span>
                                 )}
                               </span>
                             </td>
@@ -1873,10 +1895,10 @@ export default function ProductsPage() {
                   }}
                   icon={<EditIcon className="w-4 h-4" />}
                 >
-                  Edit
+                  {t('stk.prod.edit')}
                 </Button>
                 <Button type="button" variant="outline" className="flex-1" onClick={() => setViewing(null)}>
-                  Close
+                  {t('stk.prod.close')}
                 </Button>
               </div>
             </div>
@@ -1888,14 +1910,14 @@ export default function ProductsPage() {
       <Modal
         isOpen={!!deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
-        title="Delete Product"
+        title={t('stk.prod.deleteProduct')}
         size="sm"
       >
         <p className="text-zinc-400 mb-4">
-          Are you sure you want to delete <span className="text-white font-medium">{deleteConfirm?.name}</span>? This action cannot be undone.
+          {t('stk.prod.confirmDelete')} <span className="text-white font-medium">{deleteConfirm?.name}</span>{t('stk.prod.confirmDeleteTail')}
         </p>
         <div className="flex gap-3 pt-2">
-          <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>Cancel</Button>
+          <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>{t('stk.prod.cancel')}</Button>
           <Button type="button" className="flex-1" onClick={handleDelete} disabled={deleting}>
             {deleting ? 'Deleting...' : 'Delete'}
           </Button>

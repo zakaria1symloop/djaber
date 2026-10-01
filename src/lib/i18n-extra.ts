@@ -14,6 +14,7 @@ import { StockOpsI18n } from './i18n/stock-ops';
 import { StockTradeI18n } from './i18n/stock-trade';
 import { AdminAccountsI18n } from './i18n/admin-accounts';
 import { AdminPlatformI18n } from './i18n/admin-platform';
+import { StockProductsI18n } from './i18n/stock-products';
 
 const parts = [
   reportsCommonI18n,
@@ -28,6 +29,7 @@ const parts = [
   StockTradeI18n,
   AdminAccountsI18n,
   AdminPlatformI18n,
+  StockProductsI18n,
 ];
 
 export const extraI18n = {
