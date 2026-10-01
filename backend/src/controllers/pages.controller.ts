@@ -145,6 +145,30 @@ async function fetchAllFacebookPages(userAccessToken: string): Promise<GraphPage
  * keep working (and refresh the token), so: look the row up first, let the
  * owner through, refuse anybody else with a translated code.
  */
+/**
+ * Run `worker` over `items` with at most `limit` in flight. The OAuth callback
+ * does two Graph round-trips per page (webhook subscribe + Instagram lookup);
+ * serialising them made a merchant with a dozen pages wait seconds after
+ * approving on Facebook. The cap keeps us well inside Graph's rate limits.
+ */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<R>
+): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (;;) {
+      const index = next++;
+      if (index >= items.length) return;
+      out[index] = await worker(items[index]);
+    }
+  });
+  await Promise.all(runners);
+  return out;
+}
+
 async function claimPage(
   userId: string,
   platform: 'facebook' | 'instagram',
@@ -253,18 +277,21 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
 
     const lang = resolveLang(req);
     const results: PageOutcome[] = [];
-    const note = (pageId: string, pageName: string, status: PageOutcome['status'], code?: ErrorCode): void => {
-      results.push({
-        pageId,
-        pageName,
-        status,
-        ...(code ? { code, message: translate(lang, code, { pageName }) } : {}),
-      });
-    };
 
-    // One page's problem must never abort the whole loop: every iteration is
-    // isolated and records its own outcome.
-    for (const page of pages) {
+    // One page's problem must never abort the whole run: every page is
+    // isolated, records its own outcome, and they run concurrently so the
+    // merchant is not left waiting after approving on Facebook.
+    const perPage = await mapWithConcurrency(pages, 6, async (page) => {
+      const own: PageOutcome[] = [];
+      const note = (pageId: string, pageName: string, status: PageOutcome['status'], code?: ErrorCode): void => {
+        own.push({
+          pageId,
+          pageName,
+          status,
+          ...(code ? { code, message: translate(lang, code, { pageName }) } : {}),
+        });
+      };
+
       const pageId = String(page.id);
       const pageName = page.name || pageId;
 
@@ -273,14 +300,14 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
         // most likely unticked this page in the Meta consent screen).
         if (!page.access_token) {
           note(pageId, pageName, 'skipped', 'PAGE_ACCESS_TOKEN_MISSING');
-          continue;
+          return own;
         }
 
         // Graph only returns pages the user has a role on, but the role must
         // include messaging or the webhook will never fire for this page.
         if (Array.isArray(page.tasks) && !page.tasks.some((task) => MESSAGING_TASKS.includes(String(task).toUpperCase()))) {
           note(pageId, pageName, 'skipped', 'PAGE_MESSAGING_PERMISSION_MISSING');
-          continue;
+          return own;
         }
 
         const claimed = await claimPage(userId, 'facebook', pageId, {
@@ -290,7 +317,7 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
         });
         if (!claimed.ok) {
           note(pageId, pageName, 'skipped', claimed.code);
-          continue;
+          return own;
         }
 
         // Subscribe page to webhook so it receives messages. A refusal here
@@ -349,7 +376,11 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
         console.error(`Failed to connect page ${pageId}:`, pageErr?.response?.data || pageErr?.message || pageErr);
         note(pageId, pageName, 'skipped', 'PAGE_SAVE_FAILED');
       }
-    }
+
+      return own;
+    });
+
+    results.push(...perPage.flat());
 
     const usable = results.filter((r) => r.status === 'connected' || r.status === 'warning');
     const skipped = results.filter((r) => r.status === 'skipped');

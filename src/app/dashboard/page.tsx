@@ -82,7 +82,17 @@ function DashboardPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, refreshProfile } = useAuth();
-  const { pages, loading: pagesLoading, connectFacebookPage, connectInstagramPage, disconnectPage } = usePages();
+  const {
+    pages,
+    loading: pagesLoading,
+    error: pagesError,
+    connectReport,
+    connectFacebookPage,
+    connectInstagramPage,
+    disconnectPage,
+    clearError: clearPagesError,
+    clearConnectReport,
+  } = usePages();
   const toast = useToast();
   const { t, dir } = useTranslation();
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState<string | null>(null);
@@ -193,11 +203,33 @@ function DashboardPageInner() {
     window.dispatchEvent(new StorageEvent('storage', { key: 'stockMode', newValue: mode }));
   };
 
+  // The OAuth popup reports its outcome through the context. Say what
+  // happened — a connect that silently does nothing is the single most
+  // confusing failure in this flow.
+  useEffect(() => {
+    if (!connectReport) return;
+    const skipped = connectReport.results.filter((r) => r.status === 'skipped').length;
+    if (connectReport.ok) {
+      toast.success(
+        t('pages.connect.ok')
+          .replace('{n}', String(connectReport.connected))
+          .replace('{total}', String(connectReport.total))
+      );
+      if (skipped > 0) {
+        toast.info(t('pages.connect.someSkipped').replace('{n}', String(skipped)));
+      }
+    } else {
+      toast.error(connectReport.message || t('shell.err.connectFbPage'));
+    }
+  }, [connectReport]);
+
   const handleConnectFacebook = async () => {
     try {
       await connectFacebookPage();
     } catch (error) {
-      console.error('Failed to connect Facebook:', error);
+      // The context already stored the translated reason; show it rather than
+      // leaving the merchant with a button that looks broken.
+      toast.error(error instanceof Error ? error.message : t('shell.err.connectFbPage'));
     }
   };
 
@@ -205,7 +237,7 @@ function DashboardPageInner() {
     try {
       await connectInstagramPage();
     } catch (error) {
-      console.error('Failed to connect Instagram:', error);
+      toast.error(error instanceof Error ? error.message : t('shell.err.connectIgPage'));
     }
   };
 
@@ -458,6 +490,60 @@ function DashboardPageInner() {
               </div>
             </div>
           </div>
+
+          {/* What the last connect attempt did, page by page. The backend
+              sends a translated reason per page, so a page that did not
+              connect can be named instead of disappearing silently. */}
+          {connectReport && connectReport.results.some((r) => r.status !== 'connected') && (
+            <div className="mb-6 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{t('pages.connect.reportTitle')}</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    {t('pages.connect.reportSummary')
+                      .replace('{connected}', String(connectReport.connected))
+                      .replace('{total}', String(connectReport.total))}
+                  </p>
+                </div>
+                <button
+                  onClick={clearConnectReport}
+                  className="text-xs text-zinc-500 hover:text-white underline shrink-0"
+                >
+                  {t('common.dismiss')}
+                </button>
+              </div>
+              <ul className="mt-3 space-y-2">
+                {connectReport.results
+                  .filter((r) => r.status !== 'connected')
+                  .map((r) => (
+                    <li key={`${r.pageId}-${r.code ?? r.status}`} className="flex gap-2 text-xs">
+                      <span
+                        className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
+                          r.status === 'warning' ? 'bg-amber-400' : 'bg-zinc-500'
+                        }`}
+                      />
+                      <span>
+                        <span className="text-zinc-300">{r.pageName}</span>
+                        {r.message && <span className="block text-zinc-500">{r.message}</span>}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
+
+          {/* A load/connect error that carries no per-page detail */}
+          {pagesError && !connectReport && (
+            <div className="mb-6 flex items-start justify-between gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3">
+              <p className="text-sm text-red-300">{pagesError}</p>
+              <button
+                onClick={clearPagesError}
+                className="shrink-0 text-xs text-red-300/70 underline hover:text-red-200"
+              >
+                {t('common.dismiss')}
+              </button>
+            </div>
+          )}
 
           {/* Quick channel summary strip */}
           {pages.length > 0 && (

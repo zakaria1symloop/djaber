@@ -7,6 +7,10 @@ type L = { en: Record<string, string>; fr: Record<string, string>; ar: Record<st
 
 export const AppShellI18n: L = {
   en: {
+    'pages.connect.ok': '{n} of {total} page(s) connected.',
+    'pages.connect.someSkipped': '{n} page(s) could not be connected — see the details below.',
+    'pages.connect.reportTitle': 'Last connection attempt',
+    'pages.connect.reportSummary': '{connected} of {total} page(s) connected.',
     // ── keys referenced by components but previously undefined ──
     'shell.form.personality': 'Personality',
     'pageCard.agent.edit': 'Edit',
@@ -359,6 +363,10 @@ export const AppShellI18n: L = {
   },
 
   fr: {
+    'pages.connect.ok': '{n} page(s) connectée(s) sur {total}.',
+    'pages.connect.someSkipped': '{n} page(s) n’ont pas pu être connectées — voir le détail ci-dessous.',
+    'pages.connect.reportTitle': 'Dernière tentative de connexion',
+    'pages.connect.reportSummary': '{connected} page(s) connectée(s) sur {total}.',
     // ── keys referenced by components but previously undefined ──
     'shell.form.personality': 'Personnalité',
     'pageCard.agent.edit': 'Modifier',
@@ -711,6 +719,10 @@ export const AppShellI18n: L = {
   },
 
   ar: {
+    'pages.connect.ok': 'تم ربط {n} من {total} صفحة.',
+    'pages.connect.someSkipped': 'لم يتم ربط {n} صفحة — انظر التفاصيل أدناه.',
+    'pages.connect.reportTitle': 'آخر محاولة ربط',
+    'pages.connect.reportSummary': 'تم ربط {connected} من {total} صفحة.',
     // ── keys referenced by components but previously undefined ──
     'shell.form.personality': 'الشخصية',
     'pageCard.agent.edit': 'تعديل',

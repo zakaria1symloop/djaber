@@ -14,15 +14,41 @@ import { getLang, translateFor } from '@/lib/i18n';
 // Translated at call time rather than through a hook — see AuthContext.
 const tr = (key: string) => translateFor(getLang(), key);
 
+/** One page's outcome, as reported by the OAuth callback. */
+export interface PageOutcome {
+  pageId: string;
+  pageName: string;
+  status: 'connected' | 'warning' | 'skipped';
+  code?: string;
+  /** Already translated by the backend. */
+  message?: string;
+}
+
+/**
+ * What the last connect attempt actually did. The OAuth callback reports a
+ * reason per page, so a page that could not be connected can be named with
+ * its reason instead of failing silently.
+ */
+export interface ConnectReport {
+  platform: 'facebook' | 'instagram';
+  ok: boolean;
+  connected: number;
+  total: number;
+  message?: string;
+  results: PageOutcome[];
+}
+
 interface PagesContextType {
   pages: Page[];
   loading: boolean;
   error: string | null;
+  connectReport: ConnectReport | null;
   connectFacebookPage: () => Promise<void>;
   connectInstagramPage: () => Promise<void>;
   disconnectPage: (pageId: string) => Promise<void>;
   refreshPages: () => Promise<void>;
   clearError: () => void;
+  clearConnectReport: () => void;
 }
 
 const PagesContext = createContext<PagesContextType | undefined>(undefined);
@@ -32,6 +58,7 @@ export function PagesProvider({ children }: { children: ReactNode }) {
   const [pages, setPages] = useState<Page[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connectReport, setConnectReport] = useState<ConnectReport | null>(null);
 
   // Load pages when user is authenticated
   useEffect(() => {
@@ -43,18 +70,27 @@ export function PagesProvider({ children }: { children: ReactNode }) {
   // Listen for OAuth popup messages
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'facebook-oauth-success') {
-        console.log('Facebook OAuth success, refreshing pages...');
+      const data = event.data;
+      const type: unknown = data?.type;
+      if (typeof type !== 'string' || !type.endsWith('-oauth-success') && !type.endsWith('-oauth-error')) return;
+
+      const platform: 'facebook' | 'instagram' = type.startsWith('instagram') ? 'instagram' : 'facebook';
+      const ok = type.endsWith('-oauth-success');
+      const results: PageOutcome[] = Array.isArray(data?.results) ? data.results : [];
+
+      setConnectReport({
+        platform,
+        ok,
+        connected: typeof data?.connected === 'number' ? data.connected : results.filter((r) => r.status !== 'skipped').length,
+        total: typeof data?.total === 'number' ? data.total : results.length,
+        message: typeof data?.error === 'string' ? data.error : undefined,
+        results,
+      });
+
+      if (ok) {
         refreshPages();
-      } else if (event.data?.type === 'facebook-oauth-error') {
-        console.error('Facebook OAuth error:', event.data.error);
-        setError(event.data.error || tr('shell.err.fbConnect'));
-      } else if (event.data?.type === 'instagram-oauth-success') {
-        console.log('Instagram OAuth success, refreshing pages...');
-        refreshPages();
-      } else if (event.data?.type === 'instagram-oauth-error') {
-        console.error('Instagram OAuth error:', event.data.error);
-        setError(event.data.error || tr('shell.err.igConnect'));
+      } else {
+        setError(data?.error || tr(platform === 'instagram' ? 'shell.err.igConnect' : 'shell.err.fbConnect'));
       }
     };
 
@@ -112,6 +148,7 @@ export function PagesProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
       setError(null);
+      setConnectReport(null);
 
       const response = await fetchAuthUrl();
 
@@ -166,15 +203,21 @@ export function PagesProvider({ children }: { children: ReactNode }) {
     setError(null);
   };
 
+  const clearConnectReport = () => {
+    setConnectReport(null);
+  };
+
   const value: PagesContextType = {
     pages,
     loading,
     error,
+    connectReport,
     connectFacebookPage,
     connectInstagramPage,
     disconnectPage,
     refreshPages,
     clearError,
+    clearConnectReport,
   };
 
   return <PagesContext.Provider value={value}>{children}</PagesContext.Provider>;
