@@ -1,7 +1,7 @@
 ﻿import { Request, Response } from 'express';
 import axios from 'axios';
 import prisma from '../config/database';
-import { fail, handleError, resolveLang, translate, type ErrorCode } from '../errors';
+import { fail, handleError, resolveLang, translate, type ErrorCode, type Params } from '../errors';
 
 const DEFAULT_BACKEND_URL = 'https://djaberio.symloop.com';
 const ID_RE = /^[0-9a-fA-F-]{8,64}$/;
@@ -52,9 +52,10 @@ function sendOAuthError(
   res: Response,
   platform: 'facebook' | 'instagram',
   code: ErrorCode,
-  extra: Record<string, unknown> = {}
+  extra: Record<string, unknown> = {},
+  params?: Params
 ): void {
-  const message = translate(resolveLang(req), code);
+  const message = translate(resolveLang(req), code, params);
   sendOAuthPopupResult(
     res,
     frontendUrlOf(),
@@ -71,6 +72,117 @@ async function resolveStateUser(state: unknown): Promise<string | null> {
   if (typeof state !== 'string' || !ID_RE.test(state)) return null;
   const user = await prisma.user.findUnique({ where: { id: state }, select: { id: true } });
   return user?.id ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Facebook page listing + claiming helpers
+// ---------------------------------------------------------------------------
+
+/** One entry of `GET /me/accounts`. `access_token` / `tasks` may be absent. */
+interface GraphPage {
+  id?: string;
+  name?: string;
+  access_token?: string;
+  tasks?: string[];
+  picture?: { data?: { url?: string } };
+}
+
+/** Per-page outcome of the connect loop, reported back to the popup. */
+interface PageOutcome {
+  pageId: string;
+  pageName: string;
+  status: 'connected' | 'skipped' | 'warning';
+  code?: ErrorCode;
+  message?: string;
+}
+
+/** Graph `tasks` values that let an app receive/send messages for a page. */
+const MESSAGING_TASKS = ['MESSAGING', 'MANAGE', 'MODERATE'];
+
+const PAGES_PER_GRAPH_CALL = 100;
+const MAX_PAGES = 200;
+
+/**
+ * Every page the user has a role on. `/me/accounts` is paginated (25 per page
+ * by default), so we ask for 100 at a time AND follow `paging.next` until it
+ * runs out — otherwise a merchant with many pages silently loses all but the
+ * first batch. Hard-capped at MAX_PAGES so a huge Business Manager cannot hang
+ * the OAuth callback.
+ */
+async function fetchAllFacebookPages(userAccessToken: string): Promise<GraphPage[]> {
+  const collected: GraphPage[] = [];
+  let url: string | null = 'https://graph.facebook.com/v18.0/me/accounts';
+  let params: Record<string, string | number> | undefined = {
+    fields: 'id,name,access_token,tasks,picture{url}',
+    limit: PAGES_PER_GRAPH_CALL,
+    access_token: userAccessToken,
+  };
+
+  while (url && collected.length < MAX_PAGES) {
+    const response: { data?: { data?: GraphPage[]; paging?: { next?: string } } } = await axios.get(url, { params });
+    const batch = response.data?.data;
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    collected.push(...batch);
+    // `paging.next` already carries fields/limit/token/cursor in its query string.
+    url = response.data?.paging?.next ?? null;
+    params = undefined;
+  }
+
+  // De-duplicate (a cursor replay can repeat an entry) and drop entries with no id.
+  const seen = new Set<string>();
+  return collected
+    .filter((p) => typeof p.id === 'string' && p.id !== '')
+    .filter((p) => (seen.has(p.id as string) ? false : (seen.add(p.id as string), true)))
+    .slice(0, MAX_PAGES);
+}
+
+/**
+ * Save a page for `userId`, refusing to steal it from someone else.
+ *
+ * `Page` is unique on (platform, pageId) GLOBALLY, so a blind `upsert` on that
+ * key silently reassigns a page already connected by another account (a former
+ * test account, a partner, a previous owner). Re-connecting your OWN page must
+ * keep working (and refresh the token), so: look the row up first, let the
+ * owner through, refuse anybody else with a translated code.
+ */
+async function claimPage(
+  userId: string,
+  platform: 'facebook' | 'instagram',
+  pageId: string,
+  data: { pageName: string; pageAvatar?: string | null; pageAccessToken: string }
+): Promise<{ ok: true } | { ok: false; code: ErrorCode }> {
+  const existing = await prisma.page.findUnique({
+    where: { platform_pageId: { platform, pageId } },
+    select: { id: true, userId: true },
+  });
+
+  if (existing && existing.userId !== userId) return { ok: false, code: 'PAGE_ALREADY_CONNECTED_ELSEWHERE' };
+
+  if (existing) {
+    await prisma.page.update({
+      where: { id: existing.id },
+      data: {
+        pageName: data.pageName,
+        ...(data.pageAvatar !== undefined ? { pageAvatar: data.pageAvatar } : {}),
+        pageAccessToken: data.pageAccessToken,
+        isActive: true,
+      },
+    });
+    return { ok: true };
+  }
+
+  await prisma.page.create({
+    data: {
+      platform,
+      pageId,
+      pageName: data.pageName,
+      pageAvatar: data.pageAvatar ?? null,
+      pageAccessToken: data.pageAccessToken,
+      userId,
+      isActive: true,
+    },
+  });
+  return { ok: true };
 }
 
 /**
@@ -128,108 +240,144 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
 
     const userAccessToken = tokenResponse.data.access_token;
 
-    // Get user's pages
-    const pagesResponse = await axios.get('https://graph.facebook.com/v18.0/me/accounts', {
-      params: {
-        fields: 'id,name,access_token,picture{url}',
-        access_token: userAccessToken,
-      },
-    });
+    // Get user's pages — every page, not just Graph's first 25.
+    let pages: GraphPage[];
+    try {
+      pages = await fetchAllFacebookPages(userAccessToken);
+    } catch (listErr: any) {
+      console.error('Failed to list Facebook pages:', listErr?.response?.data || listErr?.message);
+      return sendOAuthError(req, res, 'facebook', 'PAGE_LIST_FETCH_FAILED');
+    }
 
-    // Save pages to database
-    const pages = pagesResponse.data.data || [];
-    for (const page of pages) {
-      await prisma.page.upsert({
-        where: {
-          platform_pageId: {
-            platform: 'facebook',
-            pageId: page.id,
-          },
-        },
-        update: {
-          pageName: page.name,
-          pageAvatar: page.picture?.data?.url || null,
-          pageAccessToken: page.access_token,
-          isActive: true,
-          userId: userId,
-        },
-        create: {
-          platform: 'facebook',
-          pageId: page.id,
-          pageName: page.name,
-          pageAvatar: page.picture?.data?.url || null,
-          pageAccessToken: page.access_token,
-          userId: userId,
-          isActive: true,
-        },
+    if (pages.length === 0) return sendOAuthError(req, res, 'facebook', 'PAGE_NONE_AVAILABLE');
+
+    const lang = resolveLang(req);
+    const results: PageOutcome[] = [];
+    const note = (pageId: string, pageName: string, status: PageOutcome['status'], code?: ErrorCode): void => {
+      results.push({
+        pageId,
+        pageName,
+        status,
+        ...(code ? { code, message: translate(lang, code, { pageName }) } : {}),
       });
+    };
 
-      // Subscribe page to webhook so it receives messages
+    // One page's problem must never abort the whole loop: every iteration is
+    // isolated and records its own outcome.
+    for (const page of pages) {
+      const pageId = String(page.id);
+      const pageName = page.name || pageId;
+
       try {
-        await axios.post(
-          `https://graph.facebook.com/v18.0/${page.id}/subscribed_apps`,
-          null,
-          {
-            params: {
-              subscribed_fields: 'messages,messaging_postbacks',
-              access_token: page.access_token,
-            },
-          }
-        );
-        console.log(`Subscribed page ${page.name} (${page.id}) to webhooks`);
-      } catch (subErr: any) {
-        console.error(`Failed to subscribe page ${page.id}:`, subErr.response?.data || subErr.message);
-      }
-
-      // Check for linked Instagram account
-      try {
-        const igResponse = await axios.get(
-          `https://graph.facebook.com/v18.0/${page.id}`,
-          {
-            params: {
-              fields: 'instagram_business_account{id,name,username,profile_picture_url}',
-              access_token: page.access_token,
-            },
-          }
-        );
-
-        const igAccount = igResponse.data?.instagram_business_account;
-        if (igAccount) {
-          await prisma.page.upsert({
-            where: {
-              platform_pageId: {
-                platform: 'instagram',
-                pageId: igAccount.id,
-              },
-            },
-            update: {
-              pageName: igAccount.username || igAccount.name || `IG-${page.name}`,
-              pageAccessToken: page.access_token, // Instagram uses the Facebook page token
-              isActive: true,
-              userId: userId,
-            },
-            create: {
-              platform: 'instagram',
-              pageId: igAccount.id,
-              pageName: igAccount.username || igAccount.name || `IG-${page.name}`,
-              pageAccessToken: page.access_token,
-              userId: userId,
-              isActive: true,
-            },
-          });
-          console.log(`Connected Instagram: ${igAccount.username || igAccount.id}`);
+        // No page token → nothing can be stored or subscribed (the merchant
+        // most likely unticked this page in the Meta consent screen).
+        if (!page.access_token) {
+          note(pageId, pageName, 'skipped', 'PAGE_ACCESS_TOKEN_MISSING');
+          continue;
         }
-      } catch (igErr: any) {
-        console.error(`Failed to fetch Instagram for page ${page.id}:`, igErr.response?.data || igErr.message);
+
+        // Graph only returns pages the user has a role on, but the role must
+        // include messaging or the webhook will never fire for this page.
+        if (Array.isArray(page.tasks) && !page.tasks.some((task) => MESSAGING_TASKS.includes(String(task).toUpperCase()))) {
+          note(pageId, pageName, 'skipped', 'PAGE_MESSAGING_PERMISSION_MISSING');
+          continue;
+        }
+
+        const claimed = await claimPage(userId, 'facebook', pageId, {
+          pageName,
+          pageAvatar: page.picture?.data?.url || null,
+          pageAccessToken: page.access_token,
+        });
+        if (!claimed.ok) {
+          note(pageId, pageName, 'skipped', claimed.code);
+          continue;
+        }
+
+        // Subscribe page to webhook so it receives messages. A refusal here
+        // means the page is saved but deaf — report it as a warning instead of
+        // letting the merchant believe it is live.
+        let subscribed = true;
+        try {
+          await axios.post(
+            `https://graph.facebook.com/v18.0/${pageId}/subscribed_apps`,
+            null,
+            {
+              params: {
+                subscribed_fields: 'messages,messaging_postbacks',
+                access_token: page.access_token,
+              },
+            }
+          );
+          console.log(`Subscribed page ${pageName} (${pageId}) to webhooks`);
+        } catch (subErr: any) {
+          subscribed = false;
+          console.error(`Failed to subscribe page ${pageId}:`, subErr.response?.data || subErr.message);
+        }
+
+        note(pageId, pageName, subscribed ? 'connected' : 'warning', subscribed ? undefined : 'PAGE_WEBHOOK_SUBSCRIBE_FAILED');
+
+        // Check for linked Instagram account (never fatal for the page itself)
+        try {
+          const igResponse = await axios.get(
+            `https://graph.facebook.com/v18.0/${pageId}`,
+            {
+              params: {
+                fields: 'instagram_business_account{id,name,username,profile_picture_url}',
+                access_token: page.access_token,
+              },
+            }
+          );
+
+          const igAccount = igResponse.data?.instagram_business_account;
+          if (igAccount?.id) {
+            const igName = igAccount.username || igAccount.name || `IG-${pageName}`;
+            const igClaimed = await claimPage(userId, 'instagram', String(igAccount.id), {
+              pageName: igName,
+              pageAccessToken: page.access_token, // Instagram uses the Facebook page token
+            });
+            if (igClaimed.ok) {
+              note(String(igAccount.id), igName, 'connected');
+              console.log(`Connected Instagram: ${igName}`);
+            } else {
+              note(String(igAccount.id), igName, 'skipped', igClaimed.code);
+            }
+          }
+        } catch (igErr: any) {
+          console.error(`Failed to fetch Instagram for page ${pageId}:`, igErr.response?.data || igErr.message);
+        }
+      } catch (pageErr: any) {
+        console.error(`Failed to connect page ${pageId}:`, pageErr?.response?.data || pageErr?.message || pageErr);
+        note(pageId, pageName, 'skipped', 'PAGE_SAVE_FAILED');
       }
+    }
+
+    const usable = results.filter((r) => r.status === 'connected' || r.status === 'warning');
+    const skipped = results.filter((r) => r.status === 'skipped');
+
+    // Nothing could be connected: answer with the real reason, not a success.
+    if (usable.length === 0) {
+      return sendOAuthError(
+        req,
+        res,
+        'facebook',
+        'PAGE_NONE_CONNECTED',
+        { total: pages.length, results: skipped },
+        { total: pages.length }
+      );
     }
 
     // Send success response back to the app (popup or full-page)
     sendOAuthPopupResult(
       res,
       frontendUrl,
-      { type: 'facebook-oauth-success', pages: pages.length },
-      `Successfully connected ${pages.length} page(s). Returning to Djaber…`
+      {
+        type: 'facebook-oauth-success',
+        pages: usable.length,
+        connected: usable.length,
+        total: pages.length,
+        results,
+      },
+      `Successfully connected ${usable.length} page(s)${skipped.length > 0 ? `, ${skipped.length} skipped` : ''}. Returning to Djaber…`
     );
   } catch (error: any) {
     console.error('Facebook callback error:', error?.response?.data || error);
@@ -375,46 +523,32 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
     // instead, and clean up any junk row from previous attempts.
     if (!profileOk) {
       await prisma.page
-        .deleteMany({ where: { platform: 'instagram', pageId: String(igUserId) } })
+        .deleteMany({ where: { platform: 'instagram', pageId: String(igUserId), userId } })
         .catch(() => {});
       return sendOAuthError(req, res, 'instagram', 'PAGE_INSTAGRAM_PENDING_APPROVAL');
     }
 
     // Step 4: Save to database using IGSID as pageId (matches webhook entry.id)
     // First, clean up any old record with the OAuth user_id if different
+    // Scoped to this user: a global deleteMany would wipe another account's page.
     if (igsId !== String(igUserId)) {
       await prisma.page.deleteMany({
         where: {
           platform: 'instagram',
           pageId: String(igUserId),
+          userId,
         },
       });
     }
 
-    await prisma.page.upsert({
-      where: {
-        platform_pageId: {
-          platform: 'instagram',
-          pageId: igsId,
-        },
-      },
-      update: {
-        pageName: username,
-        pageAvatar: avatar,
-        pageAccessToken: longLivedToken,
-        isActive: true,
-        userId: userId,
-      },
-      create: {
-        platform: 'instagram',
-        pageId: igsId,
-        pageName: username,
-        pageAvatar: avatar,
-        pageAccessToken: longLivedToken,
-        userId: userId,
-        isActive: true,
-      },
+    const igClaimed = await claimPage(userId, 'instagram', igsId, {
+      pageName: username,
+      pageAvatar: avatar,
+      pageAccessToken: longLivedToken,
     });
+    if (!igClaimed.ok) {
+      return sendOAuthError(req, res, 'instagram', igClaimed.code, { pageName: username }, { pageName: username });
+    }
 
     console.log(`Connected Instagram account: ${username} (${igUserId})`);
 
