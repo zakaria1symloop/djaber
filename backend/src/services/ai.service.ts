@@ -310,7 +310,49 @@ You're precise and thorough in your explanations.`,
 // Build product catalog context (now includes IDs for tool calling)
 // ============================================================================
 
-function buildProductCatalog(
+/**
+ * Variant-aware price presentation.
+ *
+ * A product with variants has NO single final price: the parent `sellingPrice`
+ * is a base/placeholder, and quoting it to a customer is the reported
+ * "price confusion on products with variants" bug. For such a product we only
+ * ever expose the variant range and the model is told to quote a variant
+ * price. The label is deliberately language-free (digits + "DA") so it can be
+ * reused verbatim in a Messenger card subtitle in any customer language.
+ */
+export function describeProductPrice(p: {
+  sellingPrice: number;
+  hasVariants?: boolean;
+  variants?: { name: string; sellingPrice: number; quantity: number }[] | null;
+}): { hasVariantPricing: boolean; min: number; max: number; label: string } {
+  const prices = (p.hasVariants ? p.variants || [] : [])
+    .map((v) => Number(v.sellingPrice))
+    .filter((n) => Number.isFinite(n) && n > 0);
+
+  if (prices.length === 0) {
+    const flat = Number(p.sellingPrice) || 0;
+    return {
+      hasVariantPricing: false,
+      min: flat,
+      max: flat,
+      label: `${flat.toLocaleString('en-US')} DA`,
+    };
+  }
+
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  return {
+    hasVariantPricing: true,
+    min,
+    max,
+    label:
+      min === max
+        ? `${min.toLocaleString('en-US')} DA`
+        : `${min.toLocaleString('en-US')} - ${max.toLocaleString('en-US')} DA`,
+  };
+}
+
+export function buildProductCatalog(
   products: ProductInfo[],
   recommendations?: Map<string, Array<{ type: string; recommended: { id: string; name: string; sellingPrice: any; quantity: number }; reason: string | null }>>
 ): string {
@@ -319,15 +361,21 @@ function buildProductCatalog(
   }
 
   const lines = products.map((p, i) => {
+    const price = describeProductPrice(p);
     let entry = `${i + 1}. ${p.name} [ID: ${p.id}]`;
-    entry += `\n   Price: ${p.sellingPrice.toLocaleString()} DA`;
+    if (price.hasVariantPricing) {
+      // Never a bare parent price here: it must be impossible to quote one.
+      entry += `\n   Price: PER VARIANT ONLY (${price.label}) - this product has no single price. Ask which variant the customer wants and quote ONLY that variant's price from the list below.`;
+    } else {
+      entry += `\n   Price: ${price.label}`;
+    }
     entry += `\n   Stock: ${p.quantity > 0 ? `${p.quantity} available` : 'Out of stock'}`;
     if (p.description) entry += `\n   About: ${p.description}`;
     entry += `\n   HasImage: ${p.primaryImageUrl ? 'yes' : 'no'}`;
-    if (p.hasVariants && p.variants && p.variants.length > 0) {
-      entry += '\n   Variants:';
+    if (price.hasVariantPricing && p.variants && p.variants.length > 0) {
+      entry += '\n   Variants (each line is the FINAL price of that variant):';
       p.variants.forEach((v) => {
-        entry += `\n     - ${v.name}: ${v.sellingPrice.toLocaleString()} DA (${v.quantity > 0 ? `${v.quantity} in stock` : 'out of stock'})`;
+        entry += `\n     - ${v.name}: ${Number(v.sellingPrice).toLocaleString('en-US')} DA (${v.quantity > 0 ? `${v.quantity} in stock` : 'out of stock'})`;
       });
     }
     // Append cross-sell/up-sell recommendations
@@ -1216,6 +1264,7 @@ RULES:
 - If a product is out of stock, let the customer know and suggest alternatives if available.
 - When a customer wants to buy, confirm the product, quantity, and total price.
 - If a product has variants (sizes, colors...), ask the customer which variant they want, and pass its EXACT variant name (variantName) for that item when calling create_order.
+- VARIANT PRICING: when the catalog says "Price: PER VARIANT ONLY", that product has NO single price. Never quote the range as if it were the price and never invent a final price: either state it as a range ("from X DA, the price depends on the variant") or ask which variant they want and then quote ONLY that variant's price from the Variants list. The total of an order always uses the chosen variant's price.
 - Ask for their name, phone number, wilaya, and delivery address to complete the order.
 - Before creating the order, call the get_shipping_fee tool with the customer's wilaya to quote delivery cost, and tell the customer the total (products + shipping).
 - Ask whether they prefer home delivery or stopdesk (agency pickup — cheaper).
@@ -1226,7 +1275,17 @@ RULES:
 - Keep responses concise — this is a chat conversation, not an email.
 - If asked about something not in the catalog, politely say you don't have that product.
 - Never make up products or prices that aren't in the catalog.
-- Respond in the same language the customer uses.
+
+LANGUAGE (STRICT — Algerian customers mix languages and scripts):
+- Reply in the SAME language AND the SAME script as the customer's last message. Match them, never "correct" them.
+- Arabic script (ex: "بشحال", "واش عندكم", "نحب نشري") -> reply in Arabic script, in Algerian dialect (darija), not in formal/literary Arabic unless the customer writes formal Arabic.
+- Latin-script darija / arabizi (ex: "3andkom", "bch", "bchhal", "wach", "chhal", "kayn", "nchri", "sahbi") -> reply in that SAME Latin-script darija, using the same kind of spelling (3 = ع, 7 = ح, 9/q = ق). Do NOT answer such a message in Arabic script and do NOT answer it in formal Arabic.
+- French (ex: "bonjour", "c'est combien", "je veux commander") -> reply in French.
+- English -> reply in English.
+- Mixed in one sentence (very common: "bonjour, chhal hada ?") -> reply in the dominant language of that sentence and keep the same mix; do not translate the customer's words into another language.
+- Never switch language or script mid-conversation on your own. Only switch when the customer switches, and then follow them from that message on.
+- Keep product names, SKUs, variant names and numeric prices EXACTLY as written in the catalog (same characters, Latin digits, "DA") whatever the reply language is. Never translate or transliterate a product name, a variant name or a SKU.
+- Never mix two scripts inside one sentence of your own reply, and never put Arabic-script words in a French/Latin-darija reply.
 
 PRODUCT PRESENTATION:
 - NEVER output raw image URLs or links to images. The system handles images automatically.

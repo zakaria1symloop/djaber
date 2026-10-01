@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { verifyWebhook } from '../services/meta.service';
-import { generateAIResponse, generateAgentResponse } from '../services/ai.service';
-import { sendMessage, sendProductCards } from '../services/meta.service';
+import { generateAIResponse, generateAgentResponse, describeProductPrice } from '../services/ai.service';
+import { sendMessage, sendProductCards, sendSenderAction } from '../services/meta.service';
 import { createNotification } from '../services/notification.service';
 import { sendPushToUser } from '../services/push.service';
 import { trackImpressions } from '../services/recommendation.service';
@@ -15,6 +15,55 @@ import { fail, handleError } from '../errors';
 const STATUS_TAG_RE = /\[STATUS:(OK|UNCLEAR|UNKNOWN|HANDOFF)(?::([^\]]*))?\]\s*$/;
 // Regex to extract [RECOMMEND:sourceId:recommendedId] tags
 const RECOMMEND_TAG_RE = /\[RECOMMEND:([^\]:]+):([^\]]+)\]/g;
+
+// ============================================================================
+// Product image selection
+//
+// A product card must show the image the merchant CHOSE, not whatever row the
+// database returned first. Precedence: ProductImage.isPrimary -> lowest
+// sortOrder -> oldest -> the legacy Product.imageUrl column.
+// The Prisma queries already order the relation; this sort makes the choice
+// independent of the query (and of any caller that forgets the orderBy).
+// ============================================================================
+
+export interface ProductImageLike {
+  filename?: string | null;
+  url?: string | null;
+  isPrimary?: boolean | null;
+  sortOrder?: number | null;
+  createdAt?: Date | string | null;
+}
+
+export function pickProductImage<T extends ProductImageLike>(images: T[] | null | undefined): T | null {
+  if (!images || images.length === 0) return null;
+  const usable = images.filter((img) => img && (img.filename || img.url));
+  if (usable.length === 0) return null;
+  return [...usable].sort((a, b) => {
+    const pa = a.isPrimary ? 0 : 1;
+    const pb = b.isPrimary ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+    const sa = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+    const sb = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+    if (sa !== sb) return sa - sb;
+    const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return ca - cb;
+  })[0];
+}
+
+/** Absolute URL of the image a product card should display, or null. */
+export function resolveProductImageUrl(
+  product: { imageUrl?: string | null; images?: ProductImageLike[] | null },
+  toAbsolute: (filename: string) => string
+): string | null {
+  const chosen = pickProductImage(product.images);
+  if (chosen) {
+    if (chosen.url && chosen.url.startsWith('http')) return chosen.url;
+    if (chosen.filename) return toAbsolute(chosen.filename);
+    if (chosen.url) return chosen.url;
+  }
+  return product.imageUrl || null;
+}
 
 export const verifyMetaWebhook = async (
   req: Request,
@@ -379,10 +428,15 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
                       where: { isActive: true },
                       select: { name: true, sellingPrice: true, quantity: true },
                     },
+                    // Primary first, then the merchant's chosen order. NOT
+                    // "the first row the DB happens to return".
                     images: {
-                      where: { isPrimary: true },
-                      take: 1,
-                      select: { filename: true, url: true },
+                      orderBy: [
+                        { isPrimary: 'desc' },
+                        { sortOrder: 'asc' },
+                        { createdAt: 'asc' },
+                      ],
+                      select: { filename: true, url: true, isPrimary: true, sortOrder: true, createdAt: true },
                     },
                   },
                 },
@@ -513,6 +567,11 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
       }
 
       // Message batching — queue and wait for more messages before responding
+      // `responseDelay` is the BATCHING WINDOW, not the total reply time: the
+      // model's generation happens after it. We therefore (a) show the typing
+      // indicator as soon as the window opens so the customer sees activity
+      // immediately, (b) never re-arm the window (see message-batcher), and
+      // (c) log the real window / prefetch / LLM / total split below.
       const responseDelay = ((agent as any).responseDelay ?? 3) * 1000;
 
       queueMessage(
@@ -520,12 +579,52 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         messageText,
         imageUrls,
         responseDelay,
-        async (combinedText: string, combinedImages: string[]) => {
-          // Re-fetch conversation to get latest messages (user may have sent more)
-          const freshConvo = await prisma.conversation.findUnique({
-            where: { id: conversation.id },
-            include: { messages: { orderBy: { timestamp: 'desc' }, take: 30 } },
-          });
+        async (combinedText: string, combinedImages: string[], batchMeta) => {
+          const tFlush = Date.now();
+
+          // Keep the thread "typing" through generation: the indicator expires
+          // on its own, so re-arm it right before the slow part.
+          sendSenderAction({
+            pageAccessToken: page.pageAccessToken,
+            recipientId: senderId,
+            action: 'typing_on',
+            platform: page.platform as 'facebook' | 'instagram',
+          }).catch(() => {});
+
+          // The conversation state and the product catalog do not depend on
+          // each other: fetch them concurrently instead of one after the other
+          // (this serial wait was pure added latency before the LLM started).
+          const productsPromise: Promise<any[]> = agent.sellAllProducts
+            ? (prisma.product.findMany({
+                where: { userId: page.userId, isActive: true },
+                include: {
+                  variants: {
+                    where: { isActive: true },
+                    select: { name: true, sellingPrice: true, quantity: true },
+                  },
+                  // Primary first, then the merchant's chosen order (see above).
+                  images: {
+                    orderBy: [
+                      { isPrimary: 'desc' },
+                      { sortOrder: 'asc' },
+                      { createdAt: 'asc' },
+                    ],
+                    select: { filename: true, url: true, isPrimary: true, sortOrder: true, createdAt: true },
+                  },
+                },
+              }) as Promise<any[]>)
+            : Promise.resolve(
+                agent.products.map((ap) => ap.product).filter((ap) => ap.isActive) as any[]
+              );
+
+          const [freshConvo, products] = await Promise.all([
+            prisma.conversation.findUnique({
+              where: { id: conversation.id },
+              include: { messages: { orderBy: { timestamp: 'desc' }, take: 30 } },
+            }),
+            productsPromise,
+          ]);
+
           if (!freshConvo || freshConvo.status !== 'active' || (freshConvo as any).aiPaused) return;
 
           // Use the full batch: all texts joined + all images across the burst
@@ -536,32 +635,6 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
             role: msg.isFromPage ? 'assistant' as const : 'user' as const,
             content: msg.text || '(attachment)',
           }));
-
-      // Get products for the agent
-      let products: any[];
-      if (agent.sellAllProducts) {
-        // Fetch all user's active products
-        const allProducts = await prisma.product.findMany({
-          where: { userId: page.userId, isActive: true },
-          include: {
-            variants: {
-              where: { isActive: true },
-              select: { name: true, sellingPrice: true, quantity: true },
-            },
-            images: {
-              where: { isPrimary: true },
-              take: 1,
-              select: { filename: true, url: true },
-            },
-          },
-        });
-        products = allProducts;
-      } else {
-        // Use only the agent's linked products
-        products = agent.products
-          .map((ap) => ap.product)
-          .filter((p) => p.isActive);
-      }
 
       // Format products for the AI
       const { getImageUrl } = require('../config/upload');
@@ -575,12 +648,12 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         hasVariants: p.hasVariants ?? (p.variants && p.variants.length > 0),
         variants: p.variants,
         imageUrl: p.imageUrl,
-        primaryImageUrl: p.images?.[0]?.filename
-          ? (p.images[0].url?.startsWith('http') ? p.images[0].url : getImageUrl(p.images[0].filename))
-          : null,
+        // isPrimary -> lowest sortOrder -> oldest -> legacy column
+        primaryImageUrl: resolveProductImageUrl(p, getImageUrl),
       }));
 
       // Generate response via LangChain (pass image URLs for multimodal)
+      const tLlmStart = Date.now();
       const rawAiResponse = await generateAgentResponse({
         agent: {
           name: agent.name,
@@ -600,6 +673,8 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         userId: page.userId,
         conversationId: conversation.id,
       });
+
+      const llmMs = Date.now() - tLlmStart;
 
       // Parse and strip status tag from AI response
       const statusMatch = rawAiResponse.match(STATUS_TAG_RE);
@@ -652,15 +727,31 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         platform: page.platform as 'facebook' | 'instagram',
       });
 
+      // Honest timing breakdown: what the merchant configured (the window) vs
+      // what the model actually cost vs what the customer experienced.
+      console.log(
+        `[agent-timing] conversation=${conversation.id} agent="${agent.name}" ` +
+        `configuredDelayMs=${responseDelay} windowMs=${batchMeta.windowMs} ` +
+        `prefetchMs=${tLlmStart - tFlush} llmMs=${llmMs} ` +
+        `totalMs=${batchMeta.windowMs + (Date.now() - tFlush)} ` +
+        `batchedMessages=${batchMeta.messageCount}`
+      );
+
       // Then send product cards as a Facebook Generic Template
       if (cardProductIds.length > 0) {
         const cards = cardProductIds
           .map((pid) => {
             const product = productInfos.find((p: any) => p.id === pid);
             if (!product) return null;
+            // Variant products have no single price: show the variant range
+            // so the card can never contradict what the agent quoted.
+            const price = describeProductPrice(product);
             return {
               title: product.name,
-              subtitle: `${Number(product.sellingPrice).toLocaleString()} DA`,
+              // Language-free on purpose (digits + "DA"): a range reads the
+              // same in Arabic, darija and French, so the card never has to
+              // guess the customer's language.
+              subtitle: price.label,
               imageUrl: product.primaryImageUrl || product.imageUrl || undefined,
               productId: product.id,
             };
@@ -768,7 +859,17 @@ async function handleMessagingEvent(event: any, pageId: string): Promise<void> {
         }
       }
 
-        } // end of queueMessage callback
+        }, // end of queueMessage callback
+        // Fired once, the moment the batching window opens: the customer sees
+        // "typing…" immediately instead of a silent thread for window + LLM.
+        () => {
+          sendSenderAction({
+            pageAccessToken: page.pageAccessToken,
+            recipientId: senderId,
+            action: 'typing_on',
+            platform: page.platform as 'facebook' | 'instagram',
+          }).catch(() => {});
+        }
       ); // end of queueMessage call
       return; // webhook handler returns immediately, AI processes after delay
     }

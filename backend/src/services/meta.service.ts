@@ -110,6 +110,58 @@ export const sendMessage = async ({
 };
 
 // ============================================================================
+// Sender actions (typing indicator / read receipt)
+//
+// Sent as soon as we start working on a reply so the customer sees activity
+// immediately instead of staring at a silent thread while the batching window
+// and the LLM generation run. Best-effort: a failure here must never break or
+// delay the real reply, so it is swallowed and only logged.
+// ============================================================================
+
+export type SenderAction = 'mark_seen' | 'typing_on' | 'typing_off';
+
+interface SendSenderActionParams {
+  pageAccessToken: string;
+  recipientId: string;
+  action: SenderAction;
+  platform: 'facebook' | 'instagram';
+}
+
+export const sendSenderAction = async ({
+  pageAccessToken,
+  recipientId,
+  action,
+  platform,
+}: SendSenderActionParams): Promise<boolean> => {
+  try {
+    if (platform === 'instagram') {
+      await axios.post(
+        `${INSTAGRAM_GRAPH_API_URL}/me/messages`,
+        { recipient: { id: recipientId }, sender_action: action },
+        {
+          headers: {
+            Authorization: `Bearer ${pageAccessToken}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 5000,
+        },
+      );
+    } else {
+      await axios.post(
+        `${META_GRAPH_API_URL}/me/messages`,
+        { recipient: { id: recipientId }, sender_action: action },
+        { params: { access_token: pageAccessToken }, timeout: 5000 },
+      );
+    }
+    return true;
+  } catch (error: any) {
+    const fbErr = error.response?.data?.error;
+    console.warn(`Meta sender_action "${action}" failed (non-fatal):`, fbErr?.message || error.message);
+    return false;
+  }
+};
+
+// ============================================================================
 // Send product cards as Facebook Generic Template (rich cards with images)
 // ============================================================================
 
