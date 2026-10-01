@@ -104,7 +104,7 @@ export default function CategoriesPage() {
       const res = await getCategories(params);
       setCategories(res.categories);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load categories');
+      setError(err instanceof Error ? err.message : t('stk.ops.cat.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -168,7 +168,7 @@ export default function CategoriesPage() {
     e.preventDefault();
     setModalError(null);
 
-    const nameErr = validateName(form.name, 'Name');
+    const nameErr = validateName(form.name, t('stk.ops.c.name'));
     if (nameErr) { setModalError(nameErr); return; }
 
     try {
@@ -176,15 +176,15 @@ export default function CategoriesPage() {
       const payload = { ...form, name: form.name.trim(), description: form.description.trim() };
       if (editing) {
         await updateCategory(editing.id, payload);
-        toast.success('Category updated');
+        toast.success(t('stk.ops.cat.updated'));
       } else {
         await createCategory(payload);
-        toast.success('Category added');
+        toast.success(t('stk.ops.cat.added'));
       }
       setShowModal(false);
       loadCategories();
     } catch (err) {
-      setModalError(err instanceof Error ? err.message : 'Failed to save category');
+      setModalError(err instanceof Error ? err.message : t('stk.ops.cat.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -195,11 +195,11 @@ export default function CategoriesPage() {
     try {
       setDeleting(true);
       await deleteCategory(deleteConfirm.id);
-      toast.success('Category deleted');
+      toast.success(t('stk.ops.cat.deleted'));
       setDeleteConfirm(null);
       loadCategories();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete category');
+      toast.error(err instanceof Error ? err.message : t('stk.ops.cat.deleteFailed'));
     } finally {
       setDeleting(false);
     }
@@ -301,7 +301,7 @@ export default function CategoriesPage() {
               {cat.description && (
                 <p className="text-sm text-zinc-400 mb-3">{cat.description}</p>
               )}
-              <p className="text-xs text-zinc-500">{cat._count?.products || 0} products</p>
+              <p className="text-xs text-zinc-500">{t('stk.ops.cat.productsCount').replace('{n}', String(cat._count?.products || 0))}</p>
             </div>
           ))}
         </div>
@@ -312,7 +312,7 @@ export default function CategoriesPage() {
           </div>
           <h3 className="text-lg font-medium text-zinc-300 mb-1">{t('stock.categories.empty.title')}</h3>
           <p className="text-sm text-zinc-500 mb-4">
-            {searchDebounced || activeFilterCount > 0 ? 'No categories match your filters' : t('stock.categories.empty.hint')}
+            {searchDebounced || activeFilterCount > 0 ? t('stk.ops.cat.noMatch') : t('stock.categories.empty.hint')}
           </p>
           {!searchDebounced && activeFilterCount === 0 && (
             <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>
@@ -332,10 +332,10 @@ export default function CategoriesPage() {
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
           <div className="flex items-center gap-2">
             <FilterIcon className="w-4 h-4 text-zinc-500" />
-            <h2 className="text-sm font-semibold text-white">Filters</h2>
+            <h2 className="text-sm font-semibold text-white">{t('stk.ops.c.filters')}</h2>
             {activeFilterCount > 0 && (
               <span className="text-[10px] text-zinc-300 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-full font-medium">
-                {activeFilterCount} active
+                {t('stk.ops.c.filtersActive').replace('{n}', String(activeFilterCount))}
               </span>
             )}
           </div>
@@ -352,7 +352,7 @@ export default function CategoriesPage() {
           {/* Product Count Range */}
           <div>
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
-              Product Count
+              {t('stk.ops.cat.productCount')}
             </label>
             <RangeSlider
               min={0}
@@ -366,12 +366,12 @@ export default function CategoriesPage() {
 
           {/* Has Description Toggle */}
           <div>
-            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">Has Description</label>
+            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">{t('stk.ops.cat.hasDescription')}</label>
             <div className="flex gap-1.5">
               {[
-                { value: '' as const, label: 'All' },
-                { value: 'true' as const, label: 'Yes' },
-                { value: 'false' as const, label: 'No' },
+                { value: '' as const, label: t('stk.ops.c.all') },
+                { value: 'true' as const, label: t('stk.ops.c.yes') },
+                { value: 'false' as const, label: t('stk.ops.c.no') },
               ].map((opt) => (
                 <button
                   key={opt.value}
@@ -390,7 +390,7 @@ export default function CategoriesPage() {
 
           {/* Color Filter */}
           <div>
-            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">Color</label>
+            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">{t('stk.ops.cat.color')}</label>
             <div className="flex flex-wrap gap-2">
               {PRESET_COLORS.map((c) => {
                 const isSelected = draftColors.includes(c);
@@ -407,7 +407,7 @@ export default function CategoriesPage() {
               })}
             </div>
             {draftColors.length > 0 && (
-              <p className="text-[10px] text-zinc-500 mt-2">{draftColors.length} selected</p>
+              <p className="text-[10px] text-zinc-500 mt-2">{t('stk.ops.c.selectedCount').replace('{n}', String(draftColors.length))}</p>
             )}
           </div>
         </div>
@@ -419,14 +419,14 @@ export default function CategoriesPage() {
             disabled={!draftDirty}
             className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-white hover:bg-zinc-200 text-black"
           >
-            Apply Filters
+            {t('stk.ops.c.applyFilters')}
           </button>
           <button
             onClick={clearAllFilters}
             disabled={activeFilterCount === 0 && !draftDirty}
             className="w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700"
           >
-            Clear All{activeFilterCount > 0 && ` (${activeFilterCount})`}
+            {t('stk.ops.c.clearAll')}{activeFilterCount > 0 && ` (${activeFilterCount})`}
           </button>
         </div>
       </div>
@@ -435,7 +435,7 @@ export default function CategoriesPage() {
       <Modal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        title={editing ? 'Edit Category' : 'Add Category'}
+        title={editing ? t('stk.ops.cat.editTitle') : t('stk.ops.cat.addTitle')}
         size="md"
       >
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -445,21 +445,21 @@ export default function CategoriesPage() {
             </div>
           )}
           <Input
-            label="Name *"
+            label={t('stk.ops.c.nameRequired')}
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             required
             minLength={2}
-            placeholder="e.g., Electronics"
+            placeholder={t('stk.ops.cat.namePlaceholder')}
           />
           <Input
-            label="Description"
+            label={t('stk.ops.cat.description')}
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
-            placeholder="Optional description"
+            placeholder={t('stk.ops.cat.descriptionPlaceholder')}
           />
           <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-2">Color</label>
+            <label className="block text-sm font-medium text-zinc-400 mb-2">{t('stk.ops.cat.color')}</label>
             <div className="flex items-center gap-2 flex-wrap">
               {PRESET_COLORS.map((c) => (
                 <button
@@ -482,10 +482,10 @@ export default function CategoriesPage() {
           </div>
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" className="flex-1" onClick={() => setShowModal(false)} disabled={saving}>
-              Cancel
+              {t('stk.ops.c.cancel')}
             </Button>
             <Button type="submit" className="flex-1" disabled={saving}>
-              {saving ? 'Saving...' : (editing ? 'Update' : 'Add')} {!saving && 'Category'}
+              {saving ? t('stk.ops.c.saving') : (editing ? t('stk.ops.cat.updateBtn') : t('stk.ops.cat.addBtn'))}
             </Button>
           </div>
         </form>
@@ -495,24 +495,24 @@ export default function CategoriesPage() {
       <Modal
         isOpen={!!deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
-        title="Delete Category"
+        title={t('stk.ops.cat.deleteTitle')}
         size="sm"
       >
         <p className="text-zinc-400 mb-2">
-          Are you sure you want to delete <span className="text-white font-medium">{deleteConfirm?.name}</span>?
+          {t('stk.ops.c.confirmDeletePrefix')} <span className="text-white font-medium">{deleteConfirm?.name}</span> ?
         </p>
         {(deleteConfirm?._count?.products || 0) > 0 && (
           <div className="border border-white/10 bg-white/[0.03] rounded-lg p-2.5 mb-4">
-            <p className="text-white text-sm font-semibold">This category has {deleteConfirm?._count?.products} products.</p>
-            <p className="text-zinc-500 text-xs mt-0.5">They will become uncategorized.</p>
+            <p className="text-white text-sm font-semibold">{t('stk.ops.cat.linkedProducts').replace('{n}', String(deleteConfirm?._count?.products ?? 0))}</p>
+            <p className="text-zinc-500 text-xs mt-0.5">{t('stk.ops.cat.willBeUncategorized')}</p>
           </div>
         )}
         <div className="flex gap-3 pt-4">
           <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>
-            Cancel
+            {t('stk.ops.c.cancel')}
           </Button>
           <Button type="button" className="flex-1" onClick={handleDelete} disabled={deleting}>
-            {deleting ? 'Deleting...' : 'Delete'}
+            {deleting ? t('stk.ops.c.deleting') : t('stk.ops.c.delete')}
           </Button>
         </div>
       </Modal>

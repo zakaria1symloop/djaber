@@ -25,12 +25,13 @@ import {
   type Product,
   type ActiveProvider,
 } from '@/lib/user-stock-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 const personalities = [
-  { value: 'professional', label: 'Professional', desc: 'Formal and business-focused' },
-  { value: 'friendly', label: 'Friendly', desc: 'Warm and approachable' },
-  { value: 'casual', label: 'Casual', desc: 'Relaxed and conversational' },
-  { value: 'technical', label: 'Technical', desc: 'Detailed and precise' },
+  { value: 'professional', labelKey: 'aiSettings.personality.professional', descKey: 'shell.form.pers.professionalDesc' },
+  { value: 'friendly', labelKey: 'aiSettings.personality.friendly', descKey: 'shell.form.pers.friendlyDesc' },
+  { value: 'casual', labelKey: 'aiSettings.personality.casual', descKey: 'shell.form.pers.casualDesc' },
+  { value: 'technical', labelKey: 'aiSettings.personality.technical', descKey: 'shell.form.pers.technicalDesc' },
 ];
 
 // Friendly model labels
@@ -57,6 +58,7 @@ interface AgentFormProps {
 
 export default function AgentForm({ agentId }: AgentFormProps) {
   const router = useRouter();
+  const { t, dir } = useTranslation();
   const searchParams = useSearchParams();
   const { pages } = usePages();
   const isEdit = !!agentId;
@@ -120,7 +122,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         setSelectedPageIds(agent.pages.map((ap) => ap.pageId));
         setSelectedProductIds(agent.products.map((ap) => ap.productId));
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load agent');
+        setError(err instanceof Error ? err.message : t('shell.form.err.load'));
       } finally {
         setLoadingAgent(false);
       }
@@ -187,7 +189,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError('Agent name is required');
+      setError(t('shell.form.err.name'));
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -224,7 +226,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
 
       router.push('/dashboard/agents');
     } catch (err: any) {
-      setError(err?.message || 'Failed to save agent');
+      setError(err?.message || t('shell.form.err.save'));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSaving(false);
@@ -246,7 +248,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
   }
 
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-6" dir={dir}>
       {/* Header */}
       <div className="flex items-center gap-4">
         <button
@@ -257,14 +259,14 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         </button>
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-            {isEdit ? 'Edit Agent' : 'Create Agent'}
+            {isEdit ? t('shell.form.title.edit') : t('shell.form.title.new')}
           </h1>
           <p className="text-sm text-zinc-400 mt-0.5">
             {isEdit
-              ? 'Update your AI agent configuration'
+              ? t('shell.form.sub.edit')
               : appliedTemplate
-                ? `Starting from the ${appliedTemplate} template — tune anything below.`
-                : 'Set up a new AI agent to handle conversations'}
+                ? t('shell.form.sub.template').replace('{name}', appliedTemplate)
+                : t('shell.form.sub.new')}
           </p>
         </div>
       </div>
@@ -272,7 +274,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-400">
           {error}
-          <button onClick={() => setError(null)} className="ml-2 underline text-xs">dismiss</button>
+          <button onClick={() => setError(null)} className="ms-2 underline text-xs">{t('common.dismiss')}</button>
         </div>
       )}
 
@@ -282,30 +284,30 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         <div className="space-y-6">
         {/* Basic Info */}
         <section className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 space-y-5">
-          <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Basic Information</h2>
+          <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">{t('shell.form.basic')}</h2>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Agent Name *</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('shell.form.name')} *</label>
               <div className="relative">
-                <BotIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <BotIcon className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Sales Assistant"
-                  className="w-full bg-black/50 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:border-white/30 focus:outline-none transition-colors"
+                  placeholder={t('shell.form.namePh')}
+                  className="w-full bg-black/50 border border-white/10 rounded-lg ps-10 pe-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:border-white/30 focus:outline-none transition-colors"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Description</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('shell.form.description')}</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Briefly describe what this agent does..."
+                placeholder={t('shell.form.descPh')}
                 rows={2}
                 className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:border-white/30 focus:outline-none transition-colors resize-none"
               />
@@ -315,8 +317,8 @@ export default function AgentForm({ agentId }: AgentFormProps) {
             {isEdit && (
               <div className="flex items-center justify-between py-2">
                 <div>
-                  <p className="text-sm font-medium text-zinc-300">Active</p>
-                  <p className="text-xs text-zinc-500">Agent will respond to messages when active</p>
+                  <p className="text-sm font-medium text-zinc-300">{t('shell.common.active')}</p>
+                  <p className="text-xs text-zinc-500">{t('shell.form.activeHint')}</p>
                 </div>
                 <button
                   type="button"
@@ -325,8 +327,8 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                     isActive ? 'bg-white' : 'bg-white/10'
                   }`}
                 >
-                  <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-transform ${
-                    isActive ? 'translate-x-5 bg-black' : 'translate-x-0 bg-white'
+                  <div className={`absolute top-0.5 start-0.5 w-5 h-5 rounded-full transition-transform ${
+                    isActive ? 'translate-x-5 rtl:-translate-x-5 bg-black' : 'translate-x-0 bg-white'
                   }`} />
                 </button>
               </div>
@@ -336,71 +338,71 @@ export default function AgentForm({ agentId }: AgentFormProps) {
 
         {/* Personality */}
         <section className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Personality</h2>
+          <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">{t('shell.form.personality')}</h2>
           <div className="grid grid-cols-2 gap-3">
             {personalities.map((p) => (
               <button
                 key={p.value}
                 type="button"
                 onClick={() => setPersonality(p.value)}
-                className={`relative p-4 rounded-xl border text-left transition-all ${
+                className={`relative p-4 rounded-xl border text-start transition-all ${
                   personality === p.value
                     ? 'bg-white/5 border-white/40 text-white'
                     : 'bg-black/30 border-white/10 text-zinc-400 hover:border-white/20'
                 }`}
               >
                 {personality === p.value && (
-                  <CheckCircleIcon className="absolute top-3 right-3 w-4 h-4" />
+                  <CheckCircleIcon className="absolute top-3 end-3 w-4 h-4" />
                 )}
-                <p className="font-medium text-sm">{p.label}</p>
+                <p className="font-medium text-sm">{t(p.labelKey)}</p>
                 <p className={`text-xs mt-0.5 ${personality === p.value ? 'text-zinc-400' : 'text-zinc-500'}`}>
-                  {p.desc}
+                  {t(p.descKey)}
                 </p>
               </button>
             ))}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Custom Instructions</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('shell.form.custom')}</label>
             <textarea
               value={customInstructions}
               onChange={(e) => setCustomInstructions(e.target.value)}
-              placeholder="Add specific instructions for how the agent should behave, respond, or handle certain scenarios..."
+              placeholder={t('shell.form.customPh')}
               rows={4}
               className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:border-white/30 focus:outline-none transition-colors resize-none"
             />
             <p className="text-xs text-zinc-500 mt-1">
-              These instructions will guide the agent&apos;s behavior in conversations.
+              {t('shell.form.customHint')}
             </p>
           </div>
 
           {/* Closing Instructions */}
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Conversation Closing</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('shell.form.closing')}</label>
             <textarea
               value={closingInstructions}
               onChange={(e) => setClosingInstructions(e.target.value)}
-              placeholder={`Examples:\n• After order is confirmed: "Thank you! Order #{number} is on its way. Have a great day! 🎉"\n• When customer says bye: "Thanks for chatting! Come back anytime 😊"\n• After 3 unanswered questions: "I'll connect you with our team for more help."\n• If customer is angry: "I'm sorry for the inconvenience. Let me get a human to help you right away."`}
+              placeholder={t('shell.form.closingPh')}
               rows={5}
               className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:border-white/30 focus:outline-none transition-colors resize-none"
             />
             <p className="text-xs text-zinc-500 mt-1">
-              Tell the AI when and how to close conversations. If empty, it uses sensible defaults (thank after order, respond to goodbye, etc).
+              {t('shell.form.closingHint')}
             </p>
           </div>
 
           {/* Human Handoff Rules */}
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Human Intervention Rules</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('shell.form.handoff')}</label>
             <textarea
               value={humanHandoffRules}
               onChange={(e) => setHumanHandoffRules(e.target.value)}
-              placeholder={`Examples:\n• Customer asks about refund or return → stop AI, notify human\n• Customer asks for a discount or special offer → let human handle\n• Customer mentions a complaint or problem → transfer to human\n• Customer sends the same message 3 times → human needed\n• Customer asks about delivery tracking → human needed`}
+              placeholder={t('shell.form.handoffPh')}
               rows={5}
               className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:border-white/30 focus:outline-none transition-colors resize-none"
             />
             <p className="text-xs text-zinc-500 mt-1">
-              Define when the AI should stop and let a human take over. Normal greetings (slm, cava, hi) are always handled by the AI.
+              {t('shell.form.handoffHint')}
             </p>
           </div>
         </section>
@@ -408,26 +410,26 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         {/* Product Display Template */}
         <section className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 space-y-5">
           <div>
-            <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider mb-1">Product Display Template</h2>
+            <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider mb-1">{t('shell.form.tpl')}</h2>
             <p className="text-xs text-zinc-500">
-              Define how the AI presents products. Leave empty for the default style. The AI will follow this format exactly.
+              {t('shell.form.tplDesc')}
             </p>
           </div>
 
           <div>
             <p className="text-[11px] text-zinc-500 mb-2">
-              Click a tag to insert it. Type your own text around them. The AI fills in real product data automatically.
+              {t('shell.form.tplClickHint')}
             </p>
 
             {/* Clickable tag chips */}
             <div className="flex flex-wrap gap-2 mb-3">
               {[
-                { tag: '[PRODUCT_CARD]', label: '🖼 Product Image Card', color: 'bg-white/5 text-zinc-300 border-white/10 hover:bg-white/10' },
-                { tag: '{name}', label: 'Product Name', color: 'bg-white/5 text-zinc-300 border-white/10 hover:bg-white/10' },
-                { tag: '{price}', label: 'Price (DA)', color: 'bg-white/5 text-zinc-300 border-white/10 hover:bg-white/10' },
-                { tag: '{description}', label: 'Description', color: 'bg-white/5 text-zinc-300 border-white/10 hover:bg-white/10' },
-                { tag: '{stock}', label: 'Stock Qty', color: 'bg-white/5 text-zinc-400 border-white/10 hover:bg-white/10' },
-                { tag: '\\n', label: '↵ New Line', color: 'bg-white/5 text-zinc-500 border-white/10 hover:bg-white/10' },
+                { tag: '[PRODUCT_CARD]', label: t('shell.form.chip.card'), color: 'bg-white/5 text-zinc-300 border-white/10 hover:bg-white/10' },
+                { tag: '{name}', label: t('shell.form.chip.name'), color: 'bg-white/5 text-zinc-300 border-white/10 hover:bg-white/10' },
+                { tag: '{price}', label: t('shell.form.chip.price'), color: 'bg-white/5 text-zinc-300 border-white/10 hover:bg-white/10' },
+                { tag: '{description}', label: t('shell.form.chip.desc'), color: 'bg-white/5 text-zinc-300 border-white/10 hover:bg-white/10' },
+                { tag: '{stock}', label: t('shell.form.chip.stock'), color: 'bg-white/5 text-zinc-400 border-white/10 hover:bg-white/10' },
+                { tag: '\\n', label: t('shell.form.chip.newline'), color: 'bg-white/5 text-zinc-500 border-white/10 hover:bg-white/10' },
               ].map((chip) => (
                 <button
                   key={chip.tag}
@@ -461,7 +463,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               ref={templateRef}
               value={productTemplate}
               onChange={(e) => setProductTemplate(e.target.value)}
-              placeholder={`Click the tags above or type here...\n\nExample:\nHere's what I found! 😊\n[PRODUCT_CARD]\nOnly {price} DA — want to order?`}
+              placeholder={t('shell.form.tplPh')}
               rows={6}
               className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-zinc-600 focus:border-white/30 focus:outline-none transition-colors resize-none"
             />
@@ -469,13 +471,13 @@ export default function AgentForm({ agentId }: AgentFormProps) {
 
           {/* Live preview */}
           <div>
-            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Preview</p>
+            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">{t('shell.form.preview')}</p>
             <div className="bg-black/40 border border-white/10 rounded-2xl p-4 space-y-3">
               {/* Customer */}
               <div className="flex gap-2">
                 <div className="w-7 h-7 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-[10px] font-semibold text-zinc-300 flex-shrink-0">C</div>
                 <div className="bg-white/5 border border-white/10 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[75%]">
-                  <p className="text-sm text-zinc-200">Show me your products</p>
+                  <p className="text-sm text-zinc-200">{t('shell.form.previewCustomer')}</p>
                 </div>
               </div>
 
@@ -487,11 +489,11 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                 <div className="max-w-[80%] space-y-2">
                   {(() => {
                     const sampleProduct = products.find((p) => sellAllProducts || selectedProductIds.includes(p.id));
-                    const sampleName = sampleProduct?.name || 'Sample Product';
+                    const sampleName = sampleProduct?.name || t('shell.form.sampleName');
                     const samplePrice = sampleProduct ? Number(sampleProduct.sellingPrice).toLocaleString() : '1,500';
-                    const sampleDesc = sampleProduct?.description || 'A great product';
+                    const sampleDesc = sampleProduct?.description || t('shell.form.sampleDesc');
 
-                    const template = productTemplate.trim() || `Here's what we have! 😊\n[PRODUCT_CARD:id]\nWould you like to order?`;
+                    const template = productTemplate.trim() || t('shell.form.previewDefault');
 
                     // Replace variables for preview
                     const previewText = template
@@ -537,7 +539,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
 
               <div className="flex items-center justify-center pt-1">
                 <span className="text-[10px] uppercase tracking-wider text-zinc-600 bg-black/60 px-3 py-1 rounded-full border border-white/5">
-                  Live preview
+                  {t('shell.form.livePreview')}
                 </span>
               </div>
             </div>
@@ -549,12 +551,12 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         <div className="space-y-6">
         {/* AI Model Config */}
         <section className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 space-y-5">
-          <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">AI Model Configuration</h2>
+          <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">{t('shell.form.model')}</h2>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-3">Model</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-3">{t('shell.form.modelLabel')}</label>
             {activeProviders.length > 0 ? (
-              <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
+              <div className="space-y-4 max-h-80 overflow-y-auto pe-1">
                 {activeProviders.map((group) => (
                   <div key={group.provider}>
                     <p className="text-xs font-semibold uppercase tracking-wider mb-2 text-zinc-500">
@@ -569,7 +571,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                             key={modelId}
                             type="button"
                             onClick={() => setAiModel(modelId)}
-                            className={`p-2.5 rounded-lg border text-left transition-all ${
+                            className={`p-2.5 rounded-lg border text-start transition-all ${
                               aiModel === modelId
                                 ? 'bg-white/10 border-white/30 text-white'
                                 : 'bg-black/30 border-white/5 text-zinc-400 hover:border-white/15'
@@ -593,18 +595,18 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               </div>
             ) : loadingProducts ? (
               <div className="text-center py-4 text-sm text-zinc-500">
-                Loading available models...
+                {t('shell.form.loadingModels')}
               </div>
             ) : (
               <div className="text-center py-4 text-sm text-zinc-500">
-                AI models are temporarily unavailable. Please try again later.
+                {t('shell.form.noModels')}
               </div>
             )}
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-zinc-300">Temperature</label>
+              <label className="text-sm font-medium text-zinc-300">{t('shell.form.temperature')}</label>
               <span className="text-sm font-mono text-zinc-400">{temperature.toFixed(1)}</span>
             </div>
             <input
@@ -617,13 +619,13 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               className="w-full accent-white h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
             />
             <div className="flex justify-between text-xs text-zinc-600 mt-1">
-              <span>Precise</span>
-              <span>Creative</span>
+              <span>{t('shell.form.precise')}</span>
+              <span>{t('shell.form.creative')}</span>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Max Tokens</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('shell.form.maxTokens')}</label>
             <input
               type="number"
               value={maxTokens}
@@ -632,15 +634,15 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               max={4096}
               className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm focus:border-white/30 focus:outline-none transition-colors"
             />
-            <p className="text-xs text-zinc-500 mt-1">Maximum response length (100-4096)</p>
+            <p className="text-xs text-zinc-500 mt-1">{t('shell.form.maxTokensHint')}</p>
           </div>
 
           {/* Image Recognition Toggle */}
           <div className="flex items-center justify-between p-4 bg-black/30 border border-white/5 rounded-lg">
             <div>
-              <h3 className="text-sm font-medium text-zinc-300">Image Recognition</h3>
+              <h3 className="text-sm font-medium text-zinc-300">{t('shell.form.imageRec')}</h3>
               <p className="text-xs text-zinc-500 mt-0.5">
-                AI can see and compare customer photos with your products. Costs 5 credits per image (vs 1 for text).
+                {t('shell.form.imageRecHint')}
               </p>
             </div>
             <button
@@ -648,16 +650,16 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               onClick={() => setImageRecognition(!imageRecognition)}
               className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 ${imageRecognition ? 'bg-white' : 'bg-white/10'}`}
             >
-              <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full transition-transform ${imageRecognition ? 'translate-x-5 bg-black' : 'bg-white'}`} />
+              <span className={`absolute top-0.5 start-0.5 w-6 h-6 rounded-full transition-transform ${imageRecognition ? 'translate-x-5 rtl:-translate-x-5 bg-black' : 'bg-white'}`} />
             </button>
           </div>
 
           {/* Voice Transcription Toggle */}
           <div className="flex items-center justify-between p-4 bg-black/30 border border-white/5 rounded-lg">
             <div>
-              <h3 className="text-sm font-medium text-zinc-300">Voice Notes (Whisper)</h3>
+              <h3 className="text-sm font-medium text-zinc-300">{t('shell.form.voice')}</h3>
               <p className="text-xs text-zinc-500 mt-0.5">
-                AI listens to and transcribes Messenger voice notes (AR/FR/EN/Darja). Costs 3 credits per voice note. When off, the agent politely asks the customer to send text instead.
+                {t('shell.form.voiceHint')}
               </p>
             </div>
             <button
@@ -665,13 +667,13 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               onClick={() => setVoiceTranscription(!voiceTranscription)}
               className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 ${voiceTranscription ? 'bg-white' : 'bg-white/10'}`}
             >
-              <span className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full transition-transform ${voiceTranscription ? 'translate-x-5 bg-black' : 'bg-white'}`} />
+              <span className={`absolute top-0.5 start-0.5 w-6 h-6 rounded-full transition-transform ${voiceTranscription ? 'translate-x-5 rtl:-translate-x-5 bg-black' : 'bg-white'}`} />
             </button>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-sm font-medium text-zinc-300">Response Delay</label>
+              <label className="text-sm font-medium text-zinc-300">{t('shell.form.delay')}</label>
               <span className="text-sm font-mono text-zinc-400">{responseDelay}s</span>
             </div>
             <input
@@ -684,11 +686,11 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               className="w-full accent-white h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
             />
             <div className="flex justify-between text-[10px] text-zinc-600 mt-1">
-              <span>Instant</span>
-              <span>Wait 10s</span>
+              <span>{t('shell.form.instant')}</span>
+              <span>{t('shell.form.wait10')}</span>
             </div>
             <p className="text-xs text-zinc-500 mt-1">
-              Wait for more messages before responding. People often send multiple short messages — this combines them into one.
+              {t('shell.form.delayHint')}
             </p>
           </div>
         </section>
@@ -697,14 +699,16 @@ export default function AgentForm({ agentId }: AgentFormProps) {
         <section className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 space-y-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Connected pages</h2>
+              <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">{t('shell.form.pages')}</h2>
               <p className="text-xs text-zinc-500 mt-0.5">
-                Select which pages this agent will respond on. Each page can only have one agent.
+                {t('shell.form.pagesHint')}
               </p>
             </div>
             {pages.length > 0 && (
               <span className="text-[11px] text-zinc-500">
-                <span className="text-white font-semibold">{selectedPageIds.length}</span> of {pages.length} selected
+                {t('shell.form.selectedOf')
+                  .replace('{n}', String(selectedPageIds.length))
+                  .replace('{m}', String(pages.length))}
               </span>
             )}
           </div>
@@ -719,7 +723,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                   className="text-zinc-400 hover:text-white transition-colors"
                   disabled={selectedPageIds.length === pages.length}
                 >
-                  Select all
+                  {t('shell.form.selectAll')}
                 </button>
                 <span className="text-zinc-700">·</span>
                 <button
@@ -728,7 +732,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                   className="text-zinc-400 hover:text-white transition-colors"
                   disabled={selectedPageIds.length === 0}
                 >
-                  Clear
+                  {t('shell.form.clear')}
                 </button>
               </div>
 
@@ -794,17 +798,17 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                             {page.isActive ? (
                               <span className="inline-flex items-center gap-1 text-[10px] text-zinc-400 font-medium">
                                 <span className="w-1.5 h-1.5 rounded-full bg-white" />
-                                Active
+                                {t('shell.common.active')}
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 text-[10px] text-zinc-500 font-medium">
                                 <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
-                                Inactive
+                                {t('shell.common.inactive')}
                               </span>
                             )}
                           </div>
                           <p className="text-[10px] text-zinc-600 mt-1">
-                            Connected {formatRelativeDate(page.createdAt)}
+                            {t('dash.pageCard.connectedOn').replace('{date}', formatRelativeDate(page.createdAt, t))}
                           </p>
                         </div>
                       </div>
@@ -818,15 +822,15 @@ export default function AgentForm({ agentId }: AgentFormProps) {
               <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 mx-auto mb-3 flex items-center justify-center">
                 <FacebookIcon className="w-5 h-5 text-zinc-500" />
               </div>
-              <p className="text-sm text-white font-semibold mb-1">No pages connected yet</p>
+              <p className="text-sm text-white font-semibold mb-1">{t('shell.form.noPages')}</p>
               <p className="text-xs text-zinc-500 max-w-sm mx-auto mb-4">
-                Connect a Facebook or Instagram page in <span className="text-zinc-300">Social Media</span> first, then come back here to link this agent.
+                {t('shell.form.noPagesHint')}
               </p>
               <a
                 href="/dashboard?section=pages"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-black rounded-lg text-xs font-semibold hover:bg-zinc-100 transition-colors"
               >
-                Open Social Media
+                {t('shell.form.openSocial')}
               </a>
             </div>
           )}
@@ -834,13 +838,13 @@ export default function AgentForm({ agentId }: AgentFormProps) {
 
         {/* Products */}
         <section className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Product Knowledge</h2>
+          <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-wider">{t('shell.form.products')}</h2>
 
           {/* Sell All Toggle */}
           <div className="flex items-center justify-between py-2">
             <div>
-              <p className="text-sm font-medium text-zinc-300">Sell All Products</p>
-              <p className="text-xs text-zinc-500">Agent knows your entire product catalog</p>
+              <p className="text-sm font-medium text-zinc-300">{t('shell.form.sellAll')}</p>
+              <p className="text-xs text-zinc-500">{t('shell.form.sellAllHint')}</p>
             </div>
             <button
               type="button"
@@ -849,8 +853,8 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                 sellAllProducts ? 'bg-white' : 'bg-white/10'
               }`}
             >
-              <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full transition-transform ${
-                sellAllProducts ? 'translate-x-5 bg-black' : 'translate-x-0 bg-white'
+              <div className={`absolute top-0.5 start-0.5 w-5 h-5 rounded-full transition-transform ${
+                sellAllProducts ? 'translate-x-5 rtl:-translate-x-5 bg-black' : 'translate-x-0 bg-white'
               }`} />
             </button>
           </div>
@@ -859,25 +863,25 @@ export default function AgentForm({ agentId }: AgentFormProps) {
           {!sellAllProducts && (
             <div className="space-y-3">
               <div className="relative">
-                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
                   type="text"
                   value={productSearch}
                   onChange={(e) => setProductSearch(e.target.value)}
-                  placeholder="Search products..."
-                  className="w-full bg-black/50 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-white text-sm placeholder-zinc-600 focus:border-white/30 focus:outline-none transition-colors"
+                  placeholder={t('shell.form.searchProducts')}
+                  className="w-full bg-black/50 border border-white/10 rounded-lg ps-10 pe-4 py-2 text-white text-sm placeholder-zinc-600 focus:border-white/30 focus:outline-none transition-colors"
                 />
               </div>
 
               {selectedProductIds.length > 0 && (
                 <div className="flex items-center gap-2 text-xs text-zinc-400">
-                  <span>{selectedProductIds.length} product{selectedProductIds.length > 1 ? 's' : ''} selected</span>
+                  <span>{t('shell.form.nSelected').replace('{n}', String(selectedProductIds.length))}</span>
                   <button
                     type="button"
                     onClick={() => setSelectedProductIds([])}
                     className="text-zinc-400 hover:text-white underline"
                   >
-                    clear
+                    {t('shell.form.clearLower')}
                   </button>
                 </div>
               )}
@@ -915,7 +919,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                               <BoxIcon className="w-4 h-4 text-zinc-600" />
                             </div>
                           )}
-                          <div className="text-left">
+                          <div className="text-start">
                             <p className={`text-sm ${isSelected ? 'text-white' : 'text-zinc-300'}`}>{product.name}</p>
                             <p className="text-xs text-zinc-500">{product.sku} &middot; {product.sellingPrice.toLocaleString()} DA</p>
                           </div>
@@ -937,7 +941,7 @@ export default function AgentForm({ agentId }: AgentFormProps) {
                 ) : (
                   <div className="text-center py-4">
                     <p className="text-sm text-zinc-500">
-                      {productSearch ? 'No products match your search' : 'No products available'}
+                      {productSearch ? t('shell.form.noMatch') : t('shell.form.noProducts')}
                     </p>
                   </div>
                 )}
@@ -955,14 +959,14 @@ export default function AgentForm({ agentId }: AgentFormProps) {
             variant="outline"
             onClick={() => router.push('/dashboard/agents')}
           >
-            Cancel
+            {t('shell.common.cancel')}
           </Button>
           <Button
             type="submit"
             loading={saving}
             icon={isEdit ? undefined : <BotIcon className="w-4 h-4" />}
           >
-            {saving ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Agent'}
+            {saving ? t('shell.common.saving') : isEdit ? t('shell.form.saveChanges') : t('shell.form.create')}
           </Button>
         </div>
       </form>
@@ -1001,16 +1005,16 @@ function PageAvatar({
   );
 }
 
-function formatRelativeDate(iso: string): string {
+function formatRelativeDate(iso: string, t: (key: string, fallback?: string) => string): string {
   const d = new Date(iso);
   const diff = Date.now() - d.getTime();
   const day = 86_400_000;
-  if (diff < day) return 'today';
-  if (diff < 2 * day) return 'yesterday';
-  if (diff < 30 * day) return `${Math.floor(diff / day)} days ago`;
+  if (diff < day) return t('shell.rel.today');
+  if (diff < 2 * day) return t('shell.rel.yesterday');
+  if (diff < 30 * day) return t('shell.rel.daysAgo').replace('{n}', String(Math.floor(diff / day)));
   if (diff < 365 * day) {
     const months = Math.floor(diff / (30 * day));
-    return `${months} ${months === 1 ? 'month' : 'months'} ago`;
+    return t(months === 1 ? 'shell.rel.monthAgo' : 'shell.rel.monthsAgo').replace('{n}', String(months));
   }
   return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
 }

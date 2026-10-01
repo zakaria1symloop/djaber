@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 interface RangeSliderProps {
   min: number;
@@ -19,6 +20,7 @@ export function RangeSlider({
   step = 1,
   formatLabel = (v) => v.toLocaleString(),
 }: RangeSliderProps) {
+  const { t } = useTranslation();
   const trackRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<'min' | 'max' | null>(null);
   const [localMin, setLocalMin] = useState(String(value[0]));
@@ -152,7 +154,7 @@ export function RangeSlider({
           step={step}
           className="w-full px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-xs text-center focus:outline-none focus:border-blue-500 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
-        <span className="text-zinc-500 text-xs shrink-0">to</span>
+        <span className="text-zinc-500 text-xs shrink-0">{t('dlg.range.to')}</span>
         <input
           type="number"
           value={localMax}

@@ -67,7 +67,7 @@ export default function StockOverviewPage() {
       setSalesStats(salesRes.stats);
       setPurchaseStats(purchRes.stats);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load data');
+      setError(err instanceof Error ? err.message : t('stk.ops.ov.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -90,7 +90,7 @@ export default function StockOverviewPage() {
     return (
       <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400">
         {error}
-        <Button variant="outline" size="sm" className="ml-4" onClick={loadData}>Retry</Button>
+        <Button variant="outline" size="sm" className="ms-4" onClick={loadData}>{t('stk.ops.c.retry')}</Button>
       </div>
     );
   }
@@ -277,7 +277,7 @@ export default function StockOverviewPage() {
                             ) : (
                               <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
                             )}
-                            {mv.type}
+                            {t(`stock.movements.type.${mv.type}`, mv.type)}
                           </span>
                         </td>
                         <td className={`px-4 py-3 text-sm text-right font-medium ${

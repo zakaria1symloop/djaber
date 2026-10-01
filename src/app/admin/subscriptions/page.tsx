@@ -24,9 +24,11 @@ import {
 } from '@/components/ui/icons';
 import { FilterPanel, FilterPanelTrigger, FilterSection, FilterChip } from '@/components/admin/FilterPanel';
 import { SkeletonTable } from '@/components/ui/Loader';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function AdminSubscriptionsPage() {
   const toast = useToast();
+  const { t } = useTranslation();
   const [subs, setSubs] = useState<AdminSubscription[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -62,7 +64,7 @@ export default function AdminSubscriptionsPage() {
       setSubs(res.subscriptions);
       setTotal(res.total);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load subscriptions');
+      toast.error(e instanceof Error ? e.message : t('adm.acc.subs.err.load'));
     } finally {
       setLoading(false);
     }
@@ -105,11 +107,11 @@ export default function AdminSubscriptionsPage() {
     if (!deleteConfirm) return;
     try {
       await deleteAdminSubscription(deleteConfirm.id);
-      toast.success('Subscription deleted');
+      toast.success(t('adm.acc.subs.toast.deleted'));
       setDeleteConfirm(null);
       await load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to delete');
+      toast.error(e instanceof Error ? e.message : t('adm.acc.err.delete'));
     }
   };
 
@@ -119,9 +121,9 @@ export default function AdminSubscriptionsPage() {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-            Subscriptions
+            {t('adm.acc.subs.title')}
           </h1>
-          <p className="text-sm text-zinc-400">Manage which user is on which plan, billing dates, and renewals</p>
+          <p className="text-sm text-zinc-400">{t('adm.acc.subs.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <FilterPanelTrigger open={filterOpen} setOpen={setFilterOpen} activeCount={activeFilterCount} />
@@ -129,33 +131,34 @@ export default function AdminSubscriptionsPage() {
             onClick={load}
             disabled={loading}
             className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors disabled:opacity-50"
-            title="Refresh"
+            title={t('adm.acc.refresh')}
+            aria-label={t('adm.acc.refresh')}
           >
             <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <Button onClick={() => setCreating(true)} icon={<PlusIcon className="w-4 h-4" />}>
-            New subscription
+            {t('adm.acc.subs.new')}
           </Button>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Total" value={stats.total.toString()} />
-        <StatCard label="Active" value={stats.active.toString()} />
-        <StatCard label="Expiring 7d" value={stats.expiringSoon.toString()} />
-        <StatCard label="MRR" value={`${Math.round(stats.mrr).toLocaleString()} DA`} />
+        <StatCard label={t('adm.acc.subs.stats.total')} value={stats.total.toString()} />
+        <StatCard label={t('adm.acc.subs.stats.active')} value={stats.active.toString()} />
+        <StatCard label={t('adm.acc.subs.stats.expiring')} value={stats.expiringSoon.toString()} />
+        <StatCard label={t('adm.acc.subs.stats.mrr')} value={`${Math.round(stats.mrr).toLocaleString()} DA`} />
       </div>
 
       {/* Search */}
       <div className="relative mb-4">
-        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+        <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by user name or email…"
-          className="w-full pl-10 pr-4 py-2.5 bg-zinc-900/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none transition-colors"
+          placeholder={t('adm.acc.subs.searchPlaceholder')}
+          className="w-full ps-10 pe-4 py-2.5 bg-zinc-900/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none transition-colors"
         />
       </div>
 
@@ -165,22 +168,22 @@ export default function AdminSubscriptionsPage() {
       ) : subs.length === 0 ? (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-12 text-center text-sm text-zinc-500">
           {activeFilterCount > 0 || debouncedSearch
-            ? 'No subscriptions match your filters'
-            : 'No subscriptions yet — click "New subscription" to assign a plan to a user'}
+            ? t('adm.acc.subs.empty.filtered')
+            : t('adm.acc.subs.empty.none')}
         </div>
       ) : (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/10 text-left">
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">User</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Plan</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Status</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider hidden md:table-cell">Cycle</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider hidden md:table-cell">Started</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Ends</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-right">Actions</th>
+                <tr className="border-b border-white/10 text-start">
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">{t('adm.acc.subs.th.user')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">{t('adm.acc.subs.th.plan')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">{t('adm.acc.subs.th.status')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider hidden md:table-cell">{t('adm.acc.subs.th.cycle')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider hidden md:table-cell">{t('adm.acc.subs.th.started')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">{t('adm.acc.subs.th.ends')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-right">{t('adm.acc.subs.th.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -205,14 +208,14 @@ export default function AdminSubscriptionsPage() {
                             </div>
                           </div>
                         ) : (
-                          <span className="text-xs text-zinc-600">Deleted user</span>
+                          <span className="text-xs text-zinc-600">{t('adm.acc.subs.deletedUser')}</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
                         <div>
                           <p className="text-sm text-white">{s.plan?.name || s.planSlug}</p>
                           <p className="text-[11px] text-zinc-500">
-                            {s.plan ? `${Number(s.plan.priceMonthly).toLocaleString()} ${s.plan.currency}/mo` : ''}
+                            {s.plan ? `${Number(s.plan.priceMonthly).toLocaleString()} ${s.plan.currency}${t('adm.acc.perMonthShort')}` : ''}
                           </p>
                         </div>
                       </td>
@@ -242,7 +245,9 @@ export default function AdminSubscriptionsPage() {
                               daysLeft < 0 ? 'text-red-400' : daysLeft < 7 ? 'text-yellow-400' : 'text-zinc-500'
                             }`}
                           >
-                            {daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d left`}
+                            {daysLeft < 0
+                              ? `${Math.abs(daysLeft)}${t('adm.acc.subs.daysShort')} ${t('adm.acc.subs.overdue')}`
+                              : `${daysLeft}${t('adm.acc.subs.daysShort')} ${t('adm.acc.subs.left')}`}
                           </p>
                         </div>
                       </td>
@@ -251,14 +256,16 @@ export default function AdminSubscriptionsPage() {
                           <button
                             onClick={() => setEditing(s)}
                             className="p-1.5 text-zinc-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
-                            title="Edit"
+                            title={t('adm.acc.edit')}
+                            aria-label={t('adm.acc.edit')}
                           >
                             <EditIcon className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setDeleteConfirm(s)}
                             className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                            title="Delete"
+                            title={t('adm.acc.delete')}
+                            aria-label={t('adm.acc.delete')}
                           >
                             <TrashIcon className="w-4 h-4" />
                           </button>
@@ -275,19 +282,19 @@ export default function AdminSubscriptionsPage() {
 
       {/* Filter panel */}
       <FilterPanel open={filterOpen} onClose={() => setFilterOpen(false)} onClear={clearFilters}>
-        <FilterSection label="Status">
+        <FilterSection label={t('adm.acc.status')}>
           <div className="flex flex-wrap gap-2">
-            <FilterChip label="All" active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
-            <FilterChip label="Active" active={statusFilter === 'active'} onClick={() => setStatusFilter('active')} />
-            <FilterChip label="Trial" active={statusFilter === 'trial'} onClick={() => setStatusFilter('trial')} />
-            <FilterChip label="Cancelled" active={statusFilter === 'cancelled'} onClick={() => setStatusFilter('cancelled')} />
-            <FilterChip label="Expired" active={statusFilter === 'expired'} onClick={() => setStatusFilter('expired')} />
+            <FilterChip label={t('adm.acc.all')} active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
+            <FilterChip label={t('adm.acc.active')} active={statusFilter === 'active'} onClick={() => setStatusFilter('active')} />
+            <FilterChip label={t('adm.acc.subs.f.trial')} active={statusFilter === 'trial'} onClick={() => setStatusFilter('trial')} />
+            <FilterChip label={t('adm.acc.subs.f.cancelled')} active={statusFilter === 'cancelled'} onClick={() => setStatusFilter('cancelled')} />
+            <FilterChip label={t('adm.acc.subs.f.expired')} active={statusFilter === 'expired'} onClick={() => setStatusFilter('expired')} />
           </div>
         </FilterSection>
-        <FilterSection label="Plan">
+        <FilterSection label={t('adm.acc.plan')}>
           <PlanSelect value={planFilter} onChange={setPlanFilter} />
         </FilterSection>
-        <FilterSection label="Expiring soon">
+        <FilterSection label={t('adm.acc.subs.f.expiringSoon')}>
           <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
             <input
               type="checkbox"
@@ -295,7 +302,7 @@ export default function AdminSubscriptionsPage() {
               onChange={(e) => setExpiringSoon(e.target.checked)}
               className="w-4 h-4 rounded border-white/20 bg-black/60 text-white focus:ring-1 focus:ring-white/30"
             />
-            Expiring within 7 days
+            {t('adm.acc.subs.f.expiringIn7')}
           </label>
         </FilterSection>
       </FilterPanel>
@@ -320,16 +327,16 @@ export default function AdminSubscriptionsPage() {
       {deleteConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
           <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-sm w-full">
-            <h3 className="text-lg font-bold text-white mb-2">Delete subscription?</h3>
+            <h3 className="text-lg font-bold text-white mb-2">{t('adm.acc.subs.del.title')}</h3>
             <p className="text-sm text-zinc-400 mb-6">
-              This removes the subscription record. The user&apos;s plan field stays as-is. Continue?
+              {t('adm.acc.subs.del.body')}
             </p>
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)}>
-                Cancel
+                {t('adm.acc.cancel')}
               </Button>
               <Button variant="danger" className="flex-1" onClick={handleDelete}>
-                Delete
+                {t('adm.acc.delete')}
               </Button>
             </div>
           </div>
@@ -349,6 +356,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
 }
 
 function PlanSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useTranslation();
   const [plans, setPlans] = useState<AdminPlan[]>([]);
   useEffect(() => {
     listAdminPlans().then((r) => setPlans(r.plans)).catch(() => {});
@@ -359,7 +367,7 @@ function PlanSelect({ value, onChange }: { value: string; onChange: (v: string) 
       onChange={(e) => onChange(e.target.value)}
       className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
     >
-      <option value="">All plans</option>
+      <option value="">{t('adm.acc.subs.f.allPlans')}</option>
       {plans.map((p) => (
         <option key={p.id} value={p.slug}>{p.name}</option>
       ))}
@@ -377,6 +385,7 @@ function SubscriptionFormModal({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const { t } = useTranslation();
   const isEdit = !!subscription;
 
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -432,7 +441,7 @@ function SubscriptionFormModal({
 
   const handleSave = async () => {
     if (!userId || !planSlug) {
-      toast.error('Pick a user and a plan');
+      toast.error(t('adm.acc.subs.err.pick'));
       return;
     }
     try {
@@ -450,14 +459,14 @@ function SubscriptionFormModal({
       };
       if (isEdit && subscription) {
         await updateAdminSubscription(subscription.id, data);
-        toast.success('Subscription updated');
+        toast.success(t('adm.acc.subs.toast.updated'));
       } else {
         await createAdminSubscription(data);
-        toast.success('Subscription created');
+        toast.success(t('adm.acc.subs.toast.created'));
       }
       onSaved();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to save');
+      toast.error(e instanceof Error ? e.message : t('adm.acc.err.save'));
     } finally {
       setSaving(false);
     }
@@ -468,21 +477,21 @@ function SubscriptionFormModal({
       <div className="bg-zinc-900 border border-white/10 rounded-2xl max-w-xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
           <h3 className="text-lg font-bold text-white">
-            {isEdit ? 'Edit subscription' : 'New subscription'}
+            {isEdit ? t('adm.acc.subs.form.editTitle') : t('adm.acc.subs.form.createTitle')}
           </h3>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white">
+          <button onClick={onClose} className="text-zinc-500 hover:text-white" aria-label={t('adm.acc.close')}>
             <CloseIcon className="w-5 h-5" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {!isEdit && (
-            <Field label="User">
+            <Field label={t('adm.acc.subs.form.user')}>
               <input
                 type="text"
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
-                placeholder="Search user by email or name…"
+                placeholder={t('adm.acc.subs.form.userPlaceholder')}
                 className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none mb-2"
               />
               <div className="max-h-48 overflow-y-auto bg-black/40 border border-white/5 rounded-lg divide-y divide-white/5">
@@ -490,7 +499,7 @@ function SubscriptionFormModal({
                   <button
                     key={u.id}
                     onClick={() => setUserId(u.id)}
-                    className={`w-full text-left px-3 py-2 hover:bg-white/5 transition-colors ${
+                    className={`w-full text-start px-3 py-2 hover:bg-white/5 transition-colors ${
                       userId === u.id ? 'bg-white/10' : ''
                     }`}
                   >
@@ -499,54 +508,54 @@ function SubscriptionFormModal({
                   </button>
                 ))}
                 {filteredUsers.length === 0 && (
-                  <p className="px-3 py-2 text-xs text-zinc-600">No users found</p>
+                  <p className="px-3 py-2 text-xs text-zinc-600">{t('adm.acc.subs.form.noUsers')}</p>
                 )}
               </div>
             </Field>
           )}
 
-          <Field label="Plan">
+          <Field label={t('adm.acc.subs.form.plan')}>
             <select
               value={planSlug}
               onChange={(e) => setPlanSlug(e.target.value)}
               className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
             >
-              <option value="">— Select a plan —</option>
+              <option value="">{t('adm.acc.subs.form.selectPlan')}</option>
               {plans.map((p) => (
                 <option key={p.id} value={p.slug}>
-                  {p.name} — {Number(p.priceMonthly).toLocaleString()} {p.currency}/mo
+                  {p.name} — {Number(p.priceMonthly).toLocaleString()} {p.currency}{t('adm.acc.perMonthShort')}
                 </option>
               ))}
             </select>
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Billing cycle">
+            <Field label={t('adm.acc.subs.form.cycle')}>
               <select
                 value={billingCycle}
                 onChange={(e) => setBillingCycle(e.target.value as 'monthly' | 'yearly')}
                 className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
               >
-                <option value="monthly">Monthly</option>
-                <option value="yearly">Yearly</option>
+                <option value="monthly">{t('adm.acc.subs.form.monthly')}</option>
+                <option value="yearly">{t('adm.acc.subs.form.yearly')}</option>
               </select>
             </Field>
-            <Field label="Status">
+            <Field label={t('adm.acc.subs.form.status')}>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as typeof status)}
                 className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
               >
-                <option value="active">Active</option>
-                <option value="trial">Trial</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="expired">Expired</option>
+                <option value="active">{t('adm.acc.subs.form.statusActive')}</option>
+                <option value="trial">{t('adm.acc.subs.form.statusTrial')}</option>
+                <option value="cancelled">{t('adm.acc.subs.form.statusCancelled')}</option>
+                <option value="expired">{t('adm.acc.subs.form.statusExpired')}</option>
               </select>
             </Field>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Start date">
+            <Field label={t('adm.acc.subs.form.startDate')}>
               <input
                 type="date"
                 value={startDate}
@@ -554,7 +563,7 @@ function SubscriptionFormModal({
                 className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
               />
             </Field>
-            <Field label="End date">
+            <Field label={t('adm.acc.subs.form.endDate')}>
               <input
                 type="date"
                 value={endDate}
@@ -564,34 +573,34 @@ function SubscriptionFormModal({
             </Field>
           </div>
 
-          <Field label="Notes">
+          <Field label={t('adm.acc.subs.form.notes')}>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              placeholder="Internal notes about this subscription…"
+              placeholder={t('adm.acc.subs.form.notesPlaceholder')}
               className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none resize-none"
             />
           </Field>
 
           <div className="pt-2 border-t border-white/5">
-            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Chargily Pay</p>
+            <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">{t('adm.acc.chargilyPay')}</p>
             <div className="space-y-3">
-              <Field label="Subscription ID">
+              <Field label={t('adm.acc.subs.form.subId')}>
                 <input
                   type="text"
                   value={chargilySubId}
                   onChange={(e) => setChargilySubId(e.target.value)}
-                  placeholder="01_xxx"
+                  placeholder={t('adm.acc.subs.form.idPlaceholder')}
                   className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none font-mono"
                 />
               </Field>
-              <Field label="Customer ID">
+              <Field label={t('adm.acc.subs.form.customerId')}>
                 <input
                   type="text"
                   value={chargilyCustomerId}
                   onChange={(e) => setChargilyCustomerId(e.target.value)}
-                  placeholder="01_xxx"
+                  placeholder={t('adm.acc.subs.form.idPlaceholder')}
                   className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none font-mono"
                 />
               </Field>
@@ -601,10 +610,10 @@ function SubscriptionFormModal({
 
         <div className="flex gap-3 px-6 py-4 border-t border-white/10">
           <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>
-            Cancel
+            {t('adm.acc.cancel')}
           </Button>
           <Button className="flex-1" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create'}
+            {saving ? t('adm.acc.saving') : isEdit ? t('adm.acc.save') : t('adm.acc.subs.form.create')}
           </Button>
         </div>
       </div>

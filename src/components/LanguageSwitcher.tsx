@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default function LanguageSwitcher({ compact = false }: Props) {
-  const { lang, setLang } = useTranslation();
+  const { lang, setLang, t } = useTranslation();
 
   return (
     <div
@@ -16,7 +16,7 @@ export default function LanguageSwitcher({ compact = false }: Props) {
         compact ? 'text-[11px]' : 'text-xs'
       }`}
       role="group"
-      aria-label="Language selector"
+      aria-label={t('shell.lang.selector')}
     >
       {LANGS.map((l) => {
         const active = lang === l.code;

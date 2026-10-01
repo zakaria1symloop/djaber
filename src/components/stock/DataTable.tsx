@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode } from 'react';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export interface Column<T> {
   key: string;
@@ -23,23 +24,25 @@ export function DataTable<T extends Record<string, any>>({
   data,
   keyField = 'id',
   emptyIcon,
-  emptyTitle = 'No data',
-  emptyDescription = 'No items to display',
+  emptyTitle,
+  emptyDescription,
 }: DataTableProps<T>) {
+  const { t } = useTranslation();
+
   if (data.length === 0) {
     return (
       <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-12 text-center">
         {emptyIcon && <div className="text-zinc-600 mb-4 flex justify-center">{emptyIcon}</div>}
-        <h3 className="text-lg font-medium text-zinc-300 mb-1">{emptyTitle}</h3>
-        <p className="text-sm text-zinc-500">{emptyDescription}</p>
+        <h3 className="text-lg font-medium text-zinc-300 mb-1">{emptyTitle || t('dlg.table.emptyTitle')}</h3>
+        <p className="text-sm text-zinc-500">{emptyDescription || t('dlg.table.emptyDesc')}</p>
       </div>
     );
   }
 
   const alignClass = (align?: string) => {
     if (align === 'center') return 'text-center';
-    if (align === 'right') return 'text-right';
-    return 'text-left';
+    if (align === 'right') return 'text-end';
+    return 'text-start';
   };
 
   return (

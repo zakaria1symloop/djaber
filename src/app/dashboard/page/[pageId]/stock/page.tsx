@@ -22,6 +22,7 @@ import {
   type Agent,
 } from '@/lib/user-stock-api';
 import { useToast } from '@/components/ui/Toast';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:6001';
 
@@ -31,6 +32,7 @@ export default function PageStockPage() {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const { pages, loading: pagesLoading } = usePages();
   const toast = useToast();
+  const { t } = useTranslation();
   const pageId = params?.pageId as string;
   const currentPage = pages.find((p) => p.id === pageId);
 
@@ -69,7 +71,7 @@ export default function PageStockPage() {
         setSelectedIds(new Set(linked.products?.map((ap) => ap.productId) || []));
       }
     } catch {
-      toast.error('Failed to load data');
+      toast.error(t('stk.ops.pg.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -105,7 +107,7 @@ export default function PageStockPage() {
 
   const handleSave = async () => {
     if (!agent) {
-      toast.error('No agent linked to this page. Create one first.');
+      toast.error(t('stk.ops.pg.noAgentToast'));
       return;
     }
     try {
@@ -114,9 +116,9 @@ export default function PageStockPage() {
         sellAllProducts: sellAll,
         productIds: sellAll ? [] : Array.from(selectedIds),
       });
-      toast.success('Product selection saved');
+      toast.success(t('stk.ops.pg.saved'));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to save');
+      toast.error(e instanceof Error ? e.message : t('stk.ops.pg.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -136,7 +138,7 @@ export default function PageStockPage() {
   if (authLoading || pagesLoading || !currentPage) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
-        <div className="text-zinc-400 text-sm">Loading…</div>
+        <div className="text-zinc-400 text-sm">{t('stk.ops.c.loading')}</div>
       </div>
     );
   }
@@ -145,11 +147,11 @@ export default function PageStockPage() {
     <div className="space-y-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-xs text-zinc-500">
-        <button onClick={() => router.push('/dashboard?section=pages')} className="hover:text-white transition-colors">Pages</button>
+        <button onClick={() => router.push('/dashboard?section=pages')} className="hover:text-white transition-colors">{t('stk.ops.pg.breadcrumbPages')}</button>
         <span>/</span>
         <button onClick={() => router.push(`/dashboard/page/${pageId}`)} className="hover:text-white transition-colors truncate max-w-[200px]">{currentPage.pageName}</button>
         <span>/</span>
-        <span className="text-white">Products</span>
+        <span className="text-white">{t('stk.ops.pg.breadcrumbProducts')}</span>
       </nav>
 
       {/* Header */}
@@ -157,17 +159,17 @@ export default function PageStockPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-              Products for {currentPage.pageName}
+              {t('stk.ops.pg.title').replace('{page}', currentPage.pageName)}
             </h1>
             <p className="text-sm text-zinc-400 mt-1">
-              Choose which products from your catalog the AI agent sells on this page
+              {t('stk.ops.pg.subtitle')}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => router.push('/dashboard/stock/products')} icon={<BoxIcon className="w-4 h-4" />}>
-              Manage catalog
+              {t('stk.ops.pg.manageCatalog')}
             </Button>
-            <button onClick={loadData} disabled={loading} className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors disabled:opacity-50">
+            <button onClick={loadData} disabled={loading} aria-label={t('stk.ops.pg.refresh')} title={t('stk.ops.pg.refresh')} className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors disabled:opacity-50">
               <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
@@ -179,10 +181,10 @@ export default function PageStockPage() {
         <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 flex items-center gap-3">
           <BotIcon className="w-5 h-5 text-zinc-500 flex-shrink-0" />
           <div className="flex-1">
-            <p className="text-sm font-semibold text-white">No AI agent linked to this page</p>
-            <p className="text-xs text-zinc-500">Create an agent and assign it to this page first.</p>
+            <p className="text-sm font-semibold text-white">{t('stk.ops.pg.noAgentTitle')}</p>
+            <p className="text-xs text-zinc-500">{t('stk.ops.pg.noAgentHint')}</p>
           </div>
-          <Button size="sm" onClick={() => router.push('/dashboard/agents')}>Go to Agents</Button>
+          <Button size="sm" onClick={() => router.push('/dashboard/agents')}>{t('stk.ops.pg.goToAgents')}</Button>
         </div>
       )}
 
@@ -196,11 +198,11 @@ export default function PageStockPage() {
                   <BoxIcon className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-white">Sell all products</h3>
+                  <h3 className="text-sm font-semibold text-white">{t('stk.ops.pg.sellAll')}</h3>
                   <p className="text-xs text-zinc-500">
                     {sellAll
-                      ? `Agent has access to all ${products.length} products in your catalog`
-                      : `${selectedIds.size} of ${products.length} products selected`}
+                      ? t('stk.ops.pg.sellAllHint').replace('{n}', String(products.length))
+                      : t('stk.ops.pg.selectedHint').replace('{n}', String(selectedIds.size)).replace('{total}', String(products.length))}
                   </p>
                 </div>
               </div>
@@ -224,7 +226,7 @@ export default function PageStockPage() {
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search products…"
+                    placeholder={t('stk.ops.pg.searchProducts')}
                     className="w-full pl-10 pr-4 py-2.5 bg-zinc-900/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none transition-colors"
                   />
                 </div>
@@ -232,7 +234,7 @@ export default function PageStockPage() {
                   onClick={toggleAll}
                   className="px-3 py-2.5 text-xs font-medium text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 hover:border-white/20 rounded-lg transition-colors whitespace-nowrap"
                 >
-                  {selectedIds.size === products.length ? 'Deselect all' : 'Select all'}
+                  {selectedIds.size === products.length ? t('stk.ops.pg.deselectAll') : t('stk.ops.pg.selectAll')}
                 </button>
               </div>
 
@@ -243,7 +245,7 @@ export default function PageStockPage() {
                 </div>
               ) : filtered.length === 0 ? (
                 <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-8 text-center text-sm text-zinc-500">
-                  {search ? 'No products match your search' : 'No products in your catalog'}
+                  {search ? t('stk.ops.pg.noMatch') : t('stk.ops.pg.noProducts')}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -254,7 +256,7 @@ export default function PageStockPage() {
                       <button
                         key={product.id}
                         onClick={() => toggleProduct(product.id)}
-                        className={`group text-left rounded-xl border p-3 transition-all ${
+                        className={`group text-start rounded-xl border p-3 transition-all ${
                           selected
                             ? 'bg-white/[0.05] border-white/30 hover:border-white/40'
                             : 'bg-zinc-900/50 border-white/10 hover:border-white/20'
@@ -279,7 +281,7 @@ export default function PageStockPage() {
                             <div className="flex items-center gap-2 mt-1">
                               <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] ${product.quantity > 0 ? 'text-zinc-300' : 'text-zinc-500'}`}>
                                 <span className={`w-1.5 h-1.5 rounded-full ${product.quantity > 0 ? 'bg-white' : 'border border-zinc-600'}`} />
-                                {product.quantity} in stock
+                                {t('stk.ops.pg.inStock').replace('{n}', String(product.quantity))}
                               </span>
                             </div>
                           </div>
@@ -304,11 +306,13 @@ export default function PageStockPage() {
             <div className="bg-zinc-900/95 backdrop-blur-sm border border-white/10 rounded-xl p-4 flex items-center justify-between shadow-2xl">
               <p className="text-sm text-zinc-400">
                 {sellAll
-                  ? `All ${products.length} products will be available on this page`
-                  : `${selectedIds.size} product${selectedIds.size !== 1 ? 's' : ''} selected`}
+                  ? t('stk.ops.pg.barAll').replace('{n}', String(products.length))
+                  : selectedIds.size === 1
+                    ? t('stk.ops.pg.barSelectedOne')
+                    : t('stk.ops.pg.barSelected').replace('{n}', String(selectedIds.size))}
               </p>
               <Button onClick={handleSave} disabled={saving}>
-                {saving ? 'Saving…' : 'Save selection'}
+                {saving ? t('stk.ops.c.saving') : t('stk.ops.pg.saveSelection')}
               </Button>
             </div>
           </div>
@@ -325,8 +329,8 @@ export default function PageStockPage() {
             <BoxIcon className="w-5 h-5 text-zinc-400" />
             <ChevronRightIcon className="w-4 h-4 text-zinc-600 group-hover:text-white transition-colors" />
           </div>
-          <h3 className="text-sm font-medium text-white">Manage full catalog</h3>
-          <p className="text-xs text-zinc-500 mt-0.5">Add, edit, or remove products from your main stock</p>
+          <h3 className="text-sm font-medium text-white">{t('stk.ops.pg.linkCatalogTitle')}</h3>
+          <p className="text-xs text-zinc-500 mt-0.5">{t('stk.ops.pg.linkCatalogHint')}</p>
         </button>
 
         <button
@@ -337,8 +341,8 @@ export default function PageStockPage() {
             <BotIcon className="w-5 h-5 text-zinc-400" />
             <ChevronRightIcon className="w-4 h-4 text-zinc-600 group-hover:text-white transition-colors" />
           </div>
-          <h3 className="text-sm font-medium text-white">Configure AI agent</h3>
-          <p className="text-xs text-zinc-500 mt-0.5">Change personality, model, and display settings</p>
+          <h3 className="text-sm font-medium text-white">{t('stk.ops.pg.linkAgentTitle')}</h3>
+          <p className="text-xs text-zinc-500 mt-0.5">{t('stk.ops.pg.linkAgentHint')}</p>
         </button>
       </div>
     </div>

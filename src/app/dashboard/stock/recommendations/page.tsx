@@ -43,7 +43,7 @@ export default function RecommendationsPage() {
       setStats(st);
       setError(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to load recommendations');
+      setError(err.message || t('stk.ops.reco.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -60,7 +60,7 @@ export default function RecommendationsPage() {
       setError(null);
       await fetchData();
     } catch (err: any) {
-      setError(err.message || 'Failed to generate recommendations');
+      setError(err.message || t('stk.ops.reco.generateFailed'));
     } finally {
       setGenerating(false);
     }
@@ -78,7 +78,7 @@ export default function RecommendationsPage() {
         active: prev.active + (rec.isActive ? -1 : 1),
       } : prev);
     } catch (err: any) {
-      setError(err.message || 'Failed to update');
+      setError(err.message || t('stk.ops.reco.updateFailed'));
     }
   };
 
@@ -89,7 +89,7 @@ export default function RecommendationsPage() {
       setStats(prev => prev ? { ...prev, total: prev.total - 1 } : prev);
       setDeleteConfirm(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to delete');
+      setError(err.message || t('stk.ops.reco.deleteFailed'));
     }
   };
 
@@ -116,7 +116,7 @@ export default function RecommendationsPage() {
           className="font-medium px-5 py-2.5 rounded-lg flex items-center gap-2 transition-all disabled:opacity-60"
         >
           <RefreshIcon className={`w-4 h-4 ${generating ? 'animate-spin' : ''}`} />
-          {generating ? 'Analyzing...' : t('stock.reco.generate')}
+          {generating ? t('stk.ops.reco.analyzing') : t('stock.reco.generate')}
         </Button>
       </div>
 
@@ -238,7 +238,7 @@ export default function RecommendationsPage() {
             className="font-medium px-6 py-2.5 rounded-lg inline-flex items-center gap-2"
           >
             <RefreshIcon className={`w-4 h-4 ${generating ? 'animate-spin' : ''}`} />
-            {generating ? 'Analyzing...' : 'Generate Now'}
+            {generating ? t('stk.ops.reco.analyzing') : t('stk.ops.reco.generateNow')}
           </Button>
         </div>
       ) : (
@@ -247,14 +247,14 @@ export default function RecommendationsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-800 text-zinc-400">
-                  <th className="text-left px-4 py-3 font-medium">Source Product</th>
-                  <th className="text-left px-4 py-3 font-medium">Recommended</th>
-                  <th className="text-center px-4 py-3 font-medium">Type</th>
-                  <th className="text-center px-4 py-3 font-medium">Score</th>
-                  <th className="text-center px-4 py-3 font-medium">Impressions</th>
-                  <th className="text-center px-4 py-3 font-medium">Conversions</th>
-                  <th className="text-center px-4 py-3 font-medium">Revenue</th>
-                  <th className="text-center px-4 py-3 font-medium">Active</th>
+                  <th className="text-start px-4 py-3 font-medium">{t('stk.ops.reco.col.sourceProduct')}</th>
+                  <th className="text-start px-4 py-3 font-medium">{t('stk.ops.reco.col.recommended')}</th>
+                  <th className="text-center px-4 py-3 font-medium">{t('stk.ops.c.type')}</th>
+                  <th className="text-center px-4 py-3 font-medium">{t('stk.ops.reco.col.score')}</th>
+                  <th className="text-center px-4 py-3 font-medium">{t('stk.ops.reco.col.impressions')}</th>
+                  <th className="text-center px-4 py-3 font-medium">{t('stk.ops.reco.col.conversions')}</th>
+                  <th className="text-center px-4 py-3 font-medium">{t('stk.ops.reco.col.revenue')}</th>
+                  <th className="text-center px-4 py-3 font-medium">{t('stk.ops.c.active')}</th>
                   <th className="text-center px-4 py-3 font-medium w-16"></th>
                 </tr>
               </thead>
@@ -334,13 +334,13 @@ export default function RecommendationsPage() {
                               onClick={() => handleDelete(rec.id)}
                               className="text-white hover:text-zinc-300 text-xs font-medium"
                             >
-                              Yes
+                              {t('stk.ops.c.yes')}
                             </button>
                             <button
                               onClick={() => setDeleteConfirm(null)}
                               className="text-zinc-400 hover:text-zinc-300 text-xs"
                             >
-                              No
+                              {t('stk.ops.c.no')}
                             </button>
                           </div>
                         ) : (
@@ -360,10 +360,10 @@ export default function RecommendationsPage() {
           </div>
           {/* Footer */}
           <div className="px-4 py-3 border-t border-zinc-800 text-sm text-zinc-400">
-            Showing {recommendations.length} recommendation{recommendations.length !== 1 ? 's' : ''}
+            {recommendations.length === 1 ? t('stk.ops.reco.showingOne') : t('stk.ops.reco.showing').replace('{n}', String(recommendations.length))}
             {recommendations.some(r => r.reason) && (
-              <span className="ml-2 text-zinc-500">
-                — hover over scores to see reasoning
+              <span className="ms-2 text-zinc-500">
+                {t('stk.ops.reco.hoverHint')}
               </span>
             )}
           </div>

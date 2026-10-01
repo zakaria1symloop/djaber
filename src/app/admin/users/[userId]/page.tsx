@@ -23,11 +23,13 @@ import {
   CloseIcon,
   RefreshIcon,
 } from '@/components/ui/icons';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function AdminUserDetailPage() {
   const router = useRouter();
   const params = useParams();
   const toast = useToast();
+  const { t } = useTranslation();
   const userId = params?.userId as string;
 
   const [data, setData] = useState<AdminUserDetails | null>(null);
@@ -42,7 +44,7 @@ export default function AdminUserDetailPage() {
       const res = await getAdminUserDetails(userId);
       setData(res);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load user');
+      toast.error(e instanceof Error ? e.message : t('adm.acc.udet.err.load'));
     } finally {
       setLoading(false);
     }
@@ -57,10 +59,10 @@ export default function AdminUserDetailPage() {
     try {
       setDeleting(true);
       await deleteAdminUser(userId);
-      toast.success('User deleted');
+      toast.success(t('adm.acc.users.toast.deleted'));
       router.push('/admin/users');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to delete');
+      toast.error(e instanceof Error ? e.message : t('adm.acc.err.delete'));
       setDeleting(false);
     }
   };
@@ -76,7 +78,7 @@ export default function AdminUserDetailPage() {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            Back to Users
+            {t('adm.acc.udet.back')}
           </button>
         </div>
         <div className="h-24 bg-zinc-900/60 rounded-xl animate-pulse" />
@@ -101,21 +103,22 @@ export default function AdminUserDetailPage() {
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
-          Back to Users
+          {t('adm.acc.udet.back')}
         </button>
         <div className="flex items-center gap-2">
           <button
             onClick={load}
             className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors"
-            title="Refresh"
+            title={t('adm.acc.refresh')}
+            aria-label={t('adm.acc.refresh')}
           >
             <RefreshIcon className="w-4 h-4" />
           </button>
           <Button variant="outline" size="sm" icon={<EditIcon className="w-4 h-4" />} onClick={() => setEditing(true)}>
-            Edit
+            {t('adm.acc.edit')}
           </Button>
           <Button variant="danger" size="sm" icon={<TrashIcon className="w-4 h-4" />} onClick={() => setDeleteConfirm(true)}>
-            Delete
+            {t('adm.acc.delete')}
           </Button>
         </div>
       </div>
@@ -130,15 +133,15 @@ export default function AdminUserDetailPage() {
                 {data.user.firstName} {data.user.lastName}
               </h1>
               {data.user.isAdmin && (
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/10 text-white uppercase tracking-wider">Admin</span>
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/10 text-white uppercase tracking-wider">{t('adm.acc.users.badge.admin')}</span>
               )}
             </div>
             <p className="text-sm text-zinc-400 truncate">{data.user.email}</p>
             <div className="flex items-center gap-3 mt-2 text-xs text-zinc-500">
               <Badge variant={data.user.plan === 'teams' ? 'info' : 'default'} size="sm">{data.user.plan}</Badge>
-              <span>Joined {new Date(data.user.createdAt).toLocaleDateString()}</span>
+              <span>{t('adm.acc.udet.joined')} {new Date(data.user.createdAt).toLocaleDateString()}</span>
               <span className="hidden sm:inline">·</span>
-              <span className="hidden sm:inline">Updated {new Date(data.user.updatedAt).toLocaleDateString()}</span>
+              <span className="hidden sm:inline">{t('adm.acc.udet.updated')} {new Date(data.user.updatedAt).toLocaleDateString()}</span>
             </div>
           </div>
         </div>
@@ -146,17 +149,17 @@ export default function AdminUserDetailPage() {
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-        <StatTile icon={<ChatIcon className="w-4 h-4" />} label="Pages" value={data.pages.length} />
-        <StatTile icon={<BotIcon className="w-4 h-4" />} label="Agents" value={data.agents.length} />
-        <StatTile icon={<ChatIcon className="w-4 h-4" />} label="Conversations" value={data.stats.conversations} />
-        <StatTile icon={<ChatIcon className="w-4 h-4" />} label="Messages" value={data.stats.messages} />
-        <StatTile icon={<BoxIcon className="w-4 h-4" />} label="Products" value={data.stats.products} />
-        <StatTile icon={<UsersIcon className="w-4 h-4" />} label="Clients" value={data.stats.clients} />
-        <StatTile icon={<ShoppingCartIcon className="w-4 h-4" />} label="Sales" value={data.stats.sales} />
-        <StatTile icon={<ShoppingCartIcon className="w-4 h-4" />} label="Orders" value={data.stats.orders} />
+        <StatTile icon={<ChatIcon className="w-4 h-4" />} label={t('adm.acc.udet.stat.pages')} value={data.pages.length} />
+        <StatTile icon={<BotIcon className="w-4 h-4" />} label={t('adm.acc.udet.stat.agents')} value={data.agents.length} />
+        <StatTile icon={<ChatIcon className="w-4 h-4" />} label={t('adm.acc.udet.stat.conversations')} value={data.stats.conversations} />
+        <StatTile icon={<ChatIcon className="w-4 h-4" />} label={t('adm.acc.udet.stat.messages')} value={data.stats.messages} />
+        <StatTile icon={<BoxIcon className="w-4 h-4" />} label={t('adm.acc.udet.stat.products')} value={data.stats.products} />
+        <StatTile icon={<UsersIcon className="w-4 h-4" />} label={t('adm.acc.udet.stat.clients')} value={data.stats.clients} />
+        <StatTile icon={<ShoppingCartIcon className="w-4 h-4" />} label={t('adm.acc.udet.stat.sales')} value={data.stats.sales} />
+        <StatTile icon={<ShoppingCartIcon className="w-4 h-4" />} label={t('adm.acc.udet.stat.orders')} value={data.stats.orders} />
         <StatTile
           icon={<DollarIcon className="w-4 h-4" />}
-          label="Revenue"
+          label={t('adm.acc.udet.stat.revenue')}
           value={`${data.stats.revenue.toLocaleString(undefined, { maximumFractionDigits: 0 })} DA`}
         />
       </div>
@@ -165,11 +168,11 @@ export default function AdminUserDetailPage() {
         {/* Pages list */}
         <div>
           <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
-            Connected Pages ({data.pages.length})
+            {t('adm.acc.udet.connectedPages')} ({data.pages.length})
           </h3>
           {data.pages.length === 0 ? (
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 text-center text-xs text-zinc-600">
-              No pages connected
+              {t('adm.acc.udet.noPages')}
             </div>
           ) : (
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl divide-y divide-white/5 overflow-hidden">
@@ -181,13 +184,13 @@ export default function AdminUserDetailPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-white truncate">{page.pageName}</p>
                     <p className="text-[11px] text-zinc-500 capitalize">
-                      {page.platform} · {page._count.conversations} conv · {new Date(page.createdAt).toLocaleDateString()}
+                      {page.platform} · {page._count.conversations} {t('adm.acc.udet.convShort')} · {new Date(page.createdAt).toLocaleDateString()}
                     </p>
                   </div>
                   {page.isActive ? (
-                    <Badge variant="success" size="sm">Active</Badge>
+                    <Badge variant="success" size="sm">{t('adm.acc.active')}</Badge>
                   ) : (
-                    <Badge variant="default" size="sm">Inactive</Badge>
+                    <Badge variant="default" size="sm">{t('adm.acc.inactive')}</Badge>
                   )}
                 </div>
               ))}
@@ -198,11 +201,11 @@ export default function AdminUserDetailPage() {
         {/* Agents list */}
         <div>
           <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
-            AI Agents ({data.agents.length})
+            {t('adm.acc.udet.aiAgents')} ({data.agents.length})
           </h3>
           {data.agents.length === 0 ? (
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 text-center text-xs text-zinc-600">
-              No AI agents created
+              {t('adm.acc.udet.noAgents')}
             </div>
           ) : (
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl divide-y divide-white/5 overflow-hidden">
@@ -217,13 +220,13 @@ export default function AdminUserDetailPage() {
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-zinc-400 capitalize">{agent.personality}</span>
                     </div>
                     <p className="text-[11px] text-zinc-500">
-                      {agent.aiModel} · {agent._count.pages} pages · {agent._count.conversations} convs
+                      {agent.aiModel} · {agent._count.pages} {t('adm.acc.udet.pagesShort')} · {agent._count.conversations} {t('adm.acc.udet.convsShort')}
                     </p>
                   </div>
                   {agent.isActive ? (
-                    <Badge variant="success" size="sm">Active</Badge>
+                    <Badge variant="success" size="sm">{t('adm.acc.active')}</Badge>
                   ) : (
-                    <Badge variant="default" size="sm">Inactive</Badge>
+                    <Badge variant="default" size="sm">{t('adm.acc.inactive')}</Badge>
                   )}
                 </div>
               ))}
@@ -235,11 +238,11 @@ export default function AdminUserDetailPage() {
       {/* Recent conversations */}
       <div className="mt-6">
         <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
-          Recent Conversations
+          {t('adm.acc.udet.recentConvs')}
         </h3>
         {data.recentConversations.length === 0 ? (
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 text-center text-xs text-zinc-600">
-            No conversations yet
+            {t('adm.acc.udet.noConvs')}
           </div>
         ) : (
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl divide-y divide-white/5 overflow-hidden">
@@ -247,9 +250,9 @@ export default function AdminUserDetailPage() {
               <div key={conv.id} className="p-3 flex items-center gap-3 hover:bg-white/[0.02]">
                 <PlatformIcon />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white truncate">{conv.senderName || 'Unknown'}</p>
+                  <p className="text-sm text-white truncate">{conv.senderName || t('adm.acc.udet.unknown')}</p>
                   <p className="text-[11px] text-zinc-500 truncate">
-                    {conv.page?.pageName || 'No page'} · {conv._count.messages} message{conv._count.messages !== 1 ? 's' : ''} · {new Date(conv.updatedAt).toLocaleDateString()}
+                    {conv.page?.pageName || t('adm.acc.udet.noPage')} · {conv._count.messages} {conv._count.messages !== 1 ? t('adm.acc.udet.messageMany') : t('adm.acc.udet.messageOne')} · {new Date(conv.updatedAt).toLocaleDateString()}
                   </p>
                 </div>
                 <Badge variant={conv.status === 'active' ? 'success' : 'default'} size="sm">{conv.status}</Badge>
@@ -275,16 +278,16 @@ export default function AdminUserDetailPage() {
       {deleteConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
           <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-sm w-full">
-            <h3 className="text-lg font-bold text-white mb-2">Delete user?</h3>
+            <h3 className="text-lg font-bold text-white mb-2">{t('adm.acc.users.del.title')}</h3>
             <p className="text-sm text-zinc-400 mb-6">
-              This will permanently delete <span className="text-white font-medium">{data.user.email}</span> and all their data. This cannot be undone.
+              {t('adm.acc.users.del.bodyPrefix')} <span className="text-white font-medium">{data.user.email}</span> {t('adm.acc.users.del.bodySuffixShort')}
             </p>
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => setDeleteConfirm(false)} disabled={deleting}>
-                Cancel
+                {t('adm.acc.cancel')}
               </Button>
               <Button variant="danger" className="flex-1" onClick={handleDelete} disabled={deleting}>
-                {deleting ? 'Deleting…' : 'Delete'}
+                {deleting ? t('adm.acc.deleting') : t('adm.acc.delete')}
               </Button>
             </div>
           </div>
@@ -320,6 +323,7 @@ function EditUserModal({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const { t } = useTranslation();
   const [firstName, setFirstName] = useState(user.firstName);
   const [lastName, setLastName] = useState(user.lastName);
   const [plan, setPlan] = useState(user.plan);
@@ -332,17 +336,17 @@ function EditUserModal({
       const data: Record<string, string | undefined> = { firstName, lastName, plan };
       if (password.trim()) {
         if (password.length < 8) {
-          toast.error('Password must be at least 8 characters');
+          toast.error(t('adm.acc.userForm.err.passwordShort'));
           setSaving(false);
           return;
         }
         data.password = password;
       }
       await updateAdminUser(user.id, data);
-      toast.success('User updated');
+      toast.success(t('adm.acc.users.toast.updated'));
       onSaved();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update');
+      toast.error(e instanceof Error ? e.message : t('adm.acc.err.update'));
     } finally {
       setSaving(false);
     }
@@ -352,15 +356,15 @@ function EditUserModal({
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
       <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-md w-full">
         <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-bold text-white">Edit user</h3>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white">
+          <h3 className="text-lg font-bold text-white">{t('adm.acc.userForm.title')}</h3>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white" aria-label={t('adm.acc.close')}>
             <CloseIcon className="w-5 h-5" />
           </button>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Email</label>
+            <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">{t('adm.acc.userForm.email')}</label>
             <input
               type="email"
               value={user.email}
@@ -370,7 +374,7 @@ function EditUserModal({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">First name</label>
+              <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">{t('adm.acc.userForm.firstName')}</label>
               <input
                 type="text"
                 value={firstName}
@@ -379,7 +383,7 @@ function EditUserModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Last name</label>
+              <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">{t('adm.acc.userForm.lastName')}</label>
               <input
                 type="text"
                 value={lastName}
@@ -389,25 +393,25 @@ function EditUserModal({
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Plan</label>
+            <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">{t('adm.acc.userForm.plan')}</label>
             <select
               value={plan}
               onChange={(e) => setPlan(e.target.value)}
               className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
             >
-              <option value="individual">Individual</option>
-              <option value="teams">Teams</option>
+              <option value="individual">{t('adm.acc.userForm.individual')}</option>
+              <option value="teams">{t('adm.acc.userForm.teams')}</option>
             </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">
-              Reset password <span className="text-zinc-700 normal-case lowercase">(leave blank to keep current)</span>
+              {t('adm.acc.userForm.resetPassword')} <span className="text-zinc-700 normal-case lowercase">{t('adm.acc.userForm.resetPasswordHint')}</span>
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
+              placeholder={t('adm.acc.userForm.passwordPlaceholder')}
               className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
             />
           </div>
@@ -415,10 +419,10 @@ function EditUserModal({
 
         <div className="flex gap-3 mt-6">
           <Button variant="outline" className="flex-1" onClick={onClose}>
-            Cancel
+            {t('adm.acc.cancel')}
           </Button>
           <Button className="flex-1" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save changes'}
+            {saving ? t('adm.acc.saving') : t('adm.acc.save')}
           </Button>
         </div>
       </div>

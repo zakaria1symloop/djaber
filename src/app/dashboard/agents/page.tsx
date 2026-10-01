@@ -63,7 +63,7 @@ export default function AgentsPage() {
       }
       setAgentMetricsMap(map);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load agents');
+      setError(err instanceof Error ? err.message : t('shell.agents.err.load'));
     } finally {
       setLoading(false);
     }
@@ -123,7 +123,7 @@ export default function AgentsPage() {
       setDeleteConfirm(null);
       if (expandedAgentId === deleteConfirm.id) setExpandedAgentId(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete agent');
+      setError(err instanceof Error ? err.message : t('shell.agents.err.delete'));
     } finally {
       setDeleting(false);
     }
@@ -159,7 +159,7 @@ export default function AgentsPage() {
     } catch (err) {
       setChatMessages([
         ...updatedMessages,
-        { role: 'assistant', content: `Error: ${err instanceof Error ? err.message : 'Failed to get response'}` },
+        { role: 'assistant', content: `${t('shell.agents.test.errPrefix')}: ${err instanceof Error ? err.message : t('shell.agents.test.errFail')}` },
       ]);
     } finally {
       setChatSending(false);
@@ -185,7 +185,7 @@ export default function AgentsPage() {
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-400">
           {error}
-          <button onClick={() => setError(null)} className="ml-2 underline text-xs">dismiss</button>
+          <button onClick={() => setError(null)} className="ms-2 underline text-xs">{t('common.dismiss')}</button>
         </div>
       )}
 
@@ -225,12 +225,12 @@ export default function AgentsPage() {
                           {agent.isActive ? (
                             <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400">
                               <span className="w-1.5 h-1.5 rounded-full bg-white" />
-                              Active
+                              {t('shell.common.active')}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-500">
                               <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
-                              Inactive
+                              {t('shell.common.inactive')}
                             </span>
                           )}
                         </div>
@@ -247,11 +247,11 @@ export default function AgentsPage() {
                               ? 'text-zinc-300 hover:bg-white/5'
                               : 'text-zinc-400 hover:text-zinc-300 hover:bg-white/5 opacity-0 group-hover:opacity-100'
                         }`}
-                        title="Agent insights"
+                        title={t('shell.agents.tip.insights')}
                       >
                         <AlertIcon className="w-4 h-4" />
                         {pendingCount > 0 && (
-                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-white text-black text-[9px] font-bold rounded-full flex items-center justify-center">
+                          <span className="absolute -top-1 -end-1 w-4 h-4 bg-white text-black text-[9px] font-bold rounded-full flex items-center justify-center">
                             {pendingCount > 9 ? '9+' : pendingCount}
                           </span>
                         )}
@@ -259,14 +259,14 @@ export default function AgentsPage() {
                       <button
                         onClick={() => openTestChat(agent)}
                         className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                        title="Test chat"
+                        title={t('shell.agents.tip.test')}
                       >
                         <MessageIcon className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => router.push(`/dashboard/agents/${agent.id}`)}
                         className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                        title="Agent details & KPIs"
+                        title={t('shell.agents.tip.details')}
                       >
                         <EditIcon className="w-4 h-4" />
                       </button>
@@ -287,13 +287,13 @@ export default function AgentsPage() {
                   {/* Stats */}
                   <div className="grid grid-cols-3 gap-3">
                     <div className="bg-black/30 rounded-lg p-2.5 text-center">
-                      <p className="text-xs text-zinc-500">Pages</p>
+                      <p className="text-xs text-zinc-500">{t('page.agents.card.pages')}</p>
                       <p className="text-lg font-bold text-white">{agent._count?.pages || 0}</p>
                     </div>
                     <div className="bg-black/30 rounded-lg p-2.5 text-center">
-                      <p className="text-xs text-zinc-500">Products</p>
+                      <p className="text-xs text-zinc-500">{t('page.agents.card.products')}</p>
                       <p className="text-lg font-bold text-white">
-                        {agent.sellAllProducts ? 'All' : (agent._count?.products || 0)}
+                        {agent.sellAllProducts ? t('shell.agents.allProducts') : (agent._count?.products || 0)}
                       </p>
                     </div>
                     <div className="bg-black/30 rounded-lg p-2.5 text-center">
@@ -324,7 +324,7 @@ export default function AgentsPage() {
                     >
                       <span className="flex items-center gap-1.5">
                         <AlertIcon className="w-3.5 h-3.5 text-zinc-500" />
-                        Pending Issues ({agentInsights.length})
+                        {t('shell.agents.pendingIssues')} ({agentInsights.length})
                       </span>
                       <ChevronDownIcon className="w-3.5 h-3.5 rotate-180" />
                     </button>
@@ -350,26 +350,26 @@ export default function AgentsPage() {
                             <div className="flex items-center gap-2 mb-2">
                               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
                                 <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
-                                {insight.type === 'unclear' ? 'Unclear' : 'Unknown'}
+                                {insight.type === 'unclear' ? t('shell.agents.insight.unclear') : t('shell.agents.insight.unknown')}
                               </span>
                               <FacebookIcon className="w-3 h-3 text-zinc-500" />
                               {insight.detail && (
                                 <span className="text-[10px] text-zinc-500 italic truncate">{insight.detail}</span>
                               )}
-                              <span className="text-[10px] text-zinc-600 ml-auto flex-shrink-0">
+                              <span className="text-[10px] text-zinc-600 ms-auto flex-shrink-0">
                                 {new Date(insight.createdAt).toLocaleDateString()}
                               </span>
                             </div>
 
                             {/* Customer message */}
                             <div className="bg-zinc-800/60 rounded px-2.5 py-1.5 mb-1.5">
-                              <p className="text-[10px] text-zinc-500 mb-0.5">Customer</p>
+                              <p className="text-[10px] text-zinc-500 mb-0.5">{t('shell.agents.customer')}</p>
                               <p className="text-xs text-zinc-300 line-clamp-2">{insight.customerMessage}</p>
                             </div>
 
                             {/* AI response */}
                             <div className="bg-white/[0.03] border border-white/10 rounded px-2.5 py-1.5 mb-2">
-                              <p className="text-[10px] text-zinc-500 mb-0.5">AI Response</p>
+                              <p className="text-[10px] text-zinc-500 mb-0.5">{t('shell.agents.aiResponse')}</p>
                               <p className="text-xs text-zinc-400 line-clamp-2">{insight.aiResponse}</p>
                             </div>
 
@@ -379,18 +379,18 @@ export default function AgentsPage() {
                                 <textarea
                                   value={newInstruction}
                                   onChange={(e) => setNewInstruction(e.target.value)}
-                                  placeholder="Add instruction so the agent handles this better..."
+                                  placeholder={t('shell.agents.instructionPh')}
                                   className="w-full bg-zinc-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-white/30 resize-none"
                                   rows={2}
                                   autoFocus
                                 />
                                 <div className="flex gap-2">
                                   <Button size="sm" onClick={() => handleResolve(insight.id, 'resolve')} disabled={saving}>
-                                    <CheckCircleIcon className="w-3 h-3 mr-1" />
-                                    {newInstruction.trim() ? 'Add & Resolve' : 'Resolve'}
+                                    <CheckCircleIcon className="w-3 h-3 me-1" />
+                                    {newInstruction.trim() ? t('shell.agents.addResolve') : t('shell.agents.resolve')}
                                   </Button>
                                   <Button variant="ghost" size="sm" onClick={() => { setResolvingId(null); setNewInstruction(''); }}>
-                                    Cancel
+                                    {t('shell.common.cancel')}
                                   </Button>
                                 </div>
                               </div>
@@ -401,7 +401,7 @@ export default function AgentsPage() {
                                   className="flex items-center gap-1 text-[11px] text-zinc-300 hover:text-white transition-colors"
                                 >
                                   <CheckCircleIcon className="w-3 h-3" />
-                                  Resolve
+                                  {t('shell.agents.resolve')}
                                 </button>
                                 <button
                                   onClick={() => handleResolve(insight.id, 'dismiss')}
@@ -409,7 +409,7 @@ export default function AgentsPage() {
                                   className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
                                 >
                                   <CloseIcon className="w-3 h-3" />
-                                  Dismiss
+                                  {t('shell.agents.dismiss')}
                                 </button>
                               </div>
                             )}
@@ -427,11 +427,10 @@ export default function AgentsPage() {
         <div className="space-y-5">
           <div className="max-w-2xl">
             <h3 className="text-base font-semibold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-              Start with a ready-made agent
+              {t('shell.agents.tpl.title')}
             </h3>
             <p className="text-sm text-zinc-500">
-              Each one is fully configured for Algerian selling — Darija, Arabic and French, delivery quoting,
-              and order handling. Pick one to launch in seconds, then fine-tune anything.
+              {t('shell.agents.tpl.desc')}
             </p>
           </div>
 
@@ -448,10 +447,10 @@ export default function AgentsPage() {
                   </div>
                   <span className="text-[10px] uppercase tracking-[0.15em] text-zinc-600 pt-1">
                     {tpl.imageRecognition && tpl.voiceTranscription
-                      ? 'Vision + Voice'
+                      ? t('shell.agents.tpl.visionVoice')
                       : tpl.voiceTranscription
-                        ? 'Voice'
-                        : 'Text'}
+                        ? t('shell.agents.tpl.voice')
+                        : t('shell.agents.tpl.text')}
                   </span>
                 </div>
                 <h4 className="text-base font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
@@ -467,49 +466,48 @@ export default function AgentsPage() {
                   ))}
                 </ul>
                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white group-hover:gap-2.5 transition-all">
-                  Use this agent
-                  <span aria-hidden>→</span>
+                  {t('shell.agents.tpl.use')}
+                  <span aria-hidden>{dir === 'rtl' ? '←' : '→'}</span>
                 </span>
               </button>
             ))}
           </div>
 
           <div className="flex items-center gap-3 pt-1">
-            <span className="text-xs text-zinc-600">Prefer to build your own?</span>
+            <span className="text-xs text-zinc-600">{t('shell.agents.tpl.own')}</span>
             <Button variant="outline" onClick={() => router.push('/dashboard/agents/new')} icon={<PlusIcon className="w-4 h-4" />}>
-              Start from scratch
+              {t('shell.agents.tpl.scratch')}
             </Button>
           </div>
         </div>
       )}
 
       {/* Delete Confirm */}
-      <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="Delete Agent" size="sm">
+      <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title={t('page.agents.delete.title')} size="sm">
         <p className="text-zinc-400 mb-2">
-          Are you sure you want to delete <span className="text-white font-medium">{deleteConfirm?.name}</span>?
-          This will disconnect it from all pages.
+          {t('shell.agents.delete.body').replace('{name}', deleteConfirm?.name || '')}
         </p>
         <div className="flex gap-3 pt-4">
-          <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>Cancel</Button>
+          <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>{t('shell.common.cancel')}</Button>
           <Button type="button" className="flex-1" onClick={handleDelete} disabled={deleting}>
-            {deleting ? 'Deleting...' : 'Delete'}
+            {deleting ? t('shell.common.deleting') : t('shell.common.delete')}
           </Button>
         </div>
       </Modal>
 
       {/* Test Chat Modal */}
-      <Modal isOpen={!!chatAgent} onClose={closeTestChat} title={`Test — ${chatAgent?.name || 'Agent'}`} size="lg">
+      <Modal isOpen={!!chatAgent} onClose={closeTestChat} title={t('shell.agents.test.title').replace('{name}', chatAgent?.name || t('shell.agents.test.fallbackName'))} size="lg">
         <div className="flex flex-col" style={{ height: '60vh' }}>
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-1">
+          <div className="flex-1 overflow-y-auto space-y-3 mb-4 pe-1">
             {chatMessages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <div className="w-12 h-12 rounded-xl bg-white/5 text-zinc-300 flex items-center justify-center mb-3">
                   <BotIcon className="w-6 h-6" />
                 </div>
-                <p className="text-zinc-400 text-sm">Send a message to test <span className="text-white font-medium">{chatAgent?.name}</span></p>
+                <p className="text-zinc-400 text-sm">{t('shell.agents.test.prompt')} <span className="text-white font-medium">{chatAgent?.name}</span></p>
                 <p className="text-zinc-600 text-xs mt-1">
-                  {chatAgent?.personality} personality &middot; {chatAgent?.aiModel}
+                  {chatAgent?.personality} {t('shell.agents.test.personality')} &middot; {chatAgent?.aiModel}
                 </p>
               </div>
             )}
@@ -531,7 +529,7 @@ export default function AgentsPage() {
                                 <BoxIcon className="w-6 h-6 text-zinc-500" />
                               </div>
                               <div className="p-2.5">
-                                <p className="text-xs font-medium text-white truncate">Product</p>
+                                <p className="text-xs font-medium text-white truncate">{t('shell.agents.test.product')}</p>
                                 <p className="text-[11px] text-zinc-500">ID: {part.slice(0, 8)}…</p>
                               </div>
                             </div>
@@ -581,7 +579,7 @@ export default function AgentsPage() {
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTestMessage(); } }}
-              placeholder="Type a message..."
+              placeholder={t('shell.agents.test.inputPh')}
               className="flex-1 bg-zinc-800 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-white/30"
               disabled={chatSending}
               autoFocus
@@ -591,7 +589,7 @@ export default function AgentsPage() {
               disabled={chatSending || !chatInput.trim()}
               className="px-4 py-2.5 bg-white hover:bg-zinc-200 disabled:bg-zinc-700 disabled:text-zinc-500 text-black text-sm font-medium rounded-xl transition-colors"
             >
-              Send
+              {t('shell.common.send')}
             </button>
           </div>
         </div>

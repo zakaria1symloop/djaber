@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslation } from '@/contexts/LanguageContext';
+
 interface PaginationProps {
   total: number;
   limit: number;
@@ -8,6 +10,8 @@ interface PaginationProps {
 }
 
 export function Pagination({ total, limit, offset, onPageChange }: PaginationProps) {
+  const { t } = useTranslation();
+
   if (total <= limit) return null;
 
   const currentPage = Math.floor(offset / limit) + 1;
@@ -18,7 +22,10 @@ export function Pagination({ total, limit, offset, onPageChange }: PaginationPro
   return (
     <div className="flex items-center justify-between mt-4 px-1">
       <p className="text-sm text-zinc-400">
-        {from}-{to} of {total}
+        {t('dlg.pagination.range')
+          .replace('{from}', String(from))
+          .replace('{to}', String(to))
+          .replace('{total}', String(total))}
       </p>
       <div className="flex items-center gap-2">
         <button
@@ -26,7 +33,7 @@ export function Pagination({ total, limit, offset, onPageChange }: PaginationPro
           disabled={currentPage <= 1}
           className="px-3 py-1.5 text-sm rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
-          Previous
+          {t('dlg.pagination.prev')}
         </button>
         <span className="text-sm text-zinc-500">
           {currentPage} / {totalPages}
@@ -36,7 +43,7 @@ export function Pagination({ total, limit, offset, onPageChange }: PaginationPro
           disabled={currentPage >= totalPages}
           className="px-3 py-1.5 text-sm rounded-lg border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
-          Next
+          {t('dlg.pagination.next')}
         </button>
       </div>
     </div>

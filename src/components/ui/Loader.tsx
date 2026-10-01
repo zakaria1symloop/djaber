@@ -10,13 +10,17 @@
  * - <SkeletonTable />  : a 6-row table skeleton
  */
 
+import { useTranslation } from '@/contexts/LanguageContext';
+
 export function Spinner({ className = 'w-4 h-4' }: { className?: string }) {
+  const { t } = useTranslation();
+
   return (
     <svg
       className={`${className} animate-spin text-current`}
       fill="none"
       viewBox="0 0 24 24"
-      aria-label="Loading"
+      aria-label={t('dlg.loader.loading')}
     >
       <circle
         className="opacity-25"
@@ -35,7 +39,9 @@ export function Spinner({ className = 'w-4 h-4' }: { className?: string }) {
   );
 }
 
-export function PageLoader({ message = 'Loading…' }: { message?: string }) {
+export function PageLoader({ message }: { message?: string }) {
+  const { t } = useTranslation();
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[40vh] gap-3">
       <div className="relative w-10 h-10">
@@ -44,7 +50,7 @@ export function PageLoader({ message = 'Loading…' }: { message?: string }) {
         {/* spinning arc */}
         <div className="absolute inset-0 rounded-full border-2 border-white border-t-transparent border-r-transparent animate-spin" />
       </div>
-      <p className="text-xs text-zinc-500 tracking-wider uppercase">{message}</p>
+      <p className="text-xs text-zinc-500 tracking-wider uppercase">{message || t('dlg.loader.loading')}</p>
     </div>
   );
 }

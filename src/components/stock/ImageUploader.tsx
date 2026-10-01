@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { UploadIcon, TrashIcon, StarIcon, CloseIcon } from '@/components/ui/icons';
 import { API_BASE_URL } from '@/lib/api-config';
 import type { ProductImage } from '@/lib/user-stock-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 // Product image URLs come in two flavours:
 //   - Relative path uploaded via /api/user-stock/products/:id/images
@@ -35,6 +36,7 @@ export function ImageUploader({
   onDeleteExisting,
   onSetPrimary,
 }: ImageUploaderProps) {
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -48,7 +50,7 @@ export function ImageUploader({
 
   return (
     <div className="space-y-3">
-      <label className="text-sm font-medium text-zinc-300">Images</label>
+      <label className="text-sm font-medium text-zinc-300">{t('dlg.images.label')}</label>
 
       {/* Drop zone */}
       <div
@@ -61,8 +63,8 @@ export function ImageUploader({
         }`}
       >
         <UploadIcon className="w-6 h-6 mx-auto text-zinc-500 mb-1" />
-        <p className="text-sm text-zinc-400">Drop images here or click to upload</p>
-        <p className="text-xs text-zinc-600 mt-1">JPEG, PNG, WebP, GIF - Max 5MB each</p>
+        <p className="text-sm text-zinc-400">{t('dlg.images.drop')}</p>
+        <p className="text-xs text-zinc-600 mt-1">{t('dlg.images.hint')}</p>
         <input
           ref={fileInputRef}
           type="file"
@@ -85,7 +87,7 @@ export function ImageUploader({
                 className="w-full h-full object-cover"
               />
               {img.isPrimary && (
-                <div className="absolute top-0.5 left-0.5">
+                <div className="absolute top-0.5 start-0.5">
                   <StarIcon className="w-4 h-4 text-amber-400" />
                 </div>
               )}
@@ -95,7 +97,7 @@ export function ImageUploader({
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onSetPrimary(img.id); }}
                     className="p-1 text-amber-400 hover:text-amber-300"
-                    title="Set as primary"
+                    title={t('dlg.images.setPrimary')}
                   >
                     <StarIcon className="w-4 h-4" />
                   </button>
@@ -104,7 +106,7 @@ export function ImageUploader({
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onDeleteExisting(img.id); }}
                   className="p-1 text-red-400 hover:text-red-300"
-                  title="Delete"
+                  title={t('dlg.delete')}
                 >
                   <TrashIcon className="w-4 h-4" />
                 </button>
@@ -120,7 +122,7 @@ export function ImageUploader({
                 alt=""
                 className="w-full h-full object-cover"
               />
-              <div className="absolute top-0 right-0 p-0.5">
+              <div className="absolute top-0 end-0 p-0.5">
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onRemoveNewFile(i); }}
@@ -129,8 +131,8 @@ export function ImageUploader({
                   <CloseIcon className="w-3 h-3" />
                 </button>
               </div>
-              <div className="absolute bottom-0 left-0 right-0 bg-emerald-500/80 text-[9px] text-white text-center py-0.5">
-                New
+              <div className="absolute bottom-0 start-0 end-0 bg-emerald-500/80 text-[9px] text-white text-center py-0.5">
+                {t('dlg.images.new')}
               </div>
             </div>
           ))}

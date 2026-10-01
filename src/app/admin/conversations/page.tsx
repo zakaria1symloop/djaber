@@ -22,6 +22,7 @@ import {
   ChevronRightIcon,
 } from '@/components/ui/icons';
 import { FilterPanel, FilterPanelTrigger, FilterSection, FilterChip } from '@/components/admin/FilterPanel';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 const PAGE_SIZE_OPTIONS = [50, 100, 200] as const;
 type PageSize = (typeof PAGE_SIZE_OPTIONS)[number];
@@ -30,6 +31,7 @@ type Status = 'all' | 'active' | 'resolved' | 'archived';
 type Platform = 'all' | 'facebook' | 'instagram';
 
 export default function AdminConversationsPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const toast = useToast();
 
@@ -101,7 +103,7 @@ export default function AdminConversationsPage() {
       setTotal(res.total);
       setSelected(new Set());
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load conversations');
+      toast.error(e instanceof Error ? e.message : t('adm.plat.convs.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -174,15 +176,15 @@ export default function AdminConversationsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 mb-1">Platform-wide</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-zinc-500 mb-1">{t('adm.plat.convs.eyebrow')}</p>
           <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-            Conversations
+            {t('adm.plat.convs.title')}
           </h1>
           <p className="text-sm text-zinc-500 mt-1">
-            {total.toLocaleString()} {total === 1 ? 'conversation' : 'conversations'}
+            {total.toLocaleString()} {total === 1 ? t('adm.plat.convs.one') : t('adm.plat.convs.many')}
             {total > 0 && (
               <span className="text-zinc-600">
-                {' · showing '}
+                {` · ${t('adm.plat.convs.showing')} `}
                 {start.toLocaleString()}–{end.toLocaleString()}
               </span>
             )}
@@ -194,7 +196,8 @@ export default function AdminConversationsPage() {
             onClick={load}
             disabled={loading}
             className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors disabled:opacity-50"
-            title="Refresh"
+            title={t('adm.plat.refresh')}
+            aria-label={t('adm.plat.refresh')}
           >
             <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -204,13 +207,13 @@ export default function AdminConversationsPage() {
       {/* Quick filters + search */}
       <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-3 sm:p-4 mb-4 space-y-3">
         <div className="relative">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+          <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by sender name or ID…"
-            className="w-full pl-10 pr-4 py-2 bg-black/40 border border-white/10 focus:border-white/30 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none transition-colors"
+            placeholder={t('adm.plat.convs.search')}
+            className="w-full ps-10 pe-4 py-2 bg-black/40 border border-white/10 focus:border-white/30 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none transition-colors"
           />
         </div>
 
@@ -221,13 +224,13 @@ export default function AdminConversationsPage() {
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors capitalize ${
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                   statusFilter === s
                     ? 'bg-white text-black'
                     : 'text-zinc-400 hover:text-white hover:bg-white/5'
                 }`}
               >
-                {s}
+                {t(`adm.plat.convs.status.${s}`)}
               </button>
             ))}
           </div>
@@ -240,7 +243,7 @@ export default function AdminConversationsPage() {
                 platformFilter === 'all' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white hover:bg-white/5'
               }`}
             >
-              All
+              {t('adm.plat.all')}
             </button>
             <button
               onClick={() => setPlatformFilter('facebook')}
@@ -264,7 +267,7 @@ export default function AdminConversationsPage() {
 
           {/* Density toggle */}
           <div className="ms-auto flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-zinc-600">Density</span>
+            <span className="text-[10px] uppercase tracking-wider text-zinc-600">{t('adm.plat.convs.density')}</span>
             <div className="bg-black/40 border border-white/10 rounded-lg p-1 inline-flex gap-1">
               {(['compact', 'comfortable'] as const).map((d) => (
                 <button
@@ -274,7 +277,7 @@ export default function AdminConversationsPage() {
                     density === d ? 'bg-white text-black' : 'text-zinc-400 hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  {d.slice(0, 4)}
+                  {t(`adm.plat.convs.density.${d}`)}
                 </button>
               ))}
             </div>
@@ -286,7 +289,7 @@ export default function AdminConversationsPage() {
       {selected.size > 0 && (
         <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl px-4 py-2.5 mb-3 flex items-center justify-between">
           <span className="text-sm text-blue-200">
-            {selected.size} selected
+            {t('adm.plat.convs.selected').replace('{n}', String(selected.size))}
           </span>
           <div className="flex items-center gap-2">
             {/* TODO: wire bulk actions to server when needed */}
@@ -294,7 +297,7 @@ export default function AdminConversationsPage() {
               onClick={() => setSelected(new Set())}
               className="text-xs text-blue-300 hover:text-blue-200"
             >
-              Clear
+              {t('adm.plat.convs.clear')}
             </button>
           </div>
         </div>
@@ -312,11 +315,11 @@ export default function AdminConversationsPage() {
       ) : filtered.length === 0 ? (
         <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-12 text-center">
           <ChatIcon className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
-          <p className="text-sm font-semibold text-white mb-1">No conversations</p>
+          <p className="text-sm font-semibold text-white mb-1">{t('adm.plat.convs.empty.title')}</p>
           <p className="text-xs text-zinc-500">
             {advancedFilterCount > 0 || debouncedSearch || statusFilter !== 'all' || platformFilter !== 'all'
-              ? 'No matches for your filters. Try widening the criteria.'
-              : 'No conversations have been recorded yet.'}
+              ? t('adm.plat.convs.empty.filtered')
+              : t('adm.plat.convs.empty.none')}
           </p>
         </div>
       ) : (
@@ -331,15 +334,15 @@ export default function AdminConversationsPage() {
                       checked={selected.size > 0 && selected.size === filtered.length}
                       onChange={toggleAll}
                       className="w-3.5 h-3.5 rounded border-white/20 bg-black/60 text-white focus:ring-1 focus:ring-white/30"
-                      aria-label="Select all"
+                      aria-label={t('adm.plat.convs.selectAll')}
                     />
                   </th>
-                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-start">Conversation</th>
-                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-start hidden lg:table-cell">Owner</th>
-                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-start hidden md:table-cell">Page</th>
-                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-end whitespace-nowrap">Msgs</th>
-                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-start">Status</th>
-                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-end whitespace-nowrap">Last activity</th>
+                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-start">{t('adm.plat.convs.th.conversation')}</th>
+                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-start hidden lg:table-cell">{t('adm.plat.owner')}</th>
+                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-start hidden md:table-cell">{t('adm.plat.page')}</th>
+                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-end whitespace-nowrap">{t('adm.plat.convs.th.msgs')}</th>
+                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-start">{t('adm.plat.status')}</th>
+                  <th className="px-3 py-2 text-[10px] font-medium text-zinc-500 uppercase tracking-wider text-end whitespace-nowrap">{t('adm.plat.convs.th.lastActivity')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -361,7 +364,7 @@ export default function AdminConversationsPage() {
                           checked={selected.has(c.id)}
                           onChange={() => toggleOne(c.id)}
                           className="w-3.5 h-3.5 rounded border-white/20 bg-black/60 text-white focus:ring-1 focus:ring-white/30"
-                          aria-label="Select"
+                          aria-label={t('adm.plat.convs.select')}
                         />
                       </td>
                       <td
@@ -375,12 +378,12 @@ export default function AdminConversationsPage() {
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
                               <Icon className={`w-3 h-3 flex-shrink-0 ${platformColor}`} />
-                              <p className="text-sm text-white truncate">{c.senderName || 'Unknown'}</p>
+                              <p className="text-sm text-white truncate">{c.senderName || t('adm.plat.convs.unknown')}</p>
                             </div>
                             {density === 'comfortable' && lastMsg && (
                               <p className="text-[11px] text-zinc-500 truncate max-w-[420px]">
                                 {lastMsg.isFromPage && <span className="text-zinc-600">↗ </span>}
-                                {lastMsg.text || <span className="italic text-zinc-600">(attachment)</span>}
+                                {lastMsg.text || <span className="italic text-zinc-600">{t('adm.plat.convs.attachment')}</span>}
                               </p>
                             )}
                             {density === 'compact' && (
@@ -414,11 +417,11 @@ export default function AdminConversationsPage() {
                       </td>
                       <td className={`px-3 ${padY}`}>
                         <Badge variant={c.status === 'active' ? 'success' : c.status === 'resolved' ? 'info' : 'default'} size="sm">
-                          {c.status}
+                          {t(`adm.plat.convs.status.${c.status}`, c.status)}
                         </Badge>
                       </td>
                       <td className={`px-3 ${padY} text-end whitespace-nowrap`}>
-                        <span className="text-xs text-zinc-500">{formatRel(c.updatedAt)}</span>
+                        <span className="text-xs text-zinc-500">{formatRel(c.updatedAt, t)}</span>
                       </td>
                     </tr>
                   );
@@ -431,11 +434,11 @@ export default function AdminConversationsPage() {
           <div className="border-t border-white/5 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-3">
               <span className="text-zinc-500">
-                Showing <span className="text-white font-semibold">{start.toLocaleString()}–{end.toLocaleString()}</span> of{' '}
+                {t('adm.plat.convs.pg.showing')} <span className="text-white font-semibold">{start.toLocaleString()}–{end.toLocaleString()}</span> {t('adm.plat.convs.pg.of')}{' '}
                 <span className="text-white font-semibold">{total.toLocaleString()}</span>
               </span>
               <div className="flex items-center gap-1.5">
-                <span className="text-zinc-600">Rows</span>
+                <span className="text-zinc-600">{t('adm.plat.convs.pg.rows')}</span>
                 <select
                   value={pageSize}
                   onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
@@ -454,24 +457,24 @@ export default function AdminConversationsPage() {
                 disabled={page === 1 || loading}
                 className="px-2 py-1 text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
-                First
+                {t('adm.plat.convs.pg.first')}
               </button>
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1 || loading}
                 className="p-1 text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                aria-label="Previous"
+                aria-label={t('adm.plat.convs.pg.prev')}
               >
                 <ChevronLeftIcon className="w-4 h-4" />
               </button>
               <span className="text-zinc-300 tabular-nums">
-                Page {page} / {totalPages.toLocaleString()}
+                {t('adm.plat.convs.pg.page')} {page} / {totalPages.toLocaleString()}
               </span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages || loading}
                 className="p-1 text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                aria-label="Next"
+                aria-label={t('adm.plat.convs.pg.next')}
               >
                 <ChevronRightIcon className="w-4 h-4" />
               </button>
@@ -480,7 +483,7 @@ export default function AdminConversationsPage() {
                 disabled={page >= totalPages || loading}
                 className="px-2 py-1 text-zinc-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               >
-                Last
+                {t('adm.plat.convs.pg.last')}
               </button>
             </div>
           </div>
@@ -489,53 +492,53 @@ export default function AdminConversationsPage() {
 
       {/* Filter panel — advanced */}
       <FilterPanel open={filterOpen} onClose={() => setFilterOpen(false)} onClear={clearAdvanced}>
-        <FilterSection label="Page">
+        <FilterSection label={t('adm.plat.page')}>
           <select
             value={pageId}
             onChange={(e) => setPageId(e.target.value)}
             className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
           >
-            <option value="">All pages</option>
+            <option value="">{t('adm.plat.convs.allPages')}</option>
             {pages.map((p) => (
               <option key={p.id} value={p.id}>{p.pageName} ({p.platform})</option>
             ))}
           </select>
         </FilterSection>
 
-        <FilterSection label="Agent">
+        <FilterSection label={t('adm.plat.convs.f.agent')}>
           <select
             value={agentId}
             onChange={(e) => setAgentId(e.target.value)}
             className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
           >
-            <option value="">All agents</option>
+            <option value="">{t('adm.plat.convs.allAgents')}</option>
             {agents.map((a) => (
               <option key={a.id} value={a.id}>{a.name}</option>
             ))}
           </select>
         </FilterSection>
 
-        <FilterSection label="Owner">
+        <FilterSection label={t('adm.plat.owner')}>
           <input
             type="text"
             value={ownerSearch}
             onChange={(e) => setOwnerSearch(e.target.value)}
-            placeholder="Search owner email or name"
+            placeholder={t('adm.plat.convs.ownerPlaceholder')}
             className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
           />
         </FilterSection>
 
-        <FilterSection label="Min messages">
+        <FilterSection label={t('adm.plat.convs.f.minMessages')}>
           <input
             type="number"
             value={minMessages}
             onChange={(e) => setMinMessages(e.target.value)}
-            placeholder="e.g. 5"
+            placeholder={t('adm.plat.convs.minMessagesPh')}
             className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
           />
         </FilterSection>
 
-        <FilterSection label="Date range">
+        <FilterSection label={t('adm.plat.convs.f.dateRange')}>
           <div className="space-y-2">
             <input
               type="date"
@@ -552,19 +555,19 @@ export default function AdminConversationsPage() {
           </div>
         </FilterSection>
 
-        <FilterSection label="Has owner (user)">
+        <FilterSection label={t('adm.plat.convs.f.hasOwner')}>
           <div className="flex flex-wrap gap-2">
-            <FilterChip label="All" active={hasUser === 'all'} onClick={() => setHasUser('all')} />
-            <FilterChip label="With" active={hasUser === 'with'} onClick={() => setHasUser('with')} />
-            <FilterChip label="Without" active={hasUser === 'without'} onClick={() => setHasUser('without')} />
+            <FilterChip label={t('adm.plat.all')} active={hasUser === 'all'} onClick={() => setHasUser('all')} />
+            <FilterChip label={t('adm.plat.with')} active={hasUser === 'with'} onClick={() => setHasUser('with')} />
+            <FilterChip label={t('adm.plat.without')} active={hasUser === 'without'} onClick={() => setHasUser('without')} />
           </div>
         </FilterSection>
 
-        <FilterSection label="Has agent">
+        <FilterSection label={t('adm.plat.convs.f.hasAgent')}>
           <div className="flex flex-wrap gap-2">
-            <FilterChip label="All" active={hasAgent === 'all'} onClick={() => setHasAgent('all')} />
-            <FilterChip label="With" active={hasAgent === 'with'} onClick={() => setHasAgent('with')} />
-            <FilterChip label="Without" active={hasAgent === 'without'} onClick={() => setHasAgent('without')} />
+            <FilterChip label={t('adm.plat.all')} active={hasAgent === 'all'} onClick={() => setHasAgent('all')} />
+            <FilterChip label={t('adm.plat.with')} active={hasAgent === 'with'} onClick={() => setHasAgent('with')} />
+            <FilterChip label={t('adm.plat.without')} active={hasAgent === 'without'} onClick={() => setHasAgent('without')} />
           </div>
         </FilterSection>
       </FilterPanel>
@@ -572,12 +575,12 @@ export default function AdminConversationsPage() {
   );
 }
 
-function formatRel(iso: string): string {
+function formatRel(iso: string, t: (key: string, fallback?: string) => string): string {
   const d = new Date(iso);
   const diff = Date.now() - d.getTime();
-  if (diff < 60_000) return 'now';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`;
+  if (diff < 60_000) return t('adm.plat.convs.rel.now');
+  if (diff < 3_600_000) return t('adm.plat.convs.rel.min').replace('{n}', String(Math.floor(diff / 60_000)));
+  if (diff < 86_400_000) return t('adm.plat.convs.rel.hour').replace('{n}', String(Math.floor(diff / 3_600_000)));
+  if (diff < 7 * 86_400_000) return t('adm.plat.convs.rel.day').replace('{n}', String(Math.floor(diff / 86_400_000)));
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }

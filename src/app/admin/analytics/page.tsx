@@ -15,10 +15,12 @@ import {
 } from '@/components/ui/icons';
 import { getAdminAnalytics, type AdminAnalytics } from '@/lib/admin-api';
 import { KpiCard, PeriodSelector } from '@/components/analytics/KpiCard';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 type Period = 'today' | 'week' | 'month' | 'year';
 
 export default function AdminAnalyticsPage() {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState<Period>('month');
   const [data, setData] = useState<AdminAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,7 @@ export default function AdminAnalyticsPage() {
       const res = await getAdminAnalytics(period);
       setData(res);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load analytics');
+      setError(e instanceof Error ? e.message : t('adm.plat.an.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -42,15 +44,15 @@ export default function AdminAnalyticsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
 
-  const periodLabel = period === 'today' ? 'Today' : period === 'week' ? 'Last 7 days' : period === 'month' ? 'Last 30 days' : 'Last year';
+  const periodLabel = t(`adm.plat.an.period.${period}`);
 
   return (
     <>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>Platform Analytics</h1>
-          <p className="text-sm text-zinc-400">Aggregated stats across all users · {periodLabel}</p>
+          <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>{t('adm.plat.an.title')}</h1>
+          <p className="text-sm text-zinc-400">{t('adm.plat.an.subtitle')} · {periodLabel}</p>
         </div>
         <div className="flex items-center gap-2">
           <PeriodSelector value={period} onChange={setPeriod} />
@@ -58,7 +60,8 @@ export default function AdminAnalyticsPage() {
             onClick={load}
             disabled={loading}
             className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors disabled:opacity-50"
-            title="Refresh"
+            title={t('adm.plat.refresh')}
+            aria-label={t('adm.plat.refresh')}
           >
             <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -86,30 +89,30 @@ export default function AdminAnalyticsPage() {
           {/* Top KPI row — Users + Revenue + Profit + Engagement */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <KpiCard
-              label="Total Users"
+              label={t('adm.plat.an.kpi.totalUsers')}
               value={data.stats.totalUsers.toLocaleString()}
-              hint={`+${data.stats.newUsersInPeriod} new`}
+              hint={t('adm.plat.an.kpi.newUsers').replace('{n}', String(data.stats.newUsersInPeriod))}
               icon={<UsersIcon className="w-4 h-4 text-violet-400" />}
               color="violet"
             />
             <KpiCard
-              label="Revenue"
+              label={t('adm.plat.an.kpi.revenue')}
               value={`${formatNumber(data.stats.totalRevenue)} DA`}
-              hint={`${data.stats.totalSales} sales`}
+              hint={t('adm.plat.an.kpi.sales').replace('{n}', String(data.stats.totalSales))}
               icon={<DollarIcon className="w-4 h-4 text-emerald-400" />}
               color="emerald"
             />
             <KpiCard
-              label="Spent"
+              label={t('adm.plat.an.kpi.spent')}
               value={`${formatNumber(data.stats.totalSpent)} DA`}
-              hint={`${data.stats.totalPurchases} purchases`}
+              hint={t('adm.plat.an.kpi.purchases').replace('{n}', String(data.stats.totalPurchases))}
               icon={<ShoppingCartIcon className="w-4 h-4 text-orange-400" />}
               color="orange"
             />
             <KpiCard
-              label="Profit"
+              label={t('adm.plat.an.kpi.profit')}
               value={`${data.stats.totalRevenue - data.stats.totalSpent >= 0 ? '+' : ''}${formatNumber(data.stats.totalRevenue - data.stats.totalSpent)} DA`}
-              hint={`${data.stats.totalRevenue > 0 ? (((data.stats.totalRevenue - data.stats.totalSpent) / data.stats.totalRevenue) * 100).toFixed(1) : '0'}% margin`}
+              hint={t('adm.plat.an.kpi.margin').replace('{n}', data.stats.totalRevenue > 0 ? (((data.stats.totalRevenue - data.stats.totalSpent) / data.stats.totalRevenue) * 100).toFixed(1) : '0')}
               icon={data.stats.totalRevenue - data.stats.totalSpent >= 0 ? <ArrowUpIcon className="w-4 h-4 text-blue-400" /> : <ArrowDownIcon className="w-4 h-4 text-red-400" />}
               color={data.stats.totalRevenue - data.stats.totalSpent >= 0 ? 'blue' : 'red'}
             />
@@ -118,28 +121,28 @@ export default function AdminAnalyticsPage() {
           {/* Second KPI row — Catalog + Channels */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <KpiCard
-              label="Products"
+              label={t('adm.plat.an.kpi.products')}
               value={data.stats.totalProducts.toLocaleString()}
-              hint="across all stores"
+              hint={t('adm.plat.an.kpi.productsHint')}
               icon={<BoxIcon className="w-4 h-4 text-zinc-300" />}
               color="zinc"
             />
             <KpiCard
-              label="Connected Pages"
+              label={t('adm.plat.an.kpi.pages')}
               value={data.stats.totalPages.toLocaleString()}
-              hint="active"
+              hint={t('adm.plat.an.kpi.pagesHint')}
               icon={<ChatIcon className="w-4 h-4 text-zinc-300" />}
               color="zinc"
             />
             <KpiCard
-              label="Active Agents"
+              label={t('adm.plat.an.kpi.agents')}
               value={data.stats.activeAgents.toLocaleString()}
-              hint="AI assistants"
+              hint={t('adm.plat.an.kpi.agentsHint')}
               icon={<ChartIcon className="w-4 h-4 text-zinc-300" />}
               color="zinc"
             />
             <KpiCard
-              label="Messages"
+              label={t('adm.plat.an.kpi.messages')}
               value={data.stats.messagesInPeriod.toLocaleString()}
               hint={periodLabel.toLowerCase()}
               icon={<ChatIcon className="w-4 h-4 text-zinc-300" />}
@@ -151,7 +154,7 @@ export default function AdminAnalyticsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             {/* Channels by platform */}
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6">
-              <h3 className="text-sm font-semibold text-white mb-4">Pages by Platform</h3>
+              <h3 className="text-sm font-semibold text-white mb-4">{t('adm.plat.an.pagesByPlatform')}</h3>
               <div className="space-y-3">
                 {(['facebook'] as const).map((platform) => {
                   const found = data.pagesByPlatform.find(p => p.platform === platform);
@@ -185,10 +188,10 @@ export default function AdminAnalyticsPage() {
 
             {/* Plans */}
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6">
-              <h3 className="text-sm font-semibold text-white mb-4">Users by Plan</h3>
+              <h3 className="text-sm font-semibold text-white mb-4">{t('adm.plat.an.usersByPlan')}</h3>
               <div className="space-y-3">
                 {data.planBreakdown.length === 0 ? (
-                  <p className="text-xs text-zinc-500">No data</p>
+                  <p className="text-xs text-zinc-500">{t('adm.plat.an.noData')}</p>
                 ) : (
                   data.planBreakdown.map((p) => {
                     const total = data.planBreakdown.reduce((s, x) => s + x.count, 0) || 1;
@@ -216,11 +219,11 @@ export default function AdminAnalyticsPage() {
           {/* Recent signups */}
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-white">Recent Signups</h3>
-              <span className="text-xs text-zinc-500">{data.stats.totalUsers} total · {data.stats.adminCount} admins</span>
+              <h3 className="text-sm font-semibold text-white">{t('adm.plat.an.recentSignups')}</h3>
+              <span className="text-xs text-zinc-500">{t('adm.plat.an.totalAdmins').replace('{total}', String(data.stats.totalUsers)).replace('{admins}', String(data.stats.adminCount))}</span>
             </div>
             {data.recentSignups.length === 0 ? (
-              <p className="text-xs text-zinc-500 py-4 text-center">No signups yet</p>
+              <p className="text-xs text-zinc-500 py-4 text-center">{t('adm.plat.an.noSignups')}</p>
             ) : (
               <div className="space-y-2">
                 {data.recentSignups.map((u) => (

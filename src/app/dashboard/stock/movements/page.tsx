@@ -81,7 +81,7 @@ export default function MovementsPage() {
       setMovements(res.movements);
       setTotal(res.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load movements');
+      setError(err instanceof Error ? err.message : t('stk.ops.mov.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -237,8 +237,8 @@ export default function MovementsPage() {
       ) : (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-12 text-center">
           <div className="text-zinc-600 mb-4 flex justify-center"><HistoryIcon className="w-16 h-16" /></div>
-          <h3 className="text-lg font-medium text-zinc-300 mb-1">No Movements</h3>
-          <p className="text-sm text-zinc-500">Stock movements will appear here when products are added, sold, or adjusted</p>
+          <h3 className="text-lg font-medium text-zinc-300 mb-1">{t('stk.ops.mov.emptyTitle')}</h3>
+          <p className="text-sm text-zinc-500">{t('stk.ops.mov.emptyHint')}</p>
         </div>
       )}
 
@@ -249,7 +249,7 @@ export default function MovementsPage() {
       {filtersOpen && (
         <div className="fixed top-0 right-0 h-full w-[336px] bg-zinc-950 border-l border-white/10 z-[45] flex flex-col shadow-2xl">
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-            <h2 className="text-sm font-semibold text-white">Filters</h2>
+            <h2 className="text-sm font-semibold text-white">{t('stk.ops.c.filters')}</h2>
             <button onClick={() => setFiltersOpen(false)} className="p-1 text-zinc-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors">
               <CloseIcon className="w-4 h-4" />
             </button>
@@ -258,29 +258,29 @@ export default function MovementsPage() {
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
             {/* Movement Type */}
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Movement Type</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">{t('stk.ops.mov.movementType')}</label>
               <select
                 value={draftType}
                 onChange={(e) => setDraftType(e.target.value)}
                 className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 hover:border-white/20 transition-colors"
               >
-                <option value="">All Types</option>
-                <option value="in">Stock In</option>
-                <option value="out">Stock Out</option>
-                <option value="adjustment">Adjustment</option>
-                <option value="return">Return</option>
+                <option value="">{t('stk.ops.c.allTypes')}</option>
+                <option value="in">{t('stk.ops.mov.stockIn')}</option>
+                <option value="out">{t('stk.ops.mov.stockOut')}</option>
+                <option value="adjustment">{t('stk.ops.mov.adjustment')}</option>
+                <option value="return">{t('stk.ops.mov.return')}</option>
               </select>
             </div>
 
             {/* Product */}
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Product</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">{t('stk.ops.mov.product')}</label>
               <select
                 value={draftProduct}
                 onChange={(e) => setDraftProduct(e.target.value)}
                 className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 hover:border-white/20 transition-colors"
               >
-                <option value="">All Products</option>
+                <option value="">{t('stk.ops.mov.allProducts')}</option>
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
@@ -295,14 +295,14 @@ export default function MovementsPage() {
               disabled={!draftDirty}
               className="w-full px-4 py-2.5 bg-white hover:bg-zinc-200 disabled:bg-zinc-700 disabled:text-zinc-500 text-black text-sm font-medium rounded-lg transition-colors"
             >
-              Apply Filters
+              {t('stk.ops.c.applyFilters')}
             </button>
             {activeFilterCount > 0 && (
               <button
                 onClick={clearAllFilters}
                 className="w-full px-4 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
               >
-                Clear All Filters
+                {t('stk.ops.c.clearAllFilters')}
               </button>
             )}
           </div>

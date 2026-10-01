@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:6001';
 
 export default function CmsPageView({ slug }: { slug: string }) {
+  const { t } = useTranslation();
   const [page, setPage] = useState<{ title: string; content: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -38,9 +40,9 @@ export default function CmsPageView({ slug }: { slug: string }) {
     return (
       <main className="min-h-screen pt-28 px-6 lg:px-8">
         <div className="max-w-4xl mx-auto text-center py-20">
-          <h1 className="text-3xl font-bold text-white mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>Page Not Found</h1>
-          <p className="text-zinc-400 mb-6">This page hasn&apos;t been published yet.</p>
-          <Link href="/" className="text-white underline hover:text-zinc-300">Go home</Link>
+          <h1 className="text-3xl font-bold text-white mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>{t('shell.cms.notFound')}</h1>
+          <p className="text-zinc-400 mb-6">{t('shell.cms.notFoundDesc')}</p>
+          <Link href="/" className="text-white underline hover:text-zinc-300">{t('shell.cms.goHome')}</Link>
         </div>
       </main>
     );
@@ -62,12 +64,12 @@ export default function CmsPageView({ slug }: { slug: string }) {
             [&_h3]:text-white [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:mb-2 [&_h3]:mt-4
             [&_p]:mb-4 [&_p]:text-zinc-300
             [&_a]:text-blue-400 [&_a]:underline [&_a:hover]:text-blue-300
-            [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-4
-            [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-4
+            [&_ul]:list-disc [&_ul]:ps-6 [&_ul]:mb-4
+            [&_ol]:list-decimal [&_ol]:ps-6 [&_ol]:mb-4
             [&_li]:mb-1 [&_li]:text-zinc-300
             [&_strong]:text-white [&_strong]:font-semibold
-            [&_blockquote]:border-l-4 [&_blockquote]:border-white/20 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-zinc-400
-            [&_table]:w-full [&_th]:text-left [&_th]:text-white [&_th]:pb-2 [&_td]:py-2 [&_td]:border-t [&_td]:border-white/10"
+            [&_blockquote]:border-s-4 [&_blockquote]:border-white/20 [&_blockquote]:ps-4 [&_blockquote]:italic [&_blockquote]:text-zinc-400
+            [&_table]:w-full [&_th]:text-start [&_th]:text-white [&_th]:pb-2 [&_td]:py-2 [&_td]:border-t [&_td]:border-white/10"
           dangerouslySetInnerHTML={{ __html: page.content }}
         />
       </div>

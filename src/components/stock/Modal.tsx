@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect } from 'react';
 import { CloseIcon } from '@/components/ui/icons';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 interface ModalProps {
   isOpen: boolean;
@@ -19,6 +20,8 @@ const sizeMap = {
 };
 
 export function Modal({ isOpen, onClose, title, size = 'md', children }: ModalProps) {
+  const { t } = useTranslation();
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -50,6 +53,7 @@ export function Modal({ isOpen, onClose, title, size = 'md', children }: ModalPr
           <h2 className="text-lg font-semibold text-white">{title}</h2>
           <button
             onClick={onClose}
+            aria-label={t('dlg.close')}
             className="text-zinc-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"
           >
             <CloseIcon className="w-5 h-5" />

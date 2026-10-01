@@ -46,6 +46,20 @@ export default function PurchasesPage() {
 
 function PurchasesPageInner() {
   const { t } = useTranslation();
+
+  // Enum -> translated pill label. An unknown value from the API is shown raw
+  // rather than swallowed, so a new backend status stays visible.
+  const payLabel = (v: string) =>
+    v === 'paid' || v === 'partial' || v === 'unpaid' ? t(`stock.common.ps.${v}`) : v;
+
+  const fulfilLabel = (v: string) =>
+    v === 'pending'
+      ? t('stock.common.pending')
+      : v === 'received'
+        ? t('stock.common.received')
+        : v === 'cancelled'
+          ? t('stock.common.cancelled')
+          : v;
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialSupplierId = searchParams.get('supplierId') || '';
@@ -159,7 +173,7 @@ function PurchasesPageInner() {
       setPurchases(res.purchases);
       setTotal(res.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load purchases');
+      setError(err instanceof Error ? err.message : t('stk.tr.pur.err.load'));
     } finally {
       setLoading(false);
     }
@@ -205,7 +219,7 @@ function PurchasesPageInner() {
       const res = await getPurchase(purchaseId);
       setViewingPurchase(res.purchase);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load purchase');
+      setError(err instanceof Error ? err.message : t('stk.tr.pur.err.loadOne'));
     }
   };
 
@@ -223,7 +237,7 @@ function PurchasesPageInner() {
     e.preventDefault();
     if (!showReceive) return;
     const itemsToReceive = receiveItems.filter(i => i.receivedQty > 0);
-    if (itemsToReceive.length === 0) { setError('Enter quantities to receive'); return; }
+    if (itemsToReceive.length === 0) { setError(t('stk.tr.pur.recv.err')); return; }
     try {
       setError(null);
       await receivePurchaseItems(showReceive.id, itemsToReceive);
@@ -231,7 +245,7 @@ function PurchasesPageInner() {
       loadPurchases();
       loadStats();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to receive items');
+      setError(err instanceof Error ? err.message : t('stk.tr.pur.err.receive'));
     }
   };
 
@@ -246,7 +260,7 @@ function PurchasesPageInner() {
       loadPurchases();
       loadStats();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update purchase');
+      setError(err instanceof Error ? err.message : t('stk.tr.pur.err.update'));
     }
   };
 
@@ -261,7 +275,7 @@ function PurchasesPageInner() {
       loadPurchases();
       loadStats();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete purchase');
+      setError(err instanceof Error ? err.message : t('stk.tr.pur.err.delete'));
     } finally {
       setDeleting(false);
     }
@@ -383,16 +397,16 @@ function PurchasesPageInner() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/10">
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">PO #</th>
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Supplier</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Items</th>
-                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Total</th>
-                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Paid</th>
-                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Remaining</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Payment</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Status</th>
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Date</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Actions</th>
+                  <th className="text-start text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.tr.pur.col.po')}</th>
+                  <th className="text-start text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.tr.c.supplier')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.items')}</th>
+                  <th className="text-end text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.total')}</th>
+                  <th className="text-end text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.paid')}</th>
+                  <th className="text-end text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.remaining')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.tr.ord.new.payment')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.status')}</th>
+                  <th className="text-start text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.date')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -407,7 +421,7 @@ function PurchasesPageInner() {
                       {purchase.paymentStatus === 'paid'
                         ? `${Number(purchase.total).toLocaleString()} DA`
                         : purchase.paymentStatus === 'partial'
-                          ? <span className="text-zinc-500">Partial</span>
+                          ? <span className="text-zinc-500">{t('stk.tr.c.status.partial')}</span>
                           : '0 DA'}
                     </td>
                     {/* Remaining column */}
@@ -415,15 +429,15 @@ function PurchasesPageInner() {
                       {purchase.paymentStatus === 'paid'
                         ? '0 DA'
                         : purchase.paymentStatus === 'partial'
-                          ? <span className="text-zinc-500">Partial</span>
+                          ? <span className="text-zinc-500">{t('stk.tr.c.status.partial')}</span>
                           : `${Number(purchase.total).toLocaleString()} DA`}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <StatusPill label={purchase.paymentStatus} kind={purchase.paymentStatus === 'paid' ? 'good' : 'progress'} />
+                      <StatusPill label={payLabel(purchase.paymentStatus)} kind={purchase.paymentStatus === 'paid' ? 'good' : 'progress'} />
                     </td>
                     <td className="px-4 py-3 text-center">
                       <StatusPill
-                        label={purchase.status}
+                        label={fulfilLabel(purchase.status)}
                         kind={purchase.status === 'received' ? 'good' : purchase.status === 'cancelled' ? 'dead' : 'progress'}
                       />
                     </td>
@@ -433,7 +447,7 @@ function PurchasesPageInner() {
                         <button
                           onClick={() => viewPurchaseDetail(purchase.id)}
                           className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                          title="View"
+                          title={t('stk.tr.c.view')}
                         >
                           <EyeIcon className="w-4 h-4" />
                         </button>
@@ -442,14 +456,14 @@ function PurchasesPageInner() {
                             onClick={() => openReceive(purchase)}
                             className="px-2 py-1 text-xs text-zinc-400 hover:text-white hover:bg-white/10 rounded transition-colors"
                           >
-                            Receive
+                            {t('stk.tr.pur.col.receive')}
                           </button>
                         )}
                         {canDelete(purchase) && (
                           <button
                             onClick={() => setDeleteConfirm(purchase)}
                             className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                            title="Delete"
+                            title={t('stk.tr.c.delete')}
                           >
                             <TrashIcon className="w-4 h-4" />
                           </button>
@@ -474,28 +488,28 @@ function PurchasesPageInner() {
       <Pagination total={total} limit={LIMIT} offset={offset} onPageChange={setOffset} />
 
       {/* Purchase Detail Modal */}
-      <Modal isOpen={!!viewingPurchase} onClose={() => setViewingPurchase(null)} title={`Purchase ${viewingPurchase?.purchaseNumber || ''}`} size="lg">
+      <Modal isOpen={!!viewingPurchase} onClose={() => setViewingPurchase(null)} title={t('stk.tr.pur.detail.title').replace('{n}', viewingPurchase?.purchaseNumber || '')} size="lg">
         {viewingPurchase && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs text-zinc-500">Supplier</p>
+                <p className="text-xs text-zinc-500">{t('stk.tr.c.supplier')}</p>
                 <p className="text-sm text-white">{viewingPurchase.supplier?.name || '-'}</p>
               </div>
               <div>
-                <p className="text-xs text-zinc-500">Date</p>
+                <p className="text-xs text-zinc-500">{t('stock.common.date')}</p>
                 <p className="text-sm text-white">{new Date(viewingPurchase.purchaseDate).toLocaleString()}</p>
               </div>
               <div>
-                <p className="text-xs text-zinc-500">Status</p>
+                <p className="text-xs text-zinc-500">{t('stock.common.status')}</p>
                 <StatusPill
-                  label={viewingPurchase.status}
+                  label={fulfilLabel(viewingPurchase.status)}
                   kind={viewingPurchase.status === 'received' ? 'good' : viewingPurchase.status === 'cancelled' ? 'dead' : 'progress'}
                 />
               </div>
               <div>
-                <p className="text-xs text-zinc-500">Payment</p>
-                <StatusPill label={viewingPurchase.paymentStatus} kind={viewingPurchase.paymentStatus === 'paid' ? 'good' : 'progress'} />
+                <p className="text-xs text-zinc-500">{t('stk.tr.ord.new.payment')}</p>
+                <StatusPill label={payLabel(viewingPurchase.paymentStatus)} kind={viewingPurchase.paymentStatus === 'paid' ? 'good' : 'progress'} />
               </div>
             </div>
 
@@ -503,11 +517,11 @@ function PurchasesPageInner() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-zinc-800/50">
-                    <th className="text-left text-xs font-medium text-zinc-400 px-4 py-2">Product</th>
-                    <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2">Ordered</th>
-                    <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2">Received</th>
-                    <th className="text-right text-xs font-medium text-zinc-400 px-4 py-2">Unit Cost</th>
-                    <th className="text-right text-xs font-medium text-zinc-400 px-4 py-2">Total</th>
+                    <th className="text-start text-xs font-medium text-zinc-400 px-4 py-2">{t('stock.common.product')}</th>
+                    <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2">{t('stk.tr.c.col.ordered')}</th>
+                    <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2">{t('stk.tr.c.status.received')}</th>
+                    <th className="text-end text-xs font-medium text-zinc-400 px-4 py-2">{t('stk.tr.c.col.unitCost')}</th>
+                    <th className="text-end text-xs font-medium text-zinc-400 px-4 py-2">{t('stock.common.total')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -527,7 +541,7 @@ function PurchasesPageInner() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-white/10 bg-zinc-800/50">
-                    <td colSpan={4} className="px-4 py-3 text-right text-sm font-medium text-white">Total:</td>
+                    <td colSpan={4} className="px-4 py-3 text-end text-sm font-medium text-white">{t('stk.tr.c.totalColon')}</td>
                     <td className="px-4 py-3 text-right text-lg font-bold text-white">{Number(viewingPurchase.total).toLocaleString()} DA</td>
                   </tr>
                 </tfoot>
@@ -537,19 +551,19 @@ function PurchasesPageInner() {
             <div className="flex items-center gap-2">
               {viewingPurchase.paymentStatus !== 'paid' && (
                 <Button size="sm" onClick={() => handleUpdateStatus(viewingPurchase.id, { paymentStatus: 'paid' })}>
-                  Mark as Paid
+                  {t('stk.tr.c.markAsPaid')}
                 </Button>
               )}
               {viewingPurchase.status !== 'received' && viewingPurchase.status !== 'cancelled' && (
                 <Button size="sm" variant="outline" onClick={() => { setViewingPurchase(null); openReceive(viewingPurchase); }}>
-                  Receive Items
+                  {t('stk.tr.pur.recv.title')}
                 </Button>
               )}
             </div>
 
             {viewingPurchase.notes && (
               <div>
-                <p className="text-xs text-zinc-500 mb-1">Notes</p>
+                <p className="text-xs text-zinc-500 mb-1">{t('stk.tr.c.notes')}</p>
                 <p className="text-sm text-zinc-400">{viewingPurchase.notes}</p>
               </div>
             )}
@@ -558,20 +572,20 @@ function PurchasesPageInner() {
       </Modal>
 
       {/* Receive Items Modal */}
-      <Modal isOpen={!!showReceive} onClose={() => setShowReceive(null)} title="Receive Items" size="lg">
+      <Modal isOpen={!!showReceive} onClose={() => setShowReceive(null)} title={t('stk.tr.pur.recv.title')} size="lg">
         {showReceive && (
           <form onSubmit={handleReceive} className="space-y-4">
             <p className="text-sm text-zinc-400 mb-4">
-              Enter the quantity received for each item. Stock will be updated automatically.
+              {t('stk.tr.pur.recv.hint')}
             </p>
             <div className="border border-white/10 rounded-lg overflow-hidden">
               <table className="w-full">
                 <thead>
                   <tr className="bg-zinc-800/50">
-                    <th className="text-left text-xs font-medium text-zinc-400 px-4 py-2">Product</th>
-                    <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2">Ordered</th>
-                    <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2">Already Received</th>
-                    <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2">Receive Now</th>
+                    <th className="text-start text-xs font-medium text-zinc-400 px-4 py-2">{t('stock.common.product')}</th>
+                    <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2">{t('stk.tr.c.col.ordered')}</th>
+                    <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2">{t('stk.tr.pur.recv.already')}</th>
+                    <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2">{t('stk.tr.pur.recv.now')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -597,7 +611,7 @@ function PurchasesPageInner() {
                             disabled={remaining <= 0}
                           />
                           {remaining > 0 && (
-                            <p className="text-xs text-zinc-500 mt-0.5">{remaining} remaining</p>
+                            <p className="text-xs text-zinc-500 mt-0.5">{t('stk.tr.pur.recv.remaining').replace('{n}', String(remaining))}</p>
                           )}
                         </td>
                       </tr>
@@ -607,27 +621,27 @@ function PurchasesPageInner() {
               </table>
             </div>
             <div className="flex gap-3 pt-4">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => setShowReceive(null)}>Cancel</Button>
-              <Button type="submit" className="flex-1">Receive Items</Button>
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setShowReceive(null)}>{t('stk.tr.c.cancel')}</Button>
+              <Button type="submit" className="flex-1">{t('stk.tr.pur.recv.title')}</Button>
             </div>
           </form>
         )}
       </Modal>
 
       {/* Delete Confirm Modal */}
-      <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="Delete Purchase" size="sm">
+      <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title={t('stk.tr.pur.del.title')} size="sm">
         <p className="text-zinc-400 mb-2">
-          Are you sure you want to delete purchase <span className="text-white font-medium">{deleteConfirm?.purchaseNumber}</span>?
+          {t('stk.tr.pur.del.q')} <span className="text-white font-medium">{deleteConfirm?.purchaseNumber}</span>?
         </p>
         <p className="text-zinc-500 text-sm mb-4">
-          This action cannot be undone.
+          {t('stk.tr.c.undone')}
         </p>
         <div className="flex gap-3 pt-4">
           <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>
-            Cancel
+            {t('stk.tr.c.cancel')}
           </Button>
           <Button type="button" className="flex-1" onClick={handleDelete} disabled={deleting}>
-            {deleting ? 'Deleting...' : 'Delete'}
+            {deleting ? t('stk.tr.c.deleting') : t('stk.tr.c.delete')}
           </Button>
         </div>
       </Modal>
@@ -638,7 +652,7 @@ function PurchasesPageInner() {
         <div className="fixed top-0 right-0 h-full w-[336px] bg-zinc-950 border-l border-white/10 z-[45] flex flex-col shadow-2xl">
           {/* Panel Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-            <h2 className="text-sm font-semibold text-white">Filters</h2>
+            <h2 className="text-sm font-semibold text-white">{t('stock.common.filters')}</h2>
             <button onClick={() => setFiltersOpen(false)} className="p-1 text-zinc-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors">
               <CloseIcon className="w-4 h-4" />
             </button>
@@ -648,48 +662,48 @@ function PurchasesPageInner() {
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
             {/* Fulfillment Status */}
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Fulfillment Status</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">{t('stk.tr.pur.f.fulfillment')}</label>
               <select
                 value={draftStatus}
                 onChange={(e) => setDraftStatus(e.target.value)}
                 className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 hover:border-white/20 transition-colors"
               >
-                <option value="">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="partial">Partial</option>
-                <option value="received">Received</option>
-                <option value="cancelled">Cancelled</option>
+                <option value="">{t('stk.tr.c.allStatuses')}</option>
+                <option value="pending">{t('stock.common.pending')}</option>
+                <option value="partial">{t('stk.tr.c.status.partial')}</option>
+                <option value="received">{t('stk.tr.c.status.received')}</option>
+                <option value="cancelled">{t('stock.common.cancelled')}</option>
               </select>
             </div>
 
             {/* Payment Status */}
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Payment Status</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">{t('stk.tr.c.paymentStatus')}</label>
               <select
                 value={draftHasRemaining ? '' : draftPayment}
                 onChange={(e) => setDraftPayment(e.target.value)}
                 disabled={draftHasRemaining}
                 className={`w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 hover:border-white/20 transition-colors ${draftHasRemaining ? 'opacity-40 cursor-not-allowed' : ''}`}
               >
-                <option value="">All</option>
-                <option value="paid">Paid</option>
-                <option value="pending">Pending</option>
-                <option value="partial">Partial</option>
+                <option value="">{t('stock.common.all')}</option>
+                <option value="paid">{t('stock.common.paid')}</option>
+                <option value="pending">{t('stock.common.pending')}</option>
+                <option value="partial">{t('stk.tr.c.status.partial')}</option>
               </select>
               {draftHasRemaining && (
-                <p className="text-[10px] text-zinc-500 mt-1">Disabled — "Has Remaining" is active</p>
+                <p className="text-[10px] text-zinc-500 mt-1">{t('stk.tr.c.remainingDisabled')}</p>
               )}
             </div>
 
             {/* Supplier */}
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Supplier</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">{t('stk.tr.c.supplier')}</label>
               <select
                 value={draftSupplier}
                 onChange={(e) => setDraftSupplier(e.target.value)}
                 className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 hover:border-white/20 transition-colors"
               >
-                <option value="">All Suppliers</option>
+                <option value="">{t('stk.tr.pur.f.allSuppliers')}</option>
                 {suppliers.map((s) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
@@ -698,7 +712,7 @@ function PurchasesPageInner() {
 
             {/* Has Remaining Balance */}
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Quick Filter</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">{t('stk.tr.c.quickFilter')}</label>
               <button
                 onClick={() => setDraftHasRemaining(!draftHasRemaining)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-sm transition-all ${
@@ -716,14 +730,14 @@ function PurchasesPageInner() {
                     </svg>
                   )}
                 </div>
-                Has Remaining Balance
+                {t('stk.tr.c.hasRemaining')}
               </button>
             </div>
 
             {/* Total Amount Range */}
             <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                Total Amount (DA)
+                {t('stk.tr.c.totalAmountDa')}
                 {(draftTotalRange[0] > 0 || draftTotalRange[1] < DEFAULT_TOTAL_MAX) && (
                   <span className="ml-1.5 text-zinc-300 font-normal">
                     {draftTotalRange[0].toLocaleString()} - {draftTotalRange[1].toLocaleString()}
@@ -747,14 +761,14 @@ function PurchasesPageInner() {
               disabled={!draftDirty}
               className="w-full px-4 py-2.5 bg-white hover:bg-zinc-200 disabled:bg-zinc-700 disabled:text-zinc-500 text-black text-sm font-medium rounded-lg transition-colors"
             >
-              Apply Filters
+              {t('stock.filter.applyFilters')}
             </button>
             {activeFilterCount > 0 && (
               <button
                 onClick={clearAllFilters}
                 className="w-full px-4 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
               >
-                Clear All Filters
+                {t('stk.tr.c.clearAllFilters')}
               </button>
             )}
           </div>

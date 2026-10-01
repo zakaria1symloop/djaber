@@ -5,8 +5,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { updateAdminProfile } from '@/lib/admin-api';
 import { Button } from '@/components/ui';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function AdminSettingsPage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const toast = useToast();
 
@@ -21,15 +23,15 @@ export default function AdminSettingsPage() {
 
   const handleSaveProfile = async () => {
     if (!firstName.trim() || !lastName.trim()) {
-      toast.error('First and last name are required');
+      toast.error(t('adm.plat.settings.nameRequired'));
       return;
     }
     try {
       setSavingProfile(true);
       await updateAdminProfile({ firstName, lastName });
-      toast.success('Profile updated');
+      toast.success(t('adm.plat.settings.profileUpdated'));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update');
+      toast.error(e instanceof Error ? e.message : t('adm.plat.settings.updateFailed'));
     } finally {
       setSavingProfile(false);
     }
@@ -37,26 +39,26 @@ export default function AdminSettingsPage() {
 
   const handleChangePassword = async () => {
     if (!currentPassword) {
-      toast.error('Current password is required');
+      toast.error(t('adm.plat.settings.currentPwRequired'));
       return;
     }
     if (newPassword.length < 8) {
-      toast.error('New password must be at least 8 characters');
+      toast.error(t('adm.plat.settings.pwTooShort'));
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error(t('adm.plat.settings.pwMismatch'));
       return;
     }
     try {
       setSavingPassword(true);
       await updateAdminProfile({ currentPassword, password: newPassword });
-      toast.success('Password updated');
+      toast.success(t('adm.plat.settings.pwUpdated'));
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update password');
+      toast.error(e instanceof Error ? e.message : t('adm.plat.settings.pwUpdateFailed'));
     } finally {
       setSavingPassword(false);
     }
@@ -66,19 +68,19 @@ export default function AdminSettingsPage() {
     <>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-          Settings
+          {t('adm.plat.settings.title')}
         </h1>
-        <p className="text-sm text-zinc-400">Manage your admin profile and security</p>
+        <p className="text-sm text-zinc-400">{t('adm.plat.settings.subtitle')}</p>
       </div>
 
       <div className="space-y-6">
         {/* Profile section */}
         <section className="bg-zinc-900/50 border border-white/10 rounded-xl p-6">
-          <h2 className="text-base font-semibold text-white mb-1">Profile</h2>
-          <p className="text-xs text-zinc-500 mb-5">Your name as it appears in the admin panel</p>
+          <h2 className="text-base font-semibold text-white mb-1">{t('adm.plat.settings.profile')}</h2>
+          <p className="text-xs text-zinc-500 mb-5">{t('adm.plat.settings.profileHint')}</p>
 
           <div className="space-y-4">
-            <Field label="Email">
+            <Field label={t('adm.plat.settings.email')}>
               <input
                 type="email"
                 value={user?.email || ''}
@@ -87,7 +89,7 @@ export default function AdminSettingsPage() {
               />
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="First name">
+              <Field label={t('adm.plat.settings.firstName')}>
                 <input
                   type="text"
                   value={firstName}
@@ -95,7 +97,7 @@ export default function AdminSettingsPage() {
                   className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
                 />
               </Field>
-              <Field label="Last name">
+              <Field label={t('adm.plat.settings.lastName')}>
                 <input
                   type="text"
                   value={lastName}
@@ -108,20 +110,20 @@ export default function AdminSettingsPage() {
 
           <div className="mt-5 flex justify-end">
             <Button onClick={handleSaveProfile} disabled={savingProfile}>
-              {savingProfile ? 'Saving…' : 'Save profile'}
+              {savingProfile ? t('adm.plat.saving') : t('adm.plat.settings.saveProfile')}
             </Button>
           </div>
         </section>
 
         {/* Password section */}
         <section className="bg-zinc-900/50 border border-white/10 rounded-xl p-6">
-          <h2 className="text-base font-semibold text-white mb-1">Change password</h2>
+          <h2 className="text-base font-semibold text-white mb-1">{t('adm.plat.settings.changePassword')}</h2>
           <p className="text-xs text-zinc-500 mb-5">
-            Choose a strong password — at least 8 characters
+            {t('adm.plat.settings.passwordHint')}
           </p>
 
           <div className="space-y-4">
-            <Field label="Current password">
+            <Field label={t('adm.plat.settings.currentPassword')}>
               <input
                 type="password"
                 value={currentPassword}
@@ -130,17 +132,17 @@ export default function AdminSettingsPage() {
                 className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
               />
             </Field>
-            <Field label="New password">
+            <Field label={t('adm.plat.settings.newPassword')}>
               <input
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="At least 8 characters"
+                placeholder={t('adm.plat.settings.newPasswordPh')}
                 autoComplete="new-password"
                 className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
               />
             </Field>
-            <Field label="Confirm new password">
+            <Field label={t('adm.plat.settings.confirmPassword')}>
               <input
                 type="password"
                 value={confirmPassword}
@@ -153,7 +155,7 @@ export default function AdminSettingsPage() {
 
           <div className="mt-5 flex justify-end">
             <Button onClick={handleChangePassword} disabled={savingPassword}>
-              {savingPassword ? 'Updating…' : 'Update password'}
+              {savingPassword ? t('adm.plat.settings.updating') : t('adm.plat.settings.updatePassword')}
             </Button>
           </div>
         </section>
@@ -161,8 +163,8 @@ export default function AdminSettingsPage() {
         {/* Info card */}
         <section className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
           <p className="text-xs text-blue-400/80">
-            💡 <span className="text-blue-300 font-medium">Note:</span> System-wide settings (signup gating, default plan,
-            email templates, branding) will land here as the platform grows.
+            💡 <span className="text-blue-300 font-medium">{t('adm.plat.settings.noteLabel')}</span>{' '}
+            {t('adm.plat.settings.noteBody')}
           </p>
         </section>
       </div>

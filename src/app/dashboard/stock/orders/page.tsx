@@ -33,13 +33,14 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   returned: [],
 };
 
-const BULK_ACTIONS: { status: string; label: string; subtle?: boolean }[] = [
-  { status: 'confirmed', label: 'Confirm all' },
-  { status: 'preparing', label: 'Start preparing all' },
-  { status: 'shipped', label: 'Ship all' },
-  { status: 'delivered', label: 'Mark all delivered' },
-  { status: 'returned', label: 'Mark all returned', subtle: true },
-  { status: 'cancelled', label: 'Cancel all', subtle: true },
+// Labels are resolved at render time through useTranslation().
+const BULK_ACTIONS: { status: string; labelKey: string; subtle?: boolean }[] = [
+  { status: 'confirmed', labelKey: 'stk.tr.ord.bulk.confirm' },
+  { status: 'preparing', labelKey: 'stk.tr.ord.bulk.preparing' },
+  { status: 'shipped', labelKey: 'stk.tr.ord.bulk.shipped' },
+  { status: 'delivered', labelKey: 'stk.tr.ord.bulk.delivered' },
+  { status: 'returned', labelKey: 'stk.tr.ord.bulk.returned', subtle: true },
+  { status: 'cancelled', labelKey: 'stk.tr.ord.bulk.cancelled', subtle: true },
 ];
 
 // Neutral status pill — the word carries the meaning, the dot marks state:
@@ -65,6 +66,14 @@ export default function OrdersPage() {
 function OrdersPageInner() {
   const router = useRouter();
   const { t } = useTranslation();
+
+  // Enum -> translated pill label; 'pending' reads as "New" for the merchant.
+  const statusLabel = (v: string) =>
+    v === 'pending'
+      ? t('stock.common.new')
+      : ['confirmed', 'preparing', 'shipped', 'delivered', 'cancelled', 'returned'].includes(v)
+        ? t(`stock.common.${v}`)
+        : v;
   const searchParams = useSearchParams();
   const initialClientId = searchParams.get('clientId') || '';
   const [orders, setOrders] = useState<Order[]>([]);
@@ -179,7 +188,7 @@ function OrdersPageInner() {
       setOrders(res.orders);
       setTotal(res.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load orders');
+      setError(err instanceof Error ? err.message : t('stk.tr.ord.err.load'));
     } finally {
       setLoading(false);
     }
@@ -244,10 +253,10 @@ function OrdersPageInner() {
 
   const getNextStatus = (current: string): { label: string; next: string } | null => {
     switch (current) {
-      case 'pending': return { label: 'Confirm', next: 'confirmed' };
-      case 'confirmed': return { label: 'Start Preparing', next: 'preparing' };
-      case 'preparing': return { label: 'Ship', next: 'shipped' };
-      case 'shipped': return { label: 'Mark Delivered', next: 'delivered' };
+      case 'pending': return { label: t('stk.tr.ord.next.confirm'), next: 'confirmed' };
+      case 'confirmed': return { label: t('stk.tr.ord.next.startPreparing'), next: 'preparing' };
+      case 'preparing': return { label: t('stk.tr.ord.next.ship'), next: 'shipped' };
+      case 'shipped': return { label: t('stk.tr.ord.action.markDelivered'), next: 'delivered' };
       default: return null;
     }
   };
@@ -258,7 +267,7 @@ function OrdersPageInner() {
       loadOrders();
       loadStats();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update order');
+      setError(err instanceof Error ? err.message : t('stk.tr.ord.err.update'));
     }
   };
 
@@ -290,7 +299,7 @@ function OrdersPageInner() {
       );
       const failed = results.filter((r) => r.status === 'rejected').length;
       if (failed > 0) {
-        setError(`${failed} of ${results.length} orders could not be updated`);
+        setError(t('stk.tr.ord.bulk.failed').replace('{f}', String(failed)).replace('{n}', String(results.length)));
       }
       setSelectedIds(new Set());
     } finally {
@@ -338,7 +347,7 @@ function OrdersPageInner() {
       setDeleteConfirm(null);
       loadStats();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete order');
+      setError(err instanceof Error ? err.message : t('stk.tr.ord.err.delete'));
     } finally {
       setDeleting(false);
     }
@@ -355,7 +364,7 @@ function OrdersPageInner() {
       loadOrders();
       loadStats();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to mark order as returned');
+      setError(err instanceof Error ? err.message : t('stk.tr.ord.err.return'));
     } finally {
       setReturning(false);
     }
@@ -381,12 +390,12 @@ function OrdersPageInner() {
 
   const primaryAction = (order: Order): { label: string; tone: 'emerald' | 'blue' | 'amber' | 'zinc' } => {
     const s = order.status;
-    if (s === 'pending' && order.confirmationStatus === 'not_called') return { label: 'Call & confirm', tone: 'blue' };
-    if (s === 'pending' && order.confirmationStatus === 'no_answer') return { label: 'Try again', tone: 'amber' };
-    if (s === 'confirmed') return { label: 'Prepare', tone: 'emerald' };
-    if (s === 'preparing') return { label: 'Mark shipped', tone: 'emerald' };
-    if (s === 'shipped') return { label: 'Mark delivered', tone: 'emerald' };
-    return { label: 'Open', tone: 'zinc' };
+    if (s === 'pending' && order.confirmationStatus === 'not_called') return { label: t('stk.tr.ord.action.callConfirm'), tone: 'blue' };
+    if (s === 'pending' && order.confirmationStatus === 'no_answer') return { label: t('stk.tr.ord.action.tryAgain'), tone: 'amber' };
+    if (s === 'confirmed') return { label: t('stk.tr.ord.action.prepare'), tone: 'emerald' };
+    if (s === 'preparing') return { label: t('stk.tr.ord.action.markShipped'), tone: 'emerald' };
+    if (s === 'shipped') return { label: t('stk.tr.ord.action.markDelivered'), tone: 'emerald' };
+    return { label: t('stk.tr.ord.action.open'), tone: 'zinc' };
   };
 
   // Server-side count for a status tab (from getOrderStats), so badges and
@@ -458,13 +467,13 @@ function OrdersPageInner() {
       {/* Client filter banner */}
       {appliedClientId && (
         <div className="flex items-center gap-2 px-4 py-2.5 bg-white/[0.03] border border-white/10 rounded-xl">
-          <span className="text-sm text-zinc-400">Filtered by client</span>
+          <span className="text-sm text-zinc-400">{t('stk.tr.ord.filteredByClient')}</span>
           <button
             onClick={clearClientFilter}
             className="ml-auto flex items-center gap-1 text-xs text-zinc-400 hover:text-white transition-colors"
           >
             <CloseIcon className="w-3 h-3" />
-            Clear
+            {t('stk.tr.c.clear')}
           </button>
         </div>
       )}
@@ -543,7 +552,7 @@ function OrdersPageInner() {
         {selectedIds.size > 0 && (
           <div className="sticky top-20 z-10 bg-zinc-900/95 backdrop-blur-sm border border-white/10 rounded-xl p-3 mb-3 flex items-center justify-between shadow-2xl">
             <span className="text-sm text-white font-medium">
-              {selectedIds.size} order{selectedIds.size !== 1 ? 's' : ''} selected
+              {selectedIds.size === 1 ? t('stk.tr.ord.bulk.selectedOne') : t('stk.tr.ord.bulk.selected').replace('{n}', String(selectedIds.size))}
             </span>
             <div className="flex flex-wrap items-center gap-2">
               {/* Only transitions valid for EVERY selected order are offered
@@ -565,19 +574,19 @@ function OrdersPageInner() {
                           : 'px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white border border-white/10 hover:border-white/20 rounded-lg transition-colors disabled:opacity-50'
                       }
                     >
-                      {bulkProcessing ? 'Processing…' : a.label}
+                      {bulkProcessing ? t('stk.tr.ord.bulk.processing') : t(a.labelKey)}
                     </button>
                   );
                 });
               })()}
               {bulkAllowed.length === 0 && (
-                <span className="text-xs text-zinc-500">No bulk action available for this selection</span>
+                <span className="text-xs text-zinc-500">{t('stk.tr.ord.bulk.none')}</span>
               )}
               <button
                 onClick={() => setSelectedIds(new Set())}
                 className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
               >
-                Clear
+                {t('stk.tr.c.clear')}
               </button>
             </div>
           </div>
@@ -658,7 +667,7 @@ function OrdersPageInner() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <StatusPill
-                          label={order.status}
+                          label={statusLabel(order.status)}
                           kind={
                             order.status === 'delivered' || order.status === 'confirmed'
                               ? 'good'
@@ -712,7 +721,7 @@ function OrdersPageInner() {
                             <button
                               onClick={() => setDeleteConfirm(order)}
                               className="p-1.5 text-zinc-500 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                              title="Delete order"
+                              title={t('stk.tr.ord.del.title')}
                             >
                               <TrashIcon className="w-3.5 h-3.5" />
                             </button>
@@ -732,11 +741,11 @@ function OrdersPageInner() {
           <div className="text-zinc-600 mb-4 flex justify-center">
             <ClipboardIcon className="w-16 h-16" />
           </div>
-          <h3 className="text-lg font-medium text-zinc-300 mb-1">No Orders Yet</h3>
+          <h3 className="text-lg font-medium text-zinc-300 mb-1">{t('stk.tr.ord.empty.title')}</h3>
           <p className="text-sm text-zinc-500 max-w-sm mx-auto mb-4">
-            Orders appear from AI chatbot confirmations, or create them manually.
+            {t('stk.tr.ord.empty.hint')}
           </p>
-          <Button onClick={() => router.push('/dashboard/stock/orders/new')} icon={<PlusIcon className="w-4 h-4" />}>New Order</Button>
+          <Button onClick={() => router.push('/dashboard/stock/orders/new')} icon={<PlusIcon className="w-4 h-4" />}>{t('stk.tr.ord.new.title')}</Button>
         </div>
       )}
 
@@ -753,31 +762,31 @@ function OrdersPageInner() {
       {/* Return Confirm Modal */}
       <Modal isOpen={!!returnConfirm} onClose={() => setReturnConfirm(null)} title={t('stock.orders.action.markReturned')} size="sm">
         <p className="text-zinc-400 mb-2">
-          Are you sure you want to mark order <span className="text-white font-medium">{returnConfirm?.orderNumber}</span> as returned?
-          Stock will be restored and the payment rolled back.
+          {t('stk.tr.ord.ret.q')} <span className="text-white font-medium">{returnConfirm?.orderNumber}</span>{' '}
+          {t('stk.tr.ord.ret.note')}
         </p>
         <div className="flex gap-3 pt-4">
           <Button type="button" variant="outline" className="flex-1" onClick={() => setReturnConfirm(null)} disabled={returning}>
-            Cancel
+            {t('stk.tr.c.cancel')}
           </Button>
           <Button type="button" className="flex-1" onClick={handleReturn} disabled={returning}>
-            {returning ? 'Saving...' : t('stock.orders.action.markReturned')}
+            {returning ? t('stk.tr.c.saving') : t('stock.orders.action.markReturned')}
           </Button>
         </div>
       </Modal>
 
       {/* Delete Confirm Modal */}
-      <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="Delete Order" size="sm">
+      <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title={t('stk.tr.ord.del.title')} size="sm">
         <p className="text-zinc-400 mb-2">
-          Are you sure you want to delete order <span className="text-white font-medium">{deleteConfirm?.orderNumber}</span>?
-          Stock will be restored.
+          {t('stk.tr.ord.del.q')} <span className="text-white font-medium">{deleteConfirm?.orderNumber}</span>?{' '}
+          {t('stk.tr.ord.del.note')}
         </p>
         <div className="flex gap-3 pt-4">
           <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>
-            Cancel
+            {t('stk.tr.c.cancel')}
           </Button>
           <Button type="button" className="flex-1" onClick={handleDelete} disabled={deleting}>
-            {deleting ? 'Deleting...' : 'Delete'}
+            {deleting ? t('stk.tr.c.deleting') : t('stk.tr.c.delete')}
           </Button>
         </div>
       </Modal>
@@ -787,7 +796,7 @@ function OrdersPageInner() {
       {filtersOpen && (
         <div className="fixed top-0 right-0 h-full w-[336px] bg-zinc-950 border-l border-white/10 z-[45] flex flex-col shadow-2xl">
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-            <h2 className="text-sm font-semibold text-white">Filters</h2>
+            <h2 className="text-sm font-semibold text-white">{t('stock.common.filters')}</h2>
             <button onClick={() => setFiltersOpen(false)} className="p-1 text-zinc-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors">
               <CloseIcon className="w-4 h-4" />
             </button>
@@ -796,61 +805,61 @@ function OrdersPageInner() {
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
             {/* Order Status */}
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Order Status</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">{t('stk.tr.ord.f.orderStatus')}</label>
               <select
                 value={draftStatus}
                 onChange={(e) => setDraftStatus(e.target.value)}
                 className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 hover:border-white/20 transition-colors"
               >
-                <option value="">All Statuses</option>
-                <option value="pending">New / Pending</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="preparing">Preparing</option>
-                <option value="shipped">Shipped</option>
-                <option value="delivered">Delivered</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="returned">Returned</option>
+                <option value="">{t('stk.tr.c.allStatuses')}</option>
+                <option value="pending">{t('stk.tr.ord.f.newPending')}</option>
+                <option value="confirmed">{t('stock.common.confirmed')}</option>
+                <option value="preparing">{t('stock.common.preparing')}</option>
+                <option value="shipped">{t('stock.common.shipped')}</option>
+                <option value="delivered">{t('stock.common.delivered')}</option>
+                <option value="cancelled">{t('stock.common.cancelled')}</option>
+                <option value="returned">{t('stock.common.returned')}</option>
               </select>
             </div>
 
             {/* Confirmation Status */}
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Confirmation</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">{t('stk.tr.ord.f.confirmation')}</label>
               <select
                 value={draftConfirm}
                 onChange={(e) => setDraftConfirm(e.target.value)}
                 className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 hover:border-white/20 transition-colors"
               >
-                <option value="">All</option>
-                <option value="not_called">Not Called</option>
-                <option value="no_answer">No Answer</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="rejected">Rejected</option>
+                <option value="">{t('stock.common.all')}</option>
+                <option value="not_called">{t('stock.orders.confirm.notCalled')}</option>
+                <option value="no_answer">{t('stock.orders.confirm.noAnswer')}</option>
+                <option value="confirmed">{t('stock.orders.confirm.confirmed')}</option>
+                <option value="rejected">{t('stock.orders.confirm.rejected')}</option>
               </select>
             </div>
 
             {/* Payment Status */}
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Payment Status</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">{t('stk.tr.c.paymentStatus')}</label>
               <select
                 value={draftHasRemaining ? '' : draftPayment}
                 onChange={(e) => setDraftPayment(e.target.value)}
                 disabled={draftHasRemaining}
                 className={`w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 hover:border-white/20 transition-colors ${draftHasRemaining ? 'opacity-40 cursor-not-allowed' : ''}`}
               >
-                <option value="">All</option>
-                <option value="paid">Paid</option>
-                <option value="pending">Pending</option>
-                <option value="partial">Partial</option>
+                <option value="">{t('stock.common.all')}</option>
+                <option value="paid">{t('stock.common.paid')}</option>
+                <option value="pending">{t('stock.common.pending')}</option>
+                <option value="partial">{t('stk.tr.c.status.partial')}</option>
               </select>
               {draftHasRemaining && (
-                <p className="text-[10px] text-zinc-500 mt-1">Disabled — "Has Remaining" is active</p>
+                <p className="text-[10px] text-zinc-500 mt-1">{t('stk.tr.c.remainingDisabled')}</p>
               )}
             </div>
 
             {/* Has Remaining */}
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Quick Filter</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">{t('stk.tr.c.quickFilter')}</label>
               <button
                 onClick={() => setDraftHasRemaining(!draftHasRemaining)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-sm transition-all ${
@@ -868,14 +877,14 @@ function OrdersPageInner() {
                     </svg>
                   )}
                 </div>
-                Has Remaining Balance
+                {t('stk.tr.c.hasRemaining')}
               </button>
             </div>
 
             {/* Total Amount Range */}
             <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                Total Amount (DA)
+                {t('stk.tr.c.totalAmountDa')}
                 {(draftTotalRange[0] > 0 || draftTotalRange[1] < DEFAULT_TOTAL_MAX) && (
                   <span className="ml-1.5 text-zinc-300 font-normal">
                     {draftTotalRange[0].toLocaleString()} - {draftTotalRange[1].toLocaleString()}
@@ -898,14 +907,14 @@ function OrdersPageInner() {
               disabled={!draftDirty}
               className="w-full px-4 py-2.5 bg-white hover:bg-zinc-200 disabled:bg-zinc-700 disabled:text-zinc-500 text-black text-sm font-medium rounded-lg transition-colors"
             >
-              Apply Filters
+              {t('stock.filter.applyFilters')}
             </button>
             {activeFilterCount > 0 && (
               <button
                 onClick={clearAllFilters}
                 className="w-full px-4 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
               >
-                Clear All Filters
+                {t('stk.tr.c.clearAllFilters')}
               </button>
             )}
           </div>

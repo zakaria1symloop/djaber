@@ -18,6 +18,7 @@ import {
 import { addOrderCall, updateOrder, type Order } from '@/lib/user-stock-api';
 import { getWilayas, type Wilaya } from '@/lib/delivery-api';
 import { useToast } from '@/components/ui/Toast';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 interface ConfirmOrderModalProps {
   order: Order | null;
@@ -32,26 +33,27 @@ type OutcomeColor = 'emerald' | 'amber' | 'red' | 'zinc';
 const OUTCOMES: Array<{
   value: CallOutcome;
   apiValue: string;
-  label: string;
-  hint: string;
+  labelKey: string;
+  hintKey: string;
   Icon: React.ComponentType<{ className?: string }>;
   color: OutcomeColor;
   nextStatus: string | null;
 }> = [
-  { value: 'confirmed', apiValue: 'picked_up', label: 'Confirmed', hint: 'Customer wants the order — we\'ll mark it ready to ship.', Icon: CheckCircleIcon, color: 'emerald', nextStatus: 'confirmed' },
-  { value: 'no_answer', apiValue: 'no_answer', label: 'No answer', hint: 'Logged as attempt — stays in pending queue.', Icon: PhoneIcon, color: 'amber', nextStatus: null },
-  { value: 'busy', apiValue: 'busy', label: 'Busy', hint: 'Try again later — stays in pending queue.', Icon: ClockIcon, color: 'amber', nextStatus: null },
-  { value: 'voicemail', apiValue: 'voicemail', label: 'Voicemail', hint: 'Logged as attempt — stays in pending queue.', Icon: MailIcon, color: 'zinc', nextStatus: null },
-  { value: 'rejected', apiValue: 'rejected', label: 'Rejected', hint: 'Customer doesn\'t want it — order will be cancelled.', Icon: BanIcon, color: 'red', nextStatus: 'cancelled' },
+  { value: 'confirmed', apiValue: 'picked_up', labelKey: 'dlg.confirmOrder.outcome.confirmed', hintKey: 'dlg.confirmOrder.outcome.confirmedHint', Icon: CheckCircleIcon, color: 'emerald', nextStatus: 'confirmed' },
+  { value: 'no_answer', apiValue: 'no_answer', labelKey: 'dlg.confirmOrder.outcome.noAnswer', hintKey: 'dlg.confirmOrder.outcome.noAnswerHint', Icon: PhoneIcon, color: 'amber', nextStatus: null },
+  { value: 'busy', apiValue: 'busy', labelKey: 'dlg.confirmOrder.outcome.busy', hintKey: 'dlg.confirmOrder.outcome.busyHint', Icon: ClockIcon, color: 'amber', nextStatus: null },
+  { value: 'voicemail', apiValue: 'voicemail', labelKey: 'dlg.confirmOrder.outcome.voicemail', hintKey: 'dlg.confirmOrder.outcome.voicemailHint', Icon: MailIcon, color: 'zinc', nextStatus: null },
+  { value: 'rejected', apiValue: 'rejected', labelKey: 'dlg.confirmOrder.outcome.rejected', hintKey: 'dlg.confirmOrder.outcome.rejectedHint', Icon: BanIcon, color: 'red', nextStatus: 'cancelled' },
 ];
 
-const STEP_LABELS = ['Review', 'Call outcome', 'Result'];
+const STEP_KEYS = ['dlg.confirmOrder.step.review', 'dlg.confirmOrder.step.callOutcome', 'dlg.confirmOrder.step.result'];
 
 // Module-level cache so we only hit /wilayas once across renders of the modal
 let wilayaCache: Wilaya[] | null = null;
 
 export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }: ConfirmOrderModalProps) {
   const toast = useToast();
+  const { t } = useTranslation();
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const [outcome, setOutcome] = useState<CallOutcome | null>(null);
   const [notes, setNotes] = useState('');
@@ -153,7 +155,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
       onChanged(updated);
       setStep(2);
     } catch (err: any) {
-      toast.error(err?.message || 'Could not save call outcome');
+      toast.error(err?.message || t('dlg.confirmOrder.toast.callFail'));
     } finally {
       setSaving(false);
     }
@@ -164,10 +166,10 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
     try {
       const upd = await updateOrder(order.id, { status });
       onChanged(upd.order);
-      toast.success(`Order moved to ${status}`);
+      toast.success(t('dlg.confirmOrder.toast.moved').replace('{status}', t(`dlg.status.${status}`, status)));
       onClose();
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to update status');
+      toast.error(err?.message || t('dlg.confirmOrder.toast.statusFail'));
     } finally {
       setSaving(false);
     }
@@ -188,14 +190,14 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                 <ClipboardIcon className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 mb-0.5">Order</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 mb-0.5">{t('dlg.confirmOrder.kicker')}</p>
                 <h2 className="text-xl font-bold text-white leading-tight" style={{ fontFamily: 'Syne, sans-serif' }}>
                   #{order.orderNumber}
                 </h2>
                 <p className="text-xs text-zinc-500 mt-1">
                   {new Date(order.orderDate).toLocaleString()}
                   <span className="text-zinc-700"> · </span>
-                  {order.source === 'ai' ? 'AI chatbot' : 'Manual'}
+                  {order.source === 'ai' ? t('dlg.confirmOrder.source.ai') : t('dlg.confirmOrder.source.manual')}
                 </p>
               </div>
             </div>
@@ -204,18 +206,20 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
                   {statusVariant(order.status) === 'good' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                   {statusVariant(order.status) === 'progress' && <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />}
-                  <span className={statusVariant(order.status) === 'dead' ? 'text-zinc-600' : ''}>{prettyStatus(order.status)}</span>
+                  <span className={statusVariant(order.status) === 'dead' ? 'text-zinc-600' : ''}>{prettyStatus(order.status, t)}</span>
                 </span>
                 {order.callAttempts > 0 && (
                   <span className="text-[10px] text-zinc-500">
-                    {order.callAttempts} call{order.callAttempts === 1 ? '' : 's'}
+                    {order.callAttempts === 1
+                      ? t('dlg.confirmOrder.callCountOne')
+                      : t('dlg.confirmOrder.callCount').replace('{n}', String(order.callAttempts))}
                   </span>
                 )}
               </div>
               <button
                 onClick={onClose}
                 className="text-zinc-500 hover:text-white hover:bg-white/5 transition-colors -mt-1 -me-2 p-1.5 rounded-lg"
-                aria-label="Close"
+                aria-label={t('dlg.close')}
               >
                 <CloseIcon className="w-4 h-4" />
               </button>
@@ -225,8 +229,8 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
           {/* Step indicator — hidden in read-only mode (no call flow to step through) */}
           {canLogCall && (
           <div className="relative flex items-center gap-1 mt-4">
-            {STEP_LABELS.map((label, i) => (
-              <div key={label} className="flex items-center gap-1.5 flex-1">
+            {STEP_KEYS.map((stepKey, i) => (
+              <div key={stepKey} className="flex items-center gap-1.5 flex-1">
                 <div
                   className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors ${
                     i < step
@@ -245,9 +249,9 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                   )}
                 </div>
                 <span className={`text-[11px] font-medium whitespace-nowrap ${i === step ? 'text-white' : i < step ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                  {label}
+                  {t(stepKey)}
                 </span>
-                {i < STEP_LABELS.length - 1 && <div className="flex-1 h-px bg-white/10 mx-1" />}
+                {i < STEP_KEYS.length - 1 && <div className="flex-1 h-px bg-white/10 mx-1" />}
               </div>
             ))}
           </div>
@@ -264,9 +268,18 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                 <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 flex items-start gap-2">
                   <AlertIcon className="w-3.5 h-3.5 text-zinc-400 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-zinc-400">
-                    This order is <span className="text-white font-semibold">{prettyStatus(order.status).toLowerCase()}</span> — call logging is disabled.
+                    {t('dlg.confirmOrder.readOnly')
+                      .split('{status}')
+                      .map((part, i, arr) => (
+                        <span key={i}>
+                          {part}
+                          {i < arr.length - 1 && (
+                            <span className="text-white font-semibold">{prettyStatus(order.status, t)}</span>
+                          )}
+                        </span>
+                      ))}
                     {(order.status === 'cancelled' || order.status === 'returned') && (
-                      <span> Create a new order to re-sell.</span>
+                      <span> {t('dlg.confirmOrder.readOnlyTerminal')}</span>
                     )}
                   </p>
                 </div>
@@ -274,7 +287,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
 
               {/* Customer */}
               <SectionCard
-                title="Customer"
+                title={t('dlg.confirmOrder.customer')}
                 icon={<PhoneIcon className="w-3.5 h-3.5" />}
                 action={
                   canLogCall ? (
@@ -283,7 +296,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                       className="text-[11px] text-zinc-400 hover:text-white transition-colors inline-flex items-center gap-1"
                     >
                       <EditIcon className="w-3 h-3" />
-                      {editingContact ? 'Done' : 'Edit'}
+                      {editingContact ? t('dlg.done') : t('dlg.edit')}
                     </button>
                   ) : undefined
                 }
@@ -292,30 +305,30 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                 {editingContact ? (
                   <div className="space-y-2">
                     <div>
-                      <label className="text-[10px] uppercase tracking-wider text-zinc-500">Phone</label>
+                      <label className="text-[10px] uppercase tracking-wider text-zinc-500">{t('dlg.confirmOrder.phone')}</label>
                       <input
                         value={editPhone}
                         onChange={(e) => setEditPhone(e.target.value)}
-                        placeholder="0555 12 34 56"
+                        placeholder={t('dlg.confirmOrder.phonePh')}
                         className="w-full mt-1 px-3 py-2 bg-black/60 border border-white/10 focus:border-white/30 rounded-lg text-sm text-white focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] uppercase tracking-wider text-zinc-500">Address</label>
+                      <label className="text-[10px] uppercase tracking-wider text-zinc-500">{t('dlg.confirmOrder.address')}</label>
                       <textarea
                         value={editAddress}
                         onChange={(e) => setEditAddress(e.target.value)}
                         rows={2}
-                        placeholder="Wilaya, commune, street, building..."
+                        placeholder={t('dlg.confirmOrder.addressPh')}
                         className="w-full mt-1 px-3 py-2 bg-black/60 border border-white/10 focus:border-white/30 rounded-lg text-sm text-white focus:outline-none resize-none"
                       />
                     </div>
-                    <p className="text-[10px] text-zinc-600">Edits are saved when you log the call outcome.</p>
+                    <p className="text-[10px] text-zinc-600">{t('dlg.confirmOrder.editHint')}</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-0.5">Phone</p>
+                      <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-0.5">{t('dlg.confirmOrder.phone')}</p>
                       {order.clientPhone ? (
                         <a
                           href={`tel:${order.clientPhone}`}
@@ -324,11 +337,11 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                           {order.clientPhone}
                         </a>
                       ) : (
-                        <p className="text-sm text-zinc-600 italic">no phone</p>
+                        <p className="text-sm text-zinc-600 italic">{t('dlg.confirmOrder.noPhone')}</p>
                       )}
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-0.5">Address</p>
+                      <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-0.5">{t('dlg.confirmOrder.address')}</p>
                       {/*
                         Show the full delivery destination, not just the raw
                         clientAddress string. Region (commune + wilaya) and the
@@ -345,12 +358,12 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                           )}
                           {order.isStopdesk && (
                             <p className="text-[10px] inline-block px-1.5 py-0.5 rounded bg-white/[0.03] text-zinc-300 border border-white/10">
-                              Stopdesk (agency pickup)
+                              {t('dlg.confirmOrder.stopdesk')}
                             </p>
                           )}
                         </div>
                       ) : (
-                        <p className="text-sm text-zinc-600 italic">no address</p>
+                        <p className="text-sm text-zinc-600 italic">{t('dlg.confirmOrder.noAddress')}</p>
                       )}
                     </div>
                   </div>
@@ -361,7 +374,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
               <div className="bg-white/[0.02] border border-white/10 rounded-xl overflow-hidden">
                 <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-zinc-500 px-4 py-2.5 border-b border-white/5">
                   <BoxIcon className="w-3.5 h-3.5" />
-                  Items <span className="text-zinc-700">·</span> {order.items.length}
+                  {t('dlg.confirmOrder.items')} <span className="text-zinc-700">·</span> {order.items.length}
                 </div>
                 <div className="divide-y divide-white/5">
                   {order.items.map((item) => (
@@ -385,10 +398,10 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
 
               {/* Totals */}
               <div className="grid grid-cols-3 gap-2">
-                <Tile label="Total" value={`${Number(order.total).toLocaleString()} DA`} />
-                <Tile label="Paid" value={`${Number(order.amountPaid).toLocaleString()} DA`} valueColor="text-zinc-300" />
+                <Tile label={t('dlg.confirmOrder.total')} value={`${Number(order.total).toLocaleString()} DA`} />
+                <Tile label={t('dlg.confirmOrder.paid')} value={`${Number(order.amountPaid).toLocaleString()} DA`} valueColor="text-zinc-300" />
                 <Tile
-                  label="Remaining"
+                  label={t('dlg.confirmOrder.remaining')}
                   value={`${remaining.toLocaleString()} DA`}
                   valueColor={remaining > 0 ? 'text-white' : 'text-zinc-300'}
                 />
@@ -398,7 +411,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                 <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 flex items-start gap-2">
                   <AlertIcon className="w-3.5 h-3.5 text-zinc-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1">
-                    <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Notes</p>
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{t('dlg.confirmOrder.notes')}</p>
                     <p className="text-xs text-zinc-300">{order.notes}</p>
                   </div>
                 </div>
@@ -407,7 +420,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
               {order.calls && order.calls.length > 0 && (
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">
-                    {canLogCall ? 'Previous attempts' : 'Call history'}
+                    {canLogCall ? t('dlg.confirmOrder.prevAttempts') : t('dlg.confirmOrder.callHistory')}
                   </p>
                   <div className="space-y-1.5">
                     {(canLogCall ? order.calls.slice(0, 3) : order.calls).map((call) => (
@@ -418,7 +431,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                         <PhoneIcon className="w-3 h-3 text-zinc-600 flex-shrink-0" />
                         <span className="text-zinc-500 whitespace-nowrap">{new Date(call.calledAt).toLocaleString()}</span>
                         <span className="text-zinc-700">·</span>
-                        <span className="text-zinc-300 capitalize">{call.result.replace('_', ' ')}</span>
+                        <span className="text-zinc-300">{t(`dlg.callResult.${call.result}`, call.result.replace('_', ' '))}</span>
                         {call.notes && <span className="text-zinc-500 truncate">— {call.notes}</span>}
                       </div>
                     ))}
@@ -433,9 +446,9 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
             <>
               <div>
                 <p className="text-base font-semibold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-                  How did the call go?
+                  {t('dlg.confirmOrder.howCall')}
                 </p>
-                <p className="text-xs text-zinc-500">We&apos;ll log the attempt and update the order accordingly.</p>
+                <p className="text-xs text-zinc-500">{t('dlg.confirmOrder.howCallHint')}</p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -455,9 +468,9 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                         >
                           <Icon className="w-4 h-4" />
                         </div>
-                        <span className={`text-sm font-semibold ${palette.label}`}>{opt.label}</span>
+                        <span className={`text-sm font-semibold ${palette.label}`}>{t(opt.labelKey)}</span>
                       </div>
-                      <p className="text-[11px] text-zinc-500 leading-relaxed ps-10">{opt.hint}</p>
+                      <p className="text-[11px] text-zinc-500 leading-relaxed ps-10">{t(opt.hintKey)}</p>
                     </button>
                   );
                 })}
@@ -465,7 +478,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
 
               <div>
                 <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5">
-                  Notes <span className="text-zinc-600 normal-case">(optional, for your records)</span>
+                  {t('dlg.confirmOrder.notes')} <span className="text-zinc-600 normal-case">{t('dlg.confirmOrder.notesOptional')}</span>
                 </label>
                 <textarea
                   value={notes}
@@ -473,10 +486,10 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                   rows={3}
                   placeholder={
                     outcome === 'confirmed'
-                      ? 'Confirmed delivery time / delivery instructions / payment...'
+                      ? t('dlg.confirmOrder.notesPh.confirmed')
                       : outcome === 'rejected'
-                      ? 'Why did the customer reject?'
-                      : 'What happened?'
+                      ? t('dlg.confirmOrder.notesPh.rejected')
+                      : t('dlg.confirmOrder.notesPh.other')
                   }
                   className="w-full px-3 py-2.5 bg-black/40 border border-white/10 focus:border-white/30 rounded-lg text-sm text-zinc-200 focus:outline-none resize-none"
                 />
@@ -486,8 +499,8 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                 <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3 flex items-start gap-2">
                   <AlertIcon className="w-4 h-4 text-zinc-400 flex-shrink-0 mt-0.5" />
                   <p className="text-xs">
-                    <span className="text-white font-semibold">This order has no delivery address yet.</span>{' '}
-                    <span className="text-zinc-500">Go back to <em>Review</em> and edit the customer card before confirming.</span>
+                    <span className="text-white font-semibold">{t('dlg.confirmOrder.noAddrWarn.title')}</span>{' '}
+                    <span className="text-zinc-500">{t('dlg.confirmOrder.noAddrWarn.body')}</span>
                   </p>
                 </div>
               )}
@@ -497,27 +510,27 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
           {/* STEP 2 — Result */}
           {step === 2 && selectedOutcome && (
             <>
-              <ResultBanner outcome={selectedOutcome} attempts={order.callAttempts + 1} />
+              <ResultBanner outcome={selectedOutcome} attempts={order.callAttempts + 1} t={t} />
 
               {selectedOutcome.value === 'confirmed' && (
                 <SectionCard
-                  title="Next: prepare & ship"
+                  title={t('dlg.confirmOrder.next.title')}
                   icon={<TruckIcon className="w-3.5 h-3.5" />}
                 >
                   <p className="text-xs text-zinc-400 mb-3">
-                    Send this order to your delivery provider, or mark it as preparing while you pack it.
+                    {t('dlg.confirmOrder.next.desc')}
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <button
                       disabled
-                      title="Coming soon — Yalidine + ZR Express integration"
+                      title={t('dlg.confirmOrder.next.sendDeliveryTitle')}
                       className="px-3 py-2.5 bg-white/5 border border-white/10 text-zinc-500 rounded-lg text-xs font-medium cursor-not-allowed text-start"
                     >
                       <div className="flex items-center gap-2">
                         <TruckIcon className="w-3.5 h-3.5" />
-                        <span>Send to delivery</span>
+                        <span>{t('dlg.confirmOrder.next.sendDelivery')}</span>
                       </div>
-                      <span className="block text-[10px] text-zinc-600 mt-0.5 ps-5">Yalidine / ZR — soon</span>
+                      <span className="block text-[10px] text-zinc-600 mt-0.5 ps-5">{t('dlg.confirmOrder.next.sendDeliveryNote')}</span>
                     </button>
                     <Button
                       onClick={() => advanceTo('preparing')}
@@ -525,7 +538,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                       icon={<BoxIcon className="w-3.5 h-3.5" />}
                       size="sm"
                     >
-                      Mark as preparing
+                      {t('dlg.confirmOrder.next.markPreparing')}
                     </Button>
                   </div>
                 </SectionCard>
@@ -540,7 +553,7 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
             onClick={onClose}
             className="px-3 py-2 text-xs text-zinc-400 hover:text-white transition-colors"
           >
-            Close
+            {t('dlg.close')}
           </button>
           <div className="flex items-center gap-2">
             {step === 0 && canLogCall && (
@@ -548,16 +561,16 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                 size="sm"
                 onClick={() => setStep(1)}
                 disabled={isAlreadyConfirmed}
-                title={isAlreadyConfirmed ? 'Already confirmed — no need to call again' : undefined}
+                title={isAlreadyConfirmed ? t('dlg.confirmOrder.alreadyConfirmedTitle') : undefined}
                 icon={<PhoneIcon className="w-3.5 h-3.5" />}
               >
-                {isAlreadyConfirmed ? 'Already confirmed' : 'Log call outcome'}
+                {isAlreadyConfirmed ? t('dlg.confirmOrder.alreadyConfirmed') : t('dlg.confirmOrder.logCall')}
               </Button>
             )}
             {step === 1 && (
               <>
                 <Button size="sm" variant="outline" onClick={() => setStep(0)}>
-                  Back
+                  {t('common.back')}
                 </Button>
                 <Button
                   size="sm"
@@ -566,12 +579,12 @@ export default function ConfirmOrderModal({ order, isOpen, onClose, onChanged }:
                   loading={saving}
                   icon={<CheckCircleIcon className="w-3.5 h-3.5" />}
                 >
-                  Save outcome
+                  {t('dlg.confirmOrder.saveOutcome')}
                 </Button>
               </>
             )}
             {step === 2 && (
-              <Button size="sm" onClick={onClose}>Done</Button>
+              <Button size="sm" onClick={onClose}>{t('dlg.done')}</Button>
             )}
           </div>
         </div>
@@ -621,25 +634,28 @@ function Tile({ label, value, valueColor = 'text-white' }: { label: string; valu
 function ResultBanner({
   outcome,
   attempts,
+  t,
 }: {
   outcome: { value: CallOutcome; Icon: React.ComponentType<{ className?: string }>; color: OutcomeColor };
   attempts: number;
+  t: (key: string, fallback?: string) => string;
 }) {
   const palette = resultPalette(outcome.color);
   const Icon = outcome.Icon;
+  const attempt = t('dlg.confirmOrder.resultSub.attempt').replace('{n}', String(attempts));
   const titles: Record<CallOutcome, string> = {
-    confirmed: 'Order confirmed',
-    rejected: 'Order cancelled',
-    no_answer: 'No answer logged',
-    busy: 'Busy logged',
-    voicemail: 'Voicemail logged',
+    confirmed: t('dlg.confirmOrder.result.confirmed'),
+    rejected: t('dlg.confirmOrder.result.rejected'),
+    no_answer: t('dlg.confirmOrder.result.noAnswer'),
+    busy: t('dlg.confirmOrder.result.busy'),
+    voicemail: t('dlg.confirmOrder.result.voicemail'),
   };
   const subtitles: Record<CallOutcome, string> = {
-    confirmed: 'Ready to send to your delivery provider.',
-    rejected: 'Stock will be restored. Customer was notified.',
-    no_answer: `Attempt #${attempts} recorded. Stays in your pending queue.`,
-    busy: `Attempt #${attempts} recorded. Stays in your pending queue.`,
-    voicemail: `Attempt #${attempts} recorded. Stays in your pending queue.`,
+    confirmed: t('dlg.confirmOrder.resultSub.confirmed'),
+    rejected: t('dlg.confirmOrder.resultSub.rejected'),
+    no_answer: attempt,
+    busy: attempt,
+    voicemail: attempt,
   };
   return (
     <div className={`rounded-2xl p-6 text-center border ${palette.bg}`}>
@@ -667,8 +683,8 @@ function statusVariant(status: string): 'good' | 'progress' | 'dead' {
   }
 }
 
-function prettyStatus(status: string): string {
-  return status.charAt(0).toUpperCase() + status.slice(1);
+function prettyStatus(status: string, t: (key: string, fallback?: string) => string): string {
+  return t(`dlg.status.${status}`, status.charAt(0).toUpperCase() + status.slice(1));
 }
 
 // Neutral palettes — selection/state is expressed with white borders and

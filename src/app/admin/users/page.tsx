@@ -21,11 +21,13 @@ import {
 } from '@/components/ui/icons';
 import { FilterPanel, FilterPanelTrigger, FilterSection, FilterChip } from '@/components/admin/FilterPanel';
 import { SkeletonTable } from '@/components/ui/Loader';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function AdminUsersPage() {
   const router = useRouter();
   const toast = useToast();
   const { user: currentUser } = useAuth();
+  const { t } = useTranslation();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -80,7 +82,7 @@ export default function AdminUsersPage() {
       setUsers(res.users);
       setTotal(res.total);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load users');
+      toast.error(e instanceof Error ? e.message : t('adm.acc.users.err.load'));
     } finally {
       setLoading(false);
     }
@@ -141,11 +143,11 @@ export default function AdminUsersPage() {
     if (!deleteConfirm) return;
     try {
       await deleteAdminUser(deleteConfirm.id);
-      toast.success(`${deleteConfirm.email} deleted`);
+      toast.success(`${t('adm.acc.users.toast.deleted')} — ${deleteConfirm.email}`);
       setDeleteConfirm(null);
       await load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to delete');
+      toast.error(e instanceof Error ? e.message : t('adm.acc.err.delete'));
     }
   };
 
@@ -155,9 +157,9 @@ export default function AdminUsersPage() {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-            Users
+            {t('adm.acc.users.title')}
           </h1>
-          <p className="text-sm text-zinc-400">Manage all registered users on the platform</p>
+          <p className="text-sm text-zinc-400">{t('adm.acc.users.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <FilterPanelTrigger open={filterOpen} setOpen={setFilterOpen} activeCount={activeFilterCount} />
@@ -165,7 +167,8 @@ export default function AdminUsersPage() {
             onClick={load}
             disabled={loading}
             className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors disabled:opacity-50"
-            title="Refresh"
+            title={t('adm.acc.refresh')}
+            aria-label={t('adm.acc.refresh')}
           >
             <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -174,21 +177,21 @@ export default function AdminUsersPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Total Users" value={stats.total.toString()} />
-        <StatCard label="Total Pages" value={stats.totalPages.toString()} />
-        <StatCard label="Conversations" value={stats.totalConversations.toString()} />
-        <StatCard label="Revenue" value={`${stats.totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })} DA`} />
+        <StatCard label={t('adm.acc.users.stats.total')} value={stats.total.toString()} />
+        <StatCard label={t('adm.acc.users.stats.pages')} value={stats.totalPages.toString()} />
+        <StatCard label={t('adm.acc.users.stats.conversations')} value={stats.totalConversations.toString()} />
+        <StatCard label={t('adm.acc.users.stats.revenue')} value={`${stats.totalRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })} DA`} />
       </div>
 
       {/* Search */}
       <div className="relative mb-4">
-        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+        <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by email, first or last name…"
-          className="w-full pl-10 pr-4 py-2.5 bg-zinc-900/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none transition-colors"
+          placeholder={t('adm.acc.users.searchPlaceholder')}
+          className="w-full ps-10 pe-4 py-2.5 bg-zinc-900/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none transition-colors"
         />
       </div>
 
@@ -197,23 +200,23 @@ export default function AdminUsersPage() {
         <SkeletonTable rows={8} />
       ) : filteredUsers.length === 0 ? (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-12 text-center text-zinc-500 text-sm">
-          {debouncedSearch ? 'No users match your search' : 'No users yet'}
+          {debouncedSearch ? t('adm.acc.users.empty.search') : t('adm.acc.users.empty.none')}
         </div>
       ) : (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/10 text-left">
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">User</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Plan</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-center">Pages</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-center">Agents</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-center hidden md:table-cell">Convs</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-center hidden md:table-cell">Products</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-right hidden lg:table-cell">Revenue</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider hidden lg:table-cell">Joined</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-right">Actions</th>
+                <tr className="border-b border-white/10 text-start">
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">{t('adm.acc.users.th.user')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">{t('adm.acc.users.th.plan')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-center">{t('adm.acc.users.th.pages')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-center">{t('adm.acc.users.th.agents')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-center hidden md:table-cell">{t('adm.acc.users.th.convs')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-center hidden md:table-cell">{t('adm.acc.users.th.products')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-right hidden lg:table-cell">{t('adm.acc.users.th.revenue')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider hidden lg:table-cell">{t('adm.acc.users.th.joined')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-right">{t('adm.acc.users.th.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -236,12 +239,12 @@ export default function AdminUsersPage() {
                               <p className="text-sm text-white truncate">{u.firstName} {u.lastName}</p>
                               {u.isAdmin && (
                                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-white/10 text-white uppercase tracking-wider">
-                                  Admin
+                                  {t('adm.acc.users.badge.admin')}
                                 </span>
                               )}
                               {isCurrent && (
                                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 uppercase tracking-wider">
-                                  You
+                                  {t('adm.acc.users.badge.you')}
                                 </span>
                               )}
                             </div>
@@ -281,14 +284,16 @@ export default function AdminUsersPage() {
                           <button
                             onClick={() => router.push(`/admin/users/${u.id}`)}
                             className="p-1.5 text-zinc-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
-                            title="View details"
+                            title={t('adm.acc.users.viewDetails')}
+                            aria-label={t('adm.acc.users.viewDetails')}
                           >
                             <EyeIcon className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setEditing(u)}
                             className="p-1.5 text-zinc-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
-                            title="Edit"
+                            title={t('adm.acc.edit')}
+                            aria-label={t('adm.acc.edit')}
                           >
                             <EditIcon className="w-4 h-4" />
                           </button>
@@ -296,7 +301,8 @@ export default function AdminUsersPage() {
                             onClick={() => setDeleteConfirm(u)}
                             disabled={isCurrent}
                             className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                            title="Delete"
+                            title={t('adm.acc.delete')}
+                            aria-label={t('adm.acc.delete')}
                           >
                             <TrashIcon className="w-4 h-4" />
                           </button>
@@ -317,56 +323,56 @@ export default function AdminUsersPage() {
         onClose={() => setFilterOpen(false)}
         onClear={clearFilters}
       >
-        <FilterSection label="Sort by">
+        <FilterSection label={t('adm.acc.sortBy')}>
           <div className="grid grid-cols-2 gap-2">
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
               className="px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
             >
-              <option value="createdAt">Joined</option>
-              <option value="email">Email</option>
-              <option value="firstName">First name</option>
-              <option value="lastName">Last name</option>
-              <option value="plan">Plan</option>
+              <option value="createdAt">{t('adm.acc.users.f.sort.joined')}</option>
+              <option value="email">{t('adm.acc.users.f.sort.email')}</option>
+              <option value="firstName">{t('adm.acc.users.f.sort.firstName')}</option>
+              <option value="lastName">{t('adm.acc.users.f.sort.lastName')}</option>
+              <option value="plan">{t('adm.acc.users.f.sort.plan')}</option>
             </select>
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
               className="px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
             >
-              <option value="desc">Newest first</option>
-              <option value="asc">Oldest first</option>
+              <option value="desc">{t('adm.acc.users.f.sort.newest')}</option>
+              <option value="asc">{t('adm.acc.users.f.sort.oldest')}</option>
             </select>
           </div>
         </FilterSection>
 
-        <FilterSection label="Plan">
+        <FilterSection label={t('adm.acc.plan')}>
           <div className="flex flex-wrap gap-2">
-            <FilterChip label="All" active={planFilter === 'all'} onClick={() => setPlanFilter('all')} />
-            <FilterChip label="Individual" active={planFilter === 'individual'} onClick={() => setPlanFilter('individual')} />
-            <FilterChip label="Teams" active={planFilter === 'teams'} onClick={() => setPlanFilter('teams')} />
+            <FilterChip label={t('adm.acc.all')} active={planFilter === 'all'} onClick={() => setPlanFilter('all')} />
+            <FilterChip label={t('adm.acc.users.f.individual')} active={planFilter === 'individual'} onClick={() => setPlanFilter('individual')} />
+            <FilterChip label={t('adm.acc.users.f.teams')} active={planFilter === 'teams'} onClick={() => setPlanFilter('teams')} />
           </div>
         </FilterSection>
 
-        <FilterSection label="Role">
+        <FilterSection label={t('adm.acc.role')}>
           <div className="flex flex-wrap gap-2">
-            <FilterChip label="All" active={roleFilter === 'all'} onClick={() => setRoleFilter('all')} />
-            <FilterChip label="Admins" active={roleFilter === 'admin'} onClick={() => setRoleFilter('admin')} />
-            <FilterChip label="Regular" active={roleFilter === 'user'} onClick={() => setRoleFilter('user')} />
+            <FilterChip label={t('adm.acc.all')} active={roleFilter === 'all'} onClick={() => setRoleFilter('all')} />
+            <FilterChip label={t('adm.acc.users.f.admins')} active={roleFilter === 'admin'} onClick={() => setRoleFilter('admin')} />
+            <FilterChip label={t('adm.acc.users.f.regular')} active={roleFilter === 'user'} onClick={() => setRoleFilter('user')} />
           </div>
         </FilterSection>
 
-        <FilterSection label="Activity">
+        <FilterSection label={t('adm.acc.activity')}>
           <div className="flex flex-wrap gap-2">
-            <FilterChip label="All" active={activityFilter === 'all'} onClick={() => setActivityFilter('all')} />
-            <FilterChip label="With pages" active={activityFilter === 'with-pages'} onClick={() => setActivityFilter('with-pages')} />
-            <FilterChip label="With agents" active={activityFilter === 'with-agents'} onClick={() => setActivityFilter('with-agents')} />
-            <FilterChip label="Inactive" active={activityFilter === 'inactive'} onClick={() => setActivityFilter('inactive')} />
+            <FilterChip label={t('adm.acc.all')} active={activityFilter === 'all'} onClick={() => setActivityFilter('all')} />
+            <FilterChip label={t('adm.acc.users.f.withPages')} active={activityFilter === 'with-pages'} onClick={() => setActivityFilter('with-pages')} />
+            <FilterChip label={t('adm.acc.users.f.withAgents')} active={activityFilter === 'with-agents'} onClick={() => setActivityFilter('with-agents')} />
+            <FilterChip label={t('adm.acc.users.f.inactive')} active={activityFilter === 'inactive'} onClick={() => setActivityFilter('inactive')} />
           </div>
         </FilterSection>
 
-        <FilterSection label="Joined date">
+        <FilterSection label={t('adm.acc.users.f.joinedDate')}>
           <div className="space-y-2">
             <input
               type="date"
@@ -383,29 +389,29 @@ export default function AdminUsersPage() {
           </div>
         </FilterSection>
 
-        <FilterSection label="Pages count">
+        <FilterSection label={t('adm.acc.users.f.pagesCount')}>
           <div className="grid grid-cols-2 gap-2">
-            <input type="number" value={minPages} onChange={(e) => setMinPages(e.target.value)} placeholder="Min" className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
-            <input type="number" value={maxPages} onChange={(e) => setMaxPages(e.target.value)} placeholder="Max" className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
+            <input type="number" value={minPages} onChange={(e) => setMinPages(e.target.value)} placeholder={t('adm.acc.min')} className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
+            <input type="number" value={maxPages} onChange={(e) => setMaxPages(e.target.value)} placeholder={t('adm.acc.max')} className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
           </div>
         </FilterSection>
 
-        <FilterSection label="Products count">
+        <FilterSection label={t('adm.acc.users.f.productsCount')}>
           <div className="grid grid-cols-2 gap-2">
-            <input type="number" value={minProducts} onChange={(e) => setMinProducts(e.target.value)} placeholder="Min" className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
-            <input type="number" value={maxProducts} onChange={(e) => setMaxProducts(e.target.value)} placeholder="Max" className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
+            <input type="number" value={minProducts} onChange={(e) => setMinProducts(e.target.value)} placeholder={t('adm.acc.min')} className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
+            <input type="number" value={maxProducts} onChange={(e) => setMaxProducts(e.target.value)} placeholder={t('adm.acc.max')} className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
           </div>
         </FilterSection>
 
-        <FilterSection label="Revenue (DA)">
+        <FilterSection label={t('adm.acc.users.f.revenue')}>
           <div className="grid grid-cols-2 gap-2">
-            <input type="number" value={minRevenue} onChange={(e) => setMinRevenue(e.target.value)} placeholder="Min" className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
-            <input type="number" value={maxRevenue} onChange={(e) => setMaxRevenue(e.target.value)} placeholder="Max" className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
+            <input type="number" value={minRevenue} onChange={(e) => setMinRevenue(e.target.value)} placeholder={t('adm.acc.min')} className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
+            <input type="number" value={maxRevenue} onChange={(e) => setMaxRevenue(e.target.value)} placeholder={t('adm.acc.max')} className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
           </div>
         </FilterSection>
 
-        <FilterSection label="Min conversations">
-          <input type="number" value={minConversations} onChange={(e) => setMinConversations(e.target.value)} placeholder="e.g. 5" className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
+        <FilterSection label={t('adm.acc.users.f.minConversations')}>
+          <input type="number" value={minConversations} onChange={(e) => setMinConversations(e.target.value)} placeholder={t('adm.acc.users.f.minConversationsPlaceholder')} className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
         </FilterSection>
       </FilterPanel>
 
@@ -425,16 +431,16 @@ export default function AdminUsersPage() {
       {deleteConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
           <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-sm w-full">
-            <h3 className="text-lg font-bold text-white mb-2">Delete user?</h3>
+            <h3 className="text-lg font-bold text-white mb-2">{t('adm.acc.users.del.title')}</h3>
             <p className="text-sm text-zinc-400 mb-6">
-              This will permanently delete <span className="text-white font-medium">{deleteConfirm.email}</span> and all their data (pages, products, agents, conversations). This cannot be undone.
+              {t('adm.acc.users.del.bodyPrefix')} <span className="text-white font-medium">{deleteConfirm.email}</span> {t('adm.acc.users.del.bodySuffix')}
             </p>
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)}>
-                Cancel
+                {t('adm.acc.cancel')}
               </Button>
               <Button variant="danger" className="flex-1" onClick={handleDelete}>
-                Delete
+                {t('adm.acc.delete')}
               </Button>
             </div>
           </div>
@@ -468,6 +474,7 @@ function EditUserModal({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const { t } = useTranslation();
   const [firstName, setFirstName] = useState(user.firstName);
   const [lastName, setLastName] = useState(user.lastName);
   const [plan, setPlan] = useState(user.plan);
@@ -480,17 +487,17 @@ function EditUserModal({
       const data: Record<string, string | undefined> = { firstName, lastName, plan };
       if (password.trim()) {
         if (password.length < 8) {
-          toast.error('Password must be at least 8 characters');
+          toast.error(t('adm.acc.userForm.err.passwordShort'));
           setSaving(false);
           return;
         }
         data.password = password;
       }
       await updateAdminUser(user.id, data);
-      toast.success('User updated');
+      toast.success(t('adm.acc.users.toast.updated'));
       onSaved();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update');
+      toast.error(e instanceof Error ? e.message : t('adm.acc.err.update'));
     } finally {
       setSaving(false);
     }
@@ -500,15 +507,15 @@ function EditUserModal({
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
       <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-md w-full">
         <div className="flex items-center justify-between mb-5">
-          <h3 className="text-lg font-bold text-white">Edit user</h3>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white">
+          <h3 className="text-lg font-bold text-white">{t('adm.acc.userForm.title')}</h3>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white" aria-label={t('adm.acc.close')}>
             <CloseIcon className="w-5 h-5" />
           </button>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Email</label>
+            <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">{t('adm.acc.userForm.email')}</label>
             <input
               type="email"
               value={user.email}
@@ -518,7 +525,7 @@ function EditUserModal({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">First name</label>
+              <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">{t('adm.acc.userForm.firstName')}</label>
               <input
                 type="text"
                 value={firstName}
@@ -527,7 +534,7 @@ function EditUserModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Last name</label>
+              <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">{t('adm.acc.userForm.lastName')}</label>
               <input
                 type="text"
                 value={lastName}
@@ -537,25 +544,25 @@ function EditUserModal({
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Plan</label>
+            <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">{t('adm.acc.userForm.plan')}</label>
             <select
               value={plan}
               onChange={(e) => setPlan(e.target.value)}
               className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
             >
-              <option value="individual">Individual</option>
-              <option value="teams">Teams</option>
+              <option value="individual">{t('adm.acc.userForm.individual')}</option>
+              <option value="teams">{t('adm.acc.userForm.teams')}</option>
             </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">
-              Reset password <span className="text-zinc-700 normal-case lowercase">(leave blank to keep current)</span>
+              {t('adm.acc.userForm.resetPassword')} <span className="text-zinc-700 normal-case lowercase">{t('adm.acc.userForm.resetPasswordHint')}</span>
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
+              placeholder={t('adm.acc.userForm.passwordPlaceholder')}
               className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
             />
           </div>
@@ -563,10 +570,10 @@ function EditUserModal({
 
         <div className="flex gap-3 mt-6">
           <Button variant="outline" className="flex-1" onClick={onClose}>
-            Cancel
+            {t('adm.acc.cancel')}
           </Button>
           <Button className="flex-1" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save changes'}
+            {saving ? t('adm.acc.saving') : t('adm.acc.save')}
           </Button>
         </div>
       </div>

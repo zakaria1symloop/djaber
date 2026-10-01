@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect } from 'react';
 import { CloseIcon, FilterIcon } from '@/components/ui/icons';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 /**
  * Right-side slide-in filter panel for admin pages.
@@ -23,6 +24,8 @@ export function FilterPanelTrigger({
   setOpen: (v: boolean) => void;
   activeCount?: number;
 }) {
+  const { t } = useTranslation();
+
   return (
     <button
       onClick={() => setOpen(!open)}
@@ -33,9 +36,9 @@ export function FilterPanelTrigger({
       }`}
     >
       <FilterIcon className="w-4 h-4" />
-      <span>Filters</span>
+      <span>{t('dlg.filters.label')}</span>
       {activeCount > 0 && (
-        <span className="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold">
+        <span className="ms-1 px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-semibold">
           {activeCount}
         </span>
       )}
@@ -46,7 +49,7 @@ export function FilterPanelTrigger({
 export function FilterPanel({
   open,
   onClose,
-  title = 'Filters',
+  title,
   onClear,
   children,
   footer,
@@ -58,6 +61,8 @@ export function FilterPanel({
   children: ReactNode;
   footer?: ReactNode;
 }) {
+  const { t } = useTranslation();
+
   // Lock body scroll when open
   useEffect(() => {
     if (open) {
@@ -91,7 +96,7 @@ export function FilterPanel({
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
           <div className="flex items-center gap-2">
             <FilterIcon className="w-4 h-4 text-zinc-400" />
-            <h2 className="text-sm font-semibold text-white">{title}</h2>
+            <h2 className="text-sm font-semibold text-white">{title || t('dlg.filters.label')}</h2>
           </div>
           <div className="flex items-center gap-2">
             {onClear && (
@@ -99,10 +104,10 @@ export function FilterPanel({
                 onClick={onClear}
                 className="text-xs text-zinc-500 hover:text-white transition-colors"
               >
-                Clear all
+                {t('dlg.filters.clearAll')}
               </button>
             )}
-            <button onClick={onClose} className="text-zinc-500 hover:text-white">
+            <button onClick={onClose} aria-label={t('dlg.close')} className="text-zinc-500 hover:text-white">
               <CloseIcon className="w-5 h-5" />
             </button>
           </div>

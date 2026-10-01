@@ -66,7 +66,7 @@ function PageConfigContent() {
   if (authLoading || pagesLoading || !currentPage) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
-        <div className="text-zinc-400 text-sm">Loading…</div>
+        <div className="text-zinc-400 text-sm">{t('shell.common.loading')}</div>
       </div>
     );
   }

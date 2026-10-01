@@ -8,6 +8,12 @@ import { ReportsCommerceI18n } from './i18n/reports-commerce';
 import { ReportsInventoryI18n } from './i18n/reports-inventory';
 import { AnalyticsTabsI18n } from './i18n/analytics-tabs';
 import { ReportsHubI18n } from './i18n/reports-hub';
+import { UiDialogsI18n } from './i18n/ui-dialogs';
+import { AppShellI18n } from './i18n/app-shell';
+import { StockOpsI18n } from './i18n/stock-ops';
+import { StockTradeI18n } from './i18n/stock-trade';
+import { AdminAccountsI18n } from './i18n/admin-accounts';
+import { AdminPlatformI18n } from './i18n/admin-platform';
 
 const parts = [
   reportsCommonI18n,
@@ -16,6 +22,12 @@ const parts = [
   ReportsInventoryI18n,
   AnalyticsTabsI18n,
   ReportsHubI18n,
+  UiDialogsI18n,
+  AppShellI18n,
+  StockOpsI18n,
+  StockTradeI18n,
+  AdminAccountsI18n,
+  AdminPlatformI18n,
 ];
 
 export const extraI18n = {

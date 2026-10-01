@@ -7,7 +7,7 @@ import AnimatedSlogan from '@/components/AnimatedSlogan';
 import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function Home() {
-  const { t, dir, lang } = useTranslation();
+  const { t, dir } = useTranslation();
 
   return (
     <main className="min-h-screen relative" dir={dir} style={{ background: 'var(--ink)', color: 'var(--paper)' }}>
@@ -32,7 +32,7 @@ export default function Home() {
                 <span style={{ color: 'var(--live)' }}>.</span>
               </h1>
 
-              <div className="mt-8 pl-4 border-s-2" style={{ borderColor: 'var(--rule-strong)' }}>
+              <div className="mt-8 ps-4 border-s-2" style={{ borderColor: 'var(--rule-strong)' }}>
                 <p className="text-2xl sm:text-3xl leading-snug font-medium tracking-tight" style={{ color: 'var(--paper)' }}>
                   <AnimatedSlogan />
                 </p>
@@ -54,7 +54,7 @@ export default function Home() {
             </div>
 
             {/* RIGHT: Live Messenger preview — concrete product imagery */}
-            <div className="col-span-12 lg:col-span-5 lg:pl-4">
+            <div className="col-span-12 lg:col-span-5 lg:ps-4">
               <ChatPreview />
             </div>
           </div>
@@ -87,8 +87,8 @@ export default function Home() {
           {/* Dashboard preview */}
           <div className="mt-20 sm:mt-24" id="demo">
             <div className="flex items-baseline justify-between mb-5">
-              <p className="label">DASHBOARD · 01</p>
-              <p className="label hidden sm:block">SCROLL ↓</p>
+              <p className="label">{t('shell.home.label.dashboard')}</p>
+              <p className="label hidden sm:block">{t('shell.home.label.scroll')}</p>
             </div>
             <AnimatedDashboard />
           </div>
@@ -100,7 +100,7 @@ export default function Home() {
         <div className="max-w-[1280px] mx-auto">
           <div className="grid grid-cols-12 gap-6 items-end mb-12">
             <div className="col-span-12 lg:col-span-7">
-              <p className="label mb-5">FEATURES · 06</p>
+              <p className="label mb-5">{t('shell.home.label.features')}</p>
               <h2 className="font-medium tracking-[-0.02em] leading-[1.05]" style={{ fontSize: 'clamp(36px, 4.5vw, 64px)' }}>
                 {t('home.features.title')}
               </h2>
@@ -145,7 +145,7 @@ export default function Home() {
         <div className="max-w-[1280px] mx-auto">
           <div className="grid grid-cols-12 gap-6 mb-14">
             <div className="col-span-12 lg:col-span-7">
-              <p className="label mb-5">SETUP · 03 STEPS</p>
+              <p className="label mb-5">{t('shell.home.label.setup')}</p>
               <h2 className="font-medium tracking-[-0.02em] leading-[1.05]" style={{ fontSize: 'clamp(36px, 4.5vw, 64px)' }}>
                 {t('home.how.title')} <span className="font-bold">{t('home.how.titleHighlight')}</span>
                 <span style={{ color: 'var(--live)' }}>.</span>
@@ -166,7 +166,7 @@ export default function Home() {
                   style={{ borderColor: 'var(--rule)' }}
                 >
                   <div className="col-span-3 sm:col-span-2">
-                    <p className="mono text-sm" style={{ color: 'var(--live)' }}>STEP {num}</p>
+                    <p className="mono text-sm" style={{ color: 'var(--live)' }}>{t('shell.home.step')} {num}</p>
                   </div>
                   <div className="col-span-9 sm:col-span-7 lg:col-span-7">
                     <h3 className="text-2xl lg:text-3xl font-medium tracking-tight mb-3" style={{ color: 'var(--paper)' }}>
@@ -191,7 +191,7 @@ export default function Home() {
         <div className="max-w-[1280px] mx-auto">
           <div className="grid grid-cols-12 gap-6 items-end mb-14">
             <div className="col-span-12 lg:col-span-7">
-              <p className="label mb-5">PRICING</p>
+              <p className="label mb-5">{t('shell.home.label.pricing')}</p>
               <h2 className="font-medium tracking-[-0.02em] leading-[1.05]" style={{ fontSize: 'clamp(36px, 4.5vw, 64px)' }}>
                 {t('home.pricing.title')} <span className="font-bold">{t('home.pricing.titleHighlight')}</span>
               </h2>
@@ -213,7 +213,7 @@ export default function Home() {
           <div className="rule mb-10" />
           <div className="grid grid-cols-12 gap-6 items-end">
             <div className="col-span-12 lg:col-span-8">
-              <p className="label mb-5">START · 24/7</p>
+              <p className="label mb-5">{t('shell.home.label.start')}</p>
               <h2 className="font-medium tracking-[-0.03em] leading-[0.95]" style={{ fontSize: 'clamp(40px, 6vw, 88px)' }}>
                 {t('home.cta.title.top')}{' '}
                 <span className="font-bold">{t('home.cta.title.highlight')}</span>{' '}
@@ -274,10 +274,10 @@ export default function Home() {
               <p className="label mb-4">{t('footer.company')}</p>
               <ul className="space-y-3">
                 {[
-                  { name: 'About', href: '/about' },
-                  { name: 'Blog', href: '/blog' },
-                  { name: 'Careers', href: '/careers' },
-                  { name: 'Contact', href: '/contact' },
+                  { name: t('footer.company.about'), href: '/about' },
+                  { name: t('footer.company.blog'), href: '/blog' },
+                  { name: t('footer.company.careers'), href: '/careers' },
+                  { name: t('footer.company.contact'), href: '/contact' },
                 ].map((item) => (
                   <li key={item.href}>
                     <Link href={item.href} className="text-sm hover:text-white transition-colors" style={{ color: 'var(--paper-dim)' }}>
@@ -309,7 +309,7 @@ export default function Home() {
 
           <div className="flex flex-col md:flex-row justify-between gap-3">
             <p className="label">© {new Date().getFullYear()} DJABER.AI · {t('footer.rights')}</p>
-            <p className="label">v1.2 · BUILT IN ALGER</p>
+            <p className="label">{t('shell.home.builtIn')}</p>
           </div>
         </div>
       </footer>
@@ -322,6 +322,7 @@ export default function Home() {
 // Shows a Messenger-style conversation between a customer and the AI agent
 // ──────────────────────────────────────────────────────────
 function ChatPreview() {
+  const { t } = useTranslation();
   return (
     <div
       className="relative w-full max-w-[460px] mx-auto"
@@ -335,7 +336,7 @@ function ChatPreview() {
           </div>
           <div>
             <p className="text-xs font-semibold leading-tight">Ibtissama-Soft</p>
-            <p className="text-[10px] leading-tight mono" style={{ color: 'var(--mute)' }}>MESSENGER · LIVE</p>
+            <p className="text-[10px] leading-tight mono" style={{ color: 'var(--mute)' }}>{t('shell.home.chat.live')}</p>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
@@ -386,7 +387,7 @@ function ChatPreview() {
       {/* Footer status */}
       <div className="flex items-center justify-between px-4 py-2.5 border-t" style={{ borderColor: 'var(--rule)' }}>
         <span className="mono text-[10px]" style={{ color: 'var(--mute)' }}>
-          ● ORDER#2871 CREATED
+          {t('shell.home.chat.orderCreated')}
         </span>
         <span className="mono text-[10px]" style={{ color: 'var(--live)' }}>
           0.8s

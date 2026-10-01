@@ -105,7 +105,7 @@ export default function DeliveryDashboardPage() {
       setProviders(provsRes.providers);
       setWilayaList(wilRes.wilayas);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load data');
+      setError(err instanceof Error ? err.message : t('stk.ops.del.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -161,7 +161,7 @@ export default function DeliveryDashboardPage() {
       setSendRates(null);
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send order');
+      setError(err instanceof Error ? err.message : t('stk.ops.del.sendFailed'));
     } finally {
       setSendLoading(false);
     }
@@ -175,7 +175,7 @@ export default function DeliveryDashboardPage() {
       const res = await getTrackingInfo(order.id);
       setTrackData(res.data);
     } catch (err) {
-      setTrackData({ error: err instanceof Error ? err.message : 'Failed to get tracking' });
+      setTrackData({ error: err instanceof Error ? err.message : t('stk.ops.del.trackFailed') });
     } finally {
       setTrackLoading(false);
     }
@@ -195,10 +195,10 @@ export default function DeliveryDashboardPage() {
         const url = URL.createObjectURL(blob);
         window.open(url, '_blank');
       } else {
-        setError('Label data not available from provider');
+        setError(t('stk.ops.del.labelUnavailable'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to get label');
+      setError(err instanceof Error ? err.message : t('stk.ops.del.labelFailed'));
     }
   };
 
@@ -257,7 +257,7 @@ export default function DeliveryDashboardPage() {
       {error && (
         <div className="bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-3 rounded-lg text-sm">
           {error}
-          <button onClick={() => setError(null)} className="ml-2 underline">dismiss</button>
+          <button onClick={() => setError(null)} className="ms-2 underline">{t('stk.ops.c.dismiss')}</button>
         </div>
       )}
 
@@ -313,14 +313,14 @@ export default function DeliveryDashboardPage() {
                 <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.delivery.col.provider')}</th>
                 <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.delivery.col.tracking')}</th>
                 <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.status')}</th>
-                <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Actions</th>
+                <th className="text-end text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.ops.c.actions')}</th>
               </tr>
             </thead>
             <tbody>
               {orders.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center text-zinc-500 py-12">
-                    No orders found
+                    {t('stk.ops.del.noOrders')}
                   </td>
                 </tr>
               ) : (
@@ -375,18 +375,18 @@ export default function DeliveryDashboardPage() {
                             disabled={providers.length === 0}
                           >
                             <TruckIcon className="w-3.5 h-3.5 mr-1" />
-                            Send
+                            {t('stk.ops.del.send')}
                           </Button>
                         )}
                         {order.deliveryStatus !== 'not_sent' && order.trackingNumber && (
                           <>
                             <Button variant="secondary" className="text-xs" onClick={() => handleTrack(order)}>
                               <EyeIcon className="w-3.5 h-3.5 mr-1" />
-                              Track
+                              {t('stk.ops.del.track')}
                             </Button>
                             <Button variant="secondary" className="text-xs" onClick={() => handleLabel(order)}>
                               <FileTextIcon className="w-3.5 h-3.5 mr-1" />
-                              Label
+                              {t('stk.ops.del.label')}
                             </Button>
                           </>
                         )}
@@ -404,7 +404,7 @@ export default function DeliveryDashboardPage() {
       <Modal
         isOpen={!!sendOrder}
         onClose={() => { setSendOrder(null); setSendRates(null); }}
-        title={`Send ${sendOrder?.orderNumber} to Delivery`}
+        title={t('stk.ops.del.sendTitle').replace('{order}', sendOrder?.orderNumber || '')}
         size="lg"
       >
         {sendOrder && (
@@ -412,45 +412,45 @@ export default function DeliveryDashboardPage() {
             {/* Order summary */}
             <div className="bg-black/50 border border-white/10 rounded-lg p-3 space-y-1 text-sm">
               <div className="flex justify-between">
-                <span className="text-zinc-400">Client</span>
+                <span className="text-zinc-400">{t('stk.ops.del.client')}</span>
                 <span className="text-white">{sendOrder.clientName}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-zinc-400">Phone</span>
+                <span className="text-zinc-400">{t('stk.ops.c.phone')}</span>
                 <span className="text-white">{sendOrder.clientPhone || '—'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-zinc-400">Address</span>
+                <span className="text-zinc-400">{t('stk.ops.c.address')}</span>
                 <span className="text-white text-right max-w-[250px] truncate">{sendOrder.clientAddress || '—'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-zinc-400">Total</span>
+                <span className="text-zinc-400">{t('stk.ops.del.total')}</span>
                 <span className="text-white font-medium">{Number(sendOrder.total).toLocaleString()} DA</span>
               </div>
             </div>
 
             {providers.length === 0 ? (
               <div className="text-center py-4">
-                <p className="text-zinc-400 text-sm mb-3">No delivery providers configured</p>
+                <p className="text-zinc-400 text-sm mb-3">{t('stk.ops.del.noProviders')}</p>
                 <Button
                   variant="secondary"
                   onClick={() => router.push('/dashboard/stock/delivery/settings')}
                 >
                   <SettingsIcon className="w-4 h-4 mr-2" />
-                  Add Provider
+                  {t('stk.ops.del.addProvider')}
                 </Button>
               </div>
             ) : (
               <>
                 <Select
-                  label="Delivery Provider"
+                  label={t('stk.ops.del.provider')}
                   value={sendProviderId}
                   onChange={e => setSendProviderId(e.target.value)}
                 >
-                  <option value="">Select provider...</option>
+                  <option value="">{t('stk.ops.del.selectProvider')}</option>
                   {providers.filter(p => p.isActive).map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.displayName}{p.isDefault ? ' (Default)' : ''}
+                      {p.displayName}{p.isDefault ? t('stk.ops.del.defaultSuffix') : ''}
                     </option>
                   ))}
                 </Select>
@@ -459,7 +459,7 @@ export default function DeliveryDashboardPage() {
                   wilayas={wilayaList}
                   value={sendWilaya}
                   onChange={setSendWilaya}
-                  label="Destination Wilaya"
+                  label={t('stk.ops.del.destWilaya')}
                 />
 
                 <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
@@ -469,11 +469,11 @@ export default function DeliveryDashboardPage() {
                     onChange={e => setSendStopdesk(e.target.checked)}
                     className="rounded border-white/20 bg-black"
                   />
-                  Stop desk delivery
+                  {t('stk.ops.del.stopdeskDelivery')}
                 </label>
 
                 <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-1">Note</label>
+                  <label className="block text-sm font-medium text-zinc-400 mb-1">{t('stk.ops.del.note')}</label>
                   <textarea
                     value={sendNote}
                     onChange={e => setSendNote(e.target.value)}
@@ -481,27 +481,27 @@ export default function DeliveryDashboardPage() {
                     className="w-full px-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm
                       focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30
                       placeholder:text-zinc-500 resize-none"
-                    placeholder="Optional note for the delivery company..."
+                    placeholder={t('stk.ops.del.notePlaceholder')}
                   />
                 </div>
 
                 {/* Rates preview */}
                 {ratesLoading && (
                   <div className="text-sm text-zinc-400 flex items-center gap-2">
-                    <RefreshIcon className="w-4 h-4 animate-spin" /> Fetching rates...
+                    <RefreshIcon className="w-4 h-4 animate-spin" /> {t('stk.ops.del.fetchingRates')}
                   </div>
                 )}
                 {sendRates && !ratesLoading && (
                   <div className="bg-black/50 border border-white/10 rounded-lg p-3 text-sm space-y-1">
-                    <h4 className="text-zinc-300 font-medium mb-1">Estimated Rates</h4>
+                    <h4 className="text-zinc-300 font-medium mb-1">{t('stk.ops.del.estimatedRates')}</h4>
                     <div className="flex justify-between">
-                      <span className="text-zinc-400">Home Delivery</span>
+                      <span className="text-zinc-400">{t('stk.ops.del.homeDelivery')}</span>
                       <span className="text-white">
                         {sendRates.home_delivery != null ? `${sendRates.home_delivery} DA` : '—'}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-zinc-400">Stop Desk</span>
+                      <span className="text-zinc-400">{t('stk.ops.del.stopDesk')}</span>
                       <span className="text-white">
                         {sendRates.stopdesk != null ? `${sendRates.stopdesk} DA` : '—'}
                       </span>
@@ -510,12 +510,12 @@ export default function DeliveryDashboardPage() {
                 )}
 
                 <div className="flex justify-end gap-3 pt-2">
-                  <Button variant="secondary" onClick={() => setSendOrder(null)}>Cancel</Button>
+                  <Button variant="secondary" onClick={() => setSendOrder(null)}>{t('stk.ops.c.cancel')}</Button>
                   <Button
                     onClick={handleSend}
                     disabled={sendLoading || !sendProviderId || !sendWilaya}
                   >
-                    {sendLoading ? 'Sending...' : 'Confirm & Send'}
+                    {sendLoading ? t('stk.ops.del.sending') : t('stk.ops.del.confirmSend')}
                   </Button>
                 </div>
               </>
@@ -528,7 +528,7 @@ export default function DeliveryDashboardPage() {
       <Modal
         isOpen={!!trackOrder}
         onClose={() => setTrackOrder(null)}
-        title={`Tracking — ${trackOrder?.orderNumber}`}
+        title={t('stk.ops.del.trackingTitle').replace('{order}', trackOrder?.orderNumber || '')}
         size="lg"
       >
         {trackLoading ? (
@@ -546,7 +546,7 @@ export default function DeliveryDashboardPage() {
             </div>
           </div>
         ) : (
-          <div className="text-zinc-500 text-sm">No tracking data available</div>
+          <div className="text-zinc-500 text-sm">{t('stk.ops.del.noTracking')}</div>
         )}
       </Modal>
     </div>

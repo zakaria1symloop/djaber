@@ -20,27 +20,11 @@ import {
 
 const LIMIT = 20;
 
-const CATEGORY_OPTIONS = [
-  { value: '', label: 'All Categories' },
-  { value: 'sale', label: 'Sale' },
-  { value: 'order', label: 'Order' },
-  { value: 'purchase', label: 'Purchase' },
-  { value: 'rent', label: 'Rent' },
-  { value: 'salary', label: 'Salary' },
-  { value: 'utilities', label: 'Utilities' },
-  { value: 'marketing', label: 'Marketing' },
-  { value: 'shipping', label: 'Shipping' },
-  { value: 'other', label: 'Other' },
-];
+// Category values only — labels are resolved at render time through
+// `stk.ops.cai.cat.*` so they follow the active language.
+const CATEGORY_VALUES = ['', 'sale', 'order', 'purchase', 'rent', 'salary', 'utilities', 'marketing', 'shipping', 'other'];
 
-const MANUAL_CATEGORIES = [
-  { value: 'rent', label: 'Rent' },
-  { value: 'salary', label: 'Salary' },
-  { value: 'utilities', label: 'Utilities' },
-  { value: 'marketing', label: 'Marketing' },
-  { value: 'shipping', label: 'Shipping' },
-  { value: 'other', label: 'Other' },
-];
+const MANUAL_CATEGORY_VALUES = ['rent', 'salary', 'utilities', 'marketing', 'shipping', 'other'];
 
 // All categories share the neutral pill scheme — the word carries the meaning.
 const NEUTRAL_PILL = 'border border-white/10 bg-white/[0.03] text-zinc-300';
@@ -150,7 +134,7 @@ export default function CaissePage() {
       setTransactions(res.transactions);
       setTotal(res.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load transactions');
+      setError(err instanceof Error ? err.message : t('stk.ops.cai.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -228,7 +212,7 @@ export default function CaissePage() {
       loadTransactions();
       loadStats();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save');
+      setError(err instanceof Error ? err.message : t('stk.ops.cai.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -243,7 +227,7 @@ export default function CaissePage() {
       loadTransactions();
       loadStats();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete');
+      setError(err instanceof Error ? err.message : t('stk.ops.cai.deleteFailed'));
     } finally {
       setDeleting(false);
     }
@@ -287,7 +271,7 @@ export default function CaissePage() {
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-400">
           {error}
-          <button onClick={() => setError(null)} className="ml-2 underline">Dismiss</button>
+          <button onClick={() => setError(null)} className="ms-2 underline">{t('stk.ops.c.dismiss')}</button>
         </div>
       )}
 
@@ -371,9 +355,9 @@ export default function CaissePage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-500">Loading...</td></tr>
+                <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-500">{t('stk.ops.c.loading')}</td></tr>
               ) : transactions.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-500">No transactions found</td></tr>
+                <tr><td colSpan={8} className="px-4 py-12 text-center text-zinc-500">{t('stk.ops.cai.noneFound')}</td></tr>
               ) : transactions.map((tx) => (
                 <tr key={tx.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                   <td className="px-4 py-3 text-zinc-300">
@@ -418,14 +402,14 @@ export default function CaissePage() {
                         <button
                           onClick={() => openEdit(tx)}
                           className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
-                          title="Edit"
+                          title={t('stk.ops.c.edit')}
                         >
                           <EditIcon className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => setDeleteConfirm(tx)}
                           className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-all"
-                          title="Delete"
+                          title={t('stk.ops.c.delete')}
                         >
                           <TrashIcon className="w-3.5 h-3.5" />
                         </button>
@@ -446,58 +430,58 @@ export default function CaissePage() {
       </div>
 
       {/* Add/Edit Modal */}
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editing ? 'Edit Transaction' : 'Add Transaction'}>
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editing ? t('stk.ops.cai.editTitle') : t('stk.ops.cai.addTitle')}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-zinc-400 mb-1">Type</label>
+              <label className="block text-xs text-zinc-400 mb-1">{t('stk.ops.c.type')}</label>
               <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as 'income' | 'expense' })}>
-                <option value="income">Income</option>
-                <option value="expense">Expense</option>
+                <option value="income">{t('stk.ops.cai.income')}</option>
+                <option value="expense">{t('stk.ops.cai.expense')}</option>
               </Select>
             </div>
             <div>
-              <label className="block text-xs text-zinc-400 mb-1">Amount (DA)</label>
-              <Input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0.00" />
+              <label className="block text-xs text-zinc-400 mb-1">{t('stk.ops.cai.amountDa')}</label>
+              <Input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder={t('stk.ops.cai.amountPlaceholder')} />
             </div>
           </div>
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Category</label>
+            <label className="block text-xs text-zinc-400 mb-1">{t('stk.ops.c.category')}</label>
             <Select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-              {MANUAL_CATEGORIES.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+              {MANUAL_CATEGORY_VALUES.map(v => (
+                <option key={v} value={v}>{t(`stk.ops.cai.cat.${v}`)}</option>
               ))}
             </Select>
           </div>
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Reference</label>
-            <Input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} placeholder="e.g. Invoice #123" />
+            <label className="block text-xs text-zinc-400 mb-1">{t('stk.ops.cai.reference')}</label>
+            <Input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} placeholder={t('stk.ops.cai.referencePlaceholder')} />
           </div>
           <div>
-            <label className="block text-xs text-zinc-400 mb-1">Description</label>
-            <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Details about this transaction" />
+            <label className="block text-xs text-zinc-400 mb-1">{t('stk.ops.cai.description')}</label>
+            <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder={t('stk.ops.cai.descriptionPlaceholder')} />
           </div>
           <div>
-            <DatePicker label="Date" value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
+            <DatePicker label={t('stk.ops.cai.date')} value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
+            <Button variant="secondary" onClick={() => setShowModal(false)}>{t('stk.ops.c.cancel')}</Button>
             <Button onClick={handleSave} disabled={saving || !form.amount}>
-              {saving ? 'Saving...' : editing ? 'Update' : 'Add'}
+              {saving ? t('stk.ops.c.saving') : editing ? t('stk.ops.c.update') : t('stk.ops.c.add')}
             </Button>
           </div>
         </div>
       </Modal>
 
       {/* Delete Confirm */}
-      <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="Delete Transaction">
+      <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title={t('stk.ops.cai.deleteTitle')}>
         <p className="text-sm text-zinc-400 mb-4">
-          Are you sure you want to delete this transaction? This action cannot be undone.
+          {t('stk.ops.cai.deleteBody')}
         </p>
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+          <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>{t('stk.ops.c.cancel')}</Button>
           <Button onClick={handleDelete} disabled={deleting}>
-            {deleting ? 'Deleting...' : 'Delete'}
+            {deleting ? t('stk.ops.c.deleting') : t('stk.ops.c.delete')}
           </Button>
         </div>
       </Modal>
@@ -507,7 +491,7 @@ export default function CaissePage() {
       {filtersOpen && (
         <div className="fixed top-0 right-0 h-full w-[336px] bg-zinc-950 border-l border-white/10 z-[45] flex flex-col shadow-2xl">
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-            <h2 className="text-sm font-semibold text-white">Filters</h2>
+            <h2 className="text-sm font-semibold text-white">{t('stk.ops.c.filters')}</h2>
             <button onClick={() => setFiltersOpen(false)} className="p-1 text-zinc-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors">
               <CloseIcon className="w-4 h-4" />
             </button>
@@ -516,28 +500,28 @@ export default function CaissePage() {
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
             {/* Type */}
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Type</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">{t('stk.ops.c.type')}</label>
               <select
                 value={draftType}
                 onChange={(e) => setDraftType(e.target.value)}
                 className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 hover:border-white/20 transition-colors"
               >
-                <option value="">All Types</option>
-                <option value="income">Income</option>
-                <option value="expense">Expense</option>
+                <option value="">{t('stk.ops.c.allTypes')}</option>
+                <option value="income">{t('stk.ops.cai.income')}</option>
+                <option value="expense">{t('stk.ops.cai.expense')}</option>
               </select>
             </div>
 
             {/* Category */}
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Category</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">{t('stk.ops.c.category')}</label>
               <select
                 value={draftCategory}
                 onChange={(e) => setDraftCategory(e.target.value)}
                 className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 hover:border-white/20 transition-colors"
               >
-                {CATEGORY_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
+                {CATEGORY_VALUES.map(v => (
+                  <option key={v} value={v}>{v === '' ? t('stk.ops.cai.allCategories') : t(`stk.ops.cai.cat.${v}`)}</option>
                 ))}
               </select>
             </div>
@@ -550,14 +534,14 @@ export default function CaissePage() {
               disabled={!draftDirty}
               className="w-full px-4 py-2.5 bg-white hover:bg-zinc-200 disabled:bg-zinc-700 disabled:text-zinc-500 text-black text-sm font-medium rounded-lg transition-colors"
             >
-              Apply Filters
+              {t('stk.ops.c.applyFilters')}
             </button>
             {activeFilterCount > 0 && (
               <button
                 onClick={clearAllFilters}
                 className="w-full px-4 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
               >
-                Clear All Filters
+                {t('stk.ops.c.clearAllFilters')}
               </button>
             )}
           </div>

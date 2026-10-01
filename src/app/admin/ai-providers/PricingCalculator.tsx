@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 // USD per 1M tokens. Source: each provider's public pricing page (Jan 2026).
 interface ModelPricing {
@@ -8,24 +9,24 @@ interface ModelPricing {
   model: string;
   inputPer1M: number;
   outputPer1M: number;
-  notes?: string;
+  noteKey?: string;
 }
 
 const PRICING: ModelPricing[] = [
   { provider: 'openai', model: 'gpt-4o', inputPer1M: 2.5, outputPer1M: 10 },
-  { provider: 'openai', model: 'gpt-4o-mini', inputPer1M: 0.15, outputPer1M: 0.6, notes: 'cheapest vision-capable' },
+  { provider: 'openai', model: 'gpt-4o-mini', inputPer1M: 0.15, outputPer1M: 0.6, noteKey: 'adm.plat.calc.note.cheapest' },
   { provider: 'openai', model: 'gpt-4-turbo', inputPer1M: 10, outputPer1M: 30 },
   { provider: 'openai', model: 'gpt-3.5-turbo', inputPer1M: 0.5, outputPer1M: 1.5 },
-  { provider: 'openai', model: 'o1', inputPer1M: 15, outputPer1M: 60, notes: 'reasoning' },
-  { provider: 'openai', model: 'o1-mini', inputPer1M: 3, outputPer1M: 12, notes: 'reasoning' },
+  { provider: 'openai', model: 'o1', inputPer1M: 15, outputPer1M: 60, noteKey: 'adm.plat.calc.note.reasoning' },
+  { provider: 'openai', model: 'o1-mini', inputPer1M: 3, outputPer1M: 12, noteKey: 'adm.plat.calc.note.reasoning' },
   { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022', inputPer1M: 3, outputPer1M: 15 },
   { provider: 'anthropic', model: 'claude-3-5-haiku-20241022', inputPer1M: 0.8, outputPer1M: 4 },
   { provider: 'anthropic', model: 'claude-3-opus-20240229', inputPer1M: 15, outputPer1M: 75 },
-  { provider: 'google', model: 'gemini-2.0-flash', inputPer1M: 0.1, outputPer1M: 0.4, notes: 'free tier available' },
+  { provider: 'google', model: 'gemini-2.0-flash', inputPer1M: 0.1, outputPer1M: 0.4, noteKey: 'adm.plat.calc.note.freeTier' },
   { provider: 'google', model: 'gemini-1.5-pro', inputPer1M: 1.25, outputPer1M: 5 },
   { provider: 'google', model: 'gemini-1.5-flash', inputPer1M: 0.075, outputPer1M: 0.3 },
   { provider: 'groq', model: 'llama-3.3-70b-versatile', inputPer1M: 0.59, outputPer1M: 0.79 },
-  { provider: 'groq', model: 'llama-3.1-8b-instant', inputPer1M: 0.05, outputPer1M: 0.08, notes: 'cheapest overall' },
+  { provider: 'groq', model: 'llama-3.1-8b-instant', inputPer1M: 0.05, outputPer1M: 0.08, noteKey: 'adm.plat.calc.note.cheapestOverall' },
   { provider: 'groq', model: 'mixtral-8x7b-32768', inputPer1M: 0.24, outputPer1M: 0.24 },
 ];
 
@@ -103,6 +104,7 @@ function simulateChat(args: {
 }
 
 export default function PricingCalculator() {
+  const { t } = useTranslation();
   const [model, setModel] = useState<string>('gpt-4o-mini');
   const [chatsPerDay, setChatsPerDay] = useState<number>(50);
   const [messagesPerChat, setMessagesPerChat] = useState<number>(6);
@@ -142,11 +144,11 @@ export default function PricingCalculator() {
   // Pick a recommended plan based on monthly credits needed
   const recommendedPlan = useMemo(() => {
     const m = perMonthCredits;
-    if (m <= 500) return 'Free';
-    if (m <= 5000) return 'Starter (~5k credits)';
-    if (m <= 20000) return 'Growth (~20k credits)';
-    return 'Pro+ / custom';
-  }, [perMonthCredits]);
+    if (m <= 500) return t('adm.plat.calc.plan.free');
+    if (m <= 5000) return t('adm.plat.calc.plan.starter');
+    if (m <= 20000) return t('adm.plat.calc.plan.growth');
+    return t('adm.plat.calc.plan.pro');
+  }, [perMonthCredits, t]);
 
   return (
     <div className="space-y-6">
@@ -158,14 +160,14 @@ export default function PricingCalculator() {
               className="text-lg sm:text-xl font-bold text-white mb-1"
               style={{ fontFamily: 'Syne, sans-serif' }}
             >
-              Chat-volume simulator
+              {t('adm.plat.calc.title')}
             </h2>
             <p className="text-xs text-zinc-500">
-              Estimate how many chats your customers will exchange and what it&apos;ll cost.
+              {t('adm.plat.calc.subtitle')}
             </p>
           </div>
           <span className="text-[10px] uppercase tracking-wider text-zinc-600 whitespace-nowrap">
-            Recommended: <span className="text-emerald-400 font-semibold">{recommendedPlan}</span>
+            {t('adm.plat.calc.recommended')} <span className="text-emerald-400 font-semibold">{recommendedPlan}</span>
           </span>
         </div>
 
@@ -174,7 +176,7 @@ export default function PricingCalculator() {
           <div className="lg:col-span-2 space-y-4">
             <div>
               <label className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1.5 block">
-                Model
+                {t('adm.plat.calc.model')}
               </label>
               <select
                 value={model}
@@ -186,7 +188,7 @@ export default function PricingCalculator() {
                     {PRICING.filter((p) => p.provider === prov).map((p) => (
                       <option key={p.model} value={p.model}>
                         {p.model}
-                        {p.notes ? ` — ${p.notes}` : ''}
+                        {p.noteKey ? ` — ${t(p.noteKey)}` : ''}
                       </option>
                     ))}
                   </optgroup>
@@ -195,31 +197,31 @@ export default function PricingCalculator() {
             </div>
 
             <Slider
-              label="New chats per day"
-              hint="how many fresh customer conversations start each day"
+              label={t('adm.plat.calc.chatsPerDay')}
+              hint={t('adm.plat.calc.chatsPerDayHint')}
               value={chatsPerDay}
               onChange={setChatsPerDay}
               min={1}
               max={500}
               step={1}
-              suffix={` ${chatsPerDay === 1 ? 'chat' : 'chats'}/day`}
+              suffix={chatsPerDay === 1 ? t('adm.plat.calc.chatPerDay') : t('adm.plat.calc.chatsPerDaySuffix')}
             />
 
             <Slider
-              label="Avg messages per chat"
-              hint={`each chat has ~${messagesPerChat} customer message${messagesPerChat === 1 ? '' : 's'} + ${messagesPerChat} agent ${messagesPerChat === 1 ? 'reply' : 'replies'}`}
+              label={t('adm.plat.calc.msgsPerChat')}
+              hint={messagesPerChat === 1 ? t('adm.plat.calc.msgsPerChatHintOne') : t('adm.plat.calc.msgsPerChatHint').split('{n}').join(String(messagesPerChat))}
               value={messagesPerChat}
               onChange={setMessagesPerChat}
               min={1}
               max={20}
               step={1}
-              suffix={` exchange${messagesPerChat === 1 ? '' : 's'}`}
+              suffix={messagesPerChat === 1 ? t('adm.plat.calc.exchange') : t('adm.plat.calc.exchanges')}
             />
 
             <div className="grid grid-cols-2 gap-3">
               <Slider
-                label="% with image"
-                hint="customer sends a product photo"
+                label={t('adm.plat.calc.withImage')}
+                hint={t('adm.plat.calc.withImageHint')}
                 value={visionPct}
                 onChange={setVisionPct}
                 min={0}
@@ -228,8 +230,8 @@ export default function PricingCalculator() {
                 suffix="%"
               />
               <Slider
-                label="% with voice note"
-                hint="needs Whisper transcription"
+                label={t('adm.plat.calc.withVoice')}
+                hint={t('adm.plat.calc.withVoiceHint')}
                 value={voicePct}
                 onChange={setVoicePct}
                 min={0}
@@ -244,28 +246,28 @@ export default function PricingCalculator() {
                 onClick={() => setAdvancedOpen((v) => !v)}
                 className="w-full flex items-center justify-between text-[11px] uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors"
               >
-                <span>Advanced — token assumptions</span>
+                <span>{t('adm.plat.calc.advanced')}</span>
                 <span className="text-zinc-600">{advancedOpen ? '−' : '+'}</span>
               </button>
               {advancedOpen && (
                 <div className="grid grid-cols-3 gap-2 pt-2">
                   <NumField
-                    label="System prompt"
+                    label={t('adm.plat.calc.sysPrompt')}
                     value={sysPrompt}
                     onChange={setSysPrompt}
-                    hint="agent instructions + product context"
+                    hint={t('adm.plat.calc.sysPromptHint')}
                   />
                   <NumField
-                    label="Customer msg"
+                    label={t('adm.plat.calc.custMsg')}
                     value={custMsg}
                     onChange={setCustMsg}
-                    hint="avg input length"
+                    hint={t('adm.plat.calc.custMsgHint')}
                   />
                   <NumField
-                    label="Agent reply"
+                    label={t('adm.plat.calc.agentReply')}
                     value={reply}
                     onChange={setReply}
-                    hint="avg output length"
+                    hint={t('adm.plat.calc.agentReplyHint')}
                   />
                 </div>
               )}
@@ -273,7 +275,7 @@ export default function PricingCalculator() {
 
             <div className="flex flex-wrap items-center gap-3">
               <label className="text-[10px] uppercase tracking-wider text-zinc-500">
-                Credit peg ($/credit)
+                {t('adm.plat.calc.creditPeg')}
               </label>
               <div className="flex items-center gap-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1">
                 <span className="text-zinc-500 text-xs">$</span>
@@ -287,7 +289,7 @@ export default function PricingCalculator() {
                 />
               </div>
               <span className="text-[10px] text-zinc-600">
-                default $0.001 → 1¢ = 10 credits
+                {t('adm.plat.calc.creditPegHint')}
               </span>
             </div>
           </div>
@@ -295,24 +297,24 @@ export default function PricingCalculator() {
           {/* Result panel */}
           <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 space-y-3.5">
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-emerald-400/70 mb-0.5">Cost per chat</p>
+              <p className="text-[10px] uppercase tracking-wider text-emerald-400/70 mb-0.5">{t('adm.plat.calc.costPerChat')}</p>
               <p className="text-lg font-bold text-emerald-300" style={{ fontFamily: 'Syne, sans-serif' }}>
                 {fmtUSD(perChat.perChatUSD)}
               </p>
-              <p className="text-[10px] text-emerald-400/60">{fmtCredits(perChatCredits)} credits</p>
+              <p className="text-[10px] text-emerald-400/60">{fmtCredits(perChatCredits)} {t('adm.plat.calc.credits')}</p>
             </div>
 
             <div className="border-t border-emerald-500/15 pt-3 space-y-1 text-xs">
               <div className="flex justify-between text-zinc-400">
-                <span>Per day ({chatsPerDay} chats)</span>
+                <span>{t('adm.plat.calc.perDay').replace('{n}', String(chatsPerDay))}</span>
                 <span className="font-mono text-white">{fmtUSD(perDayUSD)}</span>
               </div>
               <div className="flex justify-between text-zinc-400">
-                <span>Per month (~30 days)</span>
+                <span>{t('adm.plat.calc.perMonth')}</span>
                 <span className="font-mono text-white font-semibold">{fmtUSD(perMonthUSD)}</span>
               </div>
               <div className="flex justify-between text-zinc-400">
-                <span>Monthly credits</span>
+                <span>{t('adm.plat.calc.monthlyCredits')}</span>
                 <span className="font-mono text-emerald-300 font-semibold">
                   {fmtCredits(perMonthCredits)}
                 </span>
@@ -320,30 +322,30 @@ export default function PricingCalculator() {
             </div>
 
             <div className="border-t border-emerald-500/15 pt-3 space-y-1.5 text-[11px]">
-              <p className="text-[10px] uppercase tracking-wider text-emerald-400/70 mb-1">Plan capacity</p>
+              <p className="text-[10px] uppercase tracking-wider text-emerald-400/70 mb-1">{t('adm.plat.calc.planCapacity')}</p>
               <div className="flex justify-between text-zinc-400">
-                <span>500-credit plan</span>
+                <span>{t('adm.plat.calc.plan500')}</span>
                 <span className="font-mono text-emerald-300">
-                  {chatsAtPlan(500).toLocaleString()} chats
+                  {chatsAtPlan(500).toLocaleString()} {t('adm.plat.calc.chats')}
                 </span>
               </div>
               <div className="flex justify-between text-zinc-400">
-                <span>5,000-credit plan</span>
+                <span>{t('adm.plat.calc.plan5k')}</span>
                 <span className="font-mono text-emerald-300">
-                  {chatsAtPlan(5000).toLocaleString()} chats
+                  {chatsAtPlan(5000).toLocaleString()} {t('adm.plat.calc.chats')}
                 </span>
               </div>
               <div className="flex justify-between text-zinc-400">
-                <span>20,000-credit plan</span>
+                <span>{t('adm.plat.calc.plan20k')}</span>
                 <span className="font-mono text-emerald-300">
-                  {chatsAtPlan(20000).toLocaleString()} chats
+                  {chatsAtPlan(20000).toLocaleString()} {t('adm.plat.calc.chats')}
                 </span>
               </div>
             </div>
 
             <div className="border-t border-emerald-500/15 pt-3 text-[10px] text-emerald-400/50 space-y-0.5">
-              <p>{Math.round(perChat.tokensIn).toLocaleString()} tokens in / chat</p>
-              <p>{Math.round(perChat.tokensOut).toLocaleString()} tokens out / chat</p>
+              <p>{t('adm.plat.calc.tokensIn').replace('{n}', Math.round(perChat.tokensIn).toLocaleString())}</p>
+              <p>{t('adm.plat.calc.tokensOut').replace('{n}', Math.round(perChat.tokensOut).toLocaleString())}</p>
             </div>
           </div>
         </div>
@@ -357,14 +359,14 @@ export default function PricingCalculator() {
               className="text-lg sm:text-xl font-bold text-white mb-1"
               style={{ fontFamily: 'Syne, sans-serif' }}
             >
-              Model pricing reference
+              {t('adm.plat.calc.ref.title')}
             </h2>
             <p className="text-xs text-zinc-500">
-              Public token rates per provider. The simulator above uses these to compute the chat cost.
+              {t('adm.plat.calc.ref.subtitle')}
             </p>
           </div>
           <span className="text-[10px] uppercase tracking-wider text-zinc-600 whitespace-nowrap">
-            per 1M tokens
+            {t('adm.plat.calc.ref.per1M')}
           </span>
         </div>
 
@@ -372,11 +374,11 @@ export default function PricingCalculator() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/5 text-[10px] uppercase tracking-wider text-zinc-500">
-                <th className="text-start font-medium px-3 py-2">Provider</th>
-                <th className="text-start font-medium px-3 py-2">Model</th>
-                <th className="text-end font-medium px-3 py-2">Input</th>
-                <th className="text-end font-medium px-3 py-2">Output</th>
-                <th className="text-end font-medium px-3 py-2">Per chat*</th>
+                <th className="text-start font-medium px-3 py-2">{t('adm.plat.calc.ref.provider')}</th>
+                <th className="text-start font-medium px-3 py-2">{t('adm.plat.calc.ref.model')}</th>
+                <th className="text-end font-medium px-3 py-2">{t('adm.plat.calc.ref.input')}</th>
+                <th className="text-end font-medium px-3 py-2">{t('adm.plat.calc.ref.output')}</th>
+                <th className="text-end font-medium px-3 py-2">{t('adm.plat.calc.ref.perChat')}</th>
               </tr>
             </thead>
             <tbody>
@@ -401,7 +403,7 @@ export default function PricingCalculator() {
                     </td>
                     <td className="px-3 py-2.5">
                       <span className="font-mono text-xs text-zinc-200">{p.model}</span>
-                      {p.notes && <span className="ms-2 text-[10px] text-zinc-500">— {p.notes}</span>}
+                      {p.noteKey && <span className="ms-2 text-[10px] text-zinc-500">— {t(p.noteKey)}</span>}
                     </td>
                     <td className="px-3 py-2.5 text-end font-mono text-xs text-zinc-300">
                       ${p.inputPer1M.toFixed(2)}
@@ -412,7 +414,7 @@ export default function PricingCalculator() {
                     <td className="px-3 py-2.5 text-end">
                       <span className="font-mono text-xs text-emerald-300">{fmtUSD(sim.perChatUSD)}</span>
                       <span className="block text-[10px] text-emerald-400/60">
-                        {fmtCredits(credits)} credits
+                        {fmtCredits(credits)} {t('adm.plat.calc.credits')}
                       </span>
                     </td>
                   </tr>
@@ -422,26 +424,25 @@ export default function PricingCalculator() {
           </table>
         </div>
         <p className="text-[10px] text-zinc-600 mt-3">
-          *Per-chat cost assumes 6 exchanges, 1k system prompt, 60-token customer msgs, 200-token replies, 15% with image,
-          5% with voice. Tweak the simulator above to match your reality.
+          {t('adm.plat.calc.ref.footnote')}
         </p>
       </div>
 
       {/* How credits work */}
       <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 sm:p-5">
-        <p className="text-xs sm:text-sm text-blue-200 font-semibold mb-2">How credits work</p>
+        <p className="text-xs sm:text-sm text-blue-200 font-semibold mb-2">{t('adm.plat.calc.how.title')}</p>
         <ul className="space-y-1.5 text-xs text-blue-100/80 leading-relaxed">
           <li>
-            • Each AI reply carries the full conversation history as input — so longer chats cost more (roughly quadratically with message count).
+            • {t('adm.plat.calc.how.1')}
           </li>
           <li>
-            • Image-bearing messages add ~1k input tokens; voice notes cost a flat Whisper fee (~$0.003 per 30 sec).
+            • {t('adm.plat.calc.how.2')}
           </li>
           <li>
-            • Cheap models (<span className="font-mono">gpt-4o-mini</span>, <span className="font-mono">gemini-1.5-flash</span>, <span className="font-mono">llama-3.1-8b-instant</span>) handle thousands of chats on the 500-credit free tier.
+            • {t('adm.plat.calc.how.3a')}<span className="font-mono">gpt-4o-mini</span>, <span className="font-mono">gemini-1.5-flash</span>, <span className="font-mono">llama-3.1-8b-instant</span>{t('adm.plat.calc.how.3b')}
           </li>
           <li>
-            • When <span className="font-mono">creditsUsed ≥ creditsLimit</span>, the AI agent stops replying until next billing cycle (or upgrade).
+            • {t('adm.plat.calc.how.4a')} <span className="font-mono">creditsUsed ≥ creditsLimit</span>, {t('adm.plat.calc.how.4b')}
           </li>
         </ul>
       </div>

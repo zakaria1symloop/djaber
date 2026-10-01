@@ -116,7 +116,7 @@ export default function SuppliersPage() {
       const res = await getSuppliers(params);
       setSuppliers(res.suppliers);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load suppliers');
+      setError(err instanceof Error ? err.message : t('stk.ops.sup.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -197,7 +197,7 @@ export default function SuppliersPage() {
     setModalError(null);
 
     // Client-side validation — show inline inside the modal, not on the page.
-    const nameErr = validateName(form.name, 'Name');
+    const nameErr = validateName(form.name, t('stk.ops.c.name'));
     if (nameErr) { setModalError(nameErr); return; }
     const emailErr = validateEmailOptional(form.email);
     if (emailErr) { setModalError(emailErr); return; }
@@ -215,7 +215,7 @@ export default function SuppliersPage() {
           notes: form.notes.trim() || undefined,
           isActive: form.isActive,
         });
-        toast.success('Supplier updated');
+        toast.success(t('stk.ops.sup.updated'));
       } else {
         await createSupplier({
           name: form.name.trim(),
@@ -224,12 +224,12 @@ export default function SuppliersPage() {
           address: form.address.trim() || undefined,
           notes: form.notes.trim() || undefined,
         });
-        toast.success('Supplier added');
+        toast.success(t('stk.ops.sup.added'));
       }
       setShowModal(false);
       loadSuppliers();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to save supplier';
+      const msg = err instanceof Error ? err.message : t('stk.ops.sup.saveFailed');
       setModalError(msg);
     } finally {
       setSaving(false);
@@ -241,12 +241,12 @@ export default function SuppliersPage() {
     try {
       setDeleting(true);
       await deleteSupplier(deleteConfirm.id);
-      toast.success('Supplier deleted');
+      toast.success(t('stk.ops.sup.deleted'));
       setDeleteConfirm(null);
       setViewing(null);
       loadSuppliers();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete supplier');
+      toast.error(err instanceof Error ? err.message : t('stk.ops.sup.deleteFailed'));
     } finally {
       setDeleting(false);
     }
@@ -338,13 +338,13 @@ export default function SuppliersPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/10">
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Supplier</th>
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Contact</th>
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Address</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Purchases</th>
-                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Total Spent</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Status</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Actions</th>
+                  <th className="text-start text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.ops.sup.col.supplier')}</th>
+                  <th className="text-start text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.ops.sup.col.contact')}</th>
+                  <th className="text-start text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.ops.sup.col.address')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.ops.sup.col.purchases')}</th>
+                  <th className="text-end text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.ops.c.totalSpent')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.ops.c.status')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.ops.c.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -398,28 +398,28 @@ export default function SuppliersPage() {
                     <td className="px-4 py-3 text-center">
                       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
                         {supplier.isActive !== false ? (
-                          <><span className="w-1.5 h-1.5 rounded-full bg-white" />Active</>
+                          <><span className="w-1.5 h-1.5 rounded-full bg-white" />{t('stk.ops.c.active')}</>
                         ) : (
-                          <span className="text-zinc-600">Inactive</span>
+                          <span className="text-zinc-600">{t('stk.ops.c.inactive')}</span>
                         )}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => { setFiltersOpen(false); setViewing(supplier); }} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="View">
+                        <button onClick={() => { setFiltersOpen(false); setViewing(supplier); }} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title={t('stk.ops.c.view')}>
                           <EyeIcon className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => router.push(`/dashboard/stock/purchases?supplierId=${supplier.id}`)}
                           className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                          title="View Purchases"
+                          title={t('stk.ops.sup.viewPurchases')}
                         >
                           <TruckIcon className="w-4 h-4" />
                         </button>
-                        <button onClick={() => openEdit(supplier)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Edit">
+                        <button onClick={() => openEdit(supplier)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title={t('stk.ops.c.edit')}>
                           <EditIcon className="w-4 h-4" />
                         </button>
-                        <button onClick={() => setDeleteConfirm(supplier)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Delete">
+                        <button onClick={() => setDeleteConfirm(supplier)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title={t('stk.ops.c.delete')}>
                           <TrashIcon className="w-4 h-4" />
                         </button>
                       </div>
@@ -437,10 +437,10 @@ export default function SuppliersPage() {
           </div>
           <h3 className="text-lg font-medium text-zinc-300 mb-1">{t('stock.suppliers.empty.title')}</h3>
           <p className="text-sm text-zinc-500 max-w-sm mx-auto mb-4">
-            {searchDebounced || activeFilterCount > 0 ? 'No suppliers match your filters' : 'Add suppliers to manage your purchases'}
+            {searchDebounced || activeFilterCount > 0 ? t('stk.ops.sup.noMatch') : t('stock.suppliers.empty.hint')}
           </p>
           {!searchDebounced && activeFilterCount === 0 && (
-            <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>Add Supplier</Button>
+            <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>{t('stock.suppliers.add')}</Button>
           )}
         </div>
       )}
@@ -455,10 +455,10 @@ export default function SuppliersPage() {
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
           <div className="flex items-center gap-2">
             <FilterIcon className="w-4 h-4 text-zinc-500" />
-            <h2 className="text-sm font-semibold text-white">Filters</h2>
+            <h2 className="text-sm font-semibold text-white">{t('stk.ops.c.filters')}</h2>
             {activeFilterCount > 0 && (
               <span className="text-[10px] text-zinc-300 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-full font-medium">
-                {activeFilterCount} active
+                {t('stk.ops.c.filtersActive').replace('{n}', String(activeFilterCount))}
               </span>
             )}
           </div>
@@ -474,12 +474,12 @@ export default function SuppliersPage() {
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
           {/* Status Toggle */}
           <div>
-            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">Status</label>
+            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">{t('stk.ops.c.status')}</label>
             <div className="flex gap-1.5">
               {[
-                { value: '' as const, label: 'All' },
-                { value: 'true' as const, label: 'Active' },
-                { value: 'false' as const, label: 'Inactive' },
+                { value: '' as const, label: t('stk.ops.c.all') },
+                { value: 'true' as const, label: t('stk.ops.c.active') },
+                { value: 'false' as const, label: t('stk.ops.c.inactive') },
               ].map((opt) => (
                 <button
                   key={opt.value}
@@ -499,7 +499,7 @@ export default function SuppliersPage() {
           {/* Purchase Count Range */}
           <div>
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
-              Purchase Count
+              {t('stk.ops.sup.purchaseCount')}
               {(draftPurchasesRange[0] > 0 || draftPurchasesRange[1] < DEFAULT_PURCHASES_MAX) && (
                 <span className="ml-1.5 text-zinc-400 font-normal normal-case">
                   {draftPurchasesRange[0].toLocaleString()} - {draftPurchasesRange[1].toLocaleString()}
@@ -519,7 +519,7 @@ export default function SuppliersPage() {
           {/* Total Spent Range */}
           <div>
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
-              Total Spent (DA)
+              {t('stk.ops.c.totalSpentDa')}
               {(draftSpentRange[0] > 0 || draftSpentRange[1] < DEFAULT_SPENT_MAX) && (
                 <span className="ml-1.5 text-zinc-400 font-normal normal-case">
                   {draftSpentRange[0].toLocaleString()} - {draftSpentRange[1].toLocaleString()}
@@ -545,20 +545,20 @@ export default function SuppliersPage() {
             disabled={!draftDirty}
             className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-white hover:bg-zinc-200 text-black"
           >
-            Apply Filters
+            {t('stk.ops.c.applyFilters')}
           </button>
           <button
             onClick={clearAllFilters}
             disabled={activeFilterCount === 0 && !draftDirty}
             className="w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700"
           >
-            Clear All{activeFilterCount > 0 && ` (${activeFilterCount})`}
+            {t('stk.ops.c.clearAll')}{activeFilterCount > 0 && ` (${activeFilterCount})`}
           </button>
         </div>
       </div>
 
       {/* Details Modal */}
-      <Modal isOpen={!!viewing} onClose={() => setViewing(null)} title="Supplier Details" size="lg">
+      <Modal isOpen={!!viewing} onClose={() => setViewing(null)} title={t('stk.ops.sup.details')} size="lg">
         {viewing && (
           <div className="space-y-5">
             <div className="flex items-center gap-4">
@@ -569,9 +569,9 @@ export default function SuppliersPage() {
                 <h3 className="text-lg font-semibold text-white">{viewing.name}</h3>
                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
                   {viewing.isActive !== false ? (
-                    <><span className="w-1.5 h-1.5 rounded-full bg-white" />Active</>
+                    <><span className="w-1.5 h-1.5 rounded-full bg-white" />{t('stk.ops.c.active')}</>
                   ) : (
-                    <span className="text-zinc-600">Inactive</span>
+                    <span className="text-zinc-600">{t('stk.ops.c.inactive')}</span>
                   )}
                 </span>
               </div>
@@ -580,25 +580,25 @@ export default function SuppliersPage() {
             <div className="grid grid-cols-2 gap-4 bg-zinc-800/50 rounded-lg p-4">
               <div>
                 <div className="flex items-center gap-1.5 text-xs text-zinc-500 mb-1">
-                  <PhoneIcon className="w-3.5 h-3.5" /> Phone
+                  <PhoneIcon className="w-3.5 h-3.5" /> {t('stk.ops.c.phone')}
                 </div>
                 <p className="text-sm text-white">{viewing.phone || '-'}</p>
               </div>
               <div>
                 <div className="flex items-center gap-1.5 text-xs text-zinc-500 mb-1">
-                  <MailIcon className="w-3.5 h-3.5" /> Email
+                  <MailIcon className="w-3.5 h-3.5" /> {t('stk.ops.c.email')}
                 </div>
                 <p className="text-sm text-white">{viewing.email || '-'}</p>
               </div>
               <div className="col-span-2">
                 <div className="flex items-center gap-1.5 text-xs text-zinc-500 mb-1">
-                  <MapPinIcon className="w-3.5 h-3.5" /> Address
+                  <MapPinIcon className="w-3.5 h-3.5" /> {t('stk.ops.c.address')}
                 </div>
                 <p className="text-sm text-white">{viewing.address || '-'}</p>
               </div>
               {viewing.notes && (
                 <div className="col-span-2">
-                  <p className="text-xs text-zinc-500 mb-1">Notes</p>
+                  <p className="text-xs text-zinc-500 mb-1">{t('stk.ops.c.notes')}</p>
                   <p className="text-sm text-zinc-400">{viewing.notes}</p>
                 </div>
               )}
@@ -606,15 +606,15 @@ export default function SuppliersPage() {
 
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-zinc-800/50 rounded-lg p-4 text-center">
-                <p className="text-xs text-zinc-500 mb-1">Purchases</p>
+                <p className="text-xs text-zinc-500 mb-1">{t('stk.ops.sup.col.purchases')}</p>
                 <p className="text-2xl font-bold text-white">{viewing._count?.purchases || 0}</p>
               </div>
               <div className="bg-zinc-800/50 rounded-lg p-4 text-center">
-                <p className="text-xs text-zinc-500 mb-1">Total Spent</p>
+                <p className="text-xs text-zinc-500 mb-1">{t('stk.ops.c.totalSpent')}</p>
                 <p className="text-2xl font-bold text-white">{(viewing.totalSpent || 0).toLocaleString()} <span className="text-sm text-zinc-400">DA</span></p>
               </div>
               <div className="bg-zinc-800/50 rounded-lg p-4 text-center">
-                <p className="text-xs text-zinc-500 mb-1">Member Since</p>
+                <p className="text-xs text-zinc-500 mb-1">{t('stk.ops.sup.memberSince')}</p>
                 <p className="text-sm font-medium text-white">{new Date(viewing.createdAt).toLocaleDateString()}</p>
               </div>
             </div>
@@ -626,10 +626,10 @@ export default function SuppliersPage() {
                 onClick={() => router.push(`/dashboard/stock/purchases?supplierId=${viewing.id}`)}
                 icon={<TruckIcon className="w-4 h-4" />}
               >
-                View Purchases
+                {t('stk.ops.sup.viewPurchases')}
               </Button>
               <Button variant="outline" className="flex-1" onClick={() => { setViewing(null); openEdit(viewing); }}>
-                Edit Supplier
+                {t('stk.ops.sup.editSupplier')}
               </Button>
             </div>
           </div>
@@ -640,7 +640,7 @@ export default function SuppliersPage() {
       <Modal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        title={editing ? 'Edit Supplier' : 'Add Supplier'}
+        title={editing ? t('stk.ops.sup.editTitle') : t('stk.ops.sup.addTitle')}
         size="md"
       >
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -651,7 +651,7 @@ export default function SuppliersPage() {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Name *</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('stk.ops.c.nameRequired')}</label>
             <div className="relative">
               <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <input
@@ -660,7 +660,7 @@ export default function SuppliersPage() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
                 minLength={2}
-                placeholder="Supplier name"
+                placeholder={t('stk.ops.sup.namePlaceholder')}
                 className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
               />
             </div>
@@ -668,21 +668,21 @@ export default function SuppliersPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Email</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('stk.ops.c.email')}</label>
               <div className="relative">
                 <MailIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="email@example.com"
+                  placeholder={t('stk.ops.c.emailPlaceholder')}
                   autoComplete="email"
                   className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Phone</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('stk.ops.c.phone')}</label>
               <div className="relative">
                 <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
@@ -690,7 +690,7 @@ export default function SuppliersPage() {
                   inputMode="tel"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  placeholder="0555 12 34 56"
+                  placeholder={t('stk.ops.c.phonePlaceholder')}
                   autoComplete="tel"
                   pattern="^\+?[0-9\s\-().]{8,20}$"
                   className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
@@ -700,25 +700,25 @@ export default function SuppliersPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Address</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('stk.ops.c.address')}</label>
             <div className="relative">
               <MapPinIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <input
                 type="text"
                 value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
-                placeholder="Supplier address"
+                placeholder={t('stk.ops.sup.addressPlaceholder')}
                 className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Notes</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('stk.ops.c.notes')}</label>
             <textarea
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              placeholder="Optional notes"
+              placeholder={t('stk.ops.c.notesPlaceholder')}
               rows={2}
               className="w-full px-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20 resize-none"
             />
@@ -751,10 +751,10 @@ export default function SuppliersPage() {
 
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" className="flex-1" onClick={() => setShowModal(false)} disabled={saving}>
-              Cancel
+              {t('stk.ops.c.cancel')}
             </Button>
             <Button type="submit" className="flex-1" disabled={saving}>
-              {saving ? 'Saving...' : (editing ? 'Update Supplier' : 'Add Supplier')}
+              {saving ? t('stk.ops.c.saving') : (editing ? t('stk.ops.sup.updateBtn') : t('stk.ops.sup.addTitle'))}
             </Button>
           </div>
         </form>
@@ -764,23 +764,23 @@ export default function SuppliersPage() {
       <Modal
         isOpen={!!deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
-        title="Delete Supplier"
+        title={t('stk.ops.sup.deleteTitle')}
         size="sm"
       >
         <p className="text-zinc-400 mb-2">
-          Are you sure you want to delete <span className="text-white font-medium">{deleteConfirm?.name}</span>?
+          {t('stk.ops.c.confirmDeletePrefix')} <span className="text-white font-medium">{deleteConfirm?.name}</span> ?
         </p>
         {(deleteConfirm?._count?.purchases || 0) > 0 && (
           <div className="border border-white/10 bg-white/[0.03] rounded-lg p-2.5 mb-4">
-            <p className="text-white text-sm font-semibold">This supplier has {deleteConfirm?._count?.purchases} purchases linked.</p>
+            <p className="text-white text-sm font-semibold">{t('stk.ops.sup.linkedPurchases').replace('{n}', String(deleteConfirm?._count?.purchases ?? 0))}</p>
           </div>
         )}
         <div className="flex gap-3 pt-4">
           <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>
-            Cancel
+            {t('stk.ops.c.cancel')}
           </Button>
           <Button type="button" className="flex-1" onClick={handleDelete} disabled={deleting}>
-            {deleting ? 'Deleting...' : 'Delete'}
+            {deleting ? t('stk.ops.c.deleting') : t('stk.ops.c.delete')}
           </Button>
         </div>
       </Modal>

@@ -33,12 +33,11 @@ interface ConversationMessage {
 
 type FilterTab = 'all' | 'active' | 'resolved' | 'archived';
 
-const QUICK_REPLIES = ['Bonjour 👋', 'Merci pour votre message', 'Disponible, oui', 'Je vous envoie le détail'];
-
 export default function MessagesSection({ pageId, page, hideHeader = false, fullHeight = false }: MessagesSectionProps) {
   const { conversations, loading, error, fetchConversations, sendReply, clearError } = usePageConfig();
   const toast = useToast();
   const { t } = useTranslation();
+  const QUICK_REPLIES = [t('dlg.inbox.qr1'), t('dlg.inbox.qr2'), t('dlg.inbox.qr3'), t('dlg.inbox.qr4')];
   const [selectedConv, setSelectedConv] = useState<ConversationSummary | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -123,9 +122,9 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
     } catch (err: any) {
       const fbMsg = err?.data?.message || err?.message;
       if (err?.data?.outsideWindow) {
-        toast.error(fbMsg || 'Customer hasn\'t messaged in 24h — Facebook blocks new messages until they reply again.');
+        toast.error(fbMsg || t('dlg.inbox.toast.outsideWindow'));
       } else {
-        toast.error(fbMsg || 'Could not send message');
+        toast.error(fbMsg || t('dlg.inbox.toast.sendFail'));
       }
     } finally {
       setSending(false);
@@ -136,7 +135,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
     const d = new Date(ts);
     const now = Date.now();
     const diff = now - d.getTime();
-    if (diff < 60000) return 'now';
+    if (diff < 60000) return t('dlg.inbox.now');
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
     if (diff < 7 * 86400000) return d.toLocaleDateString(undefined, { weekday: 'short' });
@@ -176,18 +175,24 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-              Inbox
+              {t('dlg.inbox.title')}
             </h2>
             <p className="text-xs text-zinc-500 mt-0.5">
-              {page.pageName} · {conversations?.total || 0} conversations
-              {lastSyncedAt && <span className="ml-2 text-zinc-600">· last synced {formatTime(lastSyncedAt.toISOString())} ago</span>}
+              {t('dlg.inbox.subtitle')
+                .replace('{page}', page.pageName)
+                .replace('{n}', String(conversations?.total || 0))}
+              {lastSyncedAt && (
+                <span className="ms-2 text-zinc-600">
+                  {t('dlg.inbox.lastSynced').replace('{time}', formatTime(lastSyncedAt.toISOString()))}
+                </span>
+              )}
             </p>
           </div>
           <button
             onClick={handleRefresh}
             disabled={syncing || loading}
             className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-black bg-white hover:bg-zinc-100 rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Pull the latest messages from Facebook"
+            title={t('dlg.inbox.syncTitle')}
           >
             <RefreshIcon className={`w-4 h-4 ${syncing || loading ? 'animate-spin' : ''}`} />
             {syncing ? t('inbox.btn.syncing') : t('inbox.btn.sync')}
@@ -205,7 +210,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
             }}
             className="underline text-xs"
           >
-            Retry
+            {t('dlg.retry')}
           </button>
         </div>
       )}
@@ -323,12 +328,12 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                     {conv.lastMessage && (
                       <p className={`text-[11px] truncate ${unread ? 'text-zinc-300' : 'text-zinc-500'}`}>
                         {conv.lastMessage.isFromPage && <span className="text-zinc-600">↗ </span>}
-                        {conv.lastMessage.text || '(attachment)'}
+                        {conv.lastMessage.text || t('dlg.inbox.attachment')}
                       </p>
                     )}
                     {conv.status !== 'active' && (
                       <span className="inline-block mt-1 text-[9px] uppercase tracking-wider text-zinc-600">
-                        {conv.status}
+                        {t(`dlg.convStatus.${conv.status}`, conv.status)}
                       </span>
                     )}
                   </div>
@@ -353,7 +358,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                     <div className="flex items-center gap-2">
                       <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] ${selectedConv.status === 'archived' ? 'text-zinc-600' : 'text-zinc-300'}`}>
                         {selectedConv.status !== 'archived' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                        {selectedConv.status}
+                        {t(`dlg.convStatus.${selectedConv.status}`, selectedConv.status)}
                       </span>
                       <span className="text-[10px] text-zinc-600">{t('msg.thread.via')} {page.platform === 'instagram' ? t('inbox.platform.instagram') : t('inbox.platform.messenger')}</span>
                     </div>
@@ -378,12 +383,12 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                     <button
                       onClick={async () => {
                         await updateConversationStatus(selectedConv.id, 'active');
-                        toast.success('Reopened');
+                        toast.success(t('dlg.inbox.toast.reopened'));
                         fetchConversations(pageId, { status: 'all', limit: 100 }).catch(() => {});
                       }}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors"
                     >
-                      Reopen
+                      {t('dlg.inbox.reopen')}
                     </button>
                   )}
                   {selectedConv.status !== 'archived' && (
@@ -430,7 +435,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                               <a href={msg.attachmentUrl} target="_blank" rel="noopener noreferrer" className="block">
                                 <img
                                   src={msg.attachmentUrl}
-                                  alt="attachment"
+                                  alt={t('dlg.inbox.attachmentAlt')}
                                   className="max-w-full max-h-56 rounded-2xl border border-white/10 object-cover hover:opacity-90 transition-opacity"
                                 />
                               </a>
@@ -463,7 +468,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                           )}
                           {!msg.text && !msg.attachmentUrl && (
                             <div className="px-3 py-1.5 text-xs bg-white/5 border border-white/10 text-zinc-500 rounded-2xl italic">
-                              (empty message)
+                              {t('dlg.inbox.emptyMessage')}
                             </div>
                           )}
                           {showAvatar && (
@@ -472,7 +477,7 @@ export default function MessagesSection({ pageId, page, hideHeader = false, full
                               {msg.isFromPage && (
                                 <span className="ms-1.5 inline-flex items-center gap-1">
                                   <BotIcon className="w-3 h-3 inline text-zinc-500" />
-                                  {msg.id?.startsWith?.('sent_') ? 'You' : 'AI'}
+                                  {msg.id?.startsWith?.('sent_') ? t('dlg.inbox.you') : t('dlg.inbox.ai')}
                                 </span>
                               )}
                             </p>

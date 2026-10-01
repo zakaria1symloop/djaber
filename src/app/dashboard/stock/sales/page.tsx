@@ -36,6 +36,11 @@ function StatusPill({ label, kind }: { label: string; kind: 'good' | 'progress' 
 export default function SalesPage() {
   const router = useRouter();
   const { t } = useTranslation();
+
+  // Enum -> translated pill label. An unknown value from the API is shown raw
+  // rather than swallowed, so a new backend status stays visible.
+  const payLabel = (v: string) =>
+    v === 'paid' || v === 'partial' || v === 'unpaid' ? t(`stock.common.ps.${v}`) : v;
   const [sales, setSales] = useState<Sale[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -135,7 +140,7 @@ export default function SalesPage() {
       setSales(res.sales);
       setTotal(res.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load sales');
+      setError(err instanceof Error ? err.message : t('stk.tr.sale.err.load'));
     } finally {
       setLoading(false);
     }
@@ -169,7 +174,7 @@ export default function SalesPage() {
       const res = await getSale(saleId);
       setViewingSale(res.sale);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load sale');
+      setError(err instanceof Error ? err.message : t('stk.tr.sale.err.loadOne'));
     }
   };
 
@@ -184,7 +189,7 @@ export default function SalesPage() {
       loadSales();
       loadStats();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update payment');
+      setError(err instanceof Error ? err.message : t('stk.tr.sale.err.payment'));
     }
   };
 
@@ -199,7 +204,7 @@ export default function SalesPage() {
       loadSales();
       loadStats();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete sale');
+      setError(err instanceof Error ? err.message : t('stk.tr.sale.err.delete'));
     } finally {
       setDeleting(false);
     }
@@ -335,16 +340,16 @@ export default function SalesPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/10">
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Sale #</th>
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Customer</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Items</th>
-                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Total</th>
-                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Paid</th>
-                  <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">Remaining</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Payment</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Method</th>
-                  <th className="text-left text-xs font-medium text-zinc-400 px-4 py-3">Date</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Actions</th>
+                  <th className="text-start text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.tr.sale.col.number')}</th>
+                  <th className="text-start text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.tr.c.customer')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.items')}</th>
+                  <th className="text-end text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.total')}</th>
+                  <th className="text-end text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.paid')}</th>
+                  <th className="text-end text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.remaining')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.tr.ord.new.payment')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.tr.sale.col.method')}</th>
+                  <th className="text-start text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.date')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.common.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -358,18 +363,18 @@ export default function SalesPage() {
                       {sale.paymentStatus === 'paid'
                         ? `${Number(sale.total).toLocaleString()} DA`
                         : sale.paymentStatus === 'partial'
-                          ? <span className="text-zinc-500">Partial</span>
+                          ? <span className="text-zinc-500">{t('stk.tr.c.status.partial')}</span>
                           : '0 DA'}
                     </td>
                     <td className="px-4 py-3 text-sm text-right font-medium text-zinc-400">
                       {sale.paymentStatus === 'paid'
                         ? '0 DA'
                         : sale.paymentStatus === 'partial'
-                          ? <span className="text-zinc-500">Partial</span>
+                          ? <span className="text-zinc-500">{t('stk.tr.c.status.partial')}</span>
                           : `${Number(sale.total).toLocaleString()} DA`}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <StatusPill label={sale.paymentStatus} kind={sale.paymentStatus === 'paid' ? 'good' : 'progress'} />
+                      <StatusPill label={payLabel(sale.paymentStatus)} kind={sale.paymentStatus === 'paid' ? 'good' : 'progress'} />
                     </td>
                     <td className="px-4 py-3 text-sm text-center text-zinc-400 capitalize">{sale.paymentMethod}</td>
                     <td className="px-4 py-3 text-sm text-zinc-500">{new Date(sale.saleDate).toLocaleDateString()}</td>
@@ -378,7 +383,7 @@ export default function SalesPage() {
                         <button
                           onClick={() => viewSaleDetail(sale.id)}
                           className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                          title="View"
+                          title={t('stk.tr.c.view')}
                         >
                           <EyeIcon className="w-4 h-4" />
                         </button>
@@ -386,7 +391,7 @@ export default function SalesPage() {
                           <button
                             onClick={() => setDeleteConfirm(sale)}
                             className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                            title="Delete"
+                            title={t('stk.tr.c.delete')}
                           >
                             <TrashIcon className="w-4 h-4" />
                           </button>
@@ -411,24 +416,24 @@ export default function SalesPage() {
       <Pagination total={total} limit={LIMIT} offset={offset} onPageChange={setOffset} />
 
       {/* Sale Detail Modal */}
-      <Modal isOpen={!!viewingSale} onClose={() => setViewingSale(null)} title={`Sale ${viewingSale?.saleNumber || ''}`} size="lg">
+      <Modal isOpen={!!viewingSale} onClose={() => setViewingSale(null)} title={t('stk.tr.sale.detail.title').replace('{n}', viewingSale?.saleNumber || '')} size="lg">
         {viewingSale && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs text-zinc-500">Customer</p>
-                <p className="text-sm text-white">{viewingSale.customerName || 'Walk-in'}</p>
+                <p className="text-xs text-zinc-500">{t('stk.tr.c.customer')}</p>
+                <p className="text-sm text-white">{viewingSale.customerName || t('stk.tr.sale.detail.walkIn')}</p>
               </div>
               <div>
-                <p className="text-xs text-zinc-500">Phone</p>
+                <p className="text-xs text-zinc-500">{t('stk.tr.c.phone')}</p>
                 <p className="text-sm text-white">{viewingSale.customerPhone || '-'}</p>
               </div>
               <div>
-                <p className="text-xs text-zinc-500">Date</p>
+                <p className="text-xs text-zinc-500">{t('stock.common.date')}</p>
                 <p className="text-sm text-white">{new Date(viewingSale.saleDate).toLocaleString()}</p>
               </div>
               <div>
-                <p className="text-xs text-zinc-500">Payment Method</p>
+                <p className="text-xs text-zinc-500">{t('stk.tr.c.paymentMethod')}</p>
                 <p className="text-sm text-white capitalize">{viewingSale.paymentMethod}</p>
               </div>
             </div>
@@ -437,11 +442,11 @@ export default function SalesPage() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-zinc-800/50">
-                    <th className="text-left text-xs font-medium text-zinc-400 px-4 py-2">Product</th>
-                    <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2">Qty</th>
-                    <th className="text-right text-xs font-medium text-zinc-400 px-4 py-2">Price</th>
-                    <th className="text-right text-xs font-medium text-zinc-400 px-4 py-2">Discount</th>
-                    <th className="text-right text-xs font-medium text-zinc-400 px-4 py-2">Total</th>
+                    <th className="text-start text-xs font-medium text-zinc-400 px-4 py-2">{t('stock.common.product')}</th>
+                    <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2">{t('stock.common.qty')}</th>
+                    <th className="text-end text-xs font-medium text-zinc-400 px-4 py-2">{t('stock.products.col.price')}</th>
+                    <th className="text-end text-xs font-medium text-zinc-400 px-4 py-2">{t('stk.tr.c.discount')}</th>
+                    <th className="text-end text-xs font-medium text-zinc-400 px-4 py-2">{t('stock.common.total')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -457,7 +462,7 @@ export default function SalesPage() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-white/10 bg-zinc-800/50">
-                    <td colSpan={4} className="px-4 py-3 text-right text-sm font-medium text-white">Total:</td>
+                    <td colSpan={4} className="px-4 py-3 text-end text-sm font-medium text-white">{t('stk.tr.c.totalColon')}</td>
                     <td className="px-4 py-3 text-right text-lg font-bold text-white">{Number(viewingSale.total).toLocaleString()} DA</td>
                   </tr>
                 </tfoot>
@@ -466,24 +471,24 @@ export default function SalesPage() {
 
             <div className="flex items-center justify-between bg-zinc-800/50 rounded-lg p-4">
               <div>
-                <p className="text-xs text-zinc-500 mb-1">Payment Status</p>
-                <StatusPill label={viewingSale.paymentStatus} kind={viewingSale.paymentStatus === 'paid' ? 'good' : 'progress'} />
+                <p className="text-xs text-zinc-500 mb-1">{t('stk.tr.c.paymentStatus')}</p>
+                <StatusPill label={payLabel(viewingSale.paymentStatus)} kind={viewingSale.paymentStatus === 'paid' ? 'good' : 'progress'} />
               </div>
               <div className="flex items-center gap-2">
                 {viewingSale.paymentStatus !== 'paid' && (
                   <Button size="sm" onClick={() => handleUpdatePayment(viewingSale.id, 'paid')}>
-                    Mark as Paid
+                    {t('stk.tr.c.markAsPaid')}
                   </Button>
                 )}
                 <Button size="sm" variant="outline" onClick={() => { setViewingSale(null); router.push(`/dashboard/stock/sales/${viewingSale.id}/edit`); }}>
-                  <EditIcon className="w-3.5 h-3.5 mr-1" /> Edit
+                  <EditIcon className="w-3.5 h-3.5 me-1" /> {t('stk.tr.c.edit')}
                 </Button>
               </div>
             </div>
 
             {viewingSale.notes && (
               <div>
-                <p className="text-xs text-zinc-500 mb-1">Notes</p>
+                <p className="text-xs text-zinc-500 mb-1">{t('stk.tr.c.notes')}</p>
                 <p className="text-sm text-zinc-400">{viewingSale.notes}</p>
               </div>
             )}
@@ -492,19 +497,19 @@ export default function SalesPage() {
       </Modal>
 
       {/* Delete Confirm Modal */}
-      <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="Delete Sale" size="sm">
+      <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title={t('stk.tr.sale.del.title')} size="sm">
         <p className="text-zinc-400 mb-2">
-          Are you sure you want to delete sale <span className="text-white font-medium">{deleteConfirm?.saleNumber}</span>?
+          {t('stk.tr.sale.del.q')} <span className="text-white font-medium">{deleteConfirm?.saleNumber}</span>?
         </p>
         <p className="text-zinc-500 text-sm mb-4">
-          This action cannot be undone. Stock quantities will be restored.
+          {t('stk.tr.sale.del.note')}
         </p>
         <div className="flex gap-3 pt-4">
           <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>
-            Cancel
+            {t('stk.tr.c.cancel')}
           </Button>
           <Button type="button" className="flex-1" onClick={handleDelete} disabled={deleting}>
-            {deleting ? 'Deleting...' : 'Delete'}
+            {deleting ? t('stk.tr.c.deleting') : t('stk.tr.c.delete')}
           </Button>
         </div>
       </Modal>
@@ -514,7 +519,7 @@ export default function SalesPage() {
       {filtersOpen && (
         <div className="fixed top-0 right-0 h-full w-[336px] bg-zinc-950 border-l border-white/10 z-[45] flex flex-col shadow-2xl">
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-            <h2 className="text-sm font-semibold text-white">Filters</h2>
+            <h2 className="text-sm font-semibold text-white">{t('stock.common.filters')}</h2>
             <button onClick={() => setFiltersOpen(false)} className="p-1 text-zinc-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors">
               <CloseIcon className="w-4 h-4" />
             </button>
@@ -523,42 +528,42 @@ export default function SalesPage() {
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
             {/* Payment Status */}
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Payment Status</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">{t('stk.tr.c.paymentStatus')}</label>
               <select
                 value={draftHasRemaining ? '' : draftPayment}
                 onChange={(e) => setDraftPayment(e.target.value)}
                 disabled={draftHasRemaining}
                 className={`w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 hover:border-white/20 transition-colors ${draftHasRemaining ? 'opacity-40 cursor-not-allowed' : ''}`}
               >
-                <option value="">All</option>
-                <option value="paid">Paid</option>
-                <option value="pending">Pending</option>
-                <option value="partial">Partial</option>
+                <option value="">{t('stock.common.all')}</option>
+                <option value="paid">{t('stock.common.paid')}</option>
+                <option value="pending">{t('stock.common.pending')}</option>
+                <option value="partial">{t('stk.tr.c.status.partial')}</option>
               </select>
               {draftHasRemaining && (
-                <p className="text-[10px] text-zinc-500 mt-1">Disabled — "Has Remaining" is active</p>
+                <p className="text-[10px] text-zinc-500 mt-1">{t('stk.tr.c.remainingDisabled')}</p>
               )}
             </div>
 
             {/* Payment Method */}
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Payment Method</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">{t('stk.tr.c.paymentMethod')}</label>
               <select
                 value={draftMethod}
                 onChange={(e) => setDraftMethod(e.target.value)}
                 className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20 hover:border-white/20 transition-colors"
               >
-                <option value="">All Methods</option>
-                <option value="cash">Cash</option>
-                <option value="card">Card</option>
-                <option value="transfer">Transfer</option>
-                <option value="check">Check</option>
+                <option value="">{t('stk.tr.c.allMethods')}</option>
+                <option value="cash">{t('stk.tr.c.pm.cash')}</option>
+                <option value="card">{t('stk.tr.c.pm.card')}</option>
+                <option value="transfer">{t('stk.tr.c.pm.transfer')}</option>
+                <option value="check">{t('stk.tr.c.pm.check')}</option>
               </select>
             </div>
 
             {/* Has Remaining Balance */}
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Quick Filter</label>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">{t('stk.tr.c.quickFilter')}</label>
               <button
                 onClick={() => setDraftHasRemaining(!draftHasRemaining)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-sm transition-all ${
@@ -576,14 +581,14 @@ export default function SalesPage() {
                     </svg>
                   )}
                 </div>
-                Has Remaining Balance
+                {t('stk.tr.c.hasRemaining')}
               </button>
             </div>
 
             {/* Total Amount Range */}
             <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                Total Amount (DA)
+                {t('stk.tr.c.totalAmountDa')}
                 {(draftTotalRange[0] > 0 || draftTotalRange[1] < DEFAULT_TOTAL_MAX) && (
                   <span className="ml-1.5 text-zinc-300 font-normal">
                     {draftTotalRange[0].toLocaleString()} - {draftTotalRange[1].toLocaleString()}
@@ -606,14 +611,14 @@ export default function SalesPage() {
               disabled={!draftDirty}
               className="w-full px-4 py-2.5 bg-white hover:bg-zinc-200 disabled:bg-zinc-700 disabled:text-zinc-500 text-black text-sm font-medium rounded-lg transition-colors"
             >
-              Apply Filters
+              {t('stock.filter.applyFilters')}
             </button>
             {activeFilterCount > 0 && (
               <button
                 onClick={clearAllFilters}
                 className="w-full px-4 py-2 text-sm text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
               >
-                Clear All Filters
+                {t('stk.tr.c.clearAllFilters')}
               </button>
             )}
           </div>

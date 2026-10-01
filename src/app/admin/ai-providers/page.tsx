@@ -11,35 +11,37 @@ import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui';
 import { RefreshIcon, CheckCircleIcon, AlertIcon, BoltIcon, TrashIcon, EditIcon } from '@/components/ui/icons';
 import PricingCalculator from './PricingCalculator';
+import { useTranslation } from '@/contexts/LanguageContext';
 
-const PROVIDER_BRANDING: Record<string, { color: string; bg: string; description: string; getKeyUrl: string }> = {
+const PROVIDER_BRANDING: Record<string, { color: string; bg: string; descKey: string; getKeyUrl: string }> = {
   openai: {
     color: 'text-emerald-400',
     bg: 'bg-emerald-500/10',
-    description: 'GPT-4o, GPT-4 Turbo. Industry standard. Pay per token.',
+    descKey: 'adm.plat.ai.desc.openai',
     getKeyUrl: 'https://platform.openai.com/api-keys',
   },
   anthropic: {
     color: 'text-orange-400',
     bg: 'bg-orange-500/10',
-    description: 'Claude 3.5 Sonnet, Haiku, Opus. Best for nuanced reasoning.',
+    descKey: 'adm.plat.ai.desc.anthropic',
     getKeyUrl: 'https://console.anthropic.com/settings/keys',
   },
   google: {
     color: 'text-blue-400',
     bg: 'bg-blue-500/10',
-    description: 'Gemini 2.0 Flash, 1.5 Pro. Generous free tier.',
+    descKey: 'adm.plat.ai.desc.google',
     getKeyUrl: 'https://aistudio.google.com/app/apikey',
   },
   groq: {
     color: 'text-cyan-400',
     bg: 'bg-cyan-500/10',
-    description: 'Llama 3.3, Mixtral, DeepSeek. Free tier, ultra-fast inference.',
+    descKey: 'adm.plat.ai.desc.groq',
     getKeyUrl: 'https://console.groq.com/keys',
   },
 };
 
 export default function AdminAIProvidersPage() {
+  const { t } = useTranslation();
   const toast = useToast();
   const [providers, setProviders] = useState<AdminAIProvider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,7 +57,7 @@ export default function AdminAIProvidersPage() {
       const res = await getAdminAIProviders();
       setProviders(res.providers);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load providers');
+      toast.error(e instanceof Error ? e.message : t('adm.plat.ai.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -78,7 +80,7 @@ export default function AdminAIProvidersPage() {
 
   const saveKey = async (provider: AdminAIProvider) => {
     if (!draftKey.trim()) {
-      toast.error('API key is required');
+      toast.error(t('adm.plat.ai.keyRequired'));
       return;
     }
     try {
@@ -87,12 +89,12 @@ export default function AdminAIProvidersPage() {
         apiKey: draftKey.trim(),
         isActive: true,
       });
-      toast.success(`${provider.displayName} configured successfully`);
+      toast.success(t('adm.plat.ai.configured').replace('{provider}', provider.displayName));
       setEditing(null);
       setDraftKey('');
       await load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to save');
+      toast.error(e instanceof Error ? e.message : t('adm.plat.ai.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -100,21 +102,21 @@ export default function AdminAIProvidersPage() {
 
   const toggleActive = async (provider: AdminAIProvider) => {
     if (!provider.apiKey || provider.apiKey === '') {
-      toast.error('Set an API key first');
+      toast.error(t('adm.plat.ai.setKeyFirst'));
       return;
     }
     try {
       await updateAdminAIProvider(provider.provider, { isActive: !provider.isActive });
-      toast.success(`${provider.displayName} ${!provider.isActive ? 'enabled' : 'disabled'}`);
+      toast.success(t(!provider.isActive ? 'adm.plat.ai.enabled' : 'adm.plat.ai.disabled').replace('{provider}', provider.displayName));
       await load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to toggle');
+      toast.error(e instanceof Error ? e.message : t('adm.plat.ai.toggleFailed'));
     }
   };
 
   const runTest = async (provider: AdminAIProvider) => {
     if (!provider.apiKey) {
-      toast.error('Set an API key first');
+      toast.error(t('adm.plat.ai.setKeyFirst'));
       return;
     }
     setTesting(provider.provider);
@@ -127,7 +129,9 @@ export default function AdminAIProvidersPage() {
       if (result.ok) {
         const count = result.models?.length ?? result.modelsAvailable ?? 0;
         toast.success(
-          `${provider.displayName} works · ${count} model${count === 1 ? '' : 's'} available`,
+          t(count === 1 ? 'adm.plat.ai.worksOne' : 'adm.plat.ai.worksMany')
+            .replace('{provider}', provider.displayName)
+            .replace('{n}', String(count)),
         );
         // Refresh providers so the persisted models list updates the pills.
         await load();
@@ -135,20 +139,20 @@ export default function AdminAIProvidersPage() {
         toast.error(`${provider.displayName}: ${result.message}`);
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Test request failed');
+      toast.error(e instanceof Error ? e.message : t('adm.plat.ai.testFailed'));
     } finally {
       setTesting(null);
     }
   };
 
   const removeKey = async (provider: AdminAIProvider) => {
-    if (!confirm(`Remove API key for ${provider.displayName}?`)) return;
+    if (!confirm(t('adm.plat.ai.confirmRemove').replace('{provider}', provider.displayName))) return;
     try {
       await updateAdminAIProvider(provider.provider, { apiKey: '', isActive: false });
-      toast.success(`${provider.displayName} key removed`);
+      toast.success(t('adm.plat.ai.keyRemoved').replace('{provider}', provider.displayName));
       await load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to remove');
+      toast.error(e instanceof Error ? e.message : t('adm.plat.ai.removeFailed'));
     }
   };
 
@@ -158,17 +162,18 @@ export default function AdminAIProvidersPage() {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-            AI Providers
+            {t('adm.plat.ai.title')}
           </h1>
           <p className="text-sm text-zinc-400">
-            Manage API keys for the AI models powering your agents. Keys are stored encrypted on the server.
+            {t('adm.plat.ai.subtitle')}
           </p>
         </div>
         <button
           onClick={load}
           disabled={loading}
           className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors disabled:opacity-50"
-          title="Refresh"
+          title={t('adm.plat.refresh')}
+          aria-label={t('adm.plat.refresh')}
         >
           <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
@@ -178,23 +183,23 @@ export default function AdminAIProvidersPage() {
       {!loading && providers.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Total</p>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{t('adm.plat.ai.stat.total')}</p>
             <p className="text-2xl font-bold text-white">{providers.length}</p>
           </div>
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
-            <p className="text-[10px] text-emerald-400/80 uppercase tracking-wider mb-1">Active</p>
+            <p className="text-[10px] text-emerald-400/80 uppercase tracking-wider mb-1">{t('adm.plat.ai.stat.active')}</p>
             <p className="text-2xl font-bold text-emerald-400">
               {providers.filter((p) => p.isActive && p.apiKey).length}
             </p>
           </div>
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
-            <p className="text-[10px] text-blue-400/80 uppercase tracking-wider mb-1">Configured</p>
+            <p className="text-[10px] text-blue-400/80 uppercase tracking-wider mb-1">{t('adm.plat.ai.stat.configured')}</p>
             <p className="text-2xl font-bold text-blue-400">
               {providers.filter((p) => !!p.apiKey).length}
             </p>
           </div>
           <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4">
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Empty</p>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{t('adm.plat.ai.stat.empty')}</p>
             <p className="text-2xl font-bold text-zinc-400">
               {providers.filter((p) => !p.apiKey).length}
             </p>
@@ -215,7 +220,7 @@ export default function AdminAIProvidersPage() {
             const branding = PROVIDER_BRANDING[provider.provider] || {
               color: 'text-zinc-400',
               bg: 'bg-white/5',
-              description: '',
+              descKey: '',
               getKeyUrl: '',
             };
             const isEditing = editing === provider.provider;
@@ -236,19 +241,19 @@ export default function AdminAIProvidersPage() {
                         <h3 className="text-base font-semibold text-white">{provider.displayName}</h3>
                         {provider.isActive && hasKey ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            <CheckCircleIcon className="w-3 h-3" /> Active
+                            <CheckCircleIcon className="w-3 h-3" /> {t('adm.plat.active')}
                           </span>
                         ) : hasKey ? (
                           <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-zinc-500/10 text-zinc-400 border border-white/10">
-                            Configured (off)
+                            {t('adm.plat.ai.badge.configuredOff')}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
-                            <AlertIcon className="w-3 h-3" /> No key
+                            <AlertIcon className="w-3 h-3" /> {t('adm.plat.ai.badge.noKey')}
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-zinc-500">{branding.description}</p>
+                      <p className="text-xs text-zinc-500">{branding.descKey ? t(branding.descKey) : ''}</p>
                     </div>
                   </div>
 
@@ -259,10 +264,10 @@ export default function AdminAIProvidersPage() {
                       className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${
                         provider.isActive ? 'bg-emerald-500' : 'bg-white/10'
                       }`}
-                      title={provider.isActive ? 'Disable' : 'Enable'}
+                      title={provider.isActive ? t('adm.plat.ai.disable') : t('adm.plat.ai.enable')}
                     >
                       <span
-                        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                        className={`absolute top-0.5 start-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
                           provider.isActive ? 'translate-x-4' : ''
                         }`}
                       />
@@ -290,7 +295,7 @@ export default function AdminAIProvidersPage() {
                         type="password"
                         value={draftKey}
                         onChange={(e) => setDraftKey(e.target.value)}
-                        placeholder={`Paste your ${provider.displayName} API key…`}
+                        placeholder={t('adm.plat.ai.keyPlaceholder').replace('{provider}', provider.displayName)}
                         className="flex-1 min-w-[200px] px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
                         autoFocus
                       />
@@ -300,15 +305,15 @@ export default function AdminAIProvidersPage() {
                         onClick={() => saveKey(provider)}
                         loading={saving}
                       >
-                        Save
+                        {t('adm.plat.save')}
                       </Button>
                       <Button size="sm" variant="ghost" onClick={cancelEdit}>
-                        Cancel
+                        {t('adm.plat.cancel')}
                       </Button>
                     </div>
                     {branding.getKeyUrl && (
                       <p className="text-[11px] text-zinc-600">
-                        Get a key from{' '}
+                        {t('adm.plat.ai.getKeyFrom')}{' '}
                         <a
                           href={branding.getKeyUrl}
                           target="_blank"
@@ -325,9 +330,9 @@ export default function AdminAIProvidersPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex-1 min-w-0 text-xs text-zinc-500">
                         {hasKey ? (
-                          <span className="font-mono">key {provider.apiKey}</span>
+                          <span className="font-mono">{t('adm.plat.ai.keyPrefix')} {provider.apiKey}</span>
                         ) : (
-                          <span>No API key set</span>
+                          <span>{t('adm.plat.ai.noKeySet')}</span>
                         )}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
@@ -338,9 +343,9 @@ export default function AdminAIProvidersPage() {
                             onClick={() => runTest(provider)}
                             loading={testing === provider.provider}
                             icon={<BoltIcon className="w-3.5 h-3.5" />}
-                            title="Make a tiny request to the provider to verify the key works"
+                            title={t('adm.plat.ai.testTitle')}
                           >
-                            {testing === provider.provider ? 'Testing…' : 'Test'}
+                            {testing === provider.provider ? t('adm.plat.ai.testing') : t('adm.plat.ai.test')}
                           </Button>
                         )}
                         {hasKey && (
@@ -351,7 +356,7 @@ export default function AdminAIProvidersPage() {
                             icon={<TrashIcon className="w-3.5 h-3.5" />}
                             className="text-zinc-500 hover:text-rose-400"
                           >
-                            Remove
+                            {t('adm.plat.ai.remove')}
                           </Button>
                         )}
                         <Button
@@ -360,7 +365,7 @@ export default function AdminAIProvidersPage() {
                           onClick={() => startEdit(provider)}
                           icon={<EditIcon className="w-3.5 h-3.5" />}
                         >
-                          {hasKey ? 'Replace key' : 'Set API key'}
+                          {hasKey ? t('adm.plat.ai.replaceKey') : t('adm.plat.ai.setKey')}
                         </Button>
                       </div>
                     </div>
@@ -390,7 +395,7 @@ export default function AdminAIProvidersPage() {
                               <>
                                 {testResults[provider.provider].modelsAvailable != null && (
                                   <span className="text-emerald-400/70">
-                                    {' '}· {testResults[provider.provider].modelsAvailable} models on the account
+                                    {' '}· {t('adm.plat.ai.modelsOnAccount').replace('{n}', String(testResults[provider.provider].modelsAvailable))}
                                   </span>
                                 )}
                                 {testResults[provider.provider].latencyMs != null && (
@@ -406,7 +411,7 @@ export default function AdminAIProvidersPage() {
                         {testResults[provider.provider].ok && (testResults[provider.provider].models?.length ?? 0) > 0 && (
                           <div className="px-3 pb-2.5 pt-0.5">
                             <p className="text-[10px] uppercase tracking-wider text-emerald-400/70 mb-1.5">
-                              Chat-capable models
+                              {t('adm.plat.ai.chatCapable')}
                             </p>
                             <div className="flex flex-wrap gap-1.5">
                               {testResults[provider.provider].models!.map((m) => (
@@ -433,9 +438,8 @@ export default function AdminAIProvidersPage() {
       {/* Help */}
       <div className="mt-8 bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
         <p className="text-xs text-blue-400/80">
-          💡 <span className="text-blue-300 font-medium">Tip:</span> Keys are shared across all users. Once a provider is active,
-          all users can select its models when creating an agent. <strong>Groq</strong> is the cheapest option (free tier with
-          ultra-fast inference).
+          💡 <span className="text-blue-300 font-medium">{t('adm.plat.ai.tipLabel')}</span>{' '}
+          {t('adm.plat.ai.tipBody')} <strong>Groq</strong> {t('adm.plat.ai.tipGroq')}
         </p>
       </div>
 

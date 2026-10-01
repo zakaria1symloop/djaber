@@ -20,8 +20,10 @@ import {
 } from '@/components/ui/icons';
 import { FilterPanel, FilterPanelTrigger, FilterSection, FilterChip } from '@/components/admin/FilterPanel';
 import { SkeletonTable } from '@/components/ui/Loader';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function AdminProductsPage() {
+  const { t } = useTranslation();
   const toast = useToast();
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [total, setTotal] = useState(0);
@@ -77,7 +79,7 @@ export default function AdminProductsPage() {
       setProducts(res.products);
       setTotal(res.total);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load products');
+      toast.error(e instanceof Error ? e.message : t('adm.plat.products.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -169,9 +171,9 @@ export default function AdminProductsPage() {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-            Products
+            {t('adm.plat.products.title')}
           </h1>
-          <p className="text-sm text-zinc-400">All products across every store on the platform</p>
+          <p className="text-sm text-zinc-400">{t('adm.plat.products.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <FilterPanelTrigger open={filterOpen} setOpen={setFilterOpen} activeCount={activeFilterCount} />
@@ -179,7 +181,8 @@ export default function AdminProductsPage() {
             onClick={load}
             disabled={loading}
             className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors disabled:opacity-50"
-            title="Refresh"
+            title={t('adm.plat.refresh')}
+            aria-label={t('adm.plat.refresh')}
           >
             <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -188,20 +191,20 @@ export default function AdminProductsPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Total Products" value={stats.total.toString()} />
-        <StatCard label="Active" value={stats.active.toString()} />
-        <StatCard label="Low Stock" value={stats.lowStock.toString()} />
-        <StatCard label="Users" value={stats.owners.toString()} />
+        <StatCard label={t('adm.plat.products.stat.total')} value={stats.total.toString()} />
+        <StatCard label={t('adm.plat.products.stat.active')} value={stats.active.toString()} />
+        <StatCard label={t('adm.plat.products.stat.lowStock')} value={stats.lowStock.toString()} />
+        <StatCard label={t('adm.plat.products.stat.users')} value={stats.owners.toString()} />
       </div>
 
       <div className="relative mb-4">
-        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+        <SearchIcon className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by product name or SKU…"
-          className="w-full pl-10 pr-4 py-2.5 bg-zinc-900/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none transition-colors"
+          placeholder={t('adm.plat.products.search')}
+          className="w-full ps-10 pe-4 py-2.5 bg-zinc-900/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none transition-colors"
         />
       </div>
 
@@ -209,19 +212,19 @@ export default function AdminProductsPage() {
         <SkeletonTable rows={8} />
       ) : filtered.length === 0 ? (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-12 text-center text-sm text-zinc-500">
-          {activeFilterCount > 0 || debouncedSearch ? 'No products match your filters' : 'No products yet'}
+          {activeFilterCount > 0 || debouncedSearch ? t('adm.plat.products.empty.filtered') : t('adm.plat.products.empty.none')}
         </div>
       ) : (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/10 text-left">
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Product</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider hidden md:table-cell">Owner</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider hidden lg:table-cell">Category</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-right">Price</th>
-                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-center">Status</th>
+                <tr className="border-b border-white/10 text-start">
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">{t('adm.plat.products.th.product')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider hidden md:table-cell">{t('adm.plat.owner')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider hidden lg:table-cell">{t('adm.plat.products.th.category')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-end">{t('adm.plat.products.th.price')}</th>
+                  <th className="px-4 py-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wider text-center">{t('adm.plat.status')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -231,7 +234,7 @@ export default function AdminProductsPage() {
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
                           {p.imageUrl ? (
-                            <img src={p.imageUrl} alt="" className="w-full h-full object-cover rounded-lg" />
+                            <img src={p.imageUrl} alt={t('adm.plat.products.imageAlt')} className="w-full h-full object-cover rounded-lg" />
                           ) : (
                             <ImageIcon className="w-4 h-4 text-zinc-600" />
                           )}
@@ -259,16 +262,16 @@ export default function AdminProductsPage() {
                         <span className="text-xs text-zinc-700">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right text-xs text-white">
+                    <td className="px-4 py-3 text-end text-xs text-white">
                       {Number(p.sellingPrice).toLocaleString()} DA
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <Badge variant={p.isActive ? 'success' : 'default'} size="sm">
-                          {p.isActive ? 'Active' : 'Inactive'}
+                          {p.isActive ? t('adm.plat.active') : t('adm.plat.inactive')}
                         </Badge>
                         {p.isLowStock && (
-                          <Badge variant="warning" size="sm">Low</Badge>
+                          <Badge variant="warning" size="sm">{t('adm.plat.products.badge.low')}</Badge>
                         )}
                       </div>
                     </td>
@@ -282,64 +285,64 @@ export default function AdminProductsPage() {
 
       {/* Filter panel */}
       <FilterPanel open={filterOpen} onClose={() => setFilterOpen(false)} onClear={clearFilters}>
-        <FilterSection label="Sort by">
+        <FilterSection label={t('adm.plat.products.f.sortBy')}>
           <div className="grid grid-cols-2 gap-2">
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
               className="px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
             >
-              <option value="createdAt">Created</option>
-              <option value="name">Name</option>
-              <option value="sellingPrice">Price</option>
-              <option value="quantity">Stock</option>
+              <option value="createdAt">{t('adm.plat.products.sort.created')}</option>
+              <option value="name">{t('adm.plat.products.sort.name')}</option>
+              <option value="sellingPrice">{t('adm.plat.products.sort.price')}</option>
+              <option value="quantity">{t('adm.plat.products.sort.stock')}</option>
             </select>
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
               className="px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
             >
-              <option value="desc">Descending</option>
-              <option value="asc">Ascending</option>
+              <option value="desc">{t('adm.plat.products.sort.desc')}</option>
+              <option value="asc">{t('adm.plat.products.sort.asc')}</option>
             </select>
           </div>
         </FilterSection>
 
-        <FilterSection label="Stock">
+        <FilterSection label={t('adm.plat.products.f.stock')}>
           <div className="flex flex-wrap gap-2">
-            <FilterChip label="All" active={stockFilter === 'all'} onClick={() => setStockFilter('all')} />
-            <FilterChip label="In stock" active={stockFilter === 'in-stock'} onClick={() => setStockFilter('in-stock')} />
-            <FilterChip label="Low stock" active={stockFilter === 'low'} onClick={() => setStockFilter('low')} />
+            <FilterChip label={t('adm.plat.all')} active={stockFilter === 'all'} onClick={() => setStockFilter('all')} />
+            <FilterChip label={t('adm.plat.products.chip.inStock')} active={stockFilter === 'in-stock'} onClick={() => setStockFilter('in-stock')} />
+            <FilterChip label={t('adm.plat.products.chip.lowStock')} active={stockFilter === 'low'} onClick={() => setStockFilter('low')} />
           </div>
         </FilterSection>
 
-        <FilterSection label="Status">
+        <FilterSection label={t('adm.plat.status')}>
           <div className="flex flex-wrap gap-2">
-            <FilterChip label="All" active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
-            <FilterChip label="Active" active={statusFilter === 'active'} onClick={() => setStatusFilter('active')} />
-            <FilterChip label="Inactive" active={statusFilter === 'inactive'} onClick={() => setStatusFilter('inactive')} />
+            <FilterChip label={t('adm.plat.all')} active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
+            <FilterChip label={t('adm.plat.active')} active={statusFilter === 'active'} onClick={() => setStatusFilter('active')} />
+            <FilterChip label={t('adm.plat.inactive')} active={statusFilter === 'inactive'} onClick={() => setStatusFilter('inactive')} />
           </div>
         </FilterSection>
 
-        <FilterSection label="Category">
+        <FilterSection label={t('adm.plat.products.f.category')}>
           <select
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
             className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
           >
-            <option value="">All categories</option>
+            <option value="">{t('adm.plat.products.allCategories')}</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         </FilterSection>
 
-        <FilterSection label="Owner">
+        <FilterSection label={t('adm.plat.owner')}>
           <input
             type="text"
             value={userFilterSearch}
             onChange={(e) => { setUserFilterSearch(e.target.value); if (!e.target.value) setUserFilterId(''); }}
-            placeholder="Search user by email or name…"
+            placeholder={t('adm.plat.products.ownerSearch')}
             className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none mb-2"
           />
           {userFilterSearch.trim() && (
@@ -354,7 +357,7 @@ export default function AdminProductsPage() {
                   <button
                     key={u.id}
                     onClick={() => { setUserFilterId(u.id); setUserFilterSearch(`${u.firstName} ${u.lastName}`); }}
-                    className={`w-full text-left px-3 py-2 hover:bg-white/5 transition-colors ${userFilterId === u.id ? 'bg-white/10' : ''}`}
+                    className={`w-full text-start px-3 py-2 hover:bg-white/5 transition-colors ${userFilterId === u.id ? 'bg-white/10' : ''}`}
                   >
                     <p className="text-xs text-white">{u.firstName} {u.lastName}</p>
                     <p className="text-[10px] text-zinc-500">{u.email}</p>
@@ -364,69 +367,69 @@ export default function AdminProductsPage() {
                 const q = userFilterSearch.toLowerCase();
                 return u.email.toLowerCase().includes(q) || u.firstName.toLowerCase().includes(q) || u.lastName.toLowerCase().includes(q);
               }).length === 0 && (
-                <p className="px-3 py-2 text-xs text-zinc-600">No users found</p>
+                <p className="px-3 py-2 text-xs text-zinc-600">{t('adm.plat.products.noUsers')}</p>
               )}
             </div>
           )}
           {userFilterId && (
             <button onClick={() => { setUserFilterId(''); setUserFilterSearch(''); }} className="text-[11px] text-zinc-500 hover:text-white mt-1 underline">
-              Clear user filter
+              {t('adm.plat.products.clearUser')}
             </button>
           )}
         </FilterSection>
 
-        <FilterSection label="Image">
+        <FilterSection label={t('adm.plat.products.f.image')}>
           <div className="flex flex-wrap gap-2">
-            <FilterChip label="All" active={hasImageFilter === 'all'} onClick={() => setHasImageFilter('all')} />
-            <FilterChip label="With image" active={hasImageFilter === 'with'} onClick={() => setHasImageFilter('with')} />
-            <FilterChip label="No image" active={hasImageFilter === 'without'} onClick={() => setHasImageFilter('without')} />
+            <FilterChip label={t('adm.plat.all')} active={hasImageFilter === 'all'} onClick={() => setHasImageFilter('all')} />
+            <FilterChip label={t('adm.plat.products.chip.withImage')} active={hasImageFilter === 'with'} onClick={() => setHasImageFilter('with')} />
+            <FilterChip label={t('adm.plat.products.chip.noImage')} active={hasImageFilter === 'without'} onClick={() => setHasImageFilter('without')} />
           </div>
         </FilterSection>
 
-        <FilterSection label="Price range (DA)">
+        <FilterSection label={t('adm.plat.products.f.priceRange')}>
           <div className="grid grid-cols-2 gap-2">
             <input
               type="number"
               value={minPrice}
               onChange={(e) => setMinPrice(e.target.value)}
-              placeholder="Min"
+              placeholder={t('adm.plat.min')}
               className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
             />
             <input
               type="number"
               value={maxPrice}
               onChange={(e) => setMaxPrice(e.target.value)}
-              placeholder="Max"
+              placeholder={t('adm.plat.max')}
               className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
             />
           </div>
         </FilterSection>
 
-        <FilterSection label="Stock range">
+        <FilterSection label={t('adm.plat.products.f.stockRange')}>
           <div className="grid grid-cols-2 gap-2">
             <input
               type="number"
               value={minStock}
               onChange={(e) => setMinStock(e.target.value)}
-              placeholder="Min"
+              placeholder={t('adm.plat.min')}
               className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
             />
             <input
               type="number"
               value={maxStock}
               onChange={(e) => setMaxStock(e.target.value)}
-              placeholder="Max"
+              placeholder={t('adm.plat.max')}
               className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
             />
           </div>
         </FilterSection>
 
-        <FilterSection label="Min profit margin (%)">
+        <FilterSection label={t('adm.plat.products.f.minMargin')}>
           <input
             type="number"
             value={minMargin}
             onChange={(e) => setMinMargin(e.target.value)}
-            placeholder="e.g. 30"
+            placeholder={t('adm.plat.products.marginPlaceholder')}
             className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
           />
         </FilterSection>

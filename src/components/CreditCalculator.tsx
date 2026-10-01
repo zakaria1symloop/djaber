@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/stock';
 import { getPublicPlans } from '@/lib/user-stock-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 // Mirrors backend/src/services/credits.service.ts CREDIT_COSTS
 const COST = {
@@ -56,6 +57,7 @@ function Row({
 }
 
 export default function CreditCalculator({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
   // A "conversation" = one customer chat session.
   const [msgs, setMsgs] = useState(8); // AI text replies per conversation
   const [images, setImages] = useState(1); // photos the customer sends
@@ -82,33 +84,36 @@ export default function CreditCalculator({ isOpen, onClose }: { isOpen: boolean;
   const per1000 = Math.ceil(perConversation * 1000);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Credit calculator" size="md">
+    <Modal isOpen={isOpen} onClose={onClose} title={t('shell.credits.title')} size="md">
       <div className="space-y-5">
         <p className="text-xs text-zinc-500">
-          Estimate how many credits your conversations consume. Costs per action: text reply {COST.text} ·
-          image {COST.image} · voice note {COST.voice} · AI order {COST.order}.
+          {t('shell.credits.intro')
+            .replace('{text}', String(COST.text))
+            .replace('{image}', String(COST.image))
+            .replace('{voice}', String(COST.voice))
+            .replace('{order}', String(COST.order))}
         </p>
 
         <div className="space-y-4">
-          <Row label="AI replies per conversation" hint="text messages the agent sends" value={msgs} min={1} max={30} onChange={setMsgs} />
-          <Row label="Photos per conversation" hint="images the customer sends for the AI to look at" value={images} min={0} max={10} onChange={setImages} />
-          <Row label="Voice notes per conversation" hint="transcribed with Whisper" value={voice} min={0} max={10} onChange={setVoice} />
-          <Row label="Orders per 100 conversations" hint="how many chats end in an AI-created order" value={ordersPer100} min={0} max={100} onChange={setOrdersPer100} />
+          <Row label={t('shell.credits.replies')} hint={t('shell.credits.repliesHint')} value={msgs} min={1} max={30} onChange={setMsgs} />
+          <Row label={t('shell.credits.photos')} hint={t('shell.credits.photosHint')} value={images} min={0} max={10} onChange={setImages} />
+          <Row label={t('shell.credits.voice')} hint={t('shell.credits.voiceHint')} value={voice} min={0} max={10} onChange={setVoice} />
+          <Row label={t('shell.credits.orders')} hint={t('shell.credits.ordersHint')} value={ordersPer100} min={0} max={100} onChange={setOrdersPer100} />
         </div>
 
         {/* Results */}
         <div className="rounded-xl border border-white/10 overflow-hidden">
           <div className="grid grid-cols-2 gap-px bg-white/10">
             <div className="bg-[#0c0c0e] px-4 py-3.5">
-              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1">Per conversation</p>
+              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1">{t('shell.credits.perConversation')}</p>
               <p className="text-xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-                {perConversation.toFixed(1)} <span className="text-xs font-normal text-zinc-500">credits</span>
+                {perConversation.toFixed(1)} <span className="text-xs font-normal text-zinc-500">{t('shell.credits.unit')}</span>
               </p>
             </div>
             <div className="bg-[#0c0c0e] px-4 py-3.5">
-              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1">Per 1000 conversations</p>
+              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1">{t('shell.credits.per1000')}</p>
               <p className="text-xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-                {per1000.toLocaleString()} <span className="text-xs font-normal text-zinc-500">credits</span>
+                {per1000.toLocaleString()} <span className="text-xs font-normal text-zinc-500">{t('shell.credits.unit')}</span>
               </p>
             </div>
           </div>
@@ -117,7 +122,7 @@ export default function CreditCalculator({ isOpen, onClose }: { isOpen: boolean;
         {/* Plan coverage */}
         {plans.some((p) => p.monthlyCredits) && (
           <div>
-            <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-2">Conversations covered per month</p>
+            <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-2">{t('shell.credits.covered')}</p>
             <div className="space-y-1.5">
               {plans
                 .filter((p) => p.monthlyCredits)
@@ -126,7 +131,7 @@ export default function CreditCalculator({ isOpen, onClose }: { isOpen: boolean;
                     <span className="text-sm text-zinc-300">{p.name}</span>
                     <span className="text-sm text-white font-semibold">
                       ≈ {Math.floor((p.monthlyCredits || 0) / perConversation).toLocaleString()}
-                      <span className="text-xs font-normal text-zinc-500"> conversations</span>
+                      <span className="text-xs font-normal text-zinc-500"> {t('shell.credits.conversations')}</span>
                     </span>
                   </div>
                 ))}

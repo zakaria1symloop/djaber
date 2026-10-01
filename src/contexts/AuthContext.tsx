@@ -13,6 +13,12 @@ import {
   type RegisterRequest,
   type AuthResponse,
 } from '@/lib/api';
+import { getLang, translateFor } from '@/lib/i18n';
+
+// Providers sit above the React tree that renders these strings, so they are
+// translated at throw-time with the stored language instead of a hook (adding
+// one here would re-render the whole app on every language change).
+const tr = (key: string) => translateFor(getLang(), key);
 
 interface User {
   id: string;
@@ -76,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAuthenticated(true);
       return response.user;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+      const errorMessage = err instanceof Error ? err.message : tr('shell.err.login');
       setError(errorMessage);
       throw err; // Re-throw so components can handle it
     } finally {
@@ -96,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAuthenticated(true);
       return response.user;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Registration failed';
+      const errorMessage = err instanceof Error ? err.message : tr('shell.err.register');
       setError(errorMessage);
       throw err; // Re-throw so components can handle it
     } finally {
@@ -123,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Update localStorage so plan persists across reloads
       localStorage.setItem('user', JSON.stringify(response.user));
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch profile';
+      const errorMessage = err instanceof Error ? err.message : tr('shell.err.profile');
       setError(errorMessage);
       // If token is invalid, logout
       if (err instanceof Error && err.message.includes('token')) {

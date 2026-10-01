@@ -115,7 +115,7 @@ export default function GenerateAgentModal({
           <button
             onClick={onClose}
             className="text-zinc-500 hover:text-white transition-colors text-xl leading-none -mt-1"
-            aria-label="Close"
+            aria-label={t('dlg.close')}
           >
             ×
           </button>
@@ -194,7 +194,9 @@ export default function GenerateAgentModal({
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <h3 className="text-xs uppercase tracking-wider text-zinc-500">{t('agentGen.preview.summary')}</h3>
                   <span className="text-[10px] text-zinc-600">
-                    {draft.sampledConversations} conversations · {draft.sampledMessages} messages
+                    {t('dlg.agentGen.sampled')
+                      .replace('{c}', String(draft.sampledConversations))
+                      .replace('{m}', String(draft.sampledMessages))}
                   </span>
                 </div>
                 <p className="text-sm text-white leading-relaxed">{draft.businessSummary}</p>
@@ -229,7 +231,7 @@ export default function GenerateAgentModal({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs uppercase tracking-wider text-zinc-500">{t('agentGen.preview.instructions')}</label>
-                  <span className="text-[10px] text-zinc-600">{editedInstructions.length} chars</span>
+                  <span className="text-[10px] text-zinc-600">{t('dlg.agentGen.chars').replace('{n}', String(editedInstructions.length))}</span>
                 </div>
                 <textarea
                   value={editedInstructions}

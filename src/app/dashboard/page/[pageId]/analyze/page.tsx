@@ -15,8 +15,9 @@ interface DraftItem extends ExtractedProduct {
 const isItemValid = (i: DraftItem) =>
   i.name.trim().length > 0 && i.priceDA > 0 && i.quantity > 0;
 
-const itemErrors = (i: DraftItem): string[] => {
-  const errs: string[] = [];
+// Returns stable field ids; the UI translates them for display.
+const itemErrors = (i: DraftItem): Array<'name' | 'price' | 'stock'> => {
+  const errs: Array<'name' | 'price' | 'stock'> = [];
   if (!i.name.trim()) errs.push('name');
   if (!i.priceDA || i.priceDA <= 0) errs.push('price');
   if (!i.quantity || i.quantity <= 0) errs.push('stock');
@@ -233,7 +234,7 @@ export default function AnalyzePage() {
                       onClick={() => toggleItem(idx)}
                       role="button"
                       tabIndex={0}
-                      aria-label={item.selected ? 'Deselect' : 'Select'}
+                      aria-label={item.selected ? t('shell.analyze.deselect') : t('shell.analyze.select')}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleItem(idx); } }}
                       className="relative aspect-[4/3] bg-black cursor-pointer group"
                     >
@@ -242,7 +243,7 @@ export default function AnalyzePage() {
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-900 flex flex-col items-center justify-center gap-1 text-zinc-600">
                           <ImageIcon className="w-9 h-9" />
-                          <span className="text-[10px] uppercase tracking-wider">No image</span>
+                          <span className="text-[10px] uppercase tracking-wider">{t('shell.analyze.noImage')}</span>
                         </div>
                       )}
                       {/* Translucent dim on hover so the user knows the card is clickable */}
@@ -251,7 +252,7 @@ export default function AnalyzePage() {
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); toggleItem(idx); }}
-                        aria-label={item.selected ? 'Deselect' : 'Select'}
+                        aria-label={item.selected ? t('shell.analyze.deselect') : t('shell.analyze.select')}
                         className={`absolute top-2 end-2 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
                           item.selected
                             ? 'bg-white border-white text-black shadow-lg shadow-black/30'
@@ -323,7 +324,7 @@ export default function AnalyzePage() {
                       {showErrors && (
                         <p className="text-[11px] text-zinc-300 flex items-center gap-1">
                           <AlertIcon className="w-3 h-3 flex-shrink-0 text-zinc-500" />
-                          <span>{t('analyze.field.errorHint').replace('{fields}', errs.join(', '))}</span>
+                          <span>{t('analyze.field.errorHint').replace('{fields}', errs.map((e) => t(`shell.analyze.field.${e}`)).join(', '))}</span>
                         </p>
                       )}
                       {item.category && (

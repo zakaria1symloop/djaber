@@ -849,6 +849,10 @@ const en: Dict = {
   'stock.common.status': 'Status',
   'stock.common.total': 'Total',
   'stock.common.paid': 'Paid',
+  'stock.common.ps.paid': 'Paid',
+  'stock.common.ps.partial': 'Partial',
+  'stock.common.ps.unpaid': 'Unpaid',
+  'stock.common.received': 'Received',
   'stock.common.remaining': 'Remaining',
   'stock.common.pending': 'Pending',
   'stock.common.confirmed': 'Confirmed',
@@ -1892,6 +1896,10 @@ const fr: Dict = {
   'stock.common.status': 'Statut',
   'stock.common.total': 'Total',
   'stock.common.paid': 'Payé',
+  'stock.common.ps.paid': 'Payé',
+  'stock.common.ps.partial': 'Partiel',
+  'stock.common.ps.unpaid': 'Impayé',
+  'stock.common.received': 'Reçu',
   'stock.common.remaining': 'Restant',
   'stock.common.pending': 'En attente',
   'stock.common.confirmed': 'Confirmée',
@@ -2912,6 +2920,10 @@ const ar: Dict = {
   'stock.common.status': 'الحالة',
   'stock.common.total': 'الإجمالي',
   'stock.common.paid': 'المدفوع',
+  'stock.common.ps.paid': 'مدفوع',
+  'stock.common.ps.partial': 'مدفوع جزئياً',
+  'stock.common.ps.unpaid': 'غير مدفوع',
+  'stock.common.received': 'تم الاستلام',
   'stock.common.remaining': 'المتبقي',
   'stock.common.pending': 'قيد الانتظار',
   'stock.common.confirmed': 'مؤكدة',
@@ -3134,7 +3146,7 @@ const ar: Dict = {
 // Fold in the reports/analytics namespace dictionaries (see i18n-extra.ts).
 // Base keys win only if a namespace doesn't define them, so screen-specific
 // translations override nothing existing.
-const dictionaries: Record<Lang, Dict> = {
+export const dictionaries: Record<Lang, Dict> = {
   en: { ...en, ...extraI18n.en },
   fr: { ...fr, ...extraI18n.fr },
   ar: { ...ar, ...extraI18n.ar },

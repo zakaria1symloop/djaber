@@ -1,6 +1,7 @@
 'use client';
 
 import { HTMLAttributes, forwardRef } from 'react';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 type AvatarSize = 'sm' | 'md' | 'lg' | 'xl';
 
@@ -20,6 +21,8 @@ const sizeStyles: Record<AvatarSize, string> = {
 
 export const Avatar = forwardRef<HTMLDivElement, AvatarProps>(
   ({ src, alt, initials, size = 'md', className = '', ...props }, ref) => {
+    const { t } = useTranslation();
+
     return (
       <div
         ref={ref}
@@ -34,7 +37,7 @@ export const Avatar = forwardRef<HTMLDivElement, AvatarProps>(
         {src ? (
           <img
             src={src}
-            alt={alt || 'Avatar'}
+            alt={alt || t('dlg.avatar.alt')}
             className="w-full h-full object-cover"
           />
         ) : (

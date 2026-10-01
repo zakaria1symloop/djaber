@@ -164,7 +164,7 @@ export default function ClientsPage() {
       const res = await getClients(params);
       setClients(res.clients);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load clients');
+      setError(err instanceof Error ? err.message : t('stk.ops.cli.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -247,7 +247,7 @@ export default function ClientsPage() {
     e.preventDefault();
     setModalError(null);
 
-    const nameErr = validateName(form.name, 'Name');
+    const nameErr = validateName(form.name, t('stk.ops.c.name'));
     if (nameErr) { setModalError(nameErr); return; }
     // Phone is required for a client (they need to receive their order).
     const phoneErr = validatePhoneRequired(form.phone);
@@ -263,7 +263,7 @@ export default function ClientsPage() {
       return (c.phone || '').replace(/\s|-|\(|\)/g, '') === phoneClean;
     });
     if (dup) {
-      setModalError(`A client already exists with this phone (${dup.name}). Use a different number.`);
+      setModalError(t('stk.ops.cli.duplicatePhone').replace('{name}', dup.name));
       return;
     }
 
@@ -277,7 +277,7 @@ export default function ClientsPage() {
           address: form.address.trim() || undefined,
           notes: form.notes.trim() || undefined,
         });
-        toast.success('Client updated');
+        toast.success(t('stk.ops.cli.updated'));
       } else {
         await createClient({
           name: form.name.trim(),
@@ -286,12 +286,12 @@ export default function ClientsPage() {
           address: form.address.trim() || undefined,
           notes: form.notes.trim() || undefined,
         });
-        toast.success('Client added');
+        toast.success(t('stk.ops.cli.added'));
       }
       setShowModal(false);
       loadClients();
     } catch (err) {
-      setModalError(err instanceof Error ? err.message : 'Failed to save client');
+      setModalError(err instanceof Error ? err.message : t('stk.ops.cli.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -302,12 +302,12 @@ export default function ClientsPage() {
     try {
       setDeleting(true);
       await deleteClientApi(deleteConfirm.id);
-      toast.success('Client deleted');
+      toast.success(t('stk.ops.cli.deleted'));
       setDeleteConfirm(null);
       setViewing(null);
       loadClients();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete client');
+      toast.error(err instanceof Error ? err.message : t('stk.ops.cli.deleteFailed'));
     } finally {
       setDeleting(false);
     }
@@ -417,8 +417,8 @@ export default function ClientsPage() {
                   <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.clients.col.conversations')}</th>
                   <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.clients.col.orders')}</th>
                   <th className="text-right text-xs font-medium text-zinc-400 px-4 py-3">{t('stock.clients.col.totalSpent')}</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Source</th>
-                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">Actions</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.ops.c.source')}</th>
+                  <th className="text-center text-xs font-medium text-zinc-400 px-4 py-3">{t('stk.ops.c.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -484,20 +484,20 @@ export default function ClientsPage() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => { setFiltersOpen(false); setViewing(client); }} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="View">
+                        <button onClick={() => { setFiltersOpen(false); setViewing(client); }} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title={t('stk.ops.c.view')}>
                           <EyeIcon className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => router.push(`/dashboard/stock/orders?clientId=${client.id}`)}
                           className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                          title="View Orders"
+                          title={t('stk.ops.cli.viewOrders')}
                         >
                           <ClipboardIcon className="w-4 h-4" />
                         </button>
-                        <button onClick={() => openEdit(client)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Edit">
+                        <button onClick={() => openEdit(client)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title={t('stk.ops.c.edit')}>
                           <EditIcon className="w-4 h-4" />
                         </button>
-                        <button onClick={() => setDeleteConfirm(client)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Delete">
+                        <button onClick={() => setDeleteConfirm(client)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title={t('stk.ops.c.delete')}>
                           <TrashIcon className="w-4 h-4" />
                         </button>
                       </div>
@@ -513,14 +513,14 @@ export default function ClientsPage() {
           <div className="text-zinc-600 mb-4 flex justify-center">
             <UsersIcon className="w-16 h-16" />
           </div>
-          <h3 className="text-lg font-medium text-zinc-300 mb-1">No Clients Yet</h3>
+          <h3 className="text-lg font-medium text-zinc-300 mb-1">{t('stk.ops.cli.emptyTitle')}</h3>
           <p className="text-sm text-zinc-500 max-w-sm mx-auto mb-4">
             {searchDebounced || activeFilterCount > 0
-              ? 'No clients match your filters'
-              : 'Clients will appear here automatically when the AI chatbot confirms orders, or add them manually.'}
+              ? t('stk.ops.cli.noMatch')
+              : t('stk.ops.cli.emptyHint')}
           </p>
           {!searchDebounced && activeFilterCount === 0 && (
-            <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>Add Client</Button>
+            <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>{t('stock.clients.add')}</Button>
           )}
         </div>
       )}
@@ -535,10 +535,10 @@ export default function ClientsPage() {
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
           <div className="flex items-center gap-2">
             <FilterIcon className="w-4 h-4 text-zinc-500" />
-            <h2 className="text-sm font-semibold text-white">Filters</h2>
+            <h2 className="text-sm font-semibold text-white">{t('stk.ops.c.filters')}</h2>
             {activeFilterCount > 0 && (
               <span className="text-[10px] text-zinc-300 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-full font-medium">
-                {activeFilterCount} active
+                {t('stk.ops.c.filtersActive').replace('{n}', String(activeFilterCount))}
               </span>
             )}
           </div>
@@ -554,12 +554,12 @@ export default function ClientsPage() {
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
           {/* Status Toggle */}
           <div>
-            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">Status</label>
+            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">{t('stk.ops.c.status')}</label>
             <div className="flex gap-1.5">
               {[
-                { value: '' as const, label: 'All' },
-                { value: 'true' as const, label: 'Active' },
-                { value: 'false' as const, label: 'Inactive' },
+                { value: '' as const, label: t('stk.ops.c.all') },
+                { value: 'true' as const, label: t('stk.ops.c.active') },
+                { value: 'false' as const, label: t('stk.ops.c.inactive') },
               ].map((opt) => (
                 <button
                   key={opt.value}
@@ -578,12 +578,12 @@ export default function ClientsPage() {
 
           {/* Source Toggle */}
           <div>
-            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">Source</label>
+            <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">{t('stk.ops.c.source')}</label>
             <div className="flex gap-1.5">
               {[
-                { value: '' as const, label: 'All' },
-                { value: 'ai' as const, label: 'AI Chat' },
-                { value: 'manual' as const, label: 'Manual' },
+                { value: '' as const, label: t('stk.ops.c.all') },
+                { value: 'ai' as const, label: t('stk.ops.cli.sourceAi') },
+                { value: 'manual' as const, label: t('stk.ops.cli.sourceManual') },
               ].map((opt) => (
                 <button
                   key={opt.value}
@@ -603,7 +603,7 @@ export default function ClientsPage() {
           {/* Total Orders Range */}
           <div>
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
-              Total Orders
+              {t('stk.ops.cli.totalOrders')}
               {(draftOrdersRange[0] > 0 || draftOrdersRange[1] < DEFAULT_ORDERS_MAX) && (
                 <span className="ml-1.5 text-zinc-400 font-normal normal-case">
                   {draftOrdersRange[0].toLocaleString()} - {draftOrdersRange[1].toLocaleString()}
@@ -623,7 +623,7 @@ export default function ClientsPage() {
           {/* Total Spent Range */}
           <div>
             <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2.5 block">
-              Total Spent (DA)
+              {t('stk.ops.c.totalSpentDa')}
               {(draftSpentRange[0] > 0 || draftSpentRange[1] < DEFAULT_SPENT_MAX) && (
                 <span className="ml-1.5 text-zinc-400 font-normal normal-case">
                   {draftSpentRange[0].toLocaleString()} - {draftSpentRange[1].toLocaleString()}
@@ -649,20 +649,20 @@ export default function ClientsPage() {
             disabled={!draftDirty}
             className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-white hover:bg-zinc-200 text-black"
           >
-            Apply Filters
+            {t('stk.ops.c.applyFilters')}
           </button>
           <button
             onClick={clearAllFilters}
             disabled={activeFilterCount === 0 && !draftDirty}
             className="w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700"
           >
-            Clear All{activeFilterCount > 0 && ` (${activeFilterCount})`}
+            {t('stk.ops.c.clearAll')}{activeFilterCount > 0 && ` (${activeFilterCount})`}
           </button>
         </div>
       </div>
 
       {/* Details Modal */}
-      <Modal isOpen={!!viewing} onClose={() => setViewing(null)} title="Client Details" size="lg">
+      <Modal isOpen={!!viewing} onClose={() => setViewing(null)} title={t('stk.ops.cli.details')} size="lg">
         {viewing && (
           <div className="space-y-5">
             <div className="flex items-center gap-4">
@@ -672,7 +672,7 @@ export default function ClientsPage() {
               <div>
                 <h3 className="text-lg font-semibold text-white">{viewing.name}</h3>
                 <Badge variant="default">
-                  {viewing.source === 'ai' ? 'AI Chat' : 'Manual'}
+                  {viewing.source === 'ai' ? t('stk.ops.cli.sourceAi') : t('stk.ops.cli.sourceManual')}
                 </Badge>
               </div>
             </div>
@@ -680,19 +680,19 @@ export default function ClientsPage() {
             <div className="grid grid-cols-2 gap-4 bg-zinc-800/50 rounded-lg p-4">
               <div>
                 <div className="flex items-center gap-1.5 text-xs text-zinc-500 mb-1">
-                  <PhoneIcon className="w-3.5 h-3.5" /> Phone
+                  <PhoneIcon className="w-3.5 h-3.5" /> {t('stk.ops.c.phone')}
                 </div>
                 <p className="text-sm text-white">{viewing.phone || '-'}</p>
               </div>
               <div>
                 <div className="flex items-center gap-1.5 text-xs text-zinc-500 mb-1">
-                  <MailIcon className="w-3.5 h-3.5" /> Email
+                  <MailIcon className="w-3.5 h-3.5" /> {t('stk.ops.c.email')}
                 </div>
                 <p className="text-sm text-white">{viewing.email || '-'}</p>
               </div>
               <div className="col-span-2">
                 <div className="flex items-center gap-1.5 text-xs text-zinc-500 mb-1">
-                  <MapPinIcon className="w-3.5 h-3.5" /> Address
+                  <MapPinIcon className="w-3.5 h-3.5" /> {t('stk.ops.c.address')}
                 </div>
                 <p className="text-sm text-white">{viewing.address || '-'}</p>
               </div>
@@ -700,15 +700,15 @@ export default function ClientsPage() {
 
             <div className="grid grid-cols-3 gap-4 bg-zinc-800/50 rounded-lg p-4">
               <div className="text-center">
-                <p className="text-xs text-zinc-500 mb-1">Total Orders</p>
+                <p className="text-xs text-zinc-500 mb-1">{t('stk.ops.cli.totalOrders')}</p>
                 <p className="text-lg font-bold text-white">{viewing.totalOrders}</p>
               </div>
               <div className="text-center">
-                <p className="text-xs text-zinc-500 mb-1">Total Spent</p>
+                <p className="text-xs text-zinc-500 mb-1">{t('stk.ops.c.totalSpent')}</p>
                 <p className="text-lg font-bold text-white">{Number(viewing.totalSpent).toLocaleString()} DA</p>
               </div>
               <div className="text-center">
-                <p className="text-xs text-zinc-500 mb-1">Last Order</p>
+                <p className="text-xs text-zinc-500 mb-1">{t('stk.ops.cli.lastOrder')}</p>
                 <p className="text-sm font-medium text-white">{viewing.lastOrderDate ? new Date(viewing.lastOrderDate).toLocaleDateString() : '-'}</p>
               </div>
             </div>
@@ -730,28 +730,28 @@ export default function ClientsPage() {
                 <div className="bg-zinc-800/50 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <BotIcon className="w-4 h-4 text-zinc-400" />
-                    <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide">AI Conversation Metrics</p>
+                    <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide">{t('stk.ops.cli.metricsTitle')}</p>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="text-center bg-zinc-900/50 rounded-lg p-2.5">
                       <p className="text-lg font-bold text-white">{metrics.conversationCount}</p>
-                      <p className="text-[10px] text-zinc-500">Conversations</p>
+                      <p className="text-[10px] text-zinc-500">{t('stk.ops.cli.conversations')}</p>
                     </div>
                     <div className="text-center bg-zinc-900/50 rounded-lg p-2.5">
                       <p className="text-lg font-bold text-white">{metrics.totalMessages}</p>
-                      <p className="text-[10px] text-zinc-500">Total Messages</p>
+                      <p className="text-[10px] text-zinc-500">{t('stk.ops.cli.totalMessages')}</p>
                     </div>
                     <div className="text-center bg-zinc-900/50 rounded-lg p-2.5">
                       <p className="text-lg font-bold text-white">{metrics.aiResponseCount}</p>
-                      <p className="text-[10px] text-zinc-500">AI Responses</p>
+                      <p className="text-[10px] text-zinc-500">{t('stk.ops.cli.aiResponses')}</p>
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5 text-xs text-zinc-500">
-                    <span>Client messages: {metrics.messagesReceived}</span>
+                    <span>{t('stk.ops.cli.clientMessages').replace('{n}', String(metrics.messagesReceived))}</span>
                     {metrics.lastMessageDate && (
                       <span className="flex items-center gap-1">
                         <ClockIcon className="w-3 h-3" />
-                        Last: {new Date(metrics.lastMessageDate).toLocaleDateString()}
+                        {t('stk.ops.cli.lastAt').replace('{d}', new Date(metrics.lastMessageDate).toLocaleDateString())}
                       </span>
                     )}
                   </div>
@@ -761,7 +761,7 @@ export default function ClientsPage() {
                   <div className="bg-zinc-800/50 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <MessageIcon className="w-4 h-4 text-zinc-400" />
-                      <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Conversation History</p>
+                      <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide">{t('stk.ops.cli.historyTitle')}</p>
                     </div>
                     <div className="space-y-2">
                       {metricsConversations.map((conv) => (
@@ -775,11 +775,11 @@ export default function ClientsPage() {
                               <Badge variant="default">
                                 {conv.status}
                               </Badge>
-                              <span className="text-[10px] text-zinc-500 ml-auto">{conv.messageCount} msgs</span>
+                              <span className="text-[10px] text-zinc-500 ms-auto">{t('stk.ops.cli.msgsShort').replace('{n}', String(conv.messageCount))}</span>
                             </div>
                             {conv.lastMessage && (
                               <p className="text-xs text-zinc-500 truncate">
-                                {conv.lastMessageIsFromPage ? 'AI: ' : 'Client: '}{conv.lastMessage}
+                                {conv.lastMessageIsFromPage ? t('stk.ops.cli.aiPrefix') : t('stk.ops.cli.clientPrefix')}{conv.lastMessage}
                               </p>
                             )}
                           </div>
@@ -793,7 +793,7 @@ export default function ClientsPage() {
 
             {viewing.notes && (
               <div className="bg-zinc-800/50 rounded-lg p-4">
-                <p className="text-xs text-zinc-500 mb-1">Notes</p>
+                <p className="text-xs text-zinc-500 mb-1">{t('stk.ops.c.notes')}</p>
                 <p className="text-sm text-zinc-400">{viewing.notes}</p>
               </div>
             )}
@@ -805,10 +805,10 @@ export default function ClientsPage() {
                 onClick={() => router.push(`/dashboard/stock/orders?clientId=${viewing.id}`)}
                 icon={<ClipboardIcon className="w-4 h-4" />}
               >
-                View Orders
+                {t('stk.ops.cli.viewOrders')}
               </Button>
               <Button variant="outline" className="flex-1" onClick={() => { setViewing(null); openEdit(viewing); }}>
-                Edit Client
+                {t('stk.ops.cli.editClient')}
               </Button>
             </div>
           </div>
@@ -816,7 +816,7 @@ export default function ClientsPage() {
       </Modal>
 
       {/* Add/Edit Modal */}
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editing ? 'Edit Client' : 'Add Client'} size="md">
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editing ? t('stk.ops.cli.editTitle') : t('stk.ops.cli.addTitle')} size="md">
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {modalError && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-2.5 text-sm text-red-400">
@@ -825,7 +825,7 @@ export default function ClientsPage() {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Name *</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('stk.ops.c.nameRequired')}</label>
             <div className="relative">
               <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <input
@@ -834,7 +834,7 @@ export default function ClientsPage() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
                 minLength={2}
-                placeholder="Client name"
+                placeholder={t('stk.ops.cli.namePlaceholder')}
                 className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
               />
             </div>
@@ -843,21 +843,21 @@ export default function ClientsPage() {
           {/* Field order mirrors the Supplier modal (Email → Phone) for consistency. */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Email</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('stk.ops.c.email')}</label>
               <div className="relative">
                 <MailIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="email@example.com"
+                  placeholder={t('stk.ops.c.emailPlaceholder')}
                   autoComplete="email"
                   className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Phone *</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('stk.ops.c.phoneRequired')}</label>
               <div className="relative">
                 <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
@@ -866,7 +866,7 @@ export default function ClientsPage() {
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
                   required
-                  placeholder="0555 12 34 56"
+                  placeholder={t('stk.ops.c.phonePlaceholder')}
                   autoComplete="tel"
                   pattern="^\+?[0-9\s\-().]{8,20}$"
                   className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
@@ -876,25 +876,25 @@ export default function ClientsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Address</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('stk.ops.c.address')}</label>
             <div className="relative">
               <MapPinIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <input
                 type="text"
                 value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
-                placeholder="Client address"
+                placeholder={t('stk.ops.cli.addressPlaceholder')}
                 className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1.5">Notes</label>
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">{t('stk.ops.c.notes')}</label>
             <textarea
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              placeholder="Optional notes"
+              placeholder={t('stk.ops.c.notesPlaceholder')}
               rows={2}
               className="w-full px-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20 resize-none"
             />
@@ -902,31 +902,31 @@ export default function ClientsPage() {
 
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" className="flex-1" onClick={() => setShowModal(false)} disabled={saving}>
-              Cancel
+              {t('stk.ops.c.cancel')}
             </Button>
             <Button type="submit" className="flex-1" disabled={saving}>
-              {saving ? 'Saving...' : (editing ? 'Update Client' : 'Add Client')}
+              {saving ? t('stk.ops.c.saving') : (editing ? t('stk.ops.cli.updateBtn') : t('stk.ops.cli.addTitle'))}
             </Button>
           </div>
         </form>
       </Modal>
 
       {/* Delete Confirm Modal */}
-      <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title="Delete Client" size="sm">
+      <Modal isOpen={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title={t('stk.ops.cli.deleteTitle')} size="sm">
         <p className="text-zinc-400 mb-2">
-          Are you sure you want to delete <span className="text-white font-medium">{deleteConfirm?.name}</span>?
+          {t('stk.ops.c.confirmDeletePrefix')} <span className="text-white font-medium">{deleteConfirm?.name}</span> ?
         </p>
         {(deleteConfirm?.totalOrders || 0) > 0 && (
           <div className="border border-white/10 bg-white/[0.03] rounded-lg p-2.5 mb-4">
-            <p className="text-white text-sm font-semibold">This client has {deleteConfirm?.totalOrders} orders linked.</p>
+            <p className="text-white text-sm font-semibold">{t('stk.ops.cli.linkedOrders').replace('{n}', String(deleteConfirm?.totalOrders ?? 0))}</p>
           </div>
         )}
         <div className="flex gap-3 pt-4">
           <Button type="button" variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)} disabled={deleting}>
-            Cancel
+            {t('stk.ops.c.cancel')}
           </Button>
           <Button type="button" className="flex-1" onClick={handleDelete} disabled={deleting}>
-            {deleting ? 'Deleting...' : 'Delete'}
+            {deleting ? t('stk.ops.c.deleting') : t('stk.ops.c.delete')}
           </Button>
         </div>
       </Modal>

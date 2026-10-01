@@ -2,6 +2,7 @@
 
 import { PlusIcon, TrashIcon } from '@/components/ui/icons';
 import { Input } from '@/components/ui';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export interface VariantRow {
   id?: string; // existing variant id
@@ -20,6 +21,8 @@ interface VariantEditorProps {
 }
 
 export function VariantEditor({ variants, onChange, isEditing }: VariantEditorProps) {
+  const { t } = useTranslation();
+
   const addRow = () => {
     onChange([...variants, { name: '', sku: '', costPrice: '0', sellingPrice: '0', quantity: '0', minQuantity: '0' }]);
   };
@@ -40,10 +43,10 @@ export function VariantEditor({ variants, onChange, isEditing }: VariantEditorPr
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium text-zinc-300">
-          Variants
+          {t('dlg.variants.label')}
           {variants.length > 0 && (
             <span className="ml-2 text-xs text-zinc-500">
-              Total qty: <span className="text-white font-medium">{totalQty}</span>
+              {t('dlg.variants.totalQty')} <span className="text-white font-medium">{totalQty}</span>
             </span>
           )}
         </label>
@@ -52,30 +55,30 @@ export function VariantEditor({ variants, onChange, isEditing }: VariantEditorPr
           onClick={addRow}
           className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
         >
-          <PlusIcon className="w-3.5 h-3.5" /> Add Variant
+          <PlusIcon className="w-3.5 h-3.5" /> {t('dlg.variants.add')}
         </button>
       </div>
 
       {variants.length === 0 ? (
-        <p className="text-xs text-zinc-500 italic">No variants. Click &quot;Add Variant&quot; to create one.</p>
+        <p className="text-xs text-zinc-500 italic">{t('dlg.variants.empty')}</p>
       ) : (
-        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+        <div className="space-y-2 max-h-64 overflow-y-auto pe-1">
           {variants.map((v, i) => (
             <div key={v.id || `new-${i}`} className="bg-zinc-800/50 rounded-lg p-3 space-y-2">
               <div className="flex items-start gap-2">
                 <div className="flex-1 grid grid-cols-2 gap-2">
                   <Input
-                    label="Name *"
+                    label={t('dlg.variants.name')}
                     value={v.name}
                     onChange={(e) => updateRow(i, 'name', e.target.value)}
-                    placeholder="e.g., Red - Large"
+                    placeholder={t('dlg.variants.namePh')}
                     required
                   />
                   <Input
-                    label="SKU"
+                    label={t('dlg.variants.sku')}
                     value={v.sku}
                     onChange={(e) => updateRow(i, 'sku', e.target.value)}
-                    placeholder="Optional SKU"
+                    placeholder={t('dlg.variants.skuPh')}
                   />
                 </div>
                 <button
@@ -88,7 +91,7 @@ export function VariantEditor({ variants, onChange, isEditing }: VariantEditorPr
               </div>
               <div className="grid grid-cols-4 gap-2">
                 <Input
-                  label="Cost"
+                  label={t('dlg.variants.cost')}
                   type="number"
                   min="0"
                   step="0.01"
@@ -96,7 +99,7 @@ export function VariantEditor({ variants, onChange, isEditing }: VariantEditorPr
                   onChange={(e) => updateRow(i, 'costPrice', e.target.value)}
                 />
                 <Input
-                  label="Price"
+                  label={t('dlg.variants.price')}
                   type="number"
                   min="0"
                   step="0.01"
@@ -104,7 +107,7 @@ export function VariantEditor({ variants, onChange, isEditing }: VariantEditorPr
                   onChange={(e) => updateRow(i, 'sellingPrice', e.target.value)}
                 />
                 <Input
-                  label="Qty"
+                  label={t('dlg.variants.qty')}
                   type="number"
                   min="0"
                   value={v.quantity}
@@ -112,7 +115,7 @@ export function VariantEditor({ variants, onChange, isEditing }: VariantEditorPr
                   disabled={isEditing && !!v.id}
                 />
                 <Input
-                  label="Min Qty"
+                  label={t('dlg.variants.minQty')}
                   type="number"
                   min="0"
                   value={v.minQuantity}

@@ -12,6 +12,7 @@ import { getProducts, getClients, createOrder, quoteDeliveryFee, type Product, t
 import { getWilayas, type Wilaya } from '@/lib/delivery-api';
 import { isValidPhone, hasAlphanumeric } from '@/lib/validation';
 import { useToast } from '@/components/ui/Toast';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 // ── Keyboard-navigable Client Autocomplete ──
 function ClientAutocomplete({
@@ -23,6 +24,7 @@ function ClientAutocomplete({
   onSelect: (client: Client | null) => void;
   selectedClient: Client | null;
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
@@ -88,7 +90,7 @@ function ClientAutocomplete({
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder="Search client by name or phone..."
+          placeholder={t('stk.tr.c.searchClient')}
           className={`w-full pl-10 pr-4 py-2.5 bg-black border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-white/20 ${
             selectedClient ? 'border-white/30 text-white' : 'border-white/10 text-white placeholder-zinc-500'
           }`}
@@ -106,7 +108,7 @@ function ClientAutocomplete({
       {open && !selectedClient && (
         <div ref={listRef} className="absolute z-50 top-full left-0 right-0 mt-1 bg-zinc-900 border border-white/10 rounded-lg shadow-2xl max-h-52 overflow-y-auto">
           {filtered.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-zinc-500">No clients found</div>
+            <div className="px-4 py-3 text-sm text-zinc-500">{t('stk.tr.c.noClients')}</div>
           ) : (
             filtered.map((c, idx) => (
               <div
@@ -145,6 +147,7 @@ function ProductAutocomplete({
   products: Product[];
   onAdd: (product: Product, variant?: ProductVariant) => void;
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
@@ -224,14 +227,14 @@ function ProductAutocomplete({
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => { if (justClosedRef.current) { justClosedRef.current = false; return; } if (query || products.length) setOpen(true); }}
           onKeyDown={handleKeyDown}
-          placeholder="Search product by name or SKU... (↑↓ to navigate, Enter to add)"
+          placeholder={t('stk.tr.c.searchProduct')}
           className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
         />
       </div>
       {open && (
         <div ref={listRef} className="absolute z-50 top-full left-0 right-0 mt-1 bg-zinc-900 border border-white/10 rounded-lg shadow-2xl max-h-60 overflow-y-auto">
           {filtered.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-zinc-500">No products found</div>
+            <div className="px-4 py-3 text-sm text-zinc-500">{t('stk.tr.c.noProducts')}</div>
           ) : (
             filtered.map((p, idx) => {
               const activeVariants = p.hasVariants ? (p.variants || []).filter((v) => v.isActive) : [];
@@ -260,12 +263,12 @@ function ProductAutocomplete({
                         <>
                           <div className="text-sm text-zinc-300 font-medium">{Number(p.sellingPrice).toLocaleString()} DA</div>
                           <div className={`text-xs ${p.quantity > 0 ? 'text-zinc-500' : 'text-zinc-600'}`}>
-                            {p.quantity > 0 ? `${p.quantity} in stock` : 'Out of stock'}
+                            {p.quantity > 0 ? t('stk.tr.c.inStock').replace('{n}', String(p.quantity)) : t('stk.tr.c.outOfStock')}
                           </div>
                         </>
                       ) : (
                         <div className="text-xs text-zinc-500">
-                          {activeVariants.length} variant{activeVariants.length !== 1 ? 's' : ''} {expanded ? '▴' : '▾'}
+                          {activeVariants.length === 1 ? t('stk.tr.c.variantsOne') : t('stk.tr.c.variants').replace('{n}', String(activeVariants.length))} {expanded ? '▴' : '▾'}
                         </div>
                       )}
                     </div>
@@ -273,7 +276,7 @@ function ProductAutocomplete({
                   {p.hasVariants && expanded && (
                     <div className="bg-black/40 border-t border-white/5">
                       {activeVariants.length === 0 ? (
-                        <div className="pl-10 pr-4 py-2 text-xs text-zinc-600">No active variants</div>
+                        <div className="ps-10 pe-4 py-2 text-xs text-zinc-600">{t('stk.tr.c.noActiveVariants')}</div>
                       ) : (
                         activeVariants.map((v) => {
                           const vInStock = v.quantity > 0;
@@ -289,7 +292,7 @@ function ProductAutocomplete({
                               <div className="text-right flex-shrink-0">
                                 <div className="text-sm text-zinc-300 font-medium">{Number(v.sellingPrice).toLocaleString()} DA</div>
                                 <div className={`text-xs ${vInStock ? 'text-zinc-500' : 'text-zinc-600'}`}>
-                                  {vInStock ? `${v.quantity} in stock` : 'Out of stock'}
+                                  {vInStock ? t('stk.tr.c.inStock').replace('{n}', String(v.quantity)) : t('stk.tr.c.outOfStock')}
                                 </div>
                               </div>
                             </div>
@@ -312,6 +315,7 @@ function ProductAutocomplete({
 export default function NewOrderPage() {
   const router = useRouter();
   const toast = useToast();
+  const { t } = useTranslation();
   const [products, setProducts] = useState<Product[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -450,24 +454,24 @@ export default function NewOrderPage() {
     // Order-level validation: an order without contact + delivery info can't
     // actually be delivered. Block at the form level instead of letting the
     // backend create a half-broken order.
-    if (orderItems.length === 0) { setError('Add at least one product'); return; }
+    if (orderItems.length === 0) { setError(t('stk.tr.ord.new.errNoItems')); return; }
     const trimmedName = (customerName || '').trim();
     if (!trimmedName || !hasAlphanumeric(trimmedName)) {
-      setError('Client name is required (must contain at least one letter or number)');
+      setError(t('stk.tr.ord.new.errName'));
       return;
     }
     if (!customerPhone || !isValidPhone(customerPhone)) {
-      setError('A valid phone number is required to contact the client');
+      setError(t('stk.tr.ord.new.errPhone'));
       return;
     }
     if (!wilayaId) {
-      setError('Wilaya (delivery region) is required');
+      setError(t('stk.tr.ord.new.errWilaya'));
       return;
     }
     // For home delivery (non-stopdesk), the courier needs a street address.
     // Stopdesk pickups use the agency, so address is optional in that case.
     if (!isStopdesk && (!deliveryAddress || !deliveryAddress.trim())) {
-      setError('Delivery address is required for home delivery (or pick Stopdesk for agency pickup)');
+      setError(t('stk.tr.ord.new.errAddress'));
       return;
     }
 
@@ -497,10 +501,10 @@ export default function NewOrderPage() {
         isStopdesk,
         deliveryFee,
       });
-      toast.success('Order created');
+      toast.success(t('stk.tr.ord.new.toast'));
       router.push('/dashboard/stock/orders');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to create order';
+      const msg = err instanceof Error ? err.message : t('stk.tr.ord.new.err');
       setError(msg);
       toast.error(msg);
       setSaving(false);
@@ -516,9 +520,9 @@ export default function NewOrderPage() {
           className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white transition-colors mb-4"
         >
           <ChevronLeftIcon className="w-4 h-4" />
-          Back to Orders
+          {t('stk.tr.ord.new.back')}
         </button>
-        <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>New Order</h1>
+        <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('stk.tr.ord.new.title')}</h1>
       </div>
 
       {error && (
@@ -535,7 +539,7 @@ export default function NewOrderPage() {
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <UserIcon className="w-4 h-4 text-zinc-400" /> Client
+                  <UserIcon className="w-4 h-4 text-zinc-400" /> {t('stock.common.client')}
                 </h2>
                 <DatePicker
                   value={orderDate}
@@ -559,7 +563,7 @@ export default function NewOrderPage() {
                       type="text"
                       value={manualName}
                       onChange={(e) => setManualName(e.target.value)}
-                      placeholder="Or type client name *"
+                      placeholder={t('stk.tr.ord.new.clientPh')}
                       className="w-full pl-10 pr-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/20"
                     />
                   </div>
@@ -569,7 +573,7 @@ export default function NewOrderPage() {
                       type="text"
                       value={manualPhone}
                       onChange={(e) => setManualPhone(e.target.value)}
-                      placeholder="Phone"
+                      placeholder={t('stk.tr.c.phone')}
                       className="w-full pl-10 pr-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/20"
                     />
                   </div>
@@ -583,7 +587,7 @@ export default function NewOrderPage() {
                   type="text"
                   value={deliveryAddress}
                   onChange={(e) => setDeliveryAddress(e.target.value)}
-                  placeholder="Delivery address"
+                  placeholder={t('stk.tr.ord.new.addressPh')}
                   className="w-full pl-10 pr-3 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/20"
                 />
               </div>
@@ -595,7 +599,7 @@ export default function NewOrderPage() {
                   onChange={(e) => setWilayaId(e.target.value ? Number(e.target.value) : '')}
                   className="w-full px-3 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20"
                 >
-                  <option value="">Select Wilaya…</option>
+                  <option value="">{t('stk.tr.ord.new.selectWilaya')}</option>
                   {wilayas.map((w) => (
                     <option key={w.id} value={w.id}>{w.code} — {w.nameFr}</option>
                   ))}
@@ -604,7 +608,7 @@ export default function NewOrderPage() {
                   type="text"
                   value={communeName}
                   onChange={(e) => setCommuneName(e.target.value)}
-                  placeholder="Commune (optional)"
+                  placeholder={t('stk.tr.ord.new.communePh')}
                   className="w-full px-3 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/20"
                 />
               </div>
@@ -615,14 +619,14 @@ export default function NewOrderPage() {
                   onChange={(e) => setIsStopdesk(e.target.checked)}
                   className="w-4 h-4 bg-black border-white/20 rounded"
                 />
-                Stopdesk (agency pickup — cheaper)
+                {t('stk.tr.ord.new.stopdesk')}
               </label>
             </div>
 
             {/* Products */}
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5 space-y-4">
               <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                <PlusIcon className="w-4 h-4 text-zinc-400" /> Add Products
+                <PlusIcon className="w-4 h-4 text-zinc-400" /> {t('stk.tr.c.addProducts')}
               </h2>
 
               <ProductAutocomplete
@@ -637,10 +641,10 @@ export default function NewOrderPage() {
                     <thead>
                       <tr className="bg-zinc-800/50">
                         <th className="text-left text-xs font-medium text-zinc-400 px-4 py-2.5">#</th>
-                        <th className="text-left text-xs font-medium text-zinc-400 px-4 py-2.5">Product</th>
-                        <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2.5">Qty</th>
-                        <th className="text-right text-xs font-medium text-zinc-400 px-4 py-2.5">Price</th>
-                        <th className="text-right text-xs font-medium text-zinc-400 px-4 py-2.5">Total</th>
+                        <th className="text-start text-xs font-medium text-zinc-400 px-4 py-2.5">{t('stock.common.product')}</th>
+                        <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2.5">{t('stock.common.qty')}</th>
+                        <th className="text-end text-xs font-medium text-zinc-400 px-4 py-2.5">{t('stock.products.col.price')}</th>
+                        <th className="text-end text-xs font-medium text-zinc-400 px-4 py-2.5">{t('stock.common.total')}</th>
                         <th className="w-10" />
                       </tr>
                     </thead>
@@ -686,19 +690,19 @@ export default function NewOrderPage() {
                 </div>
               ) : (
                 <div className="border border-dashed border-white/10 rounded-lg py-8 text-center">
-                  <p className="text-sm text-zinc-500">Search and select products above to add them</p>
-                  <p className="text-xs text-zinc-600 mt-1">Use ↑↓ arrows to navigate, Enter to add</p>
+                  <p className="text-sm text-zinc-500">{t('stk.tr.c.pickHint.title')}</p>
+                  <p className="text-xs text-zinc-600 mt-1">{t('stk.tr.c.pickHint.sub')}</p>
                 </div>
               )}
             </div>
 
             {/* Notes */}
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
-              <label className="block text-xs text-zinc-400 mb-2">Remarque / Notes</label>
+              <label className="block text-xs text-zinc-400 mb-2">{t('stk.tr.c.remarque')}</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add a note for this order..."
+                placeholder={t('stk.tr.ord.new.notePh')}
                 rows={2}
                 className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/20 resize-none"
               />
@@ -708,17 +712,17 @@ export default function NewOrderPage() {
           {/* ── Right Column: Payment Summary ── */}
           <div className="lg:col-span-1">
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5 space-y-5 lg:sticky lg:top-24">
-              <h2 className="text-sm font-semibold text-white">Order Summary</h2>
+              <h2 className="text-sm font-semibold text-white">{t('stk.tr.ord.new.summary')}</h2>
 
               {/* Breakdown */}
               <div className="bg-black/50 rounded-lg p-4 space-y-1.5">
                 <div className="flex justify-between text-sm">
-                  <span className="text-zinc-400">Subtotal</span>
+                  <span className="text-zinc-400">{t('stk.tr.ord.new.subtotal')}</span>
                   <span className="text-white">{subtotal.toLocaleString()} DA</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-zinc-400 flex items-center gap-1.5">
-                    Delivery
+                    {t('stk.tr.ord.new.delivery')}
                     {quoting && <span className="text-[10px] text-zinc-500">…</span>}
                     {feeSource && !quoting && (
                       <span className="text-[10px] text-zinc-600 uppercase">{feeSource}</span>
@@ -727,24 +731,24 @@ export default function NewOrderPage() {
                   <span className="text-white">{deliveryFee.toLocaleString()} DA</span>
                 </div>
                 <div className="border-t border-white/10 pt-2 mt-1 flex justify-between items-baseline">
-                  <span className="text-xs text-zinc-500 uppercase">Total</span>
+                  <span className="text-xs text-zinc-500 uppercase">{t('stock.common.total')}</span>
                   <span className="text-2xl font-bold text-white">
                     {orderTotal.toLocaleString()} <span className="text-base text-zinc-400">DA</span>
                   </span>
                 </div>
-                <p className="text-xs text-zinc-500 text-right">{orderItems.length} item{orderItems.length !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-zinc-500 text-end">{orderItems.length === 1 ? t('stk.tr.c.itemsCountOne') : t('stk.tr.c.itemsCount').replace('{n}', String(orderItems.length))}</p>
               </div>
 
               {/* Amount Paid — defaults to 0 (COD: cash is collected on delivery) */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs text-zinc-400">Amount Paid</label>
+                  <label className="block text-xs text-zinc-400">{t('stk.tr.c.amountPaid')}</label>
                   <button
                     type="button"
                     onClick={() => setAmountPaid(String(orderTotal))}
                     className="text-[11px] text-zinc-500 hover:text-white transition-colors underline underline-offset-2"
                   >
-                    Paid in full
+                    {t('stk.tr.ord.new.paidInFull')}
                   </button>
                 </div>
                 <div className="relative">
@@ -760,71 +764,71 @@ export default function NewOrderPage() {
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">DA</span>
                 </div>
-                <p className="text-[10px] text-zinc-600 mt-1">Leave at 0 for COD — payment is recorded automatically on delivery.</p>
+                <p className="text-[10px] text-zinc-600 mt-1">{t('stk.tr.ord.new.codHint')}</p>
               </div>
 
               {/* Remaining / Debt */}
               {remaining > 0 && (
                 <div className="bg-white/[0.03] border border-white/10 rounded-lg p-3 text-center">
-                  <p className="text-xs text-zinc-500 mb-0.5">Remaining (Debt)</p>
+                  <p className="text-xs text-zinc-500 mb-0.5">{t('stk.tr.c.remainingDebt')}</p>
                   <p className="text-xl font-bold text-white">{remaining.toLocaleString()} DA</p>
                 </div>
               )}
               {remaining <= 0 && orderTotal > 0 && (
                 <div className="bg-white/[0.03] border border-white/10 rounded-lg p-3 text-center">
-                  <p className="text-xs text-zinc-500 mb-0.5">Fully Paid</p>
+                  <p className="text-xs text-zinc-500 mb-0.5">{t('stk.tr.c.fullyPaid')}</p>
                   <p className="text-xl font-bold text-white">0 DA</p>
                 </div>
               )}
 
               {/* Payment Status indicator */}
               <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-400">Payment</span>
+                <span className="text-zinc-400">{t('stk.tr.ord.new.payment')}</span>
                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
                   {paymentStatus === 'paid' ? (
                     <span className="w-1.5 h-1.5 rounded-full bg-white" />
                   ) : (
                     <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
                   )}
-                  {paymentStatus === 'paid' ? 'Paid' : paymentStatus === 'partial' ? 'Partial' : 'Pending'}
+                  {paymentStatus === 'paid' ? t('stock.common.paid') : paymentStatus === 'partial' ? t('stk.tr.c.status.partial') : t('stock.common.pending')}
                 </span>
               </div>
 
               {/* Order Status */}
               <div>
-                <label className="block text-xs text-zinc-400 mb-1.5">Order Status</label>
+                <label className="block text-xs text-zinc-400 mb-1.5">{t('stk.tr.ord.f.orderStatus')}</label>
                 <select
                   value={orderStatus}
                   onChange={(e) => setOrderStatus(e.target.value as 'pending' | 'confirmed')}
                   className="w-full px-3 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20"
                 >
-                  <option value="pending">Pending</option>
-                  <option value="confirmed">Confirmed</option>
+                  <option value="pending">{t('stock.common.pending')}</option>
+                  <option value="confirmed">{t('stock.common.confirmed')}</option>
                 </select>
               </div>
 
               {/* Payment Method */}
               <div>
-                <label className="block text-xs text-zinc-400 mb-1.5">Payment Method</label>
+                <label className="block text-xs text-zinc-400 mb-1.5">{t('stk.tr.c.paymentMethod')}</label>
                 <select
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
                   className="w-full px-3 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20"
                 >
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="transfer">Bank Transfer</option>
-                  <option value="ccp">CCP</option>
+                  <option value="cash">{t('stk.tr.c.pm.cash')}</option>
+                  <option value="card">{t('stk.tr.c.pm.card')}</option>
+                  <option value="transfer">{t('stk.tr.c.pm.transfer')}</option>
+                  <option value="ccp">{t('stk.tr.c.pm.ccp')}</option>
                 </select>
               </div>
 
               {/* Actions */}
               <div className="space-y-2 pt-2">
                 <Button type="submit" className="w-full" disabled={saving || orderItems.length === 0}>
-                  {saving ? 'Creating...' : 'Create Order'}
+                  {saving ? t('stk.tr.c.creating') : t('stk.tr.ord.new.submit')}
                 </Button>
                 <Button type="button" variant="outline" className="w-full" onClick={() => router.push('/dashboard/stock/orders')}>
-                  Cancel
+                  {t('stk.tr.c.cancel')}
                 </Button>
               </div>
             </div>

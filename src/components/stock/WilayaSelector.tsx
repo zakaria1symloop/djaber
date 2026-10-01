@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 interface Wilaya {
   id: number;
@@ -25,8 +26,9 @@ export function WilayaSelector({
   onChange,
   label,
   error,
-  placeholder = 'Select wilaya...',
+  placeholder,
 }: WilayaSelectorProps) {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -70,7 +72,7 @@ export function WilayaSelector({
             }
           }}
           className={`
-            w-full px-4 py-2.5 bg-black border rounded-lg text-left
+            w-full px-4 py-2.5 bg-black border rounded-lg text-start
             transition-all duration-200 ease-out
             focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30
             ${error ? 'border-red-500/50' : 'border-white/10 hover:border-white/20'}
@@ -81,10 +83,10 @@ export function WilayaSelector({
               {selected.code} - {selected.nameFr} ({selected.name})
             </span>
           ) : (
-            <span className="text-zinc-500">{placeholder}</span>
+            <span className="text-zinc-500">{placeholder || t('dlg.wilaya.placeholder')}</span>
           )}
           <svg
-            className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            className={`absolute end-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -101,7 +103,7 @@ export function WilayaSelector({
                 type="text"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search wilayas..."
+                placeholder={t('dlg.wilaya.search')}
                 className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm
                   focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30
                   placeholder:text-zinc-500"
@@ -116,13 +118,13 @@ export function WilayaSelector({
                     setIsOpen(false);
                     setSearch('');
                   }}
-                  className="w-full px-4 py-2 text-left text-sm text-zinc-400 hover:bg-white/5"
+                  className="w-full px-4 py-2 text-start text-sm text-zinc-400 hover:bg-white/5"
                 >
-                  Clear selection
+                  {t('dlg.wilaya.clear')}
                 </button>
               )}
               {filtered.length === 0 ? (
-                <div className="px-4 py-3 text-sm text-zinc-500">No wilayas found</div>
+                <div className="px-4 py-3 text-sm text-zinc-500">{t('dlg.wilaya.notFound')}</div>
               ) : (
                 filtered.map(w => (
                   <button
@@ -133,13 +135,13 @@ export function WilayaSelector({
                       setIsOpen(false);
                       setSearch('');
                     }}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-white/5 transition-colors flex items-center gap-2 ${
+                    className={`w-full px-4 py-2 text-start text-sm hover:bg-white/5 transition-colors flex items-center gap-2 ${
                       w.id === value ? 'bg-white/10 text-white' : 'text-zinc-300'
                     }`}
                   >
-                    <span className="text-zinc-500 w-6 text-right">{w.code}</span>
+                    <span className="text-zinc-500 w-6 text-end">{w.code}</span>
                     <span>{w.nameFr}</span>
-                    <span className="text-zinc-500 text-xs mr-auto" dir="rtl">{w.name}</span>
+                    <span className="text-zinc-500 text-xs ms-auto" dir="rtl">{w.name}</span>
                   </button>
                 ))
               )}

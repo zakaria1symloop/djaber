@@ -39,6 +39,7 @@ import CreditCalculator from '@/components/CreditCalculator';
 import { FilterPanelProvider, useFilterPanel } from '@/contexts/FilterPanelContext';
 import { useTranslation } from '@/contexts/LanguageContext';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { getLang, translateFor } from '@/lib/i18n';
 
 const navigationItemsBase = [
   { id: 'overview', labelKey: 'nav.dash.overview', icon: HomeIcon, href: '/dashboard' },
@@ -99,7 +100,7 @@ const stockNavItemsBase = [
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <FilterPanelProvider>
-      <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black"><div className="text-white">Loading...</div></div>}>
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-black"><div className="text-white">{translateFor(getLang(), 'shell.common.loading')}</div></div>}>
         <DashboardLayoutInner>{children}</DashboardLayoutInner>
       </Suspense>
     </FilterPanelProvider>
@@ -396,7 +397,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
 
                 {/* Services accordion sub-items */}
                 {isServices && showServicesExpanded && !isCollapsedMode && (
-                  <div className="mt-1 ml-4 pl-4 border-l border-white/10 space-y-0.5">
+                  <div className="mt-1 ms-4 ps-4 border-s border-white/10 space-y-0.5">
                     {serviceSubItems.map((sub) => {
                       const SubIcon = sub.icon;
                       const isSubActive = (sub.id === 'products' && isStockRoute) || (sub.id === 'agents' && pathname?.startsWith('/dashboard/agents'));
@@ -583,7 +584,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
                         ? 'bg-white/[0.03] text-zinc-300 border-white/10'
                         : 'bg-white/5 text-zinc-400 border-white/10'
                   }`}
-                  title={`${credits.used} / ${credits.limit} credits used`}
+                  title={t('shell.credits.used').replace('{used}', String(credits.used)).replace('{limit}', String(credits.limit))}
                 >
                   <span className="text-[10px]">⚡</span>
                   {credits.remaining.toLocaleString()} / {credits.limit.toLocaleString()}
@@ -594,7 +595,7 @@ function DashboardLayoutInner({ children }: { children: ReactNode }) {
               <button
                 onClick={() => setShowCalculator(true)}
                 className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
-                title="Credit calculator"
+                title={t('shell.credits.title')}
               >
                 <CalculatorIcon className="w-5 h-5" />
               </button>

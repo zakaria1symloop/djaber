@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { CalendarIcon } from '@/components/ui/icons';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 interface DatePickerProps {
   value: string; // yyyy-mm-dd
@@ -11,11 +12,6 @@ interface DatePickerProps {
   className?: string;
 }
 
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
-const DAY_NAMES = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
 function parseDate(str: string): { year: number; month: number; day: number } | null {
   if (!str) return null;
@@ -37,7 +33,11 @@ function getFirstDayOfMonth(year: number, month: number): number {
   return d === 0 ? 6 : d - 1; // Monday = 0
 }
 
-export function DatePicker({ value, onChange, label, placeholder = 'Select date', className = '' }: DatePickerProps) {
+export function DatePicker({ value, onChange, label, placeholder, className = '' }: DatePickerProps) {
+  const { t } = useTranslation();
+  const MONTH_NAMES = Array.from({ length: 12 }, (_, i) => t(`dlg.date.month.${i + 1}`));
+  const MONTH_SHORT = Array.from({ length: 12 }, (_, i) => t(`dlg.date.monthShort.${i + 1}`));
+  const DAY_NAMES = Array.from({ length: 7 }, (_, i) => t(`dlg.date.day.${i + 1}`));
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -105,7 +105,7 @@ export function DatePicker({ value, onChange, label, placeholder = 'Select date'
   const todayStr = formatDate(today.getFullYear(), today.getMonth(), today.getDate());
 
   const displayValue = parsed
-    ? `${parsed.day} ${MONTH_NAMES[parsed.month]?.slice(0, 3)} ${parsed.year}`
+    ? `${parsed.day} ${MONTH_SHORT[parsed.month]} ${parsed.year}`
     : '';
 
   return (
@@ -122,7 +122,7 @@ export function DatePicker({ value, onChange, label, placeholder = 'Select date'
         } ${displayValue ? 'text-white' : 'text-zinc-500'}`}
       >
         <CalendarIcon className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-        <span className="flex-1 text-left truncate">{displayValue || placeholder}</span>
+        <span className="flex-1 text-start truncate">{displayValue || placeholder || t('dlg.date.placeholder')}</span>
         {displayValue && (
           <span
             onClick={(e) => { e.stopPropagation(); onChange(''); }}
@@ -162,8 +162,8 @@ export function DatePicker({ value, onChange, label, placeholder = 'Select date'
 
           {/* Day names */}
           <div className="grid grid-cols-7 mb-1">
-            {DAY_NAMES.map((d) => (
-              <div key={d} className="text-center text-[10px] font-medium text-zinc-500 py-1">{d}</div>
+            {DAY_NAMES.map((d, di) => (
+              <div key={`${d}-${di}`} className="text-center text-[10px] font-medium text-zinc-500 py-1">{d}</div>
             ))}
           </div>
 
@@ -203,7 +203,7 @@ export function DatePicker({ value, onChange, label, placeholder = 'Select date'
               onClick={() => { onChange(todayStr); setOpen(false); }}
               className="w-full text-center text-xs text-zinc-400 hover:text-white py-1.5 rounded-lg hover:bg-white/5 transition-colors"
             >
-              Today
+              {t('dlg.date.today')}
             </button>
           </div>
         </div>

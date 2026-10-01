@@ -11,9 +11,11 @@ import {
   deleteDeliveryFeeRule,
   type DeliveryFeeRule,
 } from '@/lib/user-stock-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function DeliveryFeesPage() {
   const router = useRouter();
+  const { t: tr } = useTranslation();
   const [rules, setRules] = useState<DeliveryFeeRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<number | null>(null);
@@ -28,7 +30,7 @@ export default function DeliveryFeesPage() {
       setRules(res.rules);
       setEdits({});
     } catch (e) {
-      setToast({ type: 'error', msg: e instanceof Error ? e.message : 'Failed to load' });
+      setToast({ type: 'error', msg: e instanceof Error ? e.message : tr('stk.ops.fees.loadFailed') });
     } finally {
       setLoading(false);
     }
@@ -67,11 +69,11 @@ export default function DeliveryFeesPage() {
         stopdeskPrice: edit?.stopdesk ?? r.stopdeskPrice,
         returnPrice: edit?.return ?? r.returnPrice,
       });
-      setToast({ type: 'success', msg: `${r.name} saved` });
+      setToast({ type: 'success', msg: tr('stk.ops.fees.rowSaved').replace('{name}', r.name) });
       setEdits((p) => { const { [r.wilayaId]: _, ...rest } = p; return rest; });
       await load();
     } catch (e) {
-      setToast({ type: 'error', msg: e instanceof Error ? e.message : 'Save failed' });
+      setToast({ type: 'error', msg: e instanceof Error ? e.message : tr('stk.ops.fees.saveFailed') });
     } finally {
       setSaving(null);
     }
@@ -82,24 +84,24 @@ export default function DeliveryFeesPage() {
     try {
       setSaving(r.wilayaId);
       await deleteDeliveryFeeRule(r.wilayaId);
-      setToast({ type: 'success', msg: `${r.name} reset to default` });
+      setToast({ type: 'success', msg: tr('stk.ops.fees.rowReset').replace('{name}', r.name) });
       await load();
     } catch (e) {
-      setToast({ type: 'error', msg: e instanceof Error ? e.message : 'Reset failed' });
+      setToast({ type: 'error', msg: e instanceof Error ? e.message : tr('stk.ops.fees.resetFailed') });
     } finally {
       setSaving(null);
     }
   };
 
   const seedAll = async (overwrite: boolean) => {
-    if (overwrite && !confirm('Overwrite all your custom prices with system defaults?')) return;
+    if (overwrite && !confirm(tr('stk.ops.fees.overwriteConfirm'))) return;
     try {
       setLoading(true);
       const r = await seedDeliveryFees(overwrite);
-      setToast({ type: 'success', msg: `Seeded ${r.seeded} wilayas` });
+      setToast({ type: 'success', msg: tr('stk.ops.fees.seeded').replace('{n}', String(r.seeded)) });
       await load();
     } catch (e) {
-      setToast({ type: 'error', msg: e instanceof Error ? e.message : 'Seed failed' });
+      setToast({ type: 'error', msg: e instanceof Error ? e.message : tr('stk.ops.fees.seedFailed') });
     }
   };
 
@@ -111,24 +113,24 @@ export default function DeliveryFeesPage() {
           className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white transition-colors mb-4"
         >
           <ChevronLeftIcon className="w-4 h-4" />
-          Back to Delivery
+          {tr('stk.ops.fees.back')}
         </button>
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-              Delivery Fees
+              {tr('stk.ops.fees.title')}
             </h1>
             <p className="text-sm text-zinc-400 mt-1">
-              Set your shipping price per wilaya. Used automatically when creating orders and by the AI agent for Messenger quotes.
+              {tr('stk.ops.fees.subtitle')}
             </p>
           </div>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => seedAll(false)}>
               <RefreshIcon className="w-4 h-4" />
-              Fill missing
+              {tr('stk.ops.fees.fillMissing')}
             </Button>
             <Button variant="secondary" onClick={() => seedAll(true)}>
-              Reset all to defaults
+              {tr('stk.ops.fees.resetAll')}
             </Button>
           </div>
         </div>
@@ -153,24 +155,24 @@ export default function DeliveryFeesPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search wilaya…"
+            placeholder={tr('stk.ops.fees.search')}
             className="w-full pl-10 pr-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/20"
           />
         </div>
 
         {loading ? (
-          <div className="text-center py-8 text-zinc-500 text-sm">Loading…</div>
+          <div className="text-center py-8 text-zinc-500 text-sm">{tr('stk.ops.c.loading')}</div>
         ) : (
           <div className="border border-white/10 rounded-lg overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="bg-zinc-800/50 text-left text-xs font-medium text-zinc-400">
+                <tr className="bg-zinc-800/50 text-start text-xs font-medium text-zinc-400">
                   <th className="px-4 py-2.5">#</th>
-                  <th className="px-4 py-2.5">Wilaya</th>
-                  <th className="px-4 py-2.5 text-right">Home (DA)</th>
-                  <th className="px-4 py-2.5 text-right">Stopdesk (DA)</th>
-                  <th className="px-4 py-2.5 text-right">Return (DA)</th>
-                  <th className="px-4 py-2.5 text-right">Source</th>
+                  <th className="px-4 py-2.5">{tr('stk.ops.fees.wilaya')}</th>
+                  <th className="px-4 py-2.5 text-end">{tr('stk.ops.fees.home')}</th>
+                  <th className="px-4 py-2.5 text-end">{tr('stk.ops.fees.stopdesk')}</th>
+                  <th className="px-4 py-2.5 text-end">{tr('stk.ops.fees.return')}</th>
+                  <th className="px-4 py-2.5 text-end">{tr('stk.ops.c.source')}</th>
                   <th className="px-4 py-2.5 w-40"></th>
                 </tr>
               </thead>
@@ -183,7 +185,7 @@ export default function DeliveryFeesPage() {
                       <td className="px-4 py-2 text-xs text-zinc-500">{r.code}</td>
                       <td className="px-4 py-2 text-sm text-white">
                         {r.name}
-                        <span className="text-xs text-zinc-500 ml-2">{r.nameAr}</span>
+                        <span className="text-xs text-zinc-500 ms-2">{r.nameAr}</span>
                       </td>
                       <td className="px-4 py-2 text-right">
                         <input
@@ -219,7 +221,7 @@ export default function DeliveryFeesPage() {
                           ) : (
                             <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
                           )}
-                          {r.isCustom ? 'Custom' : 'Default'}
+                          {r.isCustom ? tr('stk.ops.fees.custom') : tr('stk.ops.fees.default')}
                         </span>
                       </td>
                       <td className="px-4 py-2 text-right">
@@ -230,7 +232,7 @@ export default function DeliveryFeesPage() {
                               disabled={saving === r.wilayaId}
                               className="px-3 py-1 bg-white text-black text-xs font-medium rounded hover:bg-zinc-200 disabled:opacity-50"
                             >
-                              {saving === r.wilayaId ? '…' : 'Save'}
+                              {saving === r.wilayaId ? '…' : tr('stk.ops.c.save')}
                             </button>
                           )}
                           {r.isCustom && !dirty && (
@@ -239,7 +241,7 @@ export default function DeliveryFeesPage() {
                               disabled={saving === r.wilayaId}
                               className="px-3 py-1 bg-zinc-800 text-zinc-300 text-xs rounded hover:bg-zinc-700 disabled:opacity-50"
                             >
-                              Reset
+                              {tr('stk.ops.c.reset')}
                             </button>
                           )}
                         </div>

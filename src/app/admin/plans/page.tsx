@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/icons';
 import { FilterPanel, FilterPanelTrigger, FilterSection, FilterChip } from '@/components/admin/FilterPanel';
 import { SkeletonCard } from '@/components/ui/Loader';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
 type ChargilyFilter = 'all' | 'linked' | 'not-linked';
@@ -33,6 +34,7 @@ type SortBy = 'sortOrder' | 'name' | 'priceMonthly' | 'subscriberCount' | 'creat
 
 export default function AdminPlansPage() {
   const toast = useToast();
+  const { t } = useTranslation();
   const [plans, setPlans] = useState<AdminPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<AdminPlan | null>(null);
@@ -59,7 +61,7 @@ export default function AdminPlansPage() {
       const res = await listAdminPlans();
       setPlans(res.plans);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load plans');
+      toast.error(e instanceof Error ? e.message : t('adm.acc.plans.err.load'));
     } finally {
       setLoading(false);
     }
@@ -145,21 +147,21 @@ export default function AdminPlansPage() {
     if (!deleteConfirm) return;
     try {
       await deleteAdminPlan(deleteConfirm.id);
-      toast.success(`Plan "${deleteConfirm.name}" deleted`);
+      toast.success(`${t('adm.acc.plans.toast.deleted')} — ${deleteConfirm.name}`);
       setDeleteConfirm(null);
       await load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to delete');
+      toast.error(e instanceof Error ? e.message : t('adm.acc.err.delete'));
     }
   };
 
   const handleToggleActive = async (plan: AdminPlan) => {
     try {
       await updateAdminPlan(plan.id, { isActive: !plan.isActive });
-      toast.success(`${plan.name} ${!plan.isActive ? 'enabled' : 'disabled'}`);
+      toast.success(`${plan.name} — ${!plan.isActive ? t('adm.acc.enabled') : t('adm.acc.disabled')}`);
       await load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to toggle');
+      toast.error(e instanceof Error ? e.message : t('adm.acc.err.toggle'));
     }
   };
 
@@ -169,10 +171,10 @@ export default function AdminPlansPage() {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-            Plans
+            {t('adm.acc.plans.title')}
           </h1>
           <p className="text-sm text-zinc-400">
-            Manage subscription plans, limits, and Chargily Pay integration
+            {t('adm.acc.plans.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -181,22 +183,23 @@ export default function AdminPlansPage() {
             onClick={load}
             disabled={loading}
             className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors disabled:opacity-50"
-            title="Refresh"
+            title={t('adm.acc.refresh')}
+            aria-label={t('adm.acc.refresh')}
           >
             <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <Button onClick={() => setCreating(true)} icon={<PlusIcon className="w-4 h-4" />}>
-            New plan
+            {t('adm.acc.plans.new')}
           </Button>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Total Plans" value={stats.total.toString()} />
-        <StatCard label="Active" value={stats.active.toString()} />
-        <StatCard label="Subscribers" value={stats.totalSubscribers.toString()} />
-        <StatCard label="MRR Potential" value={`${stats.revenuePotential.toLocaleString(undefined, { maximumFractionDigits: 0 })} DA`} />
+        <StatCard label={t('adm.acc.plans.stats.total')} value={stats.total.toString()} />
+        <StatCard label={t('adm.acc.plans.stats.active')} value={stats.active.toString()} />
+        <StatCard label={t('adm.acc.plans.stats.subscribers')} value={stats.totalSubscribers.toString()} />
+        <StatCard label={t('adm.acc.plans.stats.mrr')} value={`${stats.revenuePotential.toLocaleString(undefined, { maximumFractionDigits: 0 })} DA`} />
       </div>
 
       {/* Plans grid */}
@@ -206,7 +209,7 @@ export default function AdminPlansPage() {
         </div>
       ) : filteredPlans.length === 0 ? (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-12 text-center text-sm text-zinc-500">
-          {activeFilterCount > 0 ? 'No plans match your filters' : 'No plans yet — click New plan to create one'}
+          {activeFilterCount > 0 ? t('adm.acc.plans.empty.filtered') : t('adm.acc.plans.empty.none')}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -228,49 +231,49 @@ export default function AdminPlansPage() {
         onClose={() => setFilterOpen(false)}
         onClear={clearFilters}
       >
-        <FilterSection label="Search">
+        <FilterSection label={t('adm.acc.search')}>
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Name, slug or description"
+            placeholder={t('adm.acc.plans.f.searchPlaceholder')}
             className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
           />
         </FilterSection>
 
-        <FilterSection label="Sort by">
+        <FilterSection label={t('adm.acc.sortBy')}>
           <div className="grid grid-cols-2 gap-2">
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortBy)}
               className="px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
             >
-              <option value="sortOrder">Display order</option>
-              <option value="name">Name</option>
-              <option value="priceMonthly">Price</option>
-              <option value="subscriberCount">Subscribers</option>
-              <option value="createdAt">Created</option>
+              <option value="sortOrder">{t('adm.acc.plans.f.sort.order')}</option>
+              <option value="name">{t('adm.acc.plans.f.sort.name')}</option>
+              <option value="priceMonthly">{t('adm.acc.plans.f.sort.price')}</option>
+              <option value="subscriberCount">{t('adm.acc.plans.f.sort.subscribers')}</option>
+              <option value="createdAt">{t('adm.acc.plans.f.sort.created')}</option>
             </select>
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
               className="px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
             >
-              <option value="asc">Ascending</option>
-              <option value="desc">Descending</option>
+              <option value="asc">{t('adm.acc.sort.asc')}</option>
+              <option value="desc">{t('adm.acc.sort.desc')}</option>
             </select>
           </div>
         </FilterSection>
 
-        <FilterSection label="Status">
+        <FilterSection label={t('adm.acc.status')}>
           <div className="flex flex-wrap gap-2">
-            <FilterChip label="All" active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
-            <FilterChip label="Active" active={statusFilter === 'active'} onClick={() => setStatusFilter('active')} />
-            <FilterChip label="Inactive" active={statusFilter === 'inactive'} onClick={() => setStatusFilter('inactive')} />
+            <FilterChip label={t('adm.acc.all')} active={statusFilter === 'all'} onClick={() => setStatusFilter('all')} />
+            <FilterChip label={t('adm.acc.active')} active={statusFilter === 'active'} onClick={() => setStatusFilter('active')} />
+            <FilterChip label={t('adm.acc.inactive')} active={statusFilter === 'inactive'} onClick={() => setStatusFilter('inactive')} />
           </div>
         </FilterSection>
 
-        <FilterSection label="Featured">
+        <FilterSection label={t('adm.acc.plans.f.featured')}>
           <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
             <input
               type="checkbox"
@@ -278,38 +281,38 @@ export default function AdminPlansPage() {
               onChange={(e) => setFeaturedOnly(e.target.checked)}
               className="w-4 h-4 rounded border-white/20 bg-black/60 text-white focus:ring-1 focus:ring-white/30"
             />
-            Featured plans only
+            {t('adm.acc.plans.f.featuredOnly')}
           </label>
         </FilterSection>
 
-        <FilterSection label="Chargily Pay">
+        <FilterSection label={t('adm.acc.chargilyPay')}>
           <div className="flex flex-wrap gap-2">
-            <FilterChip label="All" active={chargilyFilter === 'all'} onClick={() => setChargilyFilter('all')} />
-            <FilterChip label="Linked" active={chargilyFilter === 'linked'} onClick={() => setChargilyFilter('linked')} />
-            <FilterChip label="Not linked" active={chargilyFilter === 'not-linked'} onClick={() => setChargilyFilter('not-linked')} />
+            <FilterChip label={t('adm.acc.all')} active={chargilyFilter === 'all'} onClick={() => setChargilyFilter('all')} />
+            <FilterChip label={t('adm.acc.plans.f.linked')} active={chargilyFilter === 'linked'} onClick={() => setChargilyFilter('linked')} />
+            <FilterChip label={t('adm.acc.plans.f.notLinked')} active={chargilyFilter === 'not-linked'} onClick={() => setChargilyFilter('not-linked')} />
           </div>
         </FilterSection>
 
-        <FilterSection label="Monthly price (DA)">
+        <FilterSection label={t('adm.acc.plans.f.monthlyPrice')}>
           <div className="grid grid-cols-2 gap-2">
-            <input type="number" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} placeholder="Min" className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
-            <input type="number" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} placeholder="Max" className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
+            <input type="number" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} placeholder={t('adm.acc.min')} className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
+            <input type="number" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} placeholder={t('adm.acc.max')} className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
           </div>
         </FilterSection>
 
-        <FilterSection label="Subscribers">
+        <FilterSection label={t('adm.acc.plans.f.subscribers')}>
           <div className="grid grid-cols-2 gap-2">
-            <input type="number" value={minSubs} onChange={(e) => setMinSubs(e.target.value)} placeholder="Min" className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
-            <input type="number" value={maxSubs} onChange={(e) => setMaxSubs(e.target.value)} placeholder="Max" className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
+            <input type="number" value={minSubs} onChange={(e) => setMinSubs(e.target.value)} placeholder={t('adm.acc.min')} className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
+            <input type="number" value={maxSubs} onChange={(e) => setMaxSubs(e.target.value)} placeholder={t('adm.acc.max')} className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none" />
           </div>
         </FilterSection>
 
-        <FilterSection label="Min products limit">
+        <FilterSection label={t('adm.acc.plans.f.minProducts')}>
           <input
             type="number"
             value={minProductsLimit}
             onChange={(e) => setMinProductsLimit(e.target.value)}
-            placeholder="e.g. 100"
+            placeholder={t('adm.acc.plans.f.minProductsPlaceholder')}
             className="w-full px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
           />
         </FilterSection>
@@ -335,16 +338,16 @@ export default function AdminPlansPage() {
       {deleteConfirm && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
           <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 max-w-sm w-full">
-            <h3 className="text-lg font-bold text-white mb-2">Delete plan?</h3>
+            <h3 className="text-lg font-bold text-white mb-2">{t('adm.acc.plans.del.title')}</h3>
             <p className="text-sm text-zinc-400 mb-6">
-              Permanently delete <span className="text-white font-medium">{deleteConfirm.name}</span>?
+              {t('adm.acc.plans.del.body')} <span className="text-white font-medium">{deleteConfirm.name}</span>?
               {deleteConfirm.subscriberCount > 0 && (
-                <> <span className="text-yellow-400">{deleteConfirm.subscriberCount} user{deleteConfirm.subscriberCount !== 1 ? 's are' : ' is'} on this plan.</span></>
+                <> <span className="text-yellow-400">{deleteConfirm.subscriberCount} {deleteConfirm.subscriberCount !== 1 ? t('adm.acc.plans.del.onPlanMany') : t('adm.acc.plans.del.onPlanOne')}</span></>
               )}
             </p>
             <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-              <Button variant="danger" className="flex-1" onClick={handleDelete}>Delete</Button>
+              <Button variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)}>{t('adm.acc.cancel')}</Button>
+              <Button variant="danger" className="flex-1" onClick={handleDelete}>{t('adm.acc.delete')}</Button>
             </div>
           </div>
         </div>
@@ -373,6 +376,7 @@ function PlanCard({
   onDelete: () => void;
   onToggleActive: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="bg-zinc-900/50 border border-white/10 hover:border-white/20 rounded-xl p-5 transition-colors flex flex-col">
       {/* Header */}
@@ -381,7 +385,7 @@ function PlanCard({
           <div className="flex items-center gap-2 mb-1">
             <h3 className="text-base font-semibold text-white truncate">{plan.name}</h3>
             {plan.isFeatured && (
-              <span title="Featured" className="text-yellow-400">
+              <span title={t('adm.acc.plans.card.featured')} className="text-yellow-400">
                 <StarIcon className="w-4 h-4" />
               </span>
             )}
@@ -389,7 +393,7 @@ function PlanCard({
           <p className="text-[11px] text-zinc-500 font-mono">{plan.slug}</p>
         </div>
         <Badge variant={plan.isActive ? 'success' : 'default'} size="sm">
-          {plan.isActive ? 'Active' : 'Inactive'}
+          {plan.isActive ? t('adm.acc.active') : t('adm.acc.inactive')}
         </Badge>
       </div>
 
@@ -402,21 +406,21 @@ function PlanCard({
           <span className="text-3xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
             {Number(plan.priceMonthly).toLocaleString()}
           </span>
-          <span className="text-sm text-zinc-500">{plan.currency}/mo</span>
+          <span className="text-sm text-zinc-500">{plan.currency}{t('adm.acc.perMonthShort')}</span>
         </div>
         {Number(plan.priceYearly) > 0 && (
           <p className="text-[11px] text-zinc-600 mt-0.5">
-            or {Number(plan.priceYearly).toLocaleString()} {plan.currency}/yr
+            {t('adm.acc.plans.card.or')} {Number(plan.priceYearly).toLocaleString()} {plan.currency}{t('adm.acc.perYearShort')}
           </p>
         )}
       </div>
 
       {/* Limits */}
       <div className="grid grid-cols-2 gap-2 mb-4">
-        <LimitTile icon={<ChatIcon className="w-3.5 h-3.5" />} label="Pages" value={plan.maxPages} />
-        <LimitTile icon={<BotIcon className="w-3.5 h-3.5" />} label="Agents" value={plan.maxAgents} />
-        <LimitTile icon={<BoxIcon className="w-3.5 h-3.5" />} label="Products" value={plan.maxProducts} />
-        <LimitTile icon={<ChatIcon className="w-3.5 h-3.5" />} label="Convs" value={plan.maxConversations} />
+        <LimitTile icon={<ChatIcon className="w-3.5 h-3.5" />} label={t('adm.acc.plans.card.pages')} value={plan.maxPages} />
+        <LimitTile icon={<BotIcon className="w-3.5 h-3.5" />} label={t('adm.acc.plans.card.agents')} value={plan.maxAgents} />
+        <LimitTile icon={<BoxIcon className="w-3.5 h-3.5" />} label={t('adm.acc.plans.card.products')} value={plan.maxProducts} />
+        <LimitTile icon={<ChatIcon className="w-3.5 h-3.5" />} label={t('adm.acc.plans.card.convs')} value={plan.maxConversations} />
       </div>
 
       {/* Features */}
@@ -429,7 +433,7 @@ function PlanCard({
             </li>
           ))}
           {plan.features.length > 5 && (
-            <li className="text-[11px] text-zinc-600 ml-5">+{plan.features.length - 5} more</li>
+            <li className="text-[11px] text-zinc-600 ms-5">+{plan.features.length - 5} {t('adm.acc.plans.card.more')}</li>
           )}
         </ul>
       )}
@@ -438,18 +442,18 @@ function PlanCard({
       <div className="space-y-2 mb-4 pt-4 border-t border-white/5">
         <div className="flex items-center justify-between text-xs">
           <span className="text-zinc-500 flex items-center gap-1.5">
-            <UsersIcon className="w-3.5 h-3.5" /> Subscribers
+            <UsersIcon className="w-3.5 h-3.5" /> {t('adm.acc.plans.card.subscribers')}
           </span>
           <span className="text-white font-semibold">{plan.subscriberCount}</span>
         </div>
         <div className="flex items-center justify-between text-xs">
-          <span className="text-zinc-500">Chargily</span>
+          <span className="text-zinc-500">{t('adm.acc.plans.card.chargily')}</span>
           {plan.chargilyProductId ? (
             <span className="text-emerald-400 font-mono text-[10px]">
               {plan.chargilyProductId.slice(0, 12)}…
             </span>
           ) : (
-            <span className="text-zinc-600">Not linked</span>
+            <span className="text-zinc-600">{t('adm.acc.plans.card.notLinked')}</span>
           )}
         </div>
       </div>
@@ -460,19 +464,21 @@ function PlanCard({
           onClick={onToggleActive}
           className="flex-1 px-3 py-2 text-xs text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors"
         >
-          {plan.isActive ? 'Disable' : 'Enable'}
+          {plan.isActive ? t('adm.acc.disable') : t('adm.acc.enable')}
         </button>
         <button
           onClick={onEdit}
           className="p-2 text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors"
-          title="Edit"
+          title={t('adm.acc.edit')}
+          aria-label={t('adm.acc.edit')}
         >
           <EditIcon className="w-4 h-4" />
         </button>
         <button
           onClick={onDelete}
           className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 border border-white/10 hover:border-red-500/20 rounded-lg transition-colors"
-          title="Delete"
+          title={t('adm.acc.delete')}
+          aria-label={t('adm.acc.delete')}
         >
           <TrashIcon className="w-4 h-4" />
         </button>
@@ -505,6 +511,7 @@ function PlanFormModal({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const { t } = useTranslation();
   const isEdit = !!plan;
 
   const [form, setForm] = useState<AdminPlanInput>({
@@ -549,21 +556,21 @@ function PlanFormModal({
 
   const handleSave = async () => {
     if (!form.slug.trim() || !form.name.trim()) {
-      toast.error('Slug and name are required');
+      toast.error(t('adm.acc.plans.err.slugName'));
       return;
     }
     try {
       setSaving(true);
       if (isEdit && plan) {
         await updateAdminPlan(plan.id, form);
-        toast.success('Plan updated');
+        toast.success(t('adm.acc.plans.toast.updated'));
       } else {
         await createAdminPlan(form);
-        toast.success('Plan created');
+        toast.success(t('adm.acc.plans.toast.created'));
       }
       onSaved();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to save');
+      toast.error(e instanceof Error ? e.message : t('adm.acc.err.save'));
     } finally {
       setSaving(false);
     }
@@ -573,8 +580,8 @@ function PlanFormModal({
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
       <div className="bg-zinc-900 border border-white/10 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-          <h3 className="text-lg font-bold text-white">{isEdit ? 'Edit plan' : 'Create plan'}</h3>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white">
+          <h3 className="text-lg font-bold text-white">{isEdit ? t('adm.acc.plans.form.editTitle') : t('adm.acc.plans.form.createTitle')}</h3>
+          <button onClick={onClose} className="text-zinc-500 hover:text-white" aria-label={t('adm.acc.close')}>
             <CloseIcon className="w-5 h-5" />
           </button>
         </div>
@@ -582,28 +589,28 @@ function PlanFormModal({
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Basic */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Slug">
+            <Field label={t('adm.acc.plans.form.slug')}>
               <input
                 type="text"
                 value={form.slug}
                 onChange={(e) => update('slug', e.target.value)}
-                placeholder="individual"
+                placeholder={t('adm.acc.plans.form.slugPlaceholder')}
                 disabled={isEdit}
                 className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none disabled:opacity-50"
               />
             </Field>
-            <Field label="Name">
+            <Field label={t('adm.acc.plans.form.name')}>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => update('name', e.target.value)}
-                placeholder="Individual"
+                placeholder={t('adm.acc.plans.form.namePlaceholder')}
                 className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
               />
             </Field>
           </div>
 
-          <Field label="Description">
+          <Field label={t('adm.acc.plans.form.description')}>
             <textarea
               value={form.description || ''}
               onChange={(e) => update('description', e.target.value)}
@@ -614,7 +621,7 @@ function PlanFormModal({
 
           {/* Pricing */}
           <div className="grid grid-cols-3 gap-3">
-            <Field label="Monthly price">
+            <Field label={t('adm.acc.plans.form.priceMonthly')}>
               <input
                 type="number"
                 value={form.priceMonthly}
@@ -622,7 +629,7 @@ function PlanFormModal({
                 className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
               />
             </Field>
-            <Field label="Yearly price">
+            <Field label={t('adm.acc.plans.form.priceYearly')}>
               <input
                 type="number"
                 value={form.priceYearly}
@@ -630,7 +637,7 @@ function PlanFormModal({
                 className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none"
               />
             </Field>
-            <Field label="Currency">
+            <Field label={t('adm.acc.plans.form.currency')}>
               <input
                 type="text"
                 value={form.currency}
@@ -643,35 +650,35 @@ function PlanFormModal({
           {/* Limits */}
           <div>
             <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">
-              Limits <span className="text-zinc-700 normal-case">(use −1 for unlimited)</span>
+              {t('adm.acc.plans.form.limits')} <span className="text-zinc-700 normal-case">{t('adm.acc.plans.form.limitsHint')}</span>
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <Field label="Pages">
+              <Field label={t('adm.acc.plans.form.pages')}>
                 <input type="number" value={form.maxPages} onChange={(e) => update('maxPages', Number(e.target.value))} className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none" />
               </Field>
-              <Field label="Agents">
+              <Field label={t('adm.acc.plans.form.agents')}>
                 <input type="number" value={form.maxAgents} onChange={(e) => update('maxAgents', Number(e.target.value))} className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none" />
               </Field>
-              <Field label="Products">
+              <Field label={t('adm.acc.plans.form.products')}>
                 <input type="number" value={form.maxProducts} onChange={(e) => update('maxProducts', Number(e.target.value))} className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none" />
               </Field>
-              <Field label="Conversations / month">
+              <Field label={t('adm.acc.plans.form.conversations')}>
                 <input type="number" value={form.maxConversations} onChange={(e) => update('maxConversations', Number(e.target.value))} className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none" />
               </Field>
-              <Field label="Team members">
+              <Field label={t('adm.acc.plans.form.teamMembers')}>
                 <input type="number" value={form.maxTeamMembers} onChange={(e) => update('maxTeamMembers', Number(e.target.value))} className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none" />
               </Field>
-              <Field label="Monthly credits">
+              <Field label={t('adm.acc.plans.form.credits')}>
                 <input type="number" value={form.monthlyCredits} onChange={(e) => update('monthlyCredits', Number(e.target.value))} className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none" />
               </Field>
-              <Field label="Sort order">
+              <Field label={t('adm.acc.plans.form.sortOrder')}>
                 <input type="number" value={form.sortOrder} onChange={(e) => update('sortOrder', Number(e.target.value))} className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none" />
               </Field>
             </div>
           </div>
 
           {/* Features */}
-          <Field label="Features">
+          <Field label={t('adm.acc.plans.form.features')}>
             <div className="flex gap-2 mb-2">
               <input
                 type="text"
@@ -683,7 +690,7 @@ function PlanFormModal({
                     addFeature();
                   }
                 }}
-                placeholder="Add a feature and press Enter"
+                placeholder={t('adm.acc.plans.form.featurePlaceholder')}
                 className="flex-1 px-3 py-2 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none"
               />
               <button
@@ -691,7 +698,7 @@ function PlanFormModal({
                 type="button"
                 className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs text-white"
               >
-                Add
+                {t('adm.acc.add')}
               </button>
             </div>
             {(form.features || []).length > 0 && (
@@ -712,34 +719,34 @@ function PlanFormModal({
           {/* Chargily */}
           <div>
             <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">
-              Chargily Pay <span className="text-zinc-700 normal-case">(Algerian payment processor)</span>
+              {t('adm.acc.chargilyPay')} <span className="text-zinc-700 normal-case">{t('adm.acc.chargilyHint')}</span>
             </p>
             <div className="space-y-3">
-              <Field label="Product ID">
+              <Field label={t('adm.acc.plans.form.productId')}>
                 <input
                   type="text"
                   value={form.chargilyProductId || ''}
                   onChange={(e) => update('chargilyProductId', e.target.value)}
-                  placeholder="01_xxx"
+                  placeholder={t('adm.acc.plans.form.idPlaceholder')}
                   className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none font-mono"
                 />
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Monthly price ID">
+                <Field label={t('adm.acc.plans.form.priceMonthlyId')}>
                   <input
                     type="text"
                     value={form.chargilyPriceMonthlyId || ''}
                     onChange={(e) => update('chargilyPriceMonthlyId', e.target.value)}
-                    placeholder="01_xxx"
+                    placeholder={t('adm.acc.plans.form.idPlaceholder')}
                     className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none font-mono"
                   />
                 </Field>
-                <Field label="Yearly price ID">
+                <Field label={t('adm.acc.plans.form.priceYearlyId')}>
                   <input
                     type="text"
                     value={form.chargilyPriceYearlyId || ''}
                     onChange={(e) => update('chargilyPriceYearlyId', e.target.value)}
-                    placeholder="01_xxx"
+                    placeholder={t('adm.acc.plans.form.idPlaceholder')}
                     className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none font-mono"
                   />
                 </Field>
@@ -756,7 +763,7 @@ function PlanFormModal({
                 onChange={(e) => update('isActive', e.target.checked)}
                 className="w-4 h-4 rounded border-white/20 bg-black/60 text-white focus:ring-1 focus:ring-white/30"
               />
-              Active
+              {t('adm.acc.plans.form.isActive')}
             </label>
             <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
               <input
@@ -765,17 +772,17 @@ function PlanFormModal({
                 onChange={(e) => update('isFeatured', e.target.checked)}
                 className="w-4 h-4 rounded border-white/20 bg-black/60 text-white focus:ring-1 focus:ring-white/30"
               />
-              Featured (highlighted on pricing page)
+              {t('adm.acc.plans.form.isFeatured')}
             </label>
           </div>
         </div>
 
         <div className="flex gap-3 px-6 py-4 border-t border-white/10">
           <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>
-            Cancel
+            {t('adm.acc.cancel')}
           </Button>
           <Button className="flex-1" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create plan'}
+            {saving ? t('adm.acc.saving') : isEdit ? t('adm.acc.save') : t('adm.acc.plans.form.create')}
           </Button>
         </div>
       </div>

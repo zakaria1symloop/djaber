@@ -9,6 +9,10 @@ import {
   type Page,
 } from '@/lib/pages-api';
 import { useAuth } from './AuthContext';
+import { getLang, translateFor } from '@/lib/i18n';
+
+// Translated at call time rather than through a hook — see AuthContext.
+const tr = (key: string) => translateFor(getLang(), key);
 
 interface PagesContextType {
   pages: Page[];
@@ -44,13 +48,13 @@ export function PagesProvider({ children }: { children: ReactNode }) {
         refreshPages();
       } else if (event.data?.type === 'facebook-oauth-error') {
         console.error('Facebook OAuth error:', event.data.error);
-        setError(event.data.error || 'Facebook connection failed');
+        setError(event.data.error || tr('shell.err.fbConnect'));
       } else if (event.data?.type === 'instagram-oauth-success') {
         console.log('Instagram OAuth success, refreshing pages...');
         refreshPages();
       } else if (event.data?.type === 'instagram-oauth-error') {
         console.error('Instagram OAuth error:', event.data.error);
-        setError(event.data.error || 'Instagram connection failed');
+        setError(event.data.error || tr('shell.err.igConnect'));
       }
     };
 
@@ -67,7 +71,7 @@ export function PagesProvider({ children }: { children: ReactNode }) {
       const response = await getUserPages();
       setPages(response.pages);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load pages';
+      const errorMessage = err instanceof Error ? err.message : tr('shell.err.loadPages');
       setError(errorMessage);
       console.error('Error loading pages:', err);
     } finally {
@@ -98,7 +102,7 @@ export function PagesProvider({ children }: { children: ReactNode }) {
     if (popup) {
       try {
         popup.document.write(
-          '<p style="font-family:sans-serif;padding:24px">Connecting…</p>'
+          `<p style="font-family:sans-serif;padding:24px">${tr('shell.oauth.connecting')}</p>`
         );
       } catch {
         // cross-origin reuse of a previous window — ignore
@@ -135,10 +139,10 @@ export function PagesProvider({ children }: { children: ReactNode }) {
   };
 
   const connectFacebookPage = () =>
-    openOAuthFlow(apiConnectFacebook, 'facebook_oauth', 'Failed to connect Facebook page');
+    openOAuthFlow(apiConnectFacebook, 'facebook_oauth', tr('shell.err.connectFbPage'));
 
   const connectInstagramPage = () =>
-    openOAuthFlow(apiConnectInstagram, 'instagram_oauth', 'Failed to connect Instagram page');
+    openOAuthFlow(apiConnectInstagram, 'instagram_oauth', tr('shell.err.connectIgPage'));
 
   const disconnectPage = async (pageId: string) => {
     try {
@@ -150,7 +154,7 @@ export function PagesProvider({ children }: { children: ReactNode }) {
       // Remove page from state
       setPages(pages.filter(p => p.id !== pageId));
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to disconnect page';
+      const errorMessage = err instanceof Error ? err.message : tr('shell.err.disconnectPage');
       setError(errorMessage);
       throw err;
     } finally {

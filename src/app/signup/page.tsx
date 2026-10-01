@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/Toast';
-import { t, translateBackendError } from '@/lib/i18n';
+import { translateBackendError } from '@/lib/i18n';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function SignupPage() {
   const router = useRouter();
   const { register, loading, clearError } = useAuth();
   const toast = useToast();
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',

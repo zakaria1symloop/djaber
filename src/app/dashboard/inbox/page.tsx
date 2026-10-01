@@ -16,10 +16,11 @@ import MessagesSection from '@/components/page-config/MessagesSection';
 import { syncPageFromFacebook } from '@/lib/page-config-api';
 import { useToast } from '@/components/ui/Toast';
 import { useTranslation } from '@/contexts/LanguageContext';
+import { getLang, translateFor } from '@/lib/i18n';
 
 export default function InboxPage() {
   return (
-    <Suspense fallback={<div className="text-zinc-400 text-sm">Loading…</div>}>
+    <Suspense fallback={<div className="text-zinc-400 text-sm">{translateFor(getLang(), 'shell.common.loading')}</div>}>
       <InboxInner />
     </Suspense>
   );
@@ -106,7 +107,7 @@ function InboxInner() {
   }
 
   const lastSyncedLabel = lastSyncedAt
-    ? formatRelative(lastSyncedAt)
+    ? formatRelative(lastSyncedAt, t)
     : null;
 
   return (
@@ -315,7 +316,7 @@ function PageSwitcher({
                     {active && (
                       <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-zinc-400 font-semibold flex-shrink-0">
                         <span className="w-1.5 h-1.5 rounded-full bg-white" />
-                        Active
+                        {t('shell.common.active')}
                       </span>
                     )}
                   </button>
@@ -354,12 +355,12 @@ function PageHeader({ title, subtitle }: { title: string; subtitle: string }) {
   );
 }
 
-function formatRelative(d: Date): string {
+function formatRelative(d: Date, t: (key: string, fallback?: string) => string): string {
   const diff = Date.now() - d.getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
+  if (m < 1) return t('shell.rel.justNow');
+  if (m < 60) return t('shell.rel.minAgo').replace('{n}', String(m));
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return t('shell.rel.hourAgo').replace('{n}', String(h));
   return d.toLocaleDateString();
 }

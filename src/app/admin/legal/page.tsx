@@ -5,6 +5,7 @@ import { listCmsPages, upsertCmsPage, deleteCmsPage, type CmsPage } from '@/lib/
 import { useToast } from '@/components/ui/Toast';
 import { Button, Badge } from '@/components/ui';
 import { PlusIcon, EditIcon, TrashIcon, CloseIcon, RefreshIcon, EyeIcon } from '@/components/ui/icons';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 const DEFAULT_PAGES = [
   { slug: 'privacy', title: 'Privacy Policy', sortOrder: 1 },
@@ -13,6 +14,7 @@ const DEFAULT_PAGES = [
 ];
 
 export default function AdminLegalPage() {
+  const { t } = useTranslation();
   const toast = useToast();
   const [pages, setPages] = useState<CmsPage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,7 +27,7 @@ export default function AdminLegalPage() {
       const res = await listCmsPages('legal');
       setPages(res.pages);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load');
+      toast.error(e instanceof Error ? e.message : t('adm.plat.cms.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -45,18 +47,18 @@ export default function AdminLegalPage() {
         });
       }
     }
-    toast.success('Default legal pages created');
+    toast.success(t('adm.plat.legal.defaultsCreated'));
     await load();
   };
 
   const handleDelete = async (slug: string) => {
-    if (!confirm('Delete this page?')) return;
+    if (!confirm(t('adm.plat.cms.confirmDelete'))) return;
     try {
       await deleteCmsPage(slug);
-      toast.success('Page deleted');
+      toast.success(t('adm.plat.cms.pageDeleted'));
       await load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to delete');
+      toast.error(e instanceof Error ? e.message : t('adm.plat.cms.deleteFailed'));
     }
   };
 
@@ -64,17 +66,17 @@ export default function AdminLegalPage() {
     <>
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>Legal Pages</h1>
-          <p className="text-sm text-zinc-400">Privacy Policy, Terms of Service, Cookie Policy</p>
+          <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>{t('adm.plat.legal.title')}</h1>
+          <p className="text-sm text-zinc-400">{t('adm.plat.legal.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={load} disabled={loading} className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors disabled:opacity-50">
+          <button onClick={load} disabled={loading} title={t('adm.plat.refresh')} aria-label={t('adm.plat.refresh')} className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors disabled:opacity-50">
             <RefreshIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           {pages.length === 0 && !loading && (
-            <Button onClick={seedDefaults} variant="outline">Create defaults</Button>
+            <Button onClick={seedDefaults} variant="outline">{t('adm.plat.cms.createDefaults')}</Button>
           )}
-          <Button onClick={() => setCreating(true)} icon={<PlusIcon className="w-4 h-4" />}>New page</Button>
+          <Button onClick={() => setCreating(true)} icon={<PlusIcon className="w-4 h-4" />}>{t('adm.plat.cms.newPage')}</Button>
         </div>
       </div>
 
@@ -84,7 +86,7 @@ export default function AdminLegalPage() {
         </div>
       ) : pages.length === 0 ? (
         <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-12 text-center text-sm text-zinc-500">
-          No legal pages yet. Click &quot;Create defaults&quot; to set up Privacy, Terms, and Cookies.
+          {t('adm.plat.legal.empty')}
         </div>
       ) : (
         <div className="space-y-3">
@@ -94,19 +96,19 @@ export default function AdminLegalPage() {
                 <div className="flex items-center gap-2 mb-0.5">
                   <h3 className="text-base font-semibold text-white">{page.title}</h3>
                   <Badge variant={page.isPublished ? 'success' : 'default'} size="sm">
-                    {page.isPublished ? 'Published' : 'Draft'}
+                    {page.isPublished ? t('adm.plat.published') : t('adm.plat.draft')}
                   </Badge>
                 </div>
                 <p className="text-xs text-zinc-500 font-mono">/{page.slug}</p>
               </div>
               <div className="flex items-center gap-1">
-                <a href={`/${page.slug}`} target="_blank" className="p-1.5 text-zinc-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors" title="Preview">
+                <a href={`/${page.slug}`} target="_blank" className="p-1.5 text-zinc-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors" title={t('adm.plat.preview')}>
                   <EyeIcon className="w-4 h-4" />
                 </a>
-                <button onClick={() => setEditing(page)} className="p-1.5 text-zinc-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors" title="Edit">
+                <button onClick={() => setEditing(page)} className="p-1.5 text-zinc-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors" title={t('adm.plat.edit')}>
                   <EditIcon className="w-4 h-4" />
                 </button>
-                <button onClick={() => handleDelete(page.slug)} className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors" title="Delete">
+                <button onClick={() => handleDelete(page.slug)} className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors" title={t('adm.plat.delete')}>
                   <TrashIcon className="w-4 h-4" />
                 </button>
               </div>
@@ -128,6 +130,7 @@ export default function AdminLegalPage() {
 }
 
 function CmsEditor({ page, category, onClose, onSaved }: { page: CmsPage | null; category: string; onClose: () => void; onSaved: () => void }) {
+  const { t } = useTranslation();
   const toast = useToast();
   const [slug, setSlug] = useState(page?.slug || '');
   const [title, setTitle] = useState(page?.title || '');
@@ -138,14 +141,14 @@ function CmsEditor({ page, category, onClose, onSaved }: { page: CmsPage | null;
   const [preview, setPreview] = useState(false);
 
   const handleSave = async () => {
-    if (!slug.trim() || !title.trim()) { toast.error('Slug and title are required'); return; }
+    if (!slug.trim() || !title.trim()) { toast.error(t('adm.plat.cms.required')); return; }
     try {
       setSaving(true);
       await upsertCmsPage({ slug: slug.toLowerCase(), title, category, content, isPublished, sortOrder });
-      toast.success('Page saved');
+      toast.success(t('adm.plat.cms.saved'));
       onSaved();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to save');
+      toast.error(e instanceof Error ? e.message : t('adm.plat.cms.saveFailed'));
     } finally { setSaving(false); }
   };
 
@@ -153,10 +156,10 @@ function CmsEditor({ page, category, onClose, onSaved }: { page: CmsPage | null;
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
       <div className="bg-zinc-900 border border-white/10 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-          <h3 className="text-lg font-bold text-white">{page ? 'Edit page' : 'Create page'}</h3>
+          <h3 className="text-lg font-bold text-white">{page ? t('adm.plat.cms.editTitle') : t('adm.plat.cms.createTitle')}</h3>
           <div className="flex items-center gap-2">
             <button onClick={() => setPreview(!preview)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${preview ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:text-white'}`}>
-              {preview ? 'Editor' : 'Preview'}
+              {preview ? t('adm.plat.cms.editor') : t('adm.plat.preview')}
             </button>
             <button onClick={onClose} className="text-zinc-500 hover:text-white"><CloseIcon className="w-5 h-5" /></button>
           </div>
@@ -165,23 +168,23 @@ function CmsEditor({ page, category, onClose, onSaved }: { page: CmsPage | null;
           {!preview ? (
             <>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">Slug</label>
-                  <input type="text" value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="privacy" disabled={!!page} className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm font-mono focus:outline-none disabled:opacity-50" />
+                <div><label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">{t('adm.plat.cms.slug')}</label>
+                  <input type="text" value={slug} onChange={(e) => setSlug(e.target.value)} placeholder={t('adm.plat.cms.ph.slugLegal')} disabled={!!page} className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm font-mono focus:outline-none disabled:opacity-50" />
                 </div>
-                <div><label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">Title</label>
-                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Privacy Policy" className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none" />
+                <div><label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">{t('adm.plat.cms.pageTitle')}</label>
+                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('adm.plat.cms.ph.titleLegal')} className="w-full px-3 py-2.5 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm focus:outline-none" />
                 </div>
               </div>
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
-                  <input type="checkbox" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} className="w-4 h-4 rounded border-white/20 bg-black/60" /> Published
+                  <input type="checkbox" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} className="w-4 h-4 rounded border-white/20 bg-black/60" /> {t('adm.plat.published')}
                 </label>
-                <div><label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mr-2">Order</label>
+                <div><label className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider me-2">{t('adm.plat.cms.order')}</label>
                   <input type="number" value={sortOrder} onChange={(e) => setSortOrder(Number(e.target.value))} className="w-16 px-2 py-1 bg-black/60 border border-white/10 rounded-lg text-white text-sm focus:outline-none" />
                 </div>
               </div>
-              <div><label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">Content (HTML)</label>
-                <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={18} placeholder="<h1>Privacy Policy</h1><p>...</p>" className="w-full px-4 py-3 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm font-mono focus:outline-none resize-none leading-relaxed" />
+              <div><label className="block text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-1.5">{t('adm.plat.cms.contentHtml')}</label>
+                <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={18} placeholder={t('adm.plat.cms.ph.contentLegal')} className="w-full px-4 py-3 bg-black/60 border border-white/10 focus:border-white/40 rounded-lg text-white text-sm font-mono focus:outline-none resize-none leading-relaxed" />
               </div>
             </>
           ) : (
@@ -192,8 +195,8 @@ function CmsEditor({ page, category, onClose, onSaved }: { page: CmsPage | null;
           )}
         </div>
         <div className="flex gap-3 px-6 py-4 border-t border-white/10">
-          <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button className="flex-1" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+          <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>{t('adm.plat.cancel')}</Button>
+          <Button className="flex-1" onClick={handleSave} disabled={saving}>{saving ? t('adm.plat.saving') : t('adm.plat.save')}</Button>
         </div>
       </div>
     </div>

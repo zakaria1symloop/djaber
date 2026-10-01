@@ -12,10 +12,12 @@ import {
   getAgentApi, getAgentMetrics, getAgentInsights, resolveAgentInsight, updateAgentApi,
   type Agent, type AgentMetrics, type AgentInsight,
 } from '@/lib/user-stock-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function AgentDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { t, dir } = useTranslation();
   const agentId = params.agentId as string;
 
   const [agent, setAgent] = useState<Agent | null>(null);
@@ -96,14 +98,14 @@ export default function AgentDetailPage() {
   if (!agent) {
     return (
       <div className="text-center py-16 text-zinc-400">
-        Agent not found.
-        <Button variant="ghost" className="ml-2" onClick={() => router.push('/dashboard/agents')}>Go back</Button>
+        {t('shell.agentDetail.notFound')}
+        <Button variant="ghost" className="ms-2" onClick={() => router.push('/dashboard/agents')}>{t('shell.common.goBack')}</Button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir={dir}>
       {/* Header */}
       <div className="flex items-center gap-4">
         <button
@@ -127,12 +129,12 @@ export default function AgentDetailPage() {
                 {agent.isActive ? (
                   <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400">
                     <span className="w-1.5 h-1.5 rounded-full bg-white" />
-                    Active
+                    {t('shell.common.active')}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-500">
                     <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
-                    Inactive
+                    {t('shell.common.inactive')}
                   </span>
                 )}
               </div>
@@ -144,8 +146,8 @@ export default function AgentDetailPage() {
           size="sm"
           onClick={() => router.push(`/dashboard/agents/${agentId}/edit`)}
         >
-          <EditIcon className="w-4 h-4 mr-1.5" />
-          Edit Agent
+          <EditIcon className="w-4 h-4 me-1.5" />
+          {t('shell.agentDetail.edit')}
         </Button>
       </div>
 
@@ -155,35 +157,35 @@ export default function AgentDetailPage() {
           <div className="bg-zinc-900 border border-white/10 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <ChatIcon className="w-4 h-4 text-zinc-400" />
-              <span className="text-xs text-zinc-500">Conversations</span>
+              <span className="text-xs text-zinc-500">{t('shell.agentDetail.conversations')}</span>
             </div>
             <p className="text-2xl font-bold text-white">{metrics.conversationCount}</p>
-            <p className="text-[10px] text-zinc-600 mt-1">{metrics.messagesFromCustomers} received · {metrics.messagesFromAgent} sent</p>
+            <p className="text-[10px] text-zinc-600 mt-1">{metrics.messagesFromCustomers} {t('shell.agentDetail.received')} · {metrics.messagesFromAgent} {t('shell.agentDetail.sent')}</p>
           </div>
           <div className="bg-zinc-900 border border-white/10 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <MessageIcon className="w-4 h-4 text-zinc-400" />
-              <span className="text-xs text-zinc-500">Total Messages</span>
+              <span className="text-xs text-zinc-500">{t('shell.agentDetail.totalMessages')}</span>
             </div>
             <p className="text-2xl font-bold text-white">{metrics.totalMessages}</p>
             <p className="text-[10px] text-zinc-600 mt-1">
-              {metrics.lastActiveDate ? `Last: ${new Date(metrics.lastActiveDate).toLocaleDateString()}` : 'No activity yet'}
+              {metrics.lastActiveDate ? t('shell.agentDetail.last').replace('{date}', new Date(metrics.lastActiveDate).toLocaleDateString()) : t('shell.agentDetail.noActivity')}
             </p>
           </div>
           <div className="bg-zinc-900 border border-white/10 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <ShoppingCartIcon className="w-4 h-4 text-zinc-400" />
-              <span className="text-xs text-zinc-500">Orders Created</span>
+              <span className="text-xs text-zinc-500">{t('shell.agentDetail.ordersCreated')}</span>
             </div>
             <p className="text-2xl font-bold text-white">{metrics.ordersCreated}</p>
           </div>
           <div className="bg-zinc-900 border border-white/10 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <AlertIcon className="w-4 h-4 text-zinc-400" />
-              <span className="text-xs text-zinc-500">Pending Issues</span>
+              <span className="text-xs text-zinc-500">{t('shell.agents.pendingIssues')}</span>
             </div>
             <p className="text-2xl font-bold text-white">{metrics.insightsPending}</p>
-            <p className="text-[10px] text-zinc-600 mt-1">{metrics.insightsResolved} resolved</p>
+            <p className="text-[10px] text-zinc-600 mt-1">{t('shell.agentDetail.resolvedSuffix').replace('{n}', String(metrics.insightsResolved))}</p>
           </div>
         </div>
       )}
@@ -194,11 +196,11 @@ export default function AgentDetailPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <AlertIcon className="w-4 h-4 text-zinc-500" />
-              <h2 className="text-sm font-semibold text-white">Agent Insights</h2>
+              <h2 className="text-sm font-semibold text-white">{t('shell.agentDetail.insights')}</h2>
               {metrics && metrics.insightsPending > 0 && (
                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[10px] text-zinc-300">
                   <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
-                  {metrics.insightsPending} pending
+                  {t('shell.agentDetail.pendingSuffix').replace('{n}', String(metrics.insightsPending))}
                 </span>
               )}
             </div>
@@ -211,7 +213,7 @@ export default function AgentDetailPage() {
                     insightsFilter === f ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'
                   }`}
                 >
-                  {f}
+                  {t(`shell.agentDetail.filter.${f}`)}
                 </button>
               ))}
             </div>
@@ -220,7 +222,7 @@ export default function AgentDetailPage() {
 
         {insights.length === 0 ? (
           <div className="p-8 text-center text-zinc-500 text-sm">
-            {insightsFilter === 'pending' ? 'No pending issues — your agent is handling everything well!' : 'No insights found.'}
+            {insightsFilter === 'pending' ? t('shell.agentDetail.emptyPending') : t('shell.agentDetail.emptyOther')}
           </div>
         ) : (
           <div className="divide-y divide-white/5">
@@ -240,10 +242,10 @@ export default function AgentDetailPage() {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
                         <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
-                        {insight.type === 'unclear' ? 'Unclear' : 'Unknown Topic'}
+                        {insight.type === 'unclear' ? t('shell.agents.insight.unclear') : t('shell.agents.insight.unknownTopic')}
                       </span>
                       <FacebookIcon className="w-3.5 h-3.5 text-zinc-500" />
-                      <span className="text-[10px] text-zinc-600 ml-auto">
+                      <span className="text-[10px] text-zinc-600 ms-auto">
                         {new Date(insight.createdAt).toLocaleDateString()} {new Date(insight.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
@@ -255,13 +257,13 @@ export default function AgentDetailPage() {
 
                     {/* Customer message */}
                     <div className="bg-zinc-800/50 rounded-lg p-2.5 mb-2">
-                      <p className="text-[10px] text-zinc-500 mb-0.5">Customer:</p>
+                      <p className="text-[10px] text-zinc-500 mb-0.5">{t('shell.agentDetail.customerLabel')}</p>
                       <p className="text-xs text-zinc-300">{insight.customerMessage}</p>
                     </div>
 
                     {/* AI response */}
                     <div className="bg-white/[0.03] border border-white/10 rounded-lg p-2.5 mb-2">
-                      <p className="text-[10px] text-zinc-500 mb-0.5">AI Response:</p>
+                      <p className="text-[10px] text-zinc-500 mb-0.5">{t('shell.agentDetail.aiLabel')}</p>
                       <p className="text-xs text-zinc-400">{insight.aiResponse.slice(0, 200)}{insight.aiResponse.length > 200 ? '...' : ''}</p>
                     </div>
 
@@ -272,7 +274,7 @@ export default function AgentDetailPage() {
                           <textarea
                             value={newInstruction}
                             onChange={(e) => setNewInstruction(e.target.value)}
-                            placeholder="Add an instruction so the agent handles this better next time... (e.g., 'When customers ask about delivery time, say 2-3 business days')"
+                            placeholder={t('shell.agentDetail.instructionPh')}
                             className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-white/30 resize-none"
                             rows={2}
                           />
@@ -282,15 +284,15 @@ export default function AgentDetailPage() {
                               onClick={() => handleResolve(insight.id, 'resolve')}
                               disabled={saving}
                             >
-                              <CheckCircleIcon className="w-3.5 h-3.5 mr-1" />
-                              {newInstruction.trim() ? 'Add Instruction & Resolve' : 'Resolve'}
+                              <CheckCircleIcon className="w-3.5 h-3.5 me-1" />
+                              {newInstruction.trim() ? t('shell.agentDetail.addResolve') : t('shell.agents.resolve')}
                             </Button>
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => { setResolvingId(null); setNewInstruction(''); }}
                             >
-                              Cancel
+                              {t('shell.common.cancel')}
                             </Button>
                           </div>
                         </div>
@@ -301,8 +303,8 @@ export default function AgentDetailPage() {
                             size="sm"
                             onClick={() => setResolvingId(insight.id)}
                           >
-                            <CheckCircleIcon className="w-3.5 h-3.5 mr-1" />
-                            Resolve
+                            <CheckCircleIcon className="w-3.5 h-3.5 me-1" />
+                            {t('shell.agents.resolve')}
                           </Button>
                           <Button
                             variant="ghost"
@@ -310,8 +312,8 @@ export default function AgentDetailPage() {
                             onClick={() => handleResolve(insight.id, 'dismiss')}
                             disabled={saving}
                           >
-                            <CloseIcon className="w-3.5 h-3.5 mr-1" />
-                            Dismiss
+                            <CloseIcon className="w-3.5 h-3.5 me-1" />
+                            {t('shell.agents.dismiss')}
                           </Button>
                         </div>
                       )
@@ -323,7 +325,7 @@ export default function AgentDetailPage() {
                           insight.status === 'resolved' ? 'text-zinc-300' : 'text-zinc-600'
                         }`}>
                           {insight.status === 'resolved' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                          {insight.status}
+                          {t(`shell.agentDetail.status.${insight.status}`, insight.status)}
                         </span>
                         {insight.resolvedAt && (
                           <span className="text-[10px] text-zinc-600">
@@ -343,7 +345,7 @@ export default function AgentDetailPage() {
       {/* Current Instructions */}
       <div className="bg-zinc-900 border border-white/10 rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-white">Custom Instructions</h2>
+          <h2 className="text-sm font-semibold text-white">{t('shell.agentDetail.custom')}</h2>
           {!editingInstructions ? (
             <Button
               variant="ghost"
@@ -353,8 +355,8 @@ export default function AgentDetailPage() {
                 setEditingInstructions(true);
               }}
             >
-              <EditIcon className="w-3.5 h-3.5 mr-1" />
-              Edit
+              <EditIcon className="w-3.5 h-3.5 me-1" />
+              {t('shell.common.edit')}
             </Button>
           ) : (
             <div className="flex gap-2">
@@ -363,14 +365,14 @@ export default function AgentDetailPage() {
                 onClick={handleSaveInstructions}
                 disabled={savingInstructions}
               >
-                {savingInstructions ? 'Saving...' : 'Save'}
+                {savingInstructions ? t('shell.common.saving') : t('shell.common.save')}
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setEditingInstructions(false)}
               >
-                Cancel
+                {t('shell.common.cancel')}
               </Button>
             </div>
           )}
@@ -381,14 +383,14 @@ export default function AgentDetailPage() {
             value={instructionsText}
             onChange={(e) => setInstructionsText(e.target.value)}
             className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-white/30 resize-none min-h-[120px]"
-            placeholder="Add instructions for your agent..."
+            placeholder={t('shell.agentDetail.customPh')}
           />
         ) : agent.customInstructions ? (
           <pre className="text-xs text-zinc-400 whitespace-pre-wrap font-sans leading-relaxed bg-zinc-800/50 rounded-lg p-3">
             {agent.customInstructions}
           </pre>
         ) : (
-          <p className="text-sm text-zinc-600 italic">No custom instructions set. The agent uses default behavior.</p>
+          <p className="text-sm text-zinc-600 italic">{t('shell.agentDetail.noCustom')}</p>
         )}
       </div>
     </div>

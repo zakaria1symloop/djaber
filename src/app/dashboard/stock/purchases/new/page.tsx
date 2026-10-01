@@ -9,6 +9,7 @@ import {
   DollarIcon,
 } from '@/components/ui/icons';
 import { getProducts, getSuppliers, createPurchase, type Product, type ProductVariant, type Supplier } from '@/lib/user-stock-api';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 // ── Keyboard-navigable Supplier Autocomplete ──
 function SupplierAutocomplete({
@@ -20,6 +21,7 @@ function SupplierAutocomplete({
   onSelect: (supplier: Supplier | null) => void;
   selectedSupplier: Supplier | null;
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
@@ -85,7 +87,7 @@ function SupplierAutocomplete({
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder="Search supplier by name or phone..."
+          placeholder={t('stk.tr.c.searchSupplier')}
           className={`w-full pl-10 pr-4 py-2.5 bg-black border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-white/20 ${
             selectedSupplier ? 'border-white/30 text-white' : 'border-white/10 text-white placeholder-zinc-500'
           }`}
@@ -103,7 +105,7 @@ function SupplierAutocomplete({
       {open && !selectedSupplier && (
         <div ref={listRef} className="absolute z-50 top-full left-0 right-0 mt-1 bg-zinc-900 border border-white/10 rounded-lg shadow-2xl max-h-52 overflow-y-auto">
           {filtered.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-zinc-500">No suppliers found</div>
+            <div className="px-4 py-3 text-sm text-zinc-500">{t('stk.tr.c.noSuppliers')}</div>
           ) : (
             filtered.map((s, idx) => (
               <div
@@ -142,6 +144,7 @@ function ProductAutocomplete({
   products: Product[];
   onAdd: (product: Product, variant?: ProductVariant) => void;
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
@@ -221,14 +224,14 @@ function ProductAutocomplete({
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => { if (justClosedRef.current) { justClosedRef.current = false; return; } if (query || products.length) setOpen(true); }}
           onKeyDown={handleKeyDown}
-          placeholder="Search product by name or SKU... (↑↓ to navigate, Enter to add)"
+          placeholder={t('stk.tr.c.searchProduct')}
           className="w-full pl-10 pr-4 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-white/20"
         />
       </div>
       {open && (
         <div ref={listRef} className="absolute z-50 top-full left-0 right-0 mt-1 bg-zinc-900 border border-white/10 rounded-lg shadow-2xl max-h-60 overflow-y-auto">
           {filtered.length === 0 ? (
-            <div className="px-4 py-3 text-sm text-zinc-500">No products found</div>
+            <div className="px-4 py-3 text-sm text-zinc-500">{t('stk.tr.c.noProducts')}</div>
           ) : (
             filtered.map((p, idx) => {
               const activeVariants = p.hasVariants ? (p.variants || []).filter((v) => v.isActive) : [];
@@ -253,11 +256,11 @@ function ProductAutocomplete({
                       {!p.hasVariants ? (
                         <>
                           <div className="text-sm text-zinc-400 font-medium">{Number(p.costPrice).toLocaleString()} DA</div>
-                          <div className="text-xs text-zinc-500">{p.quantity} in stock</div>
+                          <div className="text-xs text-zinc-500">{t('stk.tr.c.inStock').replace('{n}', String(p.quantity))}</div>
                         </>
                       ) : (
                         <div className="text-xs text-zinc-500">
-                          {activeVariants.length} variant{activeVariants.length !== 1 ? 's' : ''} {expanded ? '▴' : '▾'}
+                          {activeVariants.length === 1 ? t('stk.tr.c.variantsOne') : t('stk.tr.c.variants').replace('{n}', String(activeVariants.length))} {expanded ? '▴' : '▾'}
                         </div>
                       )}
                     </div>
@@ -265,7 +268,7 @@ function ProductAutocomplete({
                   {p.hasVariants && expanded && (
                     <div className="bg-black/40 border-t border-white/5">
                       {activeVariants.length === 0 ? (
-                        <div className="pl-10 pr-4 py-2 text-xs text-zinc-600">No active variants</div>
+                        <div className="ps-10 pe-4 py-2 text-xs text-zinc-600">{t('stk.tr.c.noActiveVariants')}</div>
                       ) : (
                         // Out-of-stock variants stay selectable — a purchase is
                         // exactly how you buy more of them
@@ -278,7 +281,7 @@ function ProductAutocomplete({
                             <div className="text-sm text-zinc-200 truncate">{v.name}</div>
                             <div className="text-right flex-shrink-0">
                               <div className="text-sm text-zinc-400 font-medium">{Number(v.costPrice).toLocaleString()} DA</div>
-                              <div className="text-xs text-zinc-500">{v.quantity} in stock</div>
+                              <div className="text-xs text-zinc-500">{t('stk.tr.c.inStock').replace('{n}', String(v.quantity))}</div>
                             </div>
                           </div>
                         ))
@@ -298,6 +301,7 @@ function ProductAutocomplete({
 // ── Main Page ──
 export default function NewPurchasePage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [products, setProducts] = useState<Product[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -374,7 +378,7 @@ export default function NewPurchasePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (purchaseItems.length === 0) { setError('Add at least one product'); return; }
+    if (purchaseItems.length === 0) { setError(t('stk.tr.pur.new.errNoItems')); return; }
     try {
       setError(null);
       setSaving(true);
@@ -396,7 +400,7 @@ export default function NewPurchasePage() {
       });
       router.push('/dashboard/stock/purchases');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create purchase');
+      setError(err instanceof Error ? err.message : t('stk.tr.pur.new.err'));
       setSaving(false);
     }
   };
@@ -410,9 +414,9 @@ export default function NewPurchasePage() {
           className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white transition-colors mb-4"
         >
           <ChevronLeftIcon className="w-4 h-4" />
-          Back to Purchases
+          {t('stk.tr.pur.new.back')}
         </button>
-        <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>New Purchase Order</h1>
+        <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('stk.tr.pur.new.title')}</h1>
       </div>
 
       {error && (
@@ -429,7 +433,7 @@ export default function NewPurchasePage() {
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <TruckIcon className="w-4 h-4 text-zinc-400" /> Supplier
+                  <TruckIcon className="w-4 h-4 text-zinc-400" /> {t('stk.tr.c.supplier')}
                 </h2>
                 <DatePicker
                   value={purchaseDate}
@@ -447,7 +451,7 @@ export default function NewPurchasePage() {
             {/* Products */}
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5 space-y-4">
               <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                <PlusIcon className="w-4 h-4 text-zinc-400" /> Add Products
+                <PlusIcon className="w-4 h-4 text-zinc-400" /> {t('stk.tr.c.addProducts')}
               </h2>
 
               <ProductAutocomplete
@@ -462,10 +466,10 @@ export default function NewPurchasePage() {
                     <thead>
                       <tr className="bg-zinc-800/50">
                         <th className="text-left text-xs font-medium text-zinc-400 px-4 py-2.5">#</th>
-                        <th className="text-left text-xs font-medium text-zinc-400 px-4 py-2.5">Product</th>
-                        <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2.5">Qty</th>
-                        <th className="text-right text-xs font-medium text-zinc-400 px-4 py-2.5">Unit Cost</th>
-                        <th className="text-right text-xs font-medium text-zinc-400 px-4 py-2.5">Total</th>
+                        <th className="text-start text-xs font-medium text-zinc-400 px-4 py-2.5">{t('stock.common.product')}</th>
+                        <th className="text-center text-xs font-medium text-zinc-400 px-4 py-2.5">{t('stock.common.qty')}</th>
+                        <th className="text-end text-xs font-medium text-zinc-400 px-4 py-2.5">{t('stk.tr.c.col.unitCost')}</th>
+                        <th className="text-end text-xs font-medium text-zinc-400 px-4 py-2.5">{t('stock.common.total')}</th>
                         <th className="w-10" />
                       </tr>
                     </thead>
@@ -511,19 +515,19 @@ export default function NewPurchasePage() {
                 </div>
               ) : (
                 <div className="border border-dashed border-white/10 rounded-lg py-8 text-center">
-                  <p className="text-sm text-zinc-500">Search and select products above to add them</p>
-                  <p className="text-xs text-zinc-600 mt-1">Use ↑↓ arrows to navigate, Enter to add</p>
+                  <p className="text-sm text-zinc-500">{t('stk.tr.c.pickHint.title')}</p>
+                  <p className="text-xs text-zinc-600 mt-1">{t('stk.tr.c.pickHint.sub')}</p>
                 </div>
               )}
             </div>
 
             {/* Notes */}
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5">
-              <label className="block text-xs text-zinc-400 mb-2">Remarque / Notes</label>
+              <label className="block text-xs text-zinc-400 mb-2">{t('stk.tr.c.remarque')}</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add a note for this purchase..."
+                placeholder={t('stk.tr.pur.new.notePh')}
                 rows={2}
                 className="w-full px-3 py-2 bg-black border border-white/10 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-white/20 resize-none"
               />
@@ -533,18 +537,18 @@ export default function NewPurchasePage() {
           {/* ── Right Column: Payment Summary ── */}
           <div className="lg:col-span-1">
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-5 space-y-5 lg:sticky lg:top-24">
-              <h2 className="text-sm font-semibold text-white">Payment Summary</h2>
+              <h2 className="text-sm font-semibold text-white">{t('stk.tr.c.paymentSummary')}</h2>
 
               {/* Total */}
               <div className="bg-black/50 rounded-lg p-4 text-center">
-                <p className="text-xs text-zinc-500 mb-1">Total</p>
+                <p className="text-xs text-zinc-500 mb-1">{t('stock.common.total')}</p>
                 <p className="text-3xl font-bold text-white">{purchaseTotal.toLocaleString()} <span className="text-lg text-zinc-400">DA</span></p>
-                <p className="text-xs text-zinc-500 mt-1">{purchaseItems.length} item{purchaseItems.length !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-zinc-500 mt-1">{purchaseItems.length === 1 ? t('stk.tr.c.itemsCountOne') : t('stk.tr.c.itemsCount').replace('{n}', String(purchaseItems.length))}</p>
               </div>
 
               {/* Amount Paid */}
               <div>
-                <label className="block text-xs text-zinc-400 mb-1.5">Amount Paid</label>
+                <label className="block text-xs text-zinc-400 mb-1.5">{t('stk.tr.c.amountPaid')}</label>
                 <div className="relative">
                   <DollarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                   <input
@@ -563,52 +567,52 @@ export default function NewPurchasePage() {
               {/* Remaining / Debt */}
               {remaining > 0 && (
                 <div className="bg-white/[0.03] border border-white/10 rounded-lg p-3 text-center">
-                  <p className="text-xs text-zinc-500 mb-0.5">Remaining (Debt)</p>
+                  <p className="text-xs text-zinc-500 mb-0.5">{t('stk.tr.c.remainingDebt')}</p>
                   <p className="text-xl font-bold text-white">{remaining.toLocaleString()} DA</p>
                 </div>
               )}
               {remaining <= 0 && purchaseTotal > 0 && (
                 <div className="bg-white/[0.03] border border-white/10 rounded-lg p-3 text-center">
-                  <p className="text-xs text-zinc-500 mb-0.5">Fully Paid</p>
+                  <p className="text-xs text-zinc-500 mb-0.5">{t('stk.tr.c.fullyPaid')}</p>
                   <p className="text-xl font-bold text-white">0 DA</p>
                 </div>
               )}
 
               {/* Status indicator */}
               <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-400">Status</span>
+                <span className="text-zinc-400">{t('stock.common.status')}</span>
                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-white/10 bg-white/[0.03] text-[11px] text-zinc-300">
                   {paymentStatus === 'paid' ? (
                     <span className="w-1.5 h-1.5 rounded-full bg-white" />
                   ) : (
                     <span className="w-1.5 h-1.5 rounded-full border border-zinc-600" />
                   )}
-                  {paymentStatus === 'paid' ? 'Paid' : paymentStatus === 'partial' ? 'Partial' : 'Pending'}
+                  {paymentStatus === 'paid' ? t('stock.common.paid') : paymentStatus === 'partial' ? t('stk.tr.c.status.partial') : t('stock.common.pending')}
                 </span>
               </div>
 
               {/* Payment Method */}
               <div>
-                <label className="block text-xs text-zinc-400 mb-1.5">Payment Method</label>
+                <label className="block text-xs text-zinc-400 mb-1.5">{t('stk.tr.c.paymentMethod')}</label>
                 <select
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
                   className="w-full px-3 py-2.5 bg-black border border-white/10 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/20"
                 >
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="transfer">Bank Transfer</option>
-                  <option value="ccp">CCP</option>
+                  <option value="cash">{t('stk.tr.c.pm.cash')}</option>
+                  <option value="card">{t('stk.tr.c.pm.card')}</option>
+                  <option value="transfer">{t('stk.tr.c.pm.transfer')}</option>
+                  <option value="ccp">{t('stk.tr.c.pm.ccp')}</option>
                 </select>
               </div>
 
               {/* Actions */}
               <div className="space-y-2 pt-2">
                 <Button type="submit" className="w-full" disabled={saving || purchaseItems.length === 0}>
-                  {saving ? 'Creating...' : 'Create Purchase'}
+                  {saving ? t('stk.tr.c.creating') : t('stk.tr.pur.new.submit')}
                 </Button>
                 <Button type="button" variant="outline" className="w-full" onClick={() => router.push('/dashboard/stock/purchases')}>
-                  Cancel
+                  {t('stk.tr.c.cancel')}
                 </Button>
               </div>
             </div>

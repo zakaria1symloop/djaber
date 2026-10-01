@@ -13,6 +13,10 @@ import {
   type MessagesResponse,
   type PageAISettings,
 } from '@/lib/page-config-api';
+import { getLang, translateFor } from '@/lib/i18n';
+
+// Translated at call time rather than through a hook — see AuthContext.
+const tr = (key: string) => translateFor(getLang(), key);
 
 interface PageConfigContextType {
   // State
@@ -65,7 +69,7 @@ export function PageConfigProvider({ children }: { children: ReactNode }) {
       const data = await getPageConversations(pageId, params);
       setConversations(data);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch conversations';
+      const errorMessage = err instanceof Error ? err.message : tr('shell.err.conversations');
       setError(errorMessage);
       throw err;
     } finally {
@@ -80,7 +84,7 @@ export function PageConfigProvider({ children }: { children: ReactNode }) {
       const data = await getPageMessages(pageId, params);
       setMessages(data);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch messages';
+      const errorMessage = err instanceof Error ? err.message : tr('shell.err.messages');
       setError(errorMessage);
       throw err;
     } finally {
@@ -95,7 +99,7 @@ export function PageConfigProvider({ children }: { children: ReactNode }) {
       const data = await getPageAISettings(pageId);
       setAISettings(data.settings);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch AI settings';
+      const errorMessage = err instanceof Error ? err.message : tr('shell.err.aiSettings');
       setError(errorMessage);
       throw err;
     } finally {
@@ -110,7 +114,7 @@ export function PageConfigProvider({ children }: { children: ReactNode }) {
       const data = await apiUpdateAISettings(pageId, settings);
       setAISettings(data.settings);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to update AI settings';
+      const errorMessage = err instanceof Error ? err.message : tr('shell.err.updateAiSettings');
       setError(errorMessage);
       throw err;
     } finally {
@@ -125,7 +129,7 @@ export function PageConfigProvider({ children }: { children: ReactNode }) {
       await apiSendReply(conversationId, message);
       // Optionally refresh conversations after sending
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to send reply';
+      const errorMessage = err instanceof Error ? err.message : tr('shell.err.sendReply');
       setError(errorMessage);
       throw err;
     } finally {

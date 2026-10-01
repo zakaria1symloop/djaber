@@ -56,10 +56,11 @@ import {
 } from '@/lib/user-stock-api';
 import { KpiCard, PeriodSelector } from '@/components/analytics/KpiCard';
 import { useToast } from '@/components/ui/Toast';
+import { getLang, translateFor } from '@/lib/i18n';
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div className="text-white">Loading...</div>}>
+    <Suspense fallback={<div className="text-white">{translateFor(getLang(), 'shell.common.loading')}</div>}>
       <DashboardPageInner />
     </Suspense>
   );
@@ -128,26 +129,26 @@ function DashboardPageInner() {
       localStorage.removeItem('pending_checkout_id');
 
       if (checkoutId) {
-        toast.success('Payment received! Activating your plan...');
+        toast.success(t('shell.dash.toast.paymentReceived'));
         verifyPayment(checkoutId)
           .then(async () => {
-            toast.success('Plan upgraded successfully!');
+            toast.success(t('shell.dash.toast.planUpgraded'));
             await refreshProfile();
             window.history.replaceState({}, '', '/dashboard?section=settings');
           })
           .catch(async () => {
-            toast.info('Payment received. Plan will activate shortly.');
+            toast.info(t('shell.dash.toast.planSoon'));
             await refreshProfile();
             window.history.replaceState({}, '', '/dashboard?section=settings');
           });
       } else {
-        toast.success('Payment successful!');
+        toast.success(t('shell.dash.toast.paymentOk'));
         refreshProfile().catch(() => {});
         window.history.replaceState({}, '', '/dashboard?section=settings');
       }
     } else if (payment === 'failed') {
       localStorage.removeItem('pending_checkout_id');
-      toast.error('Payment was cancelled or failed. Please try again.');
+      toast.error(t('shell.dash.toast.paymentFailed'));
       window.history.replaceState({}, '', '/dashboard?section=settings');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -170,7 +171,7 @@ function DashboardPageInner() {
       setPurchaseStats(purchRes as any);
       setOrderStats(orderRes as any);
     } catch (err) {
-      setAnalyticsError(err instanceof Error ? err.message : 'Failed to load analytics');
+      setAnalyticsError(err instanceof Error ? err.message : t('shell.dash.err.analytics'));
     } finally {
       setAnalyticsLoading(false);
     }
@@ -353,9 +354,9 @@ function DashboardPageInner() {
                     <ChatIcon className="w-5 h-5 text-zinc-600" />
                   </div>
                   <p className="text-sm text-zinc-400 mb-1">{t('page.dash.noPages')}</p>
-                  <p className="text-xs text-zinc-600 mb-4">Link a page to start receiving messages</p>
+                  <p className="text-xs text-zinc-600 mb-4">{t('shell.dash.linkHint')}</p>
                   <Button size="sm" onClick={handleConnectFacebook} loading={pagesLoading} icon={<FacebookIcon className="w-4 h-4" />}>
-                    Connect Facebook
+                    {t('pages.connectFacebook')}
                   </Button>
                 </div>
               ) : (
@@ -371,9 +372,9 @@ function DashboardPageInner() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-white truncate">{page.pageName}</p>
-                        <p className="text-[11px] text-zinc-500 capitalize">{page.platform} · connected {new Date(page.createdAt).toLocaleDateString()}</p>
+                        <p className="text-[11px] text-zinc-500 capitalize">{page.platform} · {t('dash.pageCard.connectedOn').replace('{date}', new Date(page.createdAt).toLocaleDateString())}</p>
                       </div>
-                      <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400"><span className="w-1.5 h-1.5 rounded-full bg-white" />Active</span>
+                      <span className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400"><span className="w-1.5 h-1.5 rounded-full bg-white" />{t('shell.common.active')}</span>
                     </div>
                   ))}
                 </div>
@@ -502,11 +503,15 @@ function DashboardPageInner() {
                 <Card>
                   <EmptyState
                     icon={<ChatIcon className="w-20 h-20" />}
-                    title={activePlatformTab === 'all' ? 'No Pages Connected' : `No ${activePlatformTab.charAt(0).toUpperCase() + activePlatformTab.slice(1)} Pages`}
+                    title={
+                      activePlatformTab === 'all'
+                        ? t('shell.pages.empty.title')
+                        : t('shell.pages.empty.titleFor').replace('{platform}', activePlatformTab.charAt(0).toUpperCase() + activePlatformTab.slice(1))
+                    }
                     description={
                       activePlatformTab === 'all'
-                        ? 'Connect your social media pages to start managing them with AI'
-                        : `Connect your ${activePlatformTab.charAt(0).toUpperCase() + activePlatformTab.slice(1)} pages to get started`
+                        ? t('shell.pages.empty.desc')
+                        : t('shell.pages.empty.descFor').replace('{platform}', activePlatformTab.charAt(0).toUpperCase() + activePlatformTab.slice(1))
                     }
                     action={
                       <div className="flex flex-wrap gap-2 justify-center">
@@ -528,13 +533,13 @@ function DashboardPageInner() {
           {showDisconnectConfirm && (
             <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
               <Card className="max-w-md mx-4">
-                <h3 className="text-xl font-bold text-white mb-2">Disconnect page?</h3>
+                <h3 className="text-xl font-bold text-white mb-2">{t('shell.pages.disconnect.title')}</h3>
                 <p className="text-zinc-400 mb-6">
-                  Are you sure you want to disconnect this page? You won&apos;t receive messages anymore and the AI agent will stop replying.
+                  {t('shell.pages.disconnect.body')}
                 </p>
                 <div className="flex gap-3">
-                  <Button variant="outline" className="flex-1" onClick={() => setShowDisconnectConfirm(null)}>Cancel</Button>
-                  <Button className="flex-1" onClick={() => handleDisconnect(showDisconnectConfirm)}>Disconnect</Button>
+                  <Button variant="outline" className="flex-1" onClick={() => setShowDisconnectConfirm(null)}>{t('shell.common.cancel')}</Button>
+                  <Button className="flex-1" onClick={() => handleDisconnect(showDisconnectConfirm)}>{t('shell.pages.disconnect.confirm')}</Button>
                 </div>
               </Card>
             </div>
@@ -563,22 +568,22 @@ function DashboardPageInner() {
           {/* Header with period selector */}
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>Analytics</h1>
-              <p className="text-zinc-400">Performance overview for your business</p>
+              <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>{t('nav.dash.analytics')}</h1>
+              <p className="text-zinc-400">{t('shell.an.subtitle')}</p>
             </div>
             <div className="flex items-center gap-2">
               <Link
                 href="/dashboard/analytics"
                 className="px-3 py-2 text-xs font-medium text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors whitespace-nowrap"
               >
-                Deep analytics
+                {t('shell.an.deep')}
               </Link>
               <PeriodSelector value={analyticsPeriod} onChange={setAnalyticsPeriod} />
               <button
                 onClick={loadAnalytics}
                 disabled={analyticsLoading}
                 className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors disabled:opacity-50"
-                title="Refresh"
+                title={t('shell.common.refresh')}
               >
                 <RefreshIcon className={`w-4 h-4 ${analyticsLoading ? 'animate-spin' : ''}`} />
               </button>
@@ -620,27 +625,27 @@ function DashboardPageInner() {
                 return (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                     <KpiCard
-                      label="Revenue"
+                      label={t('shell.an.revenue')}
                       value={fmt(revenue)}
-                      hint={`${totalCount} ${totalCount === 1 ? 'order' : 'orders'}`}
+                      hint={`${totalCount} ${totalCount === 1 ? t('shell.an.orderOne') : t('shell.an.orderMany')}`}
                       icon={<DollarIcon className="w-4 h-4" />}
                     />
                     <KpiCard
-                      label="Spent"
+                      label={t('shell.an.spent')}
                       value={fmt(spent)}
-                      hint={`${purchaseStats?.stats.totalPurchases || 0} purchases`}
+                      hint={t('shell.an.purchasesCount').replace('{n}', String(purchaseStats?.stats.totalPurchases || 0))}
                       icon={<ShoppingCartIcon className="w-4 h-4" />}
                     />
                     <KpiCard
-                      label="Profit"
+                      label={t('shell.an.profit')}
                       value={`${profit >= 0 ? '+' : ''}${fmt(profit)}`}
-                      hint={`${profitMargin.toFixed(1)}% margin`}
+                      hint={t('shell.an.marginHint').replace('{n}', profitMargin.toFixed(1))}
                       icon={profit >= 0 ? <ArrowUpIcon className="w-4 h-4" /> : <ArrowDownIcon className="w-4 h-4" />}
                     />
                     <KpiCard
-                      label="Avg Order"
+                      label={t('shell.an.avgOrder')}
                       value={fmt(aov)}
-                      hint="per sale"
+                      hint={t('shell.an.perSale')}
                       icon={<ChartIcon className="w-4 h-4" />}
                     />
                   </div>
@@ -650,8 +655,8 @@ function DashboardPageInner() {
               {/* Sales vs Spent comparison */}
               <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 mb-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold text-white">Cash Flow</h3>
-                  <span className="text-xs text-zinc-500">{analyticsPeriod === 'today' ? 'Today' : analyticsPeriod === 'week' ? 'Last 7 days' : analyticsPeriod === 'month' ? 'Last 30 days' : 'Last year'}</span>
+                  <h3 className="text-sm font-semibold text-white">{t('shell.an.cashFlow')}</h3>
+                  <span className="text-xs text-zinc-500">{t(`shell.an.period.${analyticsPeriod}`)}</span>
                 </div>
                 {(() => {
                   // Same revenue authority as the KPIs — sales stats already
@@ -663,7 +668,7 @@ function DashboardPageInner() {
                     <div className="space-y-4">
                       <div>
                         <div className="flex items-center justify-between text-xs mb-1.5">
-                          <span className="text-zinc-400 font-medium">Income</span>
+                          <span className="text-zinc-400 font-medium">{t('shell.an.income')}</span>
                           <span className="text-white font-medium">{revenue.toLocaleString()} DA</span>
                         </div>
                         <div className="h-2.5 bg-white/10 rounded-full overflow-hidden">
@@ -675,7 +680,7 @@ function DashboardPageInner() {
                       </div>
                       <div>
                         <div className="flex items-center justify-between text-xs mb-1.5">
-                          <span className="text-zinc-400 font-medium">Outflow</span>
+                          <span className="text-zinc-400 font-medium">{t('shell.an.outflow')}</span>
                           <span className="text-white font-medium">{spent.toLocaleString()} DA</span>
                         </div>
                         <div className="h-2.5 bg-white/10 rounded-full overflow-hidden">
@@ -695,7 +700,7 @@ function DashboardPageInner() {
                 {/* Top Products */}
                 <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-white">Top Selling Products</h3>
+                    <h3 className="text-sm font-semibold text-white">{t('shell.an.topProducts')}</h3>
                     <PackageIcon className="w-4 h-4 text-zinc-500" />
                   </div>
                   {(() => {
@@ -718,7 +723,7 @@ function DashboardPageInner() {
                                 }`}>{i + 1}</span>
                                 <span className="text-zinc-300 truncate">{p.productName}</span>
                               </div>
-                              <span className="text-white font-medium flex-shrink-0 ml-2">{value.toLocaleString()} DA</span>
+                              <span className="text-white font-medium flex-shrink-0 ms-2">{value.toLocaleString()} DA</span>
                             </div>
                             <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                               <div
@@ -726,7 +731,7 @@ function DashboardPageInner() {
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
-                            <p className="text-[10px] text-zinc-600 mt-0.5">{p._sum.quantity || 0} units sold</p>
+                            <p className="text-[10px] text-zinc-600 mt-0.5">{t('shell.an.unitsSold').replace('{n}', String(p._sum.quantity || 0))}</p>
                           </div>
                         );
                       })}
@@ -734,7 +739,7 @@ function DashboardPageInner() {
                   ) : (
                     <div className="text-center py-8">
                       <BoxIcon className="w-10 h-10 text-zinc-700 mx-auto mb-2" />
-                      <p className="text-xs text-zinc-500">No sales in this period</p>
+                      <p className="text-xs text-zinc-500">{t('shell.an.noSales')}</p>
                     </div>
                   )}
                 </div>
@@ -742,30 +747,30 @@ function DashboardPageInner() {
                 {/* Inventory health */}
                 <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-white">Inventory Health</h3>
+                    <h3 className="text-sm font-semibold text-white">{t('shell.an.inventoryHealth')}</h3>
                     <BoxIcon className="w-4 h-4 text-zinc-500" />
                   </div>
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <div className="bg-white/[0.02] border border-white/5 rounded-lg p-3">
-                      <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Products</p>
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{t('shell.an.products')}</p>
                       <p className="text-xl font-bold text-white">{dashboard?.stats.totalProducts || 0}</p>
                     </div>
                     <div className="bg-white/[0.02] border border-white/5 rounded-lg p-3">
-                      <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Categories</p>
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{t('shell.an.categories')}</p>
                       <p className="text-xl font-bold text-white">{dashboard?.stats.totalCategories || 0}</p>
                     </div>
                     <div className="bg-white/[0.02] border border-white/5 rounded-lg p-3">
-                      <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Stock Value</p>
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{t('shell.an.stockValue')}</p>
                       <p className="text-xl font-bold text-white">
                         {Number(dashboard?.stats.totalStockValue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                        <span className="text-xs text-zinc-500 ml-1">DA</span>
+                        <span className="text-xs text-zinc-500 ms-1">DA</span>
                       </p>
                     </div>
                     <div className="bg-white/[0.02] border border-white/5 rounded-lg p-3">
-                      <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Retail Value</p>
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{t('shell.an.retailValue')}</p>
                       <p className="text-xl font-bold text-white">
                         {Number(dashboard?.stats.totalRetailValue || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                        <span className="text-xs text-zinc-500 ml-1">DA</span>
+                        <span className="text-xs text-zinc-500 ms-1">DA</span>
                       </p>
                     </div>
                   </div>
@@ -775,14 +780,14 @@ function DashboardPageInner() {
                         <AlertIcon className="w-4 h-4 text-zinc-300" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white">{dashboard?.stats.lowStockProducts} products low on stock</p>
-                        <p className="text-xs text-zinc-500">Restock soon to avoid shortages</p>
+                        <p className="text-sm font-semibold text-white">{t('shell.an.lowStock').replace('{n}', String(dashboard?.stats.lowStockProducts ?? 0))}</p>
+                        <p className="text-xs text-zinc-500">{t('shell.an.lowStockHint')}</p>
                       </div>
                       <button
                         onClick={() => router.push('/dashboard/stock/products?lowStock=true')}
                         className="text-xs text-zinc-400 hover:text-white font-medium whitespace-nowrap"
                       >
-                        View →
+                        {t('shell.an.view')} {dir === 'rtl' ? '←' : '→'}
                       </button>
                     </div>
                   ) : (
@@ -791,8 +796,8 @@ function DashboardPageInner() {
                         <BoxIcon className="w-4 h-4 text-zinc-300" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-semibold text-white">All stock levels healthy</p>
-                        <p className="text-xs text-zinc-500">No products need restocking</p>
+                        <p className="text-sm font-semibold text-white">{t('shell.an.stockHealthy')}</p>
+                        <p className="text-xs text-zinc-500">{t('shell.an.stockHealthyHint')}</p>
                       </div>
                     </div>
                   )}
@@ -802,8 +807,8 @@ function DashboardPageInner() {
               {/* Order status breakdown */}
               <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 mb-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold text-white">Orders Status</h3>
-                  <span className="text-xs text-zinc-500">{(salesStats?.stats.totalSales || 0) + (orderStats?.stats.totalOrders || 0)} total</span>
+                  <h3 className="text-sm font-semibold text-white">{t('shell.an.ordersStatus')}</h3>
+                  <span className="text-xs text-zinc-500">{(salesStats?.stats.totalSales || 0) + (orderStats?.stats.totalOrders || 0)} {t('shell.an.totalSuffix')}</span>
                 </div>
                 {(() => {
                   const paid = (salesStats?.stats.paidSales || 0) + (orderStats?.stats.delivered || 0);
@@ -830,12 +835,12 @@ function DashboardPageInner() {
                       <div className="flex items-center gap-6 text-xs">
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full bg-white" />
-                          <span className="text-zinc-400">Paid</span>
+                          <span className="text-zinc-400">{t('shell.an.paid')}</span>
                           <span className="text-white font-medium">{paid}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full bg-zinc-500" />
-                          <span className="text-zinc-400">Pending</span>
+                          <span className="text-zinc-400">{t('shell.an.pending')}</span>
                           <span className="text-white font-medium">{pending}</span>
                         </div>
                       </div>
@@ -847,15 +852,15 @@ function DashboardPageInner() {
               {/* Connected pages summary */}
               <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-semibold text-white">Connected Channels</h3>
-                  <span className="text-xs text-zinc-500">{pages.length} {pages.length === 1 ? 'page' : 'pages'}</span>
+                  <h3 className="text-sm font-semibold text-white">{t('shell.an.channels')}</h3>
+                  <span className="text-xs text-zinc-500">{pages.length} {pages.length === 1 ? t('shell.an.pageOne') : t('shell.an.pageMany')}</span>
                 </div>
                 {pages.length === 0 ? (
                   <div className="text-center py-6">
                     <ChatIcon className="w-10 h-10 text-zinc-700 mx-auto mb-2" />
-                    <p className="text-xs text-zinc-500 mb-3">No pages connected yet</p>
+                    <p className="text-xs text-zinc-500 mb-3">{t('shell.an.noPages')}</p>
                     <Button size="sm" variant="outline" onClick={() => router.push('/dashboard?section=overview')}>
-                      Connect a page
+                      {t('shell.an.connectPage')}
                     </Button>
                   </div>
                 ) : (
@@ -887,18 +892,18 @@ function DashboardPageInner() {
       {activeSection === 'settings' && (
         <>
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>Settings</h1>
-            <p className="text-zinc-400">Manage your account and application settings</p>
+            <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: 'Syne, sans-serif' }}>{t('page.dash.settings.title')}</h1>
+            <p className="text-zinc-400">{t('page.dash.settings.subtitle')}</p>
           </div>
 
           <div className="space-y-6">
             {/* Stock Management Mode */}
             <div>
-              <h2 className="text-xl font-bold text-white mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>Stock Management</h2>
+              <h2 className="text-xl font-bold text-white mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>{t('page.dash.settings.stockMgmt')}</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
                   onClick={() => handleStockModeChange('simple')}
-                  className={`text-left p-5 rounded-xl border-2 transition-all ${
+                  className={`text-start p-5 rounded-xl border-2 transition-all ${
                     stockMode === 'simple'
                       ? 'border-white bg-white/5'
                       : 'border-white/10 bg-zinc-900/50 hover:border-white/20'
@@ -911,19 +916,19 @@ function DashboardPageInner() {
                       <BoxIcon className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-white font-semibold">Simple</h3>
+                      <h3 className="text-white font-semibold">{t('page.dash.settings.simple')}</h3>
                       {stockMode === 'simple' && (
-                        <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-zinc-400 uppercase tracking-wider"><span className="w-1.5 h-1.5 rounded-full bg-white" />Active</span>
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-zinc-400 uppercase tracking-wider"><span className="w-1.5 h-1.5 rounded-full bg-white" />{t('shell.common.active')}</span>
                       )}
                     </div>
                   </div>
                   <p className="text-sm text-zinc-400 leading-relaxed">
-                    Products, Categories & Orders — manage your inventory and orders without the complexity.
+                    {t('page.dash.settings.simpleDesc')}
                   </p>
                 </button>
                 <button
                   onClick={() => handleStockModeChange('advanced')}
-                  className={`text-left p-5 rounded-xl border-2 transition-all ${
+                  className={`text-start p-5 rounded-xl border-2 transition-all ${
                     stockMode === 'advanced'
                       ? 'border-white bg-white/5'
                       : 'border-white/10 bg-zinc-900/50 hover:border-white/20'
@@ -936,27 +941,27 @@ function DashboardPageInner() {
                       <BoltIcon className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-white font-semibold">Advanced</h3>
+                      <h3 className="text-white font-semibold">{t('page.dash.settings.advanced')}</h3>
                       {stockMode === 'advanced' && (
-                        <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-zinc-400 uppercase tracking-wider"><span className="w-1.5 h-1.5 rounded-full bg-white" />Active</span>
+                        <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-zinc-400 uppercase tracking-wider"><span className="w-1.5 h-1.5 rounded-full bg-white" />{t('shell.common.active')}</span>
                       )}
                     </div>
                   </div>
                   <p className="text-sm text-zinc-400 leading-relaxed">
-                    Full suite — Suppliers, Clients, Sales, Purchases, Caisse, Movements, Delivery & more.
+                    {t('page.dash.settings.advancedDesc')}
                   </p>
                 </button>
               </div>
             </div>
 
             <div>
-              <h2 className="text-xl font-bold text-white mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>Account Information</h2>
+              <h2 className="text-xl font-bold text-white mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>{t('page.dash.settings.account')}</h2>
               <Card>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Input label="First Name" value={user?.firstName || ''} disabled />
-                  <Input label="Last Name" value={user?.lastName || ''} disabled />
+                  <Input label={t('shell.set.firstName')} value={user?.firstName || ''} disabled />
+                  <Input label={t('shell.set.lastName')} value={user?.lastName || ''} disabled />
                   <div className="md:col-span-2">
-                    <Input label="Email" type="email" value={user?.email || ''} disabled />
+                    <Input label={t('shell.set.email')} type="email" value={user?.email || ''} disabled />
                   </div>
                 </div>
               </Card>
@@ -964,19 +969,19 @@ function DashboardPageInner() {
 
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Plan & Billing</h2>
+                <h2 className="text-xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>{t('page.dash.settings.billing')}</h2>
                 <div className="inline-flex items-center bg-zinc-900/60 border border-white/10 rounded-lg p-1">
                   <button
                     onClick={() => setBillingCycle('monthly')}
                     className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${billingCycle === 'monthly' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'}`}
                   >
-                    Monthly
+                    {t('pricing.monthly')}
                   </button>
                   <button
                     onClick={() => setBillingCycle('yearly')}
                     className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${billingCycle === 'yearly' ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'}`}
                   >
-                    Yearly
+                    {t('pricing.yearly')}
                   </button>
                 </div>
               </div>
@@ -984,10 +989,10 @@ function DashboardPageInner() {
               {/* Current plan badge */}
               <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-4 mb-4 flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-zinc-500 uppercase tracking-wider mb-0.5">Current plan</p>
-                  <p className="text-white font-semibold capitalize">{user?.plan || 'Free'}</p>
+                  <p className="text-xs text-zinc-500 uppercase tracking-wider mb-0.5">{t('page.dash.settings.currentPlan')}</p>
+                  <p className="text-white font-semibold capitalize">{user?.plan || t('pricing.free')}</p>
                 </div>
-                <Badge variant="default" size="md">{user?.plan || 'Free'}</Badge>
+                <Badge variant="default" size="md">{user?.plan || t('pricing.free')}</Badge>
               </div>
 
               {/* Plan cards */}
@@ -1007,9 +1012,9 @@ function DashboardPageInner() {
                       {/* Header */}
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="text-base font-semibold text-white">{plan.name}</h3>
-                        {isCurrent && <Badge variant="default" size="sm">Current</Badge>}
+                        {isCurrent && <Badge variant="default" size="sm">{t('shell.set.current')}</Badge>}
                         {plan.isFeatured && !isCurrent && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white font-medium uppercase tracking-wider">Popular</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white font-medium uppercase tracking-wider">{t('pricing.popular')}</span>
                         )}
                       </div>
 
@@ -1017,10 +1022,10 @@ function DashboardPageInner() {
                       <div className="mb-3">
                         <div className="flex items-baseline gap-1">
                           <span className="text-3xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>
-                            {isFree ? 'Free' : price.toLocaleString()}
+                            {isFree ? t('pricing.free') : price.toLocaleString()}
                           </span>
                           {!isFree && (
-                            <span className="text-sm text-zinc-500">{plan.currency}/{billingCycle === 'yearly' ? 'yr' : 'mo'}</span>
+                            <span className="text-sm text-zinc-500">{plan.currency}/{billingCycle === 'yearly' ? t('pricing.perYear') : t('pricing.perMonth')}</span>
                           )}
                         </div>
                         {plan.description && <p className="text-xs text-zinc-500 mt-1">{plan.description}</p>}
@@ -1041,11 +1046,11 @@ function DashboardPageInner() {
                       {/* Action */}
                       {isCurrent ? (
                         <div className="px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-center text-xs font-medium text-zinc-300">
-                          Your current plan
+                          {t('shell.set.yourPlan')}
                         </div>
                       ) : isFree ? (
                         <div className="px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-center text-xs font-medium text-zinc-400">
-                          Free — no payment needed
+                          {t('shell.set.freeNoPayment')}
                         </div>
                       ) : (
                         <button
@@ -1061,7 +1066,7 @@ function DashboardPageInner() {
                                 window.location.href = res.checkoutUrl;
                               }
                             } catch (e) {
-                              toast.error(e instanceof Error ? e.message : 'Failed to start checkout');
+                              toast.error(e instanceof Error ? e.message : t('shell.set.checkoutFail'));
                             } finally {
                               setSubscribing(null);
                             }
@@ -1069,7 +1074,7 @@ function DashboardPageInner() {
                           disabled={subscribing === plan.slug}
                           className="w-full px-4 py-2.5 bg-white text-black rounded-lg text-sm font-semibold hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
-                          {subscribing === plan.slug ? 'Redirecting…' : `Subscribe — ${price.toLocaleString()} ${plan.currency}`}
+                          {subscribing === plan.slug ? t('shell.set.redirecting') : t('shell.set.subscribeAmount').replace('{amount}', `${price.toLocaleString()} ${plan.currency}`)}
                         </button>
                       )}
                     </div>
@@ -1079,7 +1084,7 @@ function DashboardPageInner() {
 
               {availablePlans.length === 0 && (
                 <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-8 text-center text-sm text-zinc-500">
-                  No plans available yet. Ask your admin to create plans.
+                  {t('shell.set.noPlans')}
                 </div>
               )}
             </div>

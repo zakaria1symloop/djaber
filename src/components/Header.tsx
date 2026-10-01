@@ -165,7 +165,7 @@ export default function Header() {
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="md:hidden p-2 text-zinc-400 hover:text-white transition-colors"
-            aria-label="Toggle menu"
+            aria-label={t('shell.header.toggleMenu')}
           >
             <svg
               width="24"

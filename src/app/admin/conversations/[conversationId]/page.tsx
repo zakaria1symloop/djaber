@@ -13,8 +13,10 @@ import {
   FacebookIcon,
   BotIcon,
 } from '@/components/ui/icons';
+import { useTranslation } from '@/contexts/LanguageContext';
 
 export default function AdminConversationDetailPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const params = useParams();
   const toast = useToast();
@@ -29,7 +31,7 @@ export default function AdminConversationDetailPage() {
       const res = await getAdminConversationDetails(id);
       setData(res.conversation);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load conversation');
+      toast.error(e instanceof Error ? e.message : t('adm.plat.conv.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -50,7 +52,7 @@ export default function AdminConversationDetailPage() {
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
-          Back to Conversations
+          {t('adm.plat.conv.back')}
         </button>
         <div className="h-24 bg-zinc-900/60 rounded-xl animate-pulse" />
         <div className="h-96 bg-zinc-900/60 rounded-xl animate-pulse" />
@@ -69,12 +71,13 @@ export default function AdminConversationDetailPage() {
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
-          Back to Conversations
+          {t('adm.plat.conv.back')}
         </button>
         <button
           onClick={load}
           className="p-2 text-zinc-400 hover:text-white bg-zinc-900/60 border border-white/10 rounded-lg transition-colors"
-          title="Refresh"
+          title={t('adm.plat.refresh')}
+          aria-label={t('adm.plat.refresh')}
         >
           <RefreshIcon className="w-4 h-4" />
         </button>
@@ -90,7 +93,7 @@ export default function AdminConversationDetailPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <h1 className="text-2xl font-bold text-white truncate mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>
-                  {data.senderName || 'Unknown'}
+                  {data.senderName || t('adm.plat.convs.unknown')}
                 </h1>
                 <PlatformIcon />
               </div>
@@ -98,26 +101,26 @@ export default function AdminConversationDetailPage() {
             </div>
           </div>
           <Badge variant={data.status === 'active' ? 'success' : data.status === 'resolved' ? 'info' : 'default'} size="sm">
-            {data.status}
+            {t(`adm.plat.convs.status.${data.status}`, data.status)}
           </Badge>
         </div>
 
         {/* Metadata */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-5 border-t border-white/5">
-          <Meta label="Page" value={data.page?.pageName || '—'} />
-          <Meta label="Owner" value={data.user ? `${data.user.firstName} ${data.user.lastName}` : '—'} />
-          <Meta label="Agent" value={data.agent?.name || '—'} />
-          <Meta label="Messages" value={data._count.messages.toString()} />
+          <Meta label={t('adm.plat.page')} value={data.page?.pageName || '—'} />
+          <Meta label={t('adm.plat.owner')} value={data.user ? `${data.user.firstName} ${data.user.lastName}` : '—'} />
+          <Meta label={t('adm.plat.conv.meta.agent')} value={data.agent?.name || '—'} />
+          <Meta label={t('adm.plat.conv.meta.messages')} value={data._count.messages.toString()} />
         </div>
       </div>
 
       {/* Messages */}
       <div className="bg-zinc-900/50 border border-white/10 rounded-xl">
         <div className="px-5 py-3 border-b border-white/5">
-          <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Messages</h2>
+          <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">{t('adm.plat.conv.messages')}</h2>
         </div>
         {data.messages.length === 0 ? (
-          <div className="p-12 text-center text-sm text-zinc-500">No messages in this conversation</div>
+          <div className="p-12 text-center text-sm text-zinc-500">{t('adm.plat.conv.noMessages')}</div>
         ) : (
           <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
             {data.messages.map((msg: any) => {
@@ -136,12 +139,12 @@ export default function AdminConversationDetailPage() {
                   <div className="max-w-[70%] space-y-1">
                     {hasImage && (
                       <a href={msg.attachmentUrl} target="_blank" rel="noopener noreferrer">
-                        <img src={msg.attachmentUrl} alt="" className="max-w-full max-h-48 rounded-xl border border-white/10 object-cover hover:opacity-90 transition-opacity" />
+                        <img src={msg.attachmentUrl} alt={t('adm.plat.conv.attachmentAlt')} className="max-w-full max-h-48 rounded-xl border border-white/10 object-cover hover:opacity-90 transition-opacity" />
                       </a>
                     )}
                     {hasAttachment && (
                       <a href={msg.attachmentUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-blue-400 hover:text-blue-300">
-                        📎 {msg.attachmentType || 'file'}
+                        📎 {msg.attachmentType || t('adm.plat.conv.file')}
                       </a>
                     )}
                     {text && (
@@ -153,11 +156,11 @@ export default function AdminConversationDetailPage() {
                     )}
                     {!text && !msg.attachmentUrl && (
                       <div className="px-4 py-2.5 rounded-2xl text-sm bg-white/5 border border-white/10 text-zinc-500 italic">
-                        (empty message)
+                        {t('adm.plat.conv.emptyMessage')}
                       </div>
                     )}
-                    <p className={`text-[10px] text-zinc-600 mt-1 ${isAi ? 'text-right' : ''}`}>
-                      {new Date(time).toLocaleString()} · {isAi ? 'AI' : 'Customer'}
+                    <p className={`text-[10px] text-zinc-600 mt-1 ${isAi ? 'text-end' : ''}`}>
+                      {new Date(time).toLocaleString()} · {isAi ? t('adm.plat.conv.ai') : t('adm.plat.conv.customer')}
                     </p>
                   </div>
                 </div>
