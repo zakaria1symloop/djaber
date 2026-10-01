@@ -56,6 +56,45 @@ export const uploadProductImages = multer({
   },
 });
 
+// ---------------------------------------------------------------------------
+// Spreadsheets (bulk product import)
+// ---------------------------------------------------------------------------
+// Deliberately a SEPARATE uploader: images and spreadsheets must never share a
+// filter, otherwise either an .xlsx passes as a product photo or a .png passes
+// as an import file. The spreadsheet is parsed in-process and never stored, so
+// it stays in memory.
+
+const SPREADSHEET_EXT = ['.xlsx', '.xlsm', '.xls', '.csv'];
+const SPREADSHEET_MIME = [
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel.sheet.macroEnabled.12',
+  'application/vnd.ms-excel',
+  'text/csv',
+  'text/plain',
+  'application/csv',
+  'application/octet-stream', // what several browsers send for .xlsx
+];
+
+const spreadsheetFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (SPREADSHEET_EXT.includes(ext) && (!file.mimetype || SPREADSHEET_MIME.includes(file.mimetype))) {
+    cb(null, true);
+  } else {
+    // Surfaces as 400 UPLOAD_INVALID_TYPE through the global error handler.
+    cb(new ApiError('UPLOAD_INVALID_TYPE', { allowed: 'XLSX, XLS, CSV' }));
+  }
+};
+
+/** `file` field, one spreadsheet, kept in memory (max 5 MB). */
+export const uploadSpreadsheet = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: spreadsheetFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB — a 2000-row product sheet is far smaller
+    files: 1,
+  },
+});
+
 /**
  * Upload a local file to GCS and return the public URL.
  * In dev mode, returns a local URL.

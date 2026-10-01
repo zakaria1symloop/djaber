@@ -59,6 +59,12 @@ export const stock = {
     fr: 'Ce produit possède des variantes : ajustez plutôt le stock de chaque variante.',
     ar: 'هذا المنتج له نسخ متعددة: عدّل مخزون كل نسخة بدلًا من ذلك.',
   },
+  PRODUCT_NOT_STOCK_TRACKED: {
+    status: 422,
+    en: 'This product is not stock-tracked (digital product): its stock cannot be adjusted.',
+    fr: 'Ce produit n’est pas suivi en stock (produit numérique) : son stock ne peut pas être ajusté.',
+    ar: 'هذا المنتج غير متابع بالمخزون (منتج رقمي): لا يمكن تعديل مخزونه.',
+  },
   PRODUCT_LIST_FAILED: {
     status: 500,
     en: 'Could not load the products. Please try again.',
@@ -316,5 +322,43 @@ export const stock = {
     en: 'Could not delete the expense. Please try again.',
     fr: 'Impossible de supprimer la dépense. Veuillez réessayer.',
     ar: 'تعذّر حذف المصروف. يرجى المحاولة مرة أخرى.',
+  },
+
+  // ---- product import (Excel / CSV) -----------------------------------------
+  IMPORT_FILE_EMPTY: {
+    status: 400,
+    en: 'The file contains no product row. Add at least one row below the header line.',
+    fr: 'Le fichier ne contient aucune ligne de produit. Ajoutez au moins une ligne sous l’en-tête.',
+    ar: 'الملف لا يحتوي على أي سطر منتج. أضف سطرًا واحدًا على الأقل تحت سطر العناوين.',
+  },
+  IMPORT_FILE_UNREADABLE: {
+    status: 400,
+    en: 'This file could not be read. Please export it again as .xlsx or .csv.',
+    fr: 'Ce fichier n’a pas pu être lu. Veuillez l’exporter de nouveau au format .xlsx ou .csv.',
+    ar: 'تعذّر قراءة هذا الملف. يرجى تصديره مرة أخرى بصيغة .xlsx أو .csv.',
+  },
+  IMPORT_COLUMNS_MISSING: {
+    status: 400,
+    en: 'The header line must contain the columns {columns}.',
+    fr: 'La ligne d’en-tête doit contenir les colonnes {columns}.',
+    ar: 'يجب أن يحتوي سطر العناوين على الأعمدة {columns}.',
+  },
+  IMPORT_TOO_MANY_ROWS: {
+    status: 400,
+    en: 'The file holds too many rows: {count} instead of {max} at most. Please split it.',
+    fr: 'Le fichier contient trop de lignes : {count} au lieu de {max} au maximum. Veuillez le découper.',
+    ar: 'يحتوي الملف على عدد كبير من الأسطر: {count} بدلاً من {max} كحد أقصى. يرجى تقسيمه.',
+  },
+  IMPORT_DUPLICATE_SKU_IN_FILE: {
+    status: 400,
+    en: 'The reference "{sku}" appears more than once in the file (first seen on row {row}).',
+    fr: 'La référence « {sku} » apparaît plusieurs fois dans le fichier (vue d’abord à la ligne {row}).',
+    ar: 'المرجع "{sku}" يرد أكثر من مرة في الملف (أول ورود في السطر {row}).',
+  },
+  IMPORT_FAILED: {
+    status: 500,
+    en: 'Could not import the products. Nothing was saved, please try again.',
+    fr: 'Impossible d’importer les produits. Rien n’a été enregistré, veuillez réessayer.',
+    ar: 'تعذّر استيراد المنتجات. لم يتم حفظ أي شيء، يرجى المحاولة مرة أخرى.',
   },
 } as const satisfies ErrorCatalog;

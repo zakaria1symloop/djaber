@@ -336,6 +336,19 @@ model Product {
   sellingPrice Decimal  @default(0) @db.Decimal(10, 2) // Sale price
   quantity     Int      @default(0) // Current stock
   minQuantity  Int      @default(0) // Alert threshold
+  // Stock tracking switch. `true` (the default, so every existing product is
+  // unchanged) = physical product: quantity is real, decremented by sales /
+  // orders, checked against minQuantity for low-stock alerts.
+  // `false` = digital product (e-book, service, subscription): it has no stock,
+  // `quantity` is meaningless and is parked at UNTRACKED_QUANTITY so the
+  // conditional decrements of the sales/orders paths always succeed; such a
+  // product is excluded from low-stock and inventory-valuation aggregates and
+  // writes no stock movement.
+  trackStock   Boolean  @default(true)
+  // SKU the product had before it was deleted. A delete is a soft delete, but
+  // it rewrites `sku` to "<sku>#deleted-<timestamp>" so the merchant can reuse
+  // the reference immediately; the original stays here for history/audit.
+  archivedSku  String?
   unit         String   @default("piece") // Legacy field, kept for backward compat
   hasVariants  Boolean  @default(false)
   imageUrl     String?  // Legacy field, kept for backward compat
@@ -363,6 +376,7 @@ model Product {
   @@index([pageId, categoryId])
   @@index([pageId, quantity])
   @@index([userId, quantity])
+  @@index([userId, trackStock])
 }
 
 model ProductImage {

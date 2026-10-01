@@ -31,6 +31,7 @@ import {
   updateProductExpense,
   deleteProductExpense,
 } from '../controllers/user-stock.controller';
+import { importProducts } from '../controllers/user-product-import.controller';
 import {
   getSales,
   getSale,
@@ -179,7 +180,7 @@ import {
   getTopCustomersReport,
   getInactiveCustomersReport,
 } from '../controllers/reports.controller';
-import { uploadProductImages } from '../config/upload';
+import { uploadProductImages, uploadSpreadsheet } from '../config/upload';
 
 const router = Router();
 
@@ -212,6 +213,9 @@ router.delete('/categories/:categoryId', deleteCategory);
 // ============================================================================
 router.get('/products', getProducts);
 router.post('/products/analyze-image', uploadProductImages.single('image'), analyzeProductImageEndpoint);
+// Bulk import from an Excel / CSV sheet. Declared BEFORE /products/:productId so
+// "import" is never read as a product id.
+router.post('/products/import', uploadSpreadsheet.single('file'), importProducts);
 router.get('/products/:productId', getProduct);
 router.post('/products', createProduct);
 router.put('/products/:productId', updateProduct);

@@ -10,10 +10,10 @@ const NOTES_MAX = 2000;
 const MOVEMENT_TYPES = ['in', 'out', 'adjustment', 'return'] as const;
 
 /** Product owned by the caller or 404 PRODUCT_NOT_FOUND. */
-async function findOwnProduct(productId: string, userId: string): Promise<{ id: string }> {
+async function findOwnProduct(productId: string, userId: string): Promise<{ id: string; trackStock: boolean }> {
   const product = await prisma.product.findFirst({
     where: { id: productId, userId },
-    select: { id: true },
+    select: { id: true, trackStock: true },
   });
   if (!product) throw new ApiError('PRODUCT_NOT_FOUND');
   return product;
@@ -68,7 +68,10 @@ export const createVariant = async (req: Request, res: Response): Promise<void> 
     const validMinQuantity = v.integer(body.minQuantity, 'minQuantity', { min: 0, required: false, def: 0 });
     v.throwIfAny();
 
-    await findOwnProduct(productId, req.user.userId);
+    const parent = await findOwnProduct(productId, req.user.userId);
+    // Variants exist to split a stock level: an untracked (digital) product has
+    // none, so it cannot carry variants.
+    if (!parent.trackStock) return fail(req, res, 'PRODUCT_NOT_STOCK_TRACKED');
 
     // Use interactive transaction so variant creation, parent recalc, and stock movement are atomic
     const variant = await prisma.$transaction(async (tx) => {

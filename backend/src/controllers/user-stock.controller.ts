@@ -24,6 +24,54 @@ const MOVEMENT_NOTES_MAX = 2000;
 const EXPENSE_DESCRIPTION_MAX = 1000;
 
 const MOVEMENT_TYPES = ['in', 'out', 'adjustment', 'return'] as const;
+
+/**
+ * Stock level parked on a product that is NOT stock-tracked (`trackStock: false`:
+ * e-book, service, subscription). Such a product has no real stock, but the
+ * sales / orders / AI paths deduct stock with a CONDITIONAL decrement
+ * (`quantity: { gte: n }`), so a digital product sitting at 0 would be rejected
+ * as "insufficient stock". Parking it at this ceiling makes every one of those
+ * decrements succeed while the number itself is never shown as a stock level:
+ * untracked products are filtered out of low-stock queries, of the quantity
+ * filters and of the inventory-valuation aggregates.
+ */
+export const UNTRACKED_QUANTITY = 1_000_000;
+
+/** SKU rewritten for a deleted product, so the live reference is freed. */
+function archiveSkuOf(sku: string): string {
+  const suffix = `#deleted-${Date.now()}`;
+  return `${sku.slice(0, SKU_MAX - suffix.length)}${suffix}`;
+}
+
+/**
+ * Free a SKU still held by a DELETED (soft-deleted) product of this merchant.
+ *
+ * A delete archives the SKU on the way out, so this is only reached for rows
+ * deleted before that fix shipped — it repairs the merchant's data lazily
+ * instead of leaving a reference reserved forever by an invisible product.
+ * Must run inside the same transaction as the create/update that needs the SKU.
+ */
+async function freeArchivedSku(tx: any, userId: string, sku: string): Promise<void> {
+  const dead = await tx.product.findMany({
+    where: { userId, sku, isActive: false },
+    select: { id: true, sku: true, archivedSku: true },
+  });
+  for (const row of dead) {
+    await tx.product.update({
+      where: { id: row.id },
+      data: { sku: archiveSkuOf(row.sku), archivedSku: row.archivedSku ?? row.sku },
+    });
+  }
+}
+
+/** A LIVE product of this merchant already uses this SKU -> 409. */
+async function assertSkuFree(userId: string, sku: string, exceptProductId?: string): Promise<void> {
+  const clash = await prisma.product.findFirst({
+    where: { userId, sku, isActive: true, ...(exceptProductId ? { id: { not: exceptProductId } } : {}) },
+    select: { id: true },
+  });
+  if (clash) throw new ApiError('PRODUCT_SKU_ALREADY_EXISTS', { sku });
+}
 const VALID_EXPENSE_CATEGORIES = ['marketing', 'shipping', 'packaging', 'customs', 'storage', 'other'] as const;
 
 // ============================================================================
@@ -259,22 +307,25 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
       where.costPrice = { ...(where.costPrice || {}), lte: parsedMaxCost };
     }
 
-    // Quantity range filters
+    // Quantity range filters. An untracked (digital) product has no stock level
+    // at all — its parked quantity must never answer a stock question.
     const parsedMinQty = minQty ? parseInt(minQty as string, 10) : NaN;
     const parsedMaxQty = maxQty ? parseInt(maxQty as string, 10) : NaN;
     if (!isNaN(parsedMinQty) && parsedMinQty > 0) {
       where.quantity = { ...(where.quantity || {}), gte: parsedMinQty };
+      where.trackStock = true;
     }
     if (!isNaN(parsedMaxQty) && parsedMaxQty > 0) {
       where.quantity = { ...(where.quantity || {}), lte: parsedMaxQty };
+      where.trackStock = true;
     }
 
     // Move lowStock filter into the DB query so pagination works correctly
     if (lowStock === 'true') {
-      // Get IDs of low-stock products at the DB level
+      // Get IDs of low-stock products at the DB level (tracked products only).
       const lowStockIds: { id: string }[] = await prisma.$queryRaw`
         SELECT id FROM Product
-        WHERE userId = ${req.user.userId} AND isActive = 1 AND quantity <= minQuantity
+        WHERE userId = ${req.user.userId} AND isActive = 1 AND trackStock = 1 AND quantity <= minQuantity
       `;
       where.id = { in: lowStockIds.map(r => r.id) };
     }
@@ -321,7 +372,7 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
         const exps = p.expenses || [];
         const fixedTotal = exps.filter((e: any) => !e.isPerUnit).reduce((s: number, e: any) => s + Number(e.amount), 0);
         const perUnitTotal = exps.filter((e: any) => e.isPerUnit).reduce((s: number, e: any) => s + Number(e.amount), 0);
-        const qty = p.quantity || 1;
+        const qty = (p.trackStock ? p.quantity : 0) || 1;
         const expPerUnit = (fixedTotal / qty) + perUnitTotal;
         const trueCost = Number(p.costPrice) + expPerUnit;
         const sellingPrice = Number(p.sellingPrice);
@@ -394,22 +445,33 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     const unit = v.optionalString(body.unit, 'unit', { max: UNIT_LABEL_MAX });
     const imageUrl = v.optionalString(body.imageUrl, 'imageUrl', { max: URL_MAX });
     const hasVariants = v.boolean(body.hasVariants, 'hasVariants', false);
+    // Digital product (e-book, service, subscription): no stock at all.
+    const trackStock = v.boolean(body.trackStock, 'trackStock', true);
     // Cost price and selling price are required (> 0) for new products
     const validCostPrice = v.number(body.costPrice, 'costPrice', { positive: true });
     const validSellingPrice = v.number(body.sellingPrice, 'sellingPrice', { positive: true });
-    // Quantity required unless product has variants (variants handle their own qty)
-    const validQuantity = hasVariants
-      ? v.integer(body.quantity, 'quantity', { min: 0, required: false, def: 0 })
-      : v.integer(body.quantity, 'quantity', { positive: true });
-    const validMinQuantity = v.integer(body.minQuantity, 'minQuantity', { min: 0, required: false, def: 0 });
+    // Quantity is required only for a stock-tracked product without variants:
+    // variants carry their own quantity, and an untracked product has none at
+    // all (any value sent is ignored).
+    const validQuantity = !trackStock
+      ? UNTRACKED_QUANTITY
+      : hasVariants
+        ? v.integer(body.quantity, 'quantity', { min: 0, required: false, def: 0 })
+        : v.integer(body.quantity, 'quantity', { positive: true });
+    const validMinQuantity = trackStock ? v.integer(body.minQuantity, 'minQuantity', { min: 0, required: false, def: 0 }) : 0;
     if (v.ok && validSellingPrice < validCostPrice) v.add('sellingPrice', 'PRODUCT_SELLING_BELOW_COST');
     v.throwIfAny();
 
     await assertOwnCategory(categoryId, req.user.userId);
     await assertUsableUnit(unitId, req.user.userId);
+    // Only a LIVE product can hold a SKU: a deleted one gets its reference
+    // archived, so the merchant may always reuse the SKU of a product they
+    // deleted (the bug was a dead row reserving it forever).
+    await assertSkuFree(req.user.userId, trimmedSku);
 
     // Wrap product creation and initial stock movement in a single transaction
     const product = await prisma.$transaction(async (tx) => {
+      await freeArchivedSku(tx, req.user!.userId, trimmedSku);
       const newProduct = await tx.product.create({
         data: {
           userId: req.user!.userId,
@@ -422,14 +484,15 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
           sellingPrice: validSellingPrice,
           quantity: validQuantity,
           minQuantity: validMinQuantity,
+          trackStock,
           unit: unit || 'piece',
           imageUrl: imageUrl || null,
         },
         include: { category: true, unitRef: true },
       });
 
-      // Create initial stock movement if quantity > 0
-      if (validQuantity > 0) {
+      // Opening stock movement - never for an untracked product: it has no ledger.
+      if (trackStock && validQuantity > 0) {
         await tx.stockMovement.create({
           data: {
             userId: req.user!.userId,
@@ -470,6 +533,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     const validCostPrice = body.costPrice !== undefined ? v.number(body.costPrice, 'costPrice', { min: 0 }) : undefined;
     const validSellingPrice = body.sellingPrice !== undefined ? v.number(body.sellingPrice, 'sellingPrice', { min: 0 }) : undefined;
     const validMinQuantity = body.minQuantity !== undefined ? v.integer(body.minQuantity, 'minQuantity', { min: 0 }) : undefined;
+    const trackStock = body.trackStock !== undefined ? v.boolean(body.trackStock, 'trackStock', true) : undefined;
     v.throwIfAny();
 
     const existing = await prisma.product.findFirst({
@@ -479,8 +543,21 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
 
     if (categoryId !== undefined) await assertOwnCategory(categoryId, req.user.userId);
     if (unitId !== undefined) await assertUsableUnit(unitId, req.user.userId);
+    if (sku && sku !== existing.sku) await assertSkuFree(req.user.userId, sku, productId);
 
-    const product = await prisma.product.update({
+    // Turning stock tracking OFF parks the quantity at the untracked ceiling and
+    // drops the alert threshold; turning it back ON restarts the count at zero
+    // (the merchant then records a stock entry / adjustment).
+    const trackingChange =
+      trackStock === undefined || trackStock === existing.trackStock
+        ? {}
+        : trackStock
+          ? { trackStock: true, quantity: 0 }
+          : { trackStock: false, quantity: UNTRACKED_QUANTITY, minQuantity: 0 };
+
+    const product = await prisma.$transaction(async (tx) => {
+      if (sku && sku !== existing.sku) await freeArchivedSku(tx, req.user!.userId, sku);
+      return tx.product.update({
       where: { id: productId },
       data: {
         ...(sku && { sku }),
@@ -494,8 +571,10 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
         ...(unit && { unit }),
         ...(imageUrl !== undefined && { imageUrl: imageUrl || null }),
         ...(isActive !== undefined && { isActive }),
+        ...trackingChange,
       },
       include: { category: true, unitRef: true },
+      });
     });
 
     res.json({ product });
@@ -527,10 +606,23 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
       fs.unlink(filePath, () => {}); // Best-effort cleanup
     }
 
-    // Soft delete
-    await prisma.product.update({
-      where: { id: productId },
-      data: { isActive: false },
+    // Soft delete that FREES the reference.
+    //
+    // The row must stay (sales, orders, purchases and stock movements point at
+    // it by id and have to keep rendering), but `@@unique([userId, sku])` means
+    // keeping its `sku` would reserve the reference forever and answer 409
+    // PRODUCT_SKU_ALREADY_EXISTS for a product the merchant cannot even see.
+    // So the SKU is rewritten to an archived form in the same transaction and
+    // the original is kept in `archivedSku` for history.
+    await prisma.$transaction(async (tx) => {
+      await tx.product.update({
+        where: { id: productId },
+        data: {
+          isActive: false,
+          sku: archiveSkuOf(existing.sku),
+          archivedSku: existing.archivedSku ?? existing.sku,
+        },
+      });
     });
 
     res.json({ success: true });
@@ -561,6 +653,8 @@ export const adjustStock = async (req: Request, res: Response): Promise<void> =>
 
     const product = await findOwnProduct(productId, req.user.userId);
     if (product.hasVariants) return fail(req, res, 'PRODUCT_HAS_VARIANTS');
+    // A digital product has no stock to move.
+    if (!product.trackStock) return fail(req, res, 'PRODUCT_NOT_STOCK_TRACKED');
 
     // Apply the change atomically inside the transaction — no outside-read,
     // so concurrent adjustments can neither oversell nor corrupt the ledger
@@ -872,22 +966,23 @@ export const getStockDashboard = async (req: Request, res: Response): Promise<vo
         orderBy: { createdAt: 'desc' },
         take: 10,
       }),
+      // Items in stock: untracked (digital) products hold no stock at all.
       prisma.product.aggregate({
-        where: activeWhere,
+        where: { ...activeWhere, trackStock: true },
         _sum: { quantity: true },
       }),
-      // Low stock count at DB level
+      // Low stock count at DB level (tracked products only)
       prisma.$queryRaw<[{ count: bigint }]>`
         SELECT COUNT(*) as count FROM Product
-        WHERE userId = ${req.user.userId} AND isActive = 1 AND quantity <= minQuantity
+        WHERE userId = ${req.user.userId} AND isActive = 1 AND trackStock = 1 AND quantity <= minQuantity
       `,
-      // Stock & retail value — variant-less products at parent qty × parent prices
+      // Stock & retail value — variant-less TRACKED products at parent qty × parent prices
       prisma.$queryRaw<[{ stockValue: number; retailValue: number }]>`
         SELECT
           COALESCE(SUM(quantity * costPrice), 0) as stockValue,
           COALESCE(SUM(quantity * sellingPrice), 0) as retailValue
         FROM Product
-        WHERE userId = ${req.user.userId} AND isActive = 1 AND hasVariants = 0
+        WHERE userId = ${req.user.userId} AND isActive = 1 AND hasVariants = 0 AND trackStock = 1
       `,
       // Variant products valued per active variant (variant qty × variant prices)
       prisma.$queryRaw<[{ stockValue: number; retailValue: number }]>`
@@ -954,7 +1049,8 @@ export const getProductMargins = async (req: Request, res: Response): Promise<vo
 
     const costPrice = Number(product.costPrice);
     const sellingPrice = Number(product.sellingPrice);
-    const quantity = product.quantity || 1; // avoid division by zero
+    // Untracked (digital) products have no stock to spread fixed expenses over.
+    const quantity = (product.trackStock ? product.quantity : 0) || 1; // avoid division by zero
 
     let fixedTotal = 0;
     let perUnitTotal = 0;

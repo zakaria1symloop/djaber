@@ -5278,6 +5278,177 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
                 error: Failed to create product
+  /api/user-stock/products/import:
+    post:
+      tags:
+        - Products
+      summary: Bulk-import products from an Excel / CSV sheet
+      description: |
+        **URL:** `POST https://djaber.72-60-190-211.sslip.io/api/user-stock/products/import`
+
+        Upload ONE spreadsheet (multipart field `file`) and create many products in one call — the
+        merchant's existing product list, exported from their old tool, goes in as-is.
+
+        **Header row.** The FIRST row of the sheet is the header. Column names are matched in French
+        AND in English, case- and accent-insensitive, so `Prix de vente`, `prix vente` and
+        `sellingPrice` all feed the same field. Recognised aliases:
+
+        | Field | Accepted headers |
+        |---|---|
+        | `name` (required) | name, nom, produit, product, libelle, designation, nomduproduit, productName |
+        | `sku` (required) | sku, reference, ref, code, codearticle, referenceproduit |
+        | `sellingPrice` (required) | sellingPrice, prixdevente, prixvente, prix, price, vente, salePrice |
+        | `costPrice` | costPrice, prixdachat, prixachat, cout, coutunitaire, cost, achat, purchasePrice |
+        | `quantity` | quantity, quantite, qte, qty, stock |
+        | `category` | category, categorie, famille, rayon |
+        | `unit` | unit, unite, unitemesure, uom, mesure |
+        | `description` | description, desc, details, detail |
+
+        Column ORDER does not matter and unknown columns are ignored. `name`, `sku` and `sellingPrice`
+        must all be present or the call fails with `IMPORT_COLUMNS_MISSING`.
+
+        **Validation is done for the WHOLE file first**, then the valid rows are written in ONE
+        transaction. So the answer is always a per-row report and never a partial surprise: a row that
+        fails validation is skipped and listed in `errors` (with its 1-based spreadsheet row number, so
+        the merchant can find it in Excel), while a failure during the write rolls everything back and
+        answers `500 IMPORT_FAILED` with nothing imported. `errors[].message` is translated with the
+        same `?lang=` / `X-Lang` / `Accept-Language` resolution as every other endpoint.
+
+        **Side effects.** A category named in the file that the caller does not have yet is created on
+        the fly. A row with a positive `quantity` also writes an opening stock movement, exactly as
+        `POST /products` does.
+
+        **SKUs.** A SKU repeated inside the file is rejected on its second occurrence
+        (`IMPORT_DUPLICATE_SKU_IN_FILE`, `params.row` points at the first occurrence). A SKU already
+        held by a LIVE product of the caller is rejected with `PRODUCT_SKU_ALREADY_EXISTS`. A SKU that
+        belonged to a DELETED product is free and imports normally — deleting a product releases its
+        reference (see `DELETE /api/user-stock/products/{productId}`).
+
+        **Upload constraints** (`uploadSpreadsheet` in `config/upload.ts`, separate from the image
+        uploader): extensions `.xlsx` / `.xlsm` / `.xls` / `.csv`, 5 MB max, exactly 1 file, held in
+        memory and never written to disk. At most 2000 DATA rows. The field name MUST be `file`.
+      operationId: stock_importProducts
+      security:
+        - bearerAuth: []
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Spreadsheet (.xlsx/.xlsm/.xls/.csv, max 5 MB, max 2000 data rows). Field name MUST be `file`.
+            example:
+              file: (binary XLSX file, e.g. produits.xlsx)
+      responses:
+        '200':
+          description: |
+            Per-row report. `imported` rows were created, `skipped` rows were rejected and are detailed
+            in `errors`. Note that a file where EVERY row is invalid still answers 200 with
+            `imported: 0` — inspect `errors`, not just the status code.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - total
+                  - imported
+                  - skipped
+                  - errors
+                properties:
+                  total:
+                    type: integer
+                    description: Data rows found in the sheet (header excluded).
+                    example: 42
+                  imported:
+                    type: integer
+                    description: Products actually created.
+                    example: 40
+                  skipped:
+                    type: integer
+                    description: Rows rejected by validation. One row may raise several errors.
+                    example: 2
+                  errors:
+                    type: array
+                    description: One entry per problem found, in row order.
+                    items:
+                      type: object
+                      properties:
+                        row:
+                          type: integer
+                          description: 1-based row number in the spreadsheet, header included — the number Excel shows.
+                          example: 7
+                        field:
+                          type: string
+                          description: Product field the problem concerns.
+                          example: sellingPrice
+                        code:
+                          type: string
+                          description: Stable error code, same catalog as every other endpoint.
+                          example: FIELD_MUST_BE_POSITIVE
+                        message:
+                          type: string
+                          description: Translated, ready to show to the merchant.
+                          example: « Prix de vente » doit être un nombre strictement positif.
+              example:
+                total: 42
+                imported: 40
+                skipped: 2
+                errors:
+                  - row: 7
+                    field: sellingPrice
+                    code: FIELD_MUST_BE_POSITIVE
+                    message: « Prix de vente » doit être un nombre strictement positif.
+                  - row: 19
+                    field: sku
+                    code: IMPORT_DUPLICATE_SKU_IN_FILE
+                    message: La référence « TS-001 » est déjà utilisée à la ligne 4 du fichier.
+        '400':
+          description: |
+            The file itself cannot be used, so nothing was read:
+            `FILE_REQUIRED` (no `file` part, or an empty file),
+            `IMPORT_FILE_UNREADABLE` (not a spreadsheet, or a corrupt one),
+            `IMPORT_FILE_EMPTY` (no sheet, or a header with no data row),
+            `IMPORT_COLUMNS_MISSING` (`params.columns` lists what is required),
+            `IMPORT_TOO_MANY_ROWS` (`params.count` / `params.max`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Bad Request
+                code: IMPORT_COLUMNS_MISSING
+                message: 'Le fichier doit contenir les colonnes suivantes : name / nom, sku / référence, sellingPrice / prix de vente.'
+                params:
+                  columns: name / nom, sku / référence, sellingPrice / prix de vente
+        '401':
+          description: Missing or invalid JWT.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Unauthorized
+                code: UNAUTHORIZED
+                message: Authentification requise.
+        '500':
+          description: |
+            `IMPORT_FAILED` — the write transaction rolled back (including a SKU taken by another
+            request between the check and the write). NOTHING was imported; the file can be re-sent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Internal Server Error
+                code: IMPORT_FAILED
+                message: L’import a échoué. Aucun produit n’a été créé, vous pouvez renvoyer le fichier.
   /api/user-stock/products/{productId}:
     get:
       tags:

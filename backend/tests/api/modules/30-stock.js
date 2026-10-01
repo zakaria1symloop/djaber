@@ -3,6 +3,15 @@
  * stock adjustments, movements, images, expenses, margins, variants, suppliers.
  */
 
+// --- spreadsheet helpers (bulk product import) -----------------------------
+// CSV is a valid spreadsheet for the import endpoint, and building one needs no
+// dependency — the endpoint parses .xlsx and .csv through the same reader.
+function csvForm(csv, name = 'products.csv', type = 'text/csv') {
+  const fd = new FormData();
+  fd.append('file', new Blob([csv], { type }), name);
+  return fd;
+}
+
 // A tiny but valid 1x1 PNG.
 const PNG_B64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
@@ -867,6 +876,259 @@ module.exports = async (t) => {
     method: 'PUT', path: `${P}/suppliers/${supId}`, auth: true, body: { name: `MySup2 ${S}`, notes: 'updated' },
   });
   await t.ok('suppliers — delete happy path', { method: 'DELETE', path: `${P}/suppliers/${supId}`, auth: true });
+
+  // ============================================ SKU REUSE AFTER DELETE (bug 1)
+  // A soft-deleted product used to keep its SKU reserved by @@unique([userId, sku]),
+  // so the merchant got a 409 for a product they could no longer see.
+  const reuseSku = `REUSE-${S}`;
+  const reuseV1 = await t.ok('sku reuse — create the product to be deleted', {
+    method: 'POST', path: `${P}/products`, auth: true,
+    body: { name: `Reuse ${S}`, sku: reuseSku, costPrice: 10, sellingPrice: 20, quantity: 3 },
+    expect: { status: 201 },
+  });
+  const reuseV1Id = reuseV1?.json?.product?.id;
+  await t.check('sku reuse — same SKU while the product is alive → 409', {
+    method: 'POST', path: `${P}/products`, auth: true,
+    body: { name: `Reuse dup ${S}`, sku: reuseSku, costPrice: 10, sellingPrice: 20, quantity: 1 },
+    expect: { status: 409, code: 'PRODUCT_SKU_ALREADY_EXISTS' },
+  });
+  await t.check('sku reuse — same SKU while alive (fr)', {
+    method: 'POST', path: `${P}/products`, auth: true, lang: 'fr',
+    body: { name: `Reuse dup ${S}`, sku: reuseSku, costPrice: 10, sellingPrice: 20, quantity: 1 },
+    expect: { status: 409, code: 'PRODUCT_SKU_ALREADY_EXISTS' },
+  });
+  await t.ok('sku reuse — delete the product', {
+    method: 'DELETE', path: `${P}/products/${reuseV1Id}`, auth: true,
+  });
+  const reuseV2 = await t.ok('sku reuse — recreate with the SAME SKU after delete → 201', {
+    method: 'POST', path: `${P}/products`, auth: true,
+    body: { name: `Reuse again ${S}`, sku: reuseSku, costPrice: 10, sellingPrice: 25, quantity: 7 },
+    expect: { status: 201 },
+  });
+  const reuseV2Id = reuseV2?.json?.product?.id;
+  if (reuseV2?.json?.product?.sku !== reuseSku) {
+    t.results.push({ label: `${t.currentModule} › sku reuse — recreated product keeps the plain SKU`, ok: false,
+      issues: [`sku is "${reuseV2?.json?.product?.sku}" instead of "${reuseSku}"`] });
+  } else {
+    t.results.push({ label: `${t.currentModule} › sku reuse — recreated product keeps the plain SKU`, ok: true, issues: [] });
+  }
+  // History is preserved: the deleted row still exists, with its SKU archived.
+  const deadRow = await t.ok('sku reuse — the deleted product is still readable (history kept)', {
+    method: 'GET', path: `${P}/products/${reuseV1Id}`, auth: true,
+  });
+  const deadOk = deadRow?.json?.product?.isActive === false
+    && deadRow?.json?.product?.archivedSku === reuseSku
+    && deadRow?.json?.product?.sku !== reuseSku;
+  t.results.push({
+    label: `${t.currentModule} › sku reuse — deleted product keeps archivedSku and released its sku`,
+    ok: !!deadOk,
+    issues: deadOk ? [] : [`got isActive=${deadRow?.json?.product?.isActive} sku=${deadRow?.json?.product?.sku} archivedSku=${deadRow?.json?.product?.archivedSku}`],
+  });
+  await t.ok('sku reuse — second delete then third create with the same SKU', {
+    method: 'DELETE', path: `${P}/products/${reuseV2Id}`, auth: true,
+  });
+  await t.ok('sku reuse — third create with the same SKU → 201', {
+    method: 'POST', path: `${P}/products`, auth: true,
+    body: { name: `Reuse third ${S}`, sku: reuseSku, costPrice: 10, sellingPrice: 30, quantity: 1 },
+    expect: { status: 201 },
+  });
+
+  // ======================================== DIGITAL / NON-TRACKED STOCK (bug 2)
+  await t.check('digital — a tracked product still requires quantity', {
+    method: 'POST', path: `${P}/products`, auth: true,
+    body: { name: `Tracked ${S}`, sku: `TRK-${S}`, costPrice: 10, sellingPrice: 20 },
+    expect: { status: 400, code: 'VALIDATION_FAILED', field: 'quantity', fieldCode: 'FIELD_REQUIRED' },
+  });
+  const digital = await t.ok('digital — create without quantity (trackStock: false) → 201', {
+    method: 'POST', path: `${P}/products`, auth: true,
+    body: { name: `Ebook ${S}`, sku: `EBOOK-${S}`, costPrice: 100, sellingPrice: 500, trackStock: false },
+    expect: { status: 201 },
+  });
+  const digitalId = digital?.json?.product?.id;
+  t.results.push({
+    label: `${t.currentModule} › digital — created product is flagged trackStock: false`,
+    ok: digital?.json?.product?.trackStock === false,
+    issues: digital?.json?.product?.trackStock === false ? [] : [`trackStock is ${digital?.json?.product?.trackStock}`],
+  });
+  await t.check('digital — adjusting the stock of a digital product → 422', {
+    method: 'POST', path: `${P}/products/${digitalId}/adjust`, auth: true,
+    body: { type: 'in', quantity: 5 },
+    expect: { status: 422, code: 'PRODUCT_NOT_STOCK_TRACKED' },
+  });
+  await t.check('digital — adjust refusal is translated (ar)', {
+    method: 'POST', path: `${P}/products/${digitalId}/adjust`, auth: true, lang: 'ar',
+    body: { type: 'out', quantity: 1 },
+    expect: { status: 422, code: 'PRODUCT_NOT_STOCK_TRACKED' },
+  });
+  await t.check('digital — a digital product cannot carry variants', {
+    method: 'POST', path: `${P}/products/${digitalId}/variants`, auth: true,
+    body: { name: `V ${S}`, quantity: 1 },
+    expect: { status: 422, code: 'PRODUCT_NOT_STOCK_TRACKED' },
+  });
+  // Creation writes NO opening stock movement: a digital product has no ledger.
+  // (Checked before the sale/order below, which post their own movements from
+  // the sales/orders controllers — out of this module's scope.)
+  const digitalMovements = await t.ok('digital — creation wrote no stock movement', {
+    method: 'GET', path: `${P}/movements?productId=${digitalId}`, auth: true,
+  });
+  const mvCount = digitalMovements?.json?.total ?? (digitalMovements?.json?.movements ?? []).length;
+  t.results.push({
+    label: `${t.currentModule} › digital — no opening stock movement for a digital product`,
+    ok: mvCount === 0, issues: mvCount === 0 ? [] : [`${mvCount} movement(s) written`],
+  });
+
+  // The whole point: it sells and ships without ever hitting "insufficient stock".
+  await t.ok('digital — can be SOLD without a stock error', {
+    method: 'POST', path: `${P}/sales`, auth: true,
+    body: { customerName: `Buyer ${S}`, items: [{ productId: digitalId, quantity: 4 }], paymentMethod: 'cash' },
+    expect: { status: 201 },
+  });
+  await t.ok('digital — can be ORDERED without a stock error', {
+    method: 'POST', path: `${P}/orders`, auth: true,
+    body: { clientName: `Client ${S}`, items: [{ productId: digitalId, quantity: 9 }] },
+    expect: { status: 201 },
+  });
+  // It must never show up as low stock, whatever its parked quantity.
+  const lowStockList = await t.ok('digital — excluded from the lowStock filter', {
+    method: 'GET', path: `${P}/products?lowStock=true&limit=200`, auth: true,
+  });
+  const inLow = (lowStockList?.json?.products ?? []).some((pr) => pr.id === digitalId);
+  t.results.push({
+    label: `${t.currentModule} › digital — not listed as low stock`,
+    ok: !inLow, issues: inLow ? ['the digital product is reported as low stock'] : [],
+  });
+
+  // ==================================================== PRODUCT IMPORT (feature)
+  const IMP = `${P}/products/import`;
+  await t.check('import — without a token', {
+    method: 'POST', path: IMP, expect: { status: 401, code: 'UNAUTHORIZED' },
+  });
+  await t.check('import — no file at all', {
+    method: 'POST', path: IMP, auth: true, form: new FormData(),
+    expect: { status: 400, code: 'FILE_REQUIRED' },
+  });
+  await t.check('import — an image is not a spreadsheet', {
+    method: 'POST', path: IMP, auth: true, form: imageForm('file', 'pic.png', 'image/png'),
+    expect: { status: 400, code: 'UPLOAD_INVALID_TYPE' },
+  });
+  // The field must be `file`; anything else is an upload error, not a parse error.
+  const wrongField = new FormData();
+  wrongField.append('sheet', new Blob(['name,sku,sellingPrice\nA,A-1,10\n'], { type: 'text/csv' }), 'p.csv');
+  await t.check('import — wrong multipart field name', {
+    method: 'POST', path: IMP, auth: true, form: wrongField,
+    expect: { status: 400, code: 'UPLOAD_UNEXPECTED_FIELD' },
+  });
+  await t.check('import — header line without the required columns', {
+    method: 'POST', path: IMP, auth: true, form: csvForm('foo,bar\n1,2\n'),
+    expect: { status: 400, code: 'IMPORT_COLUMNS_MISSING' },
+  });
+  await t.check('import — header only, no product row', {
+    method: 'POST', path: IMP, auth: true, form: csvForm('nom,reference,prix de vente\n'),
+    expect: { status: 400, code: 'IMPORT_FILE_EMPTY' },
+  });
+  await t.check('import — file empty row report is translated (fr)', {
+    method: 'POST', path: IMP, auth: true, lang: 'fr', form: csvForm('nom,reference,prix de vente\n'),
+    expect: { status: 400, code: 'IMPORT_FILE_EMPTY' },
+  });
+
+  // Per-row report: 2 good rows, and one row per failure mode.
+  const badCsv = [
+    'Nom,Référence,Description,Prix d\'achat,Prix de vente,Quantité,Catégorie,Unité',
+    `Bon produit A,IMPA-${S},desc A,100,250,5,Importée ${S},piece`,          // row 2 — ok
+    `,IMPB-${S},no name,100,250,5,,`,                                        // row 3 — name required
+    `Sans ref,,no sku,100,250,5,,`,                                          // row 4 — sku required
+    `Prix pas un nombre,IMPC-${S},,100,abc,5,,`,                             // row 5 — sellingPrice NaN
+    `Vente sous cout,IMPD-${S},,900,100,5,,`,                                // row 6 — selling < cost
+    `Quantite decimale,IMPE-${S},,10,20,2.5,,`,                              // row 7 — quantity not integer
+    `Doublon dans le fichier,IMPA-${S},,10,20,1,,`,                          // row 8 — duplicate of row 2
+    `Deja en base,EBOOK-${S},,10,600,1,,`,                                   // row 9 — SKU of a live product
+    `Bon produit B,IMPF-${S},desc B,,300,0,Importée ${S},kg`,                // row 10 — ok (no cost, qty 0)
+  ].join('\n') + '\n';
+  const badRep = await t.ok('import — mixed file returns a per-row report', {
+    method: 'POST', path: IMP, auth: true, form: csvForm(badCsv, 'mixed.csv'),
+  });
+  const rep = badRep?.json ?? {};
+  const byRow = (n) => (rep.errors ?? []).filter((e) => e.row === n);
+  const repIssues = [];
+  if (rep.imported !== 2) repIssues.push(`imported ${rep.imported} ≠ 2`);
+  if (rep.skipped !== 7) repIssues.push(`skipped ${rep.skipped} ≠ 7`);
+  if (rep.total !== 9) repIssues.push(`total ${rep.total} ≠ 9`);
+  const expectRow = (n, field, code) => {
+    const hit = byRow(n).find((e) => e.field === field && e.code === code);
+    if (!hit) repIssues.push(`row ${n}: no ${field}/${code} (got ${JSON.stringify(byRow(n))})`);
+    else if (!hit.message || /^[A-Z0-9_]+$/.test(hit.message)) repIssues.push(`row ${n}: message is not a sentence`);
+  };
+  expectRow(3, 'name', 'FIELD_REQUIRED');
+  expectRow(4, 'sku', 'FIELD_REQUIRED');
+  expectRow(5, 'sellingPrice', 'FIELD_MUST_BE_NUMBER');
+  expectRow(6, 'sellingPrice', 'PRODUCT_SELLING_BELOW_COST');
+  expectRow(7, 'quantity', 'FIELD_MUST_BE_INTEGER');
+  expectRow(8, 'sku', 'IMPORT_DUPLICATE_SKU_IN_FILE');
+  expectRow(9, 'sku', 'PRODUCT_SKU_ALREADY_EXISTS');
+  if (byRow(2).length > 0) repIssues.push('row 2 should be valid');
+  if (byRow(10).length > 0) repIssues.push('row 10 should be valid');
+  t.results.push({
+    label: `${t.currentModule} › import — per-row errors carry row + field + code + translated message`,
+    ok: repIssues.length === 0, issues: repIssues,
+  });
+
+  // The two valid rows really landed, with the category created on the fly.
+  const importedList = await t.ok('import — the valid rows are now listed', {
+    method: 'GET', path: `${P}/products?search=IMPA-${S}`, auth: true,
+  });
+  const impA = (importedList?.json?.products ?? []).find((pr) => pr.sku === `IMPA-${S}`);
+  t.results.push({
+    label: `${t.currentModule} › import — imported product exists with its category created on the fly`,
+    ok: !!impA && impA.category?.name === `Importée ${S}`,
+    issues: impA ? (impA.category?.name === `Importée ${S}` ? [] : [`category is ${JSON.stringify(impA.category)}`]) : ['IMPA not found'],
+  });
+  // Re-importing the same file now clashes with the rows just created.
+  const replay = await t.ok('import — replaying the same file imports nothing (SKUs now live)', {
+    method: 'POST', path: IMP, auth: true, form: csvForm(badCsv, 'mixed.csv'),
+  });
+  t.results.push({
+    label: `${t.currentModule} › import — replay imports 0 row and reports every SKU as taken`,
+    ok: replay?.json?.imported === 0,
+    issues: replay?.json?.imported === 0 ? [] : [`imported ${replay?.json?.imported} on replay`],
+  });
+
+  // A fully valid, English-headed sheet imports cleanly.
+  const goodCsv = [
+    'name,sku,description,costPrice,sellingPrice,quantity,category,unit',
+    `Clean A ${S},CLEANA-${S},first,50,120,10,Clean cat ${S},piece`,
+    `Clean B ${S},CLEANB-${S},second,60,130,0,Clean cat ${S},piece`,
+    `Clean C ${S},CLEANC-${S},third,70,140,3,Clean cat ${S},`,
+  ].join('\n') + '\n';
+  const goodRep = await t.ok('import — a small valid file imports every row', {
+    method: 'POST', path: IMP, auth: true, form: csvForm(goodCsv, 'clean.csv'),
+  });
+  const g = goodRep?.json ?? {};
+  t.results.push({
+    label: `${t.currentModule} › import — valid file: imported 3, skipped 0, no error`,
+    ok: g.imported === 3 && g.skipped === 0 && (g.errors ?? []).length === 0,
+    issues: (g.imported === 3 && g.skipped === 0 && (g.errors ?? []).length === 0)
+      ? [] : [`got ${JSON.stringify({ imported: g.imported, skipped: g.skipped, errors: (g.errors ?? []).length })}`],
+  });
+  // An imported row with quantity > 0 gets its opening stock movement.
+  const cleanA = (await t.ok('import — imported product is readable', {
+    method: 'GET', path: `${P}/products?search=CLEANA-${S}`, auth: true,
+  }))?.json?.products?.find((pr) => pr.sku === `CLEANA-${S}`);
+  const cleanMv = cleanA ? await t.ok('import — opening stock movement written for an imported quantity', {
+    method: 'GET', path: `${P}/movements?productId=${cleanA.id}`, auth: true,
+  }) : null;
+  t.results.push({
+    label: `${t.currentModule} › import — imported quantity 10 wrote one "in" movement`,
+    ok: !!cleanA && (cleanMv?.json?.movements ?? []).some((m) => m.type === 'in' && m.quantity === 10),
+    issues: cleanA ? [] : ['CLEANA not found'],
+  });
+  await t.check('import — too many rows', {
+    method: 'POST', path: IMP, auth: true,
+    form: csvForm(
+      'name,sku,sellingPrice\n' + Array.from({ length: 2001 }, (_, i) => `P${i},BULK-${S}-${i},10`).join('\n') + '\n',
+      'huge.csv',
+    ),
+    expect: { status: 400, code: 'IMPORT_TOO_MANY_ROWS' },
+  });
 
   // Cross-tenant sanity: the other merchant must not see my product.
   await t.check('cross-tenant — other merchant cannot read my product', {
