@@ -1,5 +1,6 @@
 export { StatsCard } from './StatsCard';
 export { Modal } from './Modal';
+export { ImportProductsModal } from './ImportProductsModal';
 export { Select } from './Select';
 export { DataTable } from './DataTable';
 export type { Column } from './DataTable';

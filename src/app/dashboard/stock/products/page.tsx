@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { Modal, Select, Pagination, ImageUploader, VariantEditor, RangeSlider } from '@/components/stock';
+import { Modal, Select, Pagination, ImageUploader, VariantEditor, RangeSlider, ImportProductsModal } from '@/components/stock';
 import type { VariantRow } from '@/components/stock';
 import { Button, Input, Badge } from '@/components/ui';
 import {
-  PlusIcon, BoxIcon, EditIcon, TrashIcon, SearchIcon, AlertIcon, LayersIcon, ImageIcon, EyeIcon, FilterIcon, CloseIcon, SparklesIcon, DollarIcon, ArrowUpIcon, ArrowDownIcon, ChevronDownIcon,
+  PlusIcon, BoxIcon, EditIcon, TrashIcon, SearchIcon, AlertIcon, LayersIcon, ImageIcon, EyeIcon, FilterIcon, CloseIcon, SparklesIcon, DollarIcon, ArrowUpIcon, ArrowDownIcon, ChevronDownIcon, UploadIcon,
 } from '@/components/ui/icons';
 import {
   getProducts,
@@ -102,6 +102,7 @@ export default function ProductsPage() {
 
   // Modal state
   const [showModal, setShowModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [viewing, setViewing] = useState<Product | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
@@ -742,6 +743,13 @@ export default function ProductsPage() {
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-white/10 text-zinc-400 hover:text-white hover:border-white/20 transition-all duration-200"
+            >
+              <UploadIcon className="w-4 h-4" />
+              {t('stock.import.button')}
+            </button>
             <Button onClick={openAdd} icon={<PlusIcon className="w-4 h-4" />}>
               {t('stock.products.add')}
             </Button>
@@ -751,7 +759,7 @@ export default function ProductsPage() {
         {error && (
           <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm text-red-400">
             {error}
-            <button onClick={() => setError(null)} className="ml-2 underline text-xs">dismiss</button>
+            <button onClick={() => setError(null)} className="ms-2 underline text-xs">{t('common.dismiss')}</button>
           </div>
         )}
 
@@ -1893,6 +1901,12 @@ export default function ProductsPage() {
           </Button>
         </div>
       </Modal>
+
+      <ImportProductsModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onImported={loadProducts}
+      />
     </div>
   );
 }

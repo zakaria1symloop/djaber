@@ -117,6 +117,9 @@ export interface Product {
   minQuantity: number;
   unit: string;
   hasVariants: boolean;
+  // false = digital product: it has no real stock, so quantity is meaningless
+  // and nothing decrements it.
+  trackStock: boolean;
   imageUrl: string | null;
   isActive: boolean;
   createdAt: string;
@@ -378,6 +381,32 @@ export async function updateProduct(
 
 export async function deleteProduct(productId: string): Promise<{ success: boolean }> {
   return apiRequest(`/api/user-stock/products/${productId}`, { method: 'DELETE' });
+}
+
+/** One problem found in the uploaded sheet. `row` is the row number Excel shows. */
+export interface ProductImportError {
+  row: number;
+  field: string;
+  code: string;
+  message: string;
+}
+
+export interface ProductImportReport {
+  total: number;
+  imported: number;
+  skipped: number;
+  errors: ProductImportError[];
+}
+
+/**
+ * Bulk-import products from a spreadsheet. Note that a file whose every row is
+ * invalid still resolves (200) with `imported: 0` — always read the report, not
+ * just the absence of a thrown error.
+ */
+export async function importProducts(file: File): Promise<ProductImportReport> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiUpload('/api/user-stock/products/import', formData);
 }
 
 // ============================================================================
