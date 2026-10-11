@@ -1,22 +1,28 @@
 'use client';
 // ONB-01 — Onboarding tunnel, steps 1–6 (Figma "ONB-01 — Onboarding — step 1…6"). Progress = Workspace.onboardingStep:
 // leaving step n writes n + 1, "Passer la configuration" writes 99, so the next login resumes at the saved step.
-// Steps 3–5 create entities of later milestones (products M2, channels M3, agents M4): they are drawn as designed and
-// both of their buttons follow the "plus tard" path until those endpoints exist.
-import { Button, buttonClass, Card, ChecklistRow, cn, Field, FormAlert, Input, OptionCard, Select, Skeleton, Steps, toast, type StepItem } from '@djaber/ui';
+// Step 3 creates the first product (`POST /products`, M2). Steps 4–5 create entities of later milestones (agents M4,
+// channels M3): they are drawn as designed and both of their buttons follow the "plus tard" path until those endpoints exist.
+import { CreateProductSchema } from '@djaber/shared';
+import { Button, buttonClass, Card, ChecklistRow, cn, Field, FormAlert, Input, MoneyInput, NumberInput, OptionCard, Select, Skeleton, Steps, toast, type StepItem } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Bot, Box, Plus, X } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { RESEND_COOLDOWN_S } from '@/components/auth/forgot-form';
 import { QueryError } from '@/components/global-states';
 import { authApi } from '@/features/auth/api';
+import { catalogApi, useCategories } from '@/features/catalog/api';
+import { flattenCategories } from '@/features/catalog/contracts';
+import { checkImageFile, IMAGE_ACCEPT } from '@/features/catalog/product-form/images';
 import { useOnboarding, useOnboardingStep, usePatchWorkspace } from '@/features/workspace/api';
 import { Link, useRouter } from '@/i18n/navigation';
 import { checklistOf } from '@/lib/contracts';
 import { formatClock, retryAfterSeconds, useCooldown } from '@/lib/countdown';
-import { errorMessage } from '@/lib/forms';
+import { ApiError } from '@/lib/api';
+import { errorMessage, fieldError } from '@/lib/forms';
 import { ONBOARDING_STEPS, onboardingPath, stepNumber, type OnboardingSlug } from '@/lib/guards';
 import { useT } from '@/lib/i18n';
+import { digitsToInt } from '@/lib/money';
 import { useSession } from '@/lib/session';
 
 const STEP_LABEL: Record<OnboardingSlug, string> = {
@@ -157,39 +163,146 @@ function StockMode() {
   );
 }
 
-/* ---------- 3. First product (catalogue endpoints arrive with M2) ---------- */
+/* ---------- 3. First product: the main button creates it (`POST /products`, CAT-01), then moves on ---------- */
+type FirstProductErrors = { name?: string; price?: string; stock?: string; categoryId?: string; photo?: string; form?: string };
 function FirstProduct() {
   const t = useT();
   const { go, saving } = useAdvance('first-product');
+  const categories = useCategories();
+  const [name, setName] = useState('');
+  const [price, setPrice] = useState('');
+  const [stock, setStock] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null);
+  const [errors, setErrors] = useState<FirstProductErrors>({});
+  const input = useRef<HTMLInputElement>(null);
+  const create = useMutation({ mutationFn: catalogApi.createProduct });
   const later = t('onboarding.availableLater');
+  useEffect(() => () => void (photo && URL.revokeObjectURL(photo.url)), [photo]);
+
+  const pick = (file: File | undefined) => {
+    if (!file) return;
+    const code = checkImageFile(file);
+    if (code) return setErrors((e) => ({ ...e, photo: `${t(`error.${code}`)} (${code})` }));
+    setErrors((e) => ({ ...e, photo: undefined }));
+    setPhoto({ file, url: URL.createObjectURL(file) });
+  };
+  const submit = async () => {
+    const parsed = CreateProductSchema.safeParse({ name, price: digitsToInt(price) ?? undefined, stock: digitsToInt(stock), trackStock: true, ...(categoryId ? { categoryId } : {}) });
+    if (!parsed.success) {
+      const next: FirstProductErrors = {};
+      for (const issue of parsed.error.issues) {
+        const k = issue.path[0];
+        if (k === 'name' || k === 'price' || k === 'stock' || k === 'categoryId') next[k] ??= fieldError(t, issue.message, { max: 255 });
+        else next.form ??= fieldError(t, issue.message);
+      }
+      return setErrors(next);
+    }
+    setErrors({});
+    try {
+      const { data } = await create.mutateAsync(parsed.data);
+      if (photo) {
+        // the product exists: a refused picture never blocks the tunnel (it can be added from the product form)
+        await catalogApi.uploadImage(data.id, photo.file).catch((e: unknown) => toast({ tone: 'warning', message: errorMessage(e, t) }));
+      }
+      await go();
+    } catch (e) {
+      if (e instanceof ApiError) {
+        const next: FirstProductErrors = {};
+        for (const [field, key] of Object.entries(e.body.fields ?? {})) {
+          if (field === 'name' || field === 'price' || field === 'stock' || field === 'categoryId') next[field] = fieldError(t, key, { max: 255 });
+        }
+        // PRODUCT_SKU_ALREADY_EXISTS, PLAN_LIMIT and every other refusal: inline, the typed values stay
+        if (!Object.keys(next).length) next.form = `${errorMessage(e, t)} (${e.code})`;
+        return setErrors(next);
+      }
+      setErrors({ form: errorMessage(e, t) });
+    }
+  };
+  const busy = create.isPending || saving;
   return (
     <Shell slug="first-product" title={t('onboarding.product.title')} description={t('onboarding.product.description')}>
-      <fieldset disabled title={later} className="grid gap-4 sm:grid-cols-[140px_1fr]">
-        <div className="flex h-[140px] flex-col items-center justify-center gap-1 rounded-card border border-dashed border-line-lit text-text-muted">
-          <Plus className="size-4" aria-hidden />
-          <span className="ts-label-micro">{t('onboarding.product.photo')}</span>
-          <span className="ts-label-meta text-accent-money">✦ {t('onboarding.product.aiFill')}</span>
+      <form
+        noValidate
+        aria-busy={busy}
+        className="grid gap-4 sm:grid-cols-[140px_1fr]"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+      >
+        <div className="flex flex-col gap-1.5">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => input.current?.click()}
+            aria-label={t('onboarding.product.photo')}
+            className={cn(
+              'relative flex h-[140px] flex-col items-center justify-center gap-1 overflow-hidden rounded-card border border-dashed text-text-muted hover:text-text-primary disabled:opacity-50',
+              errors.photo ? 'border-accent-alert' : 'border-line-lit',
+            )}
+          >
+            {photo ? (
+              <img src={photo.url} alt="" className="absolute inset-0 size-full object-cover" />
+            ) : (
+              <>
+                <Plus className="size-4" aria-hidden />
+                <span className="ts-label-micro">{t('onboarding.product.photo')}</span>
+                <span className="ts-label-meta text-accent-money">✦ {t('onboarding.product.aiFill')}</span>
+              </>
+            )}
+          </button>
+          <input
+            ref={input}
+            type="file"
+            accept={IMAGE_ACCEPT}
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden
+            data-upload="first-product-photo"
+            onChange={(e) => {
+              pick(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+          {errors.photo ? (
+            <p role="alert" className="text-[12px] text-accent-alert">
+              {errors.photo}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-col gap-3">
-          <Field label={t('common.name')} htmlFor="p-name" required>
-            <Input id="p-name" placeholder={t('onboarding.product.namePlaceholder')} />
+          <Field label={t('common.name')} htmlFor="p-name" required error={errors.name}>
+            <Input id="p-name" dir="auto" maxLength={255} value={name} disabled={busy} aria-invalid={!!errors.name} placeholder={t('onboarding.product.namePlaceholder')} onChange={(e) => setName(e.target.value)} />
           </Field>
-          <div className="grid grid-cols-3 gap-3">
-            <Field label={t('onboarding.product.price')} htmlFor="p-price" required>
-              <Input id="p-price" inputMode="numeric" dir="ltr" />
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label={t('onboarding.product.price')} htmlFor="p-price" required error={errors.price}>
+              <MoneyInput id="p-price" value={price} onValueChange={setPrice} disabled={busy} aria-invalid={!!errors.price} />
             </Field>
-            <Field label={t('onboarding.product.stock')} htmlFor="p-stock" required>
-              <Input id="p-stock" inputMode="numeric" dir="ltr" />
+            <Field label={t('onboarding.product.stock')} htmlFor="p-stock" required error={errors.stock}>
+              <NumberInput id="p-stock" value={stock} onValueChange={setStock} maxDigits={8} disabled={busy} aria-invalid={!!errors.stock} />
             </Field>
-            <Field label={t('onboarding.product.category')} htmlFor="p-cat">
-              <Select id="p-cat" defaultValue="">
+            <Field label={t('onboarding.product.category')} htmlFor="p-cat" error={errors.categoryId}>
+              <Select id="p-cat" value={categoryId} disabled={busy} onChange={(e) => setCategoryId(e.target.value)}>
                 <option value="">{t('common.none')}</option>
+                {flattenCategories(categories.data ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
               </Select>
             </Field>
           </div>
         </div>
-      </fieldset>
-      <p className="ts-label-meta mt-3 text-text-muted">{later}</p>
+        <button type="submit" className="sr-only" tabIndex={-1} aria-hidden>
+          {t('onboarding.product.submit')}
+        </button>
+      </form>
+      {errors.form ? (
+        <FormAlert className="mt-3">
+          <span data-testid="first-product-error">{errors.form}</span>
+        </FormAlert>
+      ) : null}
       <div className="mt-4 flex flex-wrap gap-2">
         <Button variant="ghost" disabledReason={later} className="!h-auto min-h-10 !whitespace-normal py-2 text-start">
           {t('onboarding.product.importFile')}
@@ -202,10 +315,10 @@ function FirstProduct() {
         back="stock-mode"
         backLabel={t('onboarding.step.stock')}
         onLater={go}
-        saving={saving}
+        saving={busy}
         primary={
-          <Button variant="primary" onClick={go} loading={saving}>
-            {saving ? t('onboarding.continuing') : t('onboarding.product.submit')}
+          <Button variant="primary" onClick={submit} loading={busy} data-testid="first-product-submit">
+            {busy ? t('onboarding.continuing') : t('onboarding.product.submit')}
           </Button>
         }
       />

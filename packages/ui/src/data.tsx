@@ -98,7 +98,7 @@ export function Pagination({
         <Button size="sm" aria-label={labels.previous} disabled={page <= 1} onClick={() => onPageChange(page - 1)} className="!px-2">
           <ChevronLeft className="size-4 rtl:-scale-x-100" />
         </Button>
-        <span className="ts-label-meta tabular-nums text-text-secondary">
+        <span className="whitespace-nowrap ts-label-meta tabular-nums text-text-secondary">
           {page} / {pages}
         </span>
         <Button size="sm" aria-label={labels.next} disabled={page >= pages} onClick={() => onPageChange(page + 1)} className="!px-2">

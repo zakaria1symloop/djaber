@@ -119,3 +119,9 @@ Notes
 ## Application status
 
 Applied on 2026-10-11 by script to the Figma file: **95 / 95 rows** (Web V2: 86 incl. the 3 special rows — 3 system-message cards added, subscription pill set to EXPIRÉ, write-impersonation matrix row deleted; Mobile V2: 9). The old page "Screens" and the Mobile V2 section M99 were intentionally left unchanged.
+| Web V2 | CAT-09 — Product page — full | `Galerie (8 max)` | `Galerie (10 max)` |
+| Web V2 | DLG — GDS (stock) II | `IMAGE_TOO_LARGE · max 8 Mo` | `IMAGE_TOO_LARGE · max 5 Mo` |
+| Web V2 | DLG — GDS (stock) II | `IMAGES_LIMIT · 8 images max par produit` | `IMAGES_LIMIT · 10 images max par produit` |
+| Web V2 | DLG — GDS (stock) II | `IMAGE_SMALL (< 500 px)` | `IMAGE_SMALL (< 600 px)` |
+| Web V2 | DLG — GDS (stock) II | `Déposez 1 à 5 photos (JPG/PNG ≤ 8 Mo)` | `Déposez 1 à 5 photos (JPG/PNG/WEBP ≤ 5 Mo)` |
+| Web V2 | DLG — GDS (stock) — dialogs catalogue | `correspondance par nom` | `correspondance par SKU` |

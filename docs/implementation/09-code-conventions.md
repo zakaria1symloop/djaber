@@ -875,7 +875,7 @@ export function useUrlFilters<S extends z.ZodObject<any>>(schema: S) {
   return [value, set] as const;
 }
 ```
-Schema conventions: arrays as `z.string().transform((s) => s.split(',')).optional()`, ranges as `min-max` strings, dates ISO `yyyy-MM-dd`, `tab`, `page`, `pageSize`, `sort`, `density`, `sheet`, `view`.
+Schema conventions: arrays as `z.string().transform((s) => s.split(',')).optional()`, ranges as two parameters named like the API (`minPrice` / `maxPrice`, api-contract §1.6), dates ISO `yyyy-MM-dd`, `tab`, `page`, `pageSize`, `sort`, `density`, `sheet`, `view`.
 
 ### 4.2 Data table with `Actions ⌄` (usage)
 ```tsx

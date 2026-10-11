@@ -11,7 +11,7 @@ export const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 const IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const SHARP_FORMATS = new Set(['jpeg', 'png', 'webp', 'gif']);
 /** Square-ish identity pictures: 512 px is enough for every place they are shown. */
-const MAX_EDGE: Partial<Record<UploadKind, number>> = { avatar: 512, logo: 512 };
+const MAX_EDGE: Partial<Record<UploadKind, number>> = { avatar: 512, logo: 512, category_image: 512 };
 
 export type UploadedFile = { buffer: Buffer; mimetype: string; size: number; originalname?: string };
 export type UploadResult = { id: string; url: string; mime: string; size: number; width: number | null; height: number | null };

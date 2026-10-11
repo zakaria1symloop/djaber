@@ -1,0 +1,382 @@
+'use client';
+// Products list — selection bar and its dialogs. Figma "CAT-08 — Products — bulk bar + row actions menu" and
+// "DLG — GDS (stock) — dialogs catalogue" (Modifier les prix en masse, Changer la catégorie). Bulk endpoints answer one
+// result per product (never all-or-nothing): the result dialog lists OK / ERREUR code rows and can retry the errors.
+import { BulkPriceSchema, computeBulkPrice, formatNumber, type BulkPriceInput } from '@djaber/shared';
+import { BulkBar, Button, Checkbox, Combobox, Dialog, Field, FormAlert, Ltr, NumberInput, Pill, RadioCards, Select, toast, type BulkAction } from '@djaber/ui';
+import { useMutation } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { ApiError } from '@/lib/api';
+import { errorMessage } from '@/lib/forms';
+import { useT } from '@/lib/i18n';
+import { downloadUrl, trackJob } from '@/lib/jobs';
+import { useSession } from '@/lib/session';
+import { catalogApi, useCatalogRefresh, useCategories } from '../api';
+import { flattenCategories, type BulkResponse, type ProductListItem } from '../contracts';
+
+export type BulkKind = 'category' | 'minStock' | 'price' | 'archive';
+type Outcome = { title: string; response: BulkResponse; retry: (ids: string[]) => Promise<BulkResponse> };
+
+/** Progress toast of a products export job (header "Exporter" and bulk "Exporter"). */
+export function useProductsExport() {
+  const t = useT();
+  return async (start: () => Promise<{ jobId: string }>) => {
+    try {
+      const { jobId } = await start();
+      const entity = t('products.export.entity');
+      trackJob({
+        jobId,
+        started: t('toast.jobStarted'),
+        progress: (job) => t('toast.export.progress', { entity, pct: job.progress, rows: formatNumber(job.total ?? 0) }),
+        done: (job) => ({
+          message: t('toast.export.done', { file: t('products.export.file') }),
+          action: job.resultUrl ? { label: t('action.download'), onClick: () => downloadUrl(job.resultUrl!) } : undefined,
+        }),
+        failed: (job, error) => (job?.error ? `${job.error.message} (${job.error.code})` : errorMessage(error, t)),
+      });
+    } catch (e) {
+      toast({ tone: 'danger', message: e instanceof ApiError ? `${errorMessage(e, t)} (${e.code})` : errorMessage(e, t) });
+    }
+  };
+}
+
+export function ProductsBulkBar({ rows, selected, total, onSelectAllPage, onClear }: { rows: ProductListItem[]; selected: ReadonlySet<string>; total: number; onSelectAllPage: () => void; onClear: () => void }) {
+  const t = useT();
+  const { can, workspace } = useSession();
+  const refresh = useCatalogRefresh();
+  const exportProducts = useProductsExport();
+  const [dialog, setDialog] = useState<BulkKind | null>(null);
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const ids = useMemo(() => [...selected], [selected]);
+  const picked = rows.filter((r) => selected.has(r.id));
+  const withVariants = picked.filter((r) => r.hasVariants).length;
+  const forbidden = can('catalog.write') ? undefined : t('toast.forbidden');
+  const advanced = workspace?.stockMode === 'advanced';
+
+  const done = async (title: string, response: BulkResponse, retry: Outcome['retry']) => {
+    setDialog(null);
+    await refresh();
+    if (response.failed === 0) {
+      toast(t('products.bulk.done', { count: response.ok }));
+      onClear();
+    } else setOutcome({ title, response, retry });
+  };
+
+  const actions: BulkAction[] = [
+    { key: 'category', label: t('products.bulk.category'), onSelect: () => setDialog('category'), disabledReason: forbidden },
+    { key: 'minStock', label: t('products.bulk.minStock'), onSelect: () => setDialog('minStock'), disabledReason: forbidden },
+    { key: 'price', label: t('products.bulk.price'), onSelect: () => setDialog('price'), disabledReason: forbidden },
+    { key: 'export', label: t('action.export'), onSelect: () => void exportProducts(() => catalogApi.bulkExport(ids)), disabledReason: forbidden },
+    { key: 'archive', label: t('action.archive'), onSelect: () => setDialog('archive'), destructive: true, disabledReason: forbidden },
+  ];
+  const allOnPage = rows.length > 0 && rows.every((r) => selected.has(r.id));
+  return (
+    <>
+      <BulkBar
+        label={t('products.bulk.label')}
+        summary={`${t('products.bulk.selected', { count: ids.length })}${withVariants ? ` · ${t('products.bulk.withVariants', { count: withVariants })}` : ''}`}
+        actions={actions}
+        note={t('products.bulk.note')}
+        selectAll={allOnPage ? undefined : { label: t('action.selectAll', { count: Math.min(rows.length, total) }), onSelect: onSelectAllPage }}
+        deselectLabel={t('action.deselect')}
+        onDeselect={onClear}
+      />
+      <BulkCategoryDialog open={dialog === 'category'} ids={ids} onClose={() => setDialog(null)} onDone={done} />
+      <BulkMinStockDialog open={dialog === 'minStock'} ids={ids} onClose={() => setDialog(null)} onDone={done} />
+      <BulkPriceDialog open={dialog === 'price'} ids={ids} rows={picked} advanced={advanced} onClose={() => setDialog(null)} onDone={done} />
+      <BulkArchiveDialog open={dialog === 'archive'} ids={ids} onClose={() => setDialog(null)} onDone={done} />
+      <BulkResultDialog
+        outcome={outcome}
+        names={Object.fromEntries(rows.map((r) => [r.id, r.name]))}
+        onClose={() => {
+          setOutcome(null);
+          onClear();
+        }}
+        onRetried={async (response) => {
+          await refresh();
+          setOutcome((o) => (o ? { ...o, response } : o));
+        }}
+      />
+    </>
+  );
+}
+
+type DialogProps = { open: boolean; ids: string[]; onClose: () => void; onDone: (title: string, r: BulkResponse, retry: Outcome['retry']) => Promise<void> };
+const context = (t: ReturnType<typeof useT>, n: number) => t('products.bulk.selected', { count: n });
+
+function useBulk(run: (ids: string[]) => Promise<BulkResponse>, p: DialogProps, title: string) {
+  const t = useT();
+  const [error, setError] = useState<string | null>(null);
+  const m = useMutation({ mutationFn: run });
+  useEffect(() => {
+    if (p.open) setError(null);
+  }, [p.open]);
+  const submit = async () => {
+    setError(null);
+    try {
+      await p.onDone(title, await m.mutateAsync(p.ids), run);
+    } catch (e) {
+      setError(e instanceof ApiError ? `${errorMessage(e, t)} (${e.code})` : errorMessage(e, t));
+    }
+  };
+  return { submit, busy: m.isPending, error };
+}
+
+function Footer({ onClose, busy, submit, label, danger, disabled }: { onClose: () => void; busy: boolean; submit: () => void; label: string; danger?: boolean; disabled?: boolean }) {
+  const t = useT();
+  return (
+    <>
+      <Button variant="ghost" onClick={onClose} disabled={busy}>
+        {t('action.cancel')}
+      </Button>
+      <Button variant={danger ? 'danger' : 'primary'} onClick={submit} loading={busy} disabled={disabled} data-testid="bulk-submit">
+        {label}
+      </Button>
+    </>
+  );
+}
+
+/* ---------- Changer la catégorie ---------- */
+function BulkCategoryDialog(p: DialogProps) {
+  const t = useT();
+  const categories = useCategories(p.open);
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [touched, setTouched] = useState(false);
+  useEffect(() => {
+    if (p.open) {
+      setCategoryId(null);
+      setTouched(false);
+    }
+  }, [p.open]);
+  const title = t('dialog.changeCategory.title');
+  const b = useBulk((ids) => catalogApi.bulkCategory({ ids, categoryId: categoryId === 'none' ? null : categoryId }), p, title);
+  const options = [{ value: 'none', label: t('products.bulk.category.none') }, ...flattenCategories(categories.data ?? []).map((c) => ({ value: c.id, label: c.label }))];
+  return (
+    <Dialog
+      open={p.open}
+      onOpenChange={(o) => !o && !b.busy && p.onClose()}
+      title={title}
+      description={context(t, p.ids.length)}
+      closeLabel={t('action.close')}
+      size="sm"
+      footer={<Footer onClose={p.onClose} busy={b.busy} label={t('products.bulk.category.submit', { count: p.ids.length })} submit={() => (categoryId ? void b.submit() : setTouched(true))} />}
+    >
+      <Field label={t('products.bulk.category.new')} htmlFor="bulk-category" error={touched && !categoryId ? t('validation.required') : undefined}>
+        <Combobox
+          id="bulk-category"
+          value={categoryId}
+          onChange={setCategoryId}
+          options={options}
+          loading={categories.isPending}
+          placeholder={t('products.bulk.category.placeholder')}
+          searchPlaceholder={t('products.filter.categorySearch')}
+          emptyLabel={t('products.filter.noCategory')}
+          disabled={b.busy}
+          invalid={touched && !categoryId}
+        />
+      </Field>
+      {b.error ? <FormAlert className="mt-3">{b.error}</FormAlert> : null}
+    </Dialog>
+  );
+}
+
+/* ---------- Seuil de stock min ---------- */
+function BulkMinStockDialog(p: DialogProps) {
+  const t = useT();
+  const [value, setValue] = useState('');
+  const [touched, setTouched] = useState(false);
+  useEffect(() => {
+    if (p.open) {
+      setValue('');
+      setTouched(false);
+    }
+  }, [p.open]);
+  const title = t('products.bulk.minStock');
+  const b = useBulk((ids) => catalogApi.bulkMinStock({ ids, minStock: Number(value) }), p, title);
+  return (
+    <Dialog
+      open={p.open}
+      onOpenChange={(o) => !o && !b.busy && p.onClose()}
+      title={title}
+      description={context(t, p.ids.length)}
+      closeLabel={t('action.close')}
+      size="sm"
+      footer={<Footer onClose={p.onClose} busy={b.busy} label={t('action.applyCount', { count: p.ids.length })} submit={() => (value === '' ? setTouched(true) : void b.submit())} />}
+    >
+      <Field label={t('products.bulk.minStock.field')} htmlFor="bulk-min" required hint={t('products.bulk.minStock.hint')} error={touched && value === '' ? t('validation.quantity') : undefined}>
+        <NumberInput id="bulk-min" value={value} onValueChange={setValue} maxDigits={7} disabled={b.busy} aria-invalid={touched && value === ''} />
+      </Field>
+      {b.error ? <FormAlert className="mt-3">{b.error}</FormAlert> : null}
+    </Dialog>
+  );
+}
+
+/* ---------- Modifier les prix en masse ---------- */
+function BulkPriceDialog(p: DialogProps & { rows: ProductListItem[]; advanced: boolean }) {
+  const t = useT();
+  const [op, setOp] = useState<BulkPriceInput['op']>('increase');
+  const [value, setValue] = useState('10');
+  const [unit, setUnit] = useState<BulkPriceInput['unit']>('percent');
+  const [roundUpTens, setRound] = useState(true);
+  const [applyToVariants, setVariants] = useState(true);
+  const [touched, setTouched] = useState(false);
+  useEffect(() => {
+    if (!p.open) return;
+    setOp('increase');
+    setValue('10');
+    setUnit('percent');
+    setRound(true);
+    setVariants(true);
+    setTouched(false);
+  }, [p.open]);
+  const effectiveUnit = op === 'set' ? 'dzd' : unit;
+  const input = { op, value: value === '' ? Number.NaN : Number(value), unit: effectiveUnit, roundUpTens, applyToVariants };
+  const parsed = BulkPriceSchema.safeParse({ ids: p.ids, ...input });
+  const title = t('dialog.bulkPrice.title');
+  const b = useBulk((ids) => catalogApi.bulkPrice({ ids, ...input }), p, title);
+  // local preview with the shared formula (the server applies the same one)
+  const preview = parsed.success ? p.rows.map((r) => ({ row: r, next: computeBulkPrice(r.price, input) })) : [];
+  const invalidPrices = preview.filter((x) => x.next <= 0).length;
+  const belowCost = p.advanced ? preview.filter((x) => x.row.costPrice !== null && x.next > 0 && x.next < x.row.costPrice).length : 0;
+  return (
+    <Dialog
+      open={p.open}
+      onOpenChange={(o) => !o && !b.busy && p.onClose()}
+      title={title}
+      description={context(t, p.ids.length)}
+      closeLabel={t('action.close')}
+      size="md"
+      footer={<Footer onClose={p.onClose} busy={b.busy} label={t('action.applyCount', { count: p.ids.length })} submit={() => (parsed.success ? void b.submit() : setTouched(true))} />}
+    >
+      <div className="flex flex-col gap-4">
+        <RadioCards<BulkPriceInput['op']>
+          label={t('products.bulk.price.op')}
+          value={op}
+          onChange={setOp}
+          options={[
+            { value: 'increase', label: t('products.bulk.price.increase') },
+            { value: 'decrease', label: t('products.bulk.price.decrease') },
+            { value: 'set', label: t('products.bulk.price.set') },
+          ]}
+        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t('products.bulk.price.value')} htmlFor="bulk-price-value" required error={touched && !parsed.success ? t(effectiveUnit === 'percent' ? 'validation.range' : 'validation.price', { min: 0, max: 1000 }) : undefined}>
+            <NumberInput id="bulk-price-value" value={value} onValueChange={setValue} disabled={b.busy} aria-invalid={touched && !parsed.success} />
+          </Field>
+          <Field label={t('products.bulk.price.unit')} htmlFor="bulk-price-unit">
+            <Select id="bulk-price-unit" value={effectiveUnit} disabled={b.busy || op === 'set'} onChange={(e) => setUnit(e.target.value as BulkPriceInput['unit'])}>
+              <option value="percent">%</option>
+              <option value="dzd">{t('common.currency')}</option>
+            </Select>
+          </Field>
+        </div>
+        <label className="flex cursor-pointer items-center gap-2.5 text-[13px]">
+          <Checkbox checked={roundUpTens} disabled={b.busy} onChange={(e) => setRound(e.target.checked)} />
+          {t('products.bulk.price.round')}
+        </label>
+        <label className="flex cursor-pointer items-center gap-2.5 text-[13px]">
+          <Checkbox checked={applyToVariants} disabled={b.busy} onChange={(e) => setVariants(e.target.checked)} />
+          {t('products.bulk.price.variants')}
+        </label>
+        {preview.length ? (
+          <div className="rounded-card border border-line-edge bg-ink-raised px-3 py-2.5 ts-label-meta text-accent-starred" data-testid="bulk-price-preview">
+            <span>{t('products.bulk.price.preview')} </span>
+            {preview.slice(0, 3).map((x, i) => (
+              <span key={x.row.id}>
+                {i ? ' · ' : ''}
+                {x.row.name} <Ltr>{`${formatNumber(x.row.price)} → ${formatNumber(x.next)}`}</Ltr>
+              </span>
+            ))}
+            {preview.length > 3 ? ` · … (${preview.length})` : ''}
+            {belowCost ? <span>{` ${t('products.bulk.price.belowCost', { count: belowCost })}`}</span> : null}
+            {invalidPrices ? <span className="text-accent-alert">{` ${t('products.bulk.price.invalid', { count: invalidPrices })}`}</span> : null}
+          </div>
+        ) : null}
+        {b.error ? <FormAlert>{b.error}</FormAlert> : null}
+      </div>
+    </Dialog>
+  );
+}
+
+/* ---------- Archiver (n) ---------- */
+function BulkArchiveDialog(p: DialogProps) {
+  const t = useT();
+  const [release, setRelease] = useState(false);
+  useEffect(() => {
+    if (p.open) setRelease(false);
+  }, [p.open]);
+  const title = t('products.bulk.archive.title', { count: p.ids.length });
+  const b = useBulk((ids) => catalogApi.bulkArchive({ ids, releaseStock: release }), p, title);
+  return (
+    <Dialog
+      open={p.open}
+      onOpenChange={(o) => !o && !b.busy && p.onClose()}
+      title={title}
+      description={t('products.delete.archiveHint')}
+      closeLabel={t('action.close')}
+      size="sm"
+      footer={<Footer onClose={p.onClose} busy={b.busy} label={t('action.archive')} submit={() => void b.submit()} />}
+    >
+      <label className="flex cursor-pointer items-center gap-2.5 text-[13px]">
+        <Checkbox checked={release} disabled={b.busy} onChange={(e) => setRelease(e.target.checked)} />
+        {t('products.bulk.archive.release')}
+      </label>
+      {b.error ? <FormAlert className="mt-3">{b.error}</FormAlert> : null}
+    </Dialog>
+  );
+}
+
+/* ---------- per-item results ---------- */
+function BulkResultDialog({ outcome, names, onClose, onRetried }: { outcome: Outcome | null; names: Record<string, string>; onClose: () => void; onRetried: (r: BulkResponse) => Promise<void> }) {
+  const t = useT();
+  const [error, setError] = useState<string | null>(null);
+  const failed = outcome?.response.results.filter((r) => !r.ok) ?? [];
+  const retry = useMutation({ mutationFn: (ids: string[]) => outcome!.retry(ids) });
+  const again = async () => {
+    setError(null);
+    try {
+      const next = await retry.mutateAsync(failed.map((f) => f.id));
+      // rows that succeeded before stay OK; the retried ones take their new result
+      const byId = new Map(next.results.map((r) => [r.id, r]));
+      const results = outcome!.response.results.map((r) => byId.get(r.id) ?? r);
+      await onRetried({ results, ok: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length, warnings: next.warnings });
+    } catch (e) {
+      setError(errorMessage(e, t));
+    }
+  };
+  return (
+    <Dialog
+      open={!!outcome}
+      onOpenChange={(o) => !o && !retry.isPending && onClose()}
+      title={outcome?.title ?? ''}
+      description={outcome ? t('products.bulk.result.summary', { ok: outcome.response.ok, failed: outcome.response.failed }) : undefined}
+      closeLabel={t('action.close')}
+      size="md"
+      footer={
+        <>
+          {failed.length ? (
+            <Button onClick={again} loading={retry.isPending}>
+              {t('products.bulk.result.retry', { count: failed.length })}
+            </Button>
+          ) : null}
+          <Button variant="primary" onClick={onClose} disabled={retry.isPending}>
+            {t('action.close')}
+          </Button>
+        </>
+      }
+    >
+      <ul className="max-h-72 divide-y divide-line-hairline overflow-y-auto" data-testid="bulk-results">
+        {(outcome?.response.results ?? []).map((r) => (
+          <li key={r.id} className="flex items-center gap-3 py-2 text-[13px]" data-ok={r.ok}>
+            <Pill tone={r.ok ? 'success' : 'danger'} className="!rounded-[4px]">
+              {r.ok ? t('products.bulk.result.ok') : t('products.bulk.result.error')}
+            </Pill>
+            <span className="min-w-0 flex-1 truncate">{names[r.id] ?? r.id}</span>
+            {r.error ? <span className="max-w-[55%] text-end ts-label-meta text-accent-alert">{`${r.error.message} (${r.error.code})`}</span> : null}
+          </li>
+        ))}
+      </ul>
+      {error ? <FormAlert className="mt-3">{error}</FormAlert> : null}
+    </Dialog>
+  );
+}

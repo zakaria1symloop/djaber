@@ -1,0 +1,449 @@
+// 04 §3 — the only place where a quantity changes (CLAUDE.md rule 5): every change writes a `StockMovement` with
+// before / after, the parent of a variant is recomputed (Σ active variants, never incremented) and low-stock is evaluated.
+// CAT-05 / GDS-02 / GDS-03: manual adjustments, the movement journal, reversal, the stock dashboard and the snapshot.
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { prisma, Prisma, TenantContext, type MovementReason, type MovementRefType, type MovementType, type StockMovement, type Tx } from '@djaber/db';
+import type { StockAdjustmentInput, StockMovementView } from '@djaber/shared';
+import { AppException, notFound } from '../../core/errors/app.exception';
+import { page, toSkipTake, type Page } from '../../core/http/pagination';
+import { OutboxService } from '../../core/outbox/outbox.service';
+import { algiersDay, algiersDayEnd, algiersDayStart } from '../../core/time/algiers';
+import { ExportService } from '../jobs/export.service';
+import { action, likePattern, stockStateOf } from './catalog.util';
+import type { MovementsQuery, SnapshotQuery } from './dto';
+import { LowStockEvaluator } from './low-stock.evaluator';
+import { thumbUrlOf } from './product-image.util';
+
+export type MoveInput = {
+  productId: string;
+  variantId?: string | null;
+  /** relative change, or the exact quantity wanted */
+  change: { delta: number } | { setTo: number };
+  /** defaults to `adjustment_in` / `adjustment_out` by the sign of the change */
+  type?: MovementType;
+  reason: MovementReason;
+  note?: string | null;
+  refType?: MovementRefType | null;
+  refId?: string | null;
+  actorId?: string | null;
+  /** Admin+ `force`: the quantity may go below zero */
+  allowNegative?: boolean;
+  /** throw STOCK_QUANTITY_ZERO instead of silently doing nothing when the quantity does not change */
+  requireChange?: boolean;
+  /** bulk writers (import) emit their own events */
+  silent?: boolean;
+};
+export type MoveResult = { movement: StockMovement | null; before: number; after: number; productStock: number };
+
+type ProductLock = { id: string; name: string; sku: string; trackStock: boolean; hasVariants: boolean; stock: number | null; minStock: number; isActive: boolean; moderationStatus: string };
+type VariantLock = { id: string; name: string; sku: string | null; stock: number; minStock: number };
+
+const MOVEMENT_INCLUDE = {
+  product: { select: { id: true, name: true, sku: true, price: true, hasVariants: true, trackStock: true, images: { where: { isPrimary: true }, take: 1, select: { url: true } } } },
+  variant: { select: { id: true, name: true } },
+  actor: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+  reverses: { select: { id: true } },
+} satisfies Prisma.StockMovementInclude;
+type MovementRow = Prisma.StockMovementGetPayload<{ include: typeof MOVEMENT_INCLUDE }>;
+
+/** Movements a person may counter-pass: the manual ones. The others belong to their document (order, sale, purchase, count). */
+const REVERSIBLE_REF: (MovementRefType | null)[] = [null, 'manual', 'import'];
+const SORTS = ['createdAt'] as const;
+
+@Injectable()
+export class StockService implements OnModuleInit {
+  constructor(
+    private readonly outbox: OutboxService,
+    private readonly lowStock: LowStockEvaluator,
+    private readonly exports: ExportService,
+  ) {}
+
+  onModuleInit() {
+    this.exports.registerSource('movements', (filters, ctx) => this.exportTable(filters as MovementsQuery, ctx.locale));
+  }
+
+  // --- the stock writer ---------------------------------------------------------------------------------------------------
+  /** Row-locks the product (and the variant), applies the change, writes the movement. Must run inside a transaction. */
+  async move(tx: Tx, input: MoveInput): Promise<MoveResult> {
+    const ws = TenantContext.workspaceId();
+    const [product] = await tx.$queryRaw<ProductLock[]>`
+      SELECT "id","name","sku","trackStock","hasVariants","stock","minStock","isActive","moderationStatus"::text AS "moderationStatus"
+      FROM "Product" WHERE "id" = ${input.productId}::uuid AND "workspaceId" = ${ws}::uuid FOR UPDATE`;
+    if (!product) throw notFound();
+    if (!product.trackStock) throw new AppException('PRODUCT_NOT_STOCK_TRACKED');
+    if (product.hasVariants && !input.variantId) throw new AppException('PRODUCT_HAS_VARIANTS');
+
+    let variant: VariantLock | undefined;
+    if (input.variantId) {
+      [variant] = await tx.$queryRaw<VariantLock[]>`
+        SELECT "id","name","sku","stock","minStock" FROM "ProductVariant"
+        WHERE "id" = ${input.variantId}::uuid AND "productId" = ${product.id}::uuid AND "workspaceId" = ${ws}::uuid AND "deletedAt" IS NULL FOR UPDATE`;
+      if (!variant) throw new AppException('VARIANT_NOT_FOUND');
+    }
+
+    const before = variant ? variant.stock : (product.stock ?? 0);
+    const after = 'setTo' in input.change ? input.change.setTo : before + input.change.delta;
+    const delta = after - before;
+    if (delta === 0) {
+      if (input.requireChange) throw new AppException('STOCK_QUANTITY_ZERO', {}, { quantity: 'validation.quantity' });
+      return { movement: null, before, after, productStock: product.stock ?? 0 };
+    }
+    if (after < 0 && !input.allowNegative) throw new AppException('STOCK_INSUFFICIENT', { available: before }, { quantity: 'validation.quantity' });
+
+    let productStock = after;
+    if (variant) {
+      await tx.productVariant.update({ where: { id: variant.id }, data: { stock: after } });
+      productStock = await this.recomputeProductStock(tx, product.id);
+    } else {
+      await tx.product.update({ where: { id: product.id }, data: { stock: after } });
+    }
+    const movement = await tx.stockMovement.create({
+      data: {
+        productId: product.id,
+        variantId: variant?.id ?? null,
+        type: input.type ?? (delta > 0 ? 'adjustment_in' : 'adjustment_out'),
+        quantity: delta,
+        quantityBefore: before,
+        quantityAfter: after,
+        reason: input.reason,
+        note: input.note ?? null,
+        refType: input.refType ?? null,
+        refId: input.refId ?? null,
+        actorId: input.actorId === undefined ? (TenantContext.get().userId ?? null) : input.actorId,
+        // wall clock, not the transaction start (`now()`): several movements of one transaction keep their order in the journal
+        createdAt: new Date(),
+      } as Prisma.StockMovementUncheckedCreateInput,
+    });
+    if (!input.silent) {
+      await this.lowStock.evaluate(tx, { product, variant, before, after });
+      await this.emitProductUpdated(tx, product.id);
+    }
+    return { movement, before, after, productStock };
+  }
+
+  /**
+   * Opening quantities of products that hold their own stock, set-based (import commit: up to 2 000 rows in two
+   * statements): the quantity is added and one `in` movement per product is written with before / after.
+   */
+  async openingStock(tx: Tx, lines: { productId: string; quantity: number }[], ref: { reason: MovementReason; refType: MovementRefType; refId?: string | null }) {
+    const rows = lines.filter((l) => l.quantity > 0);
+    if (!rows.length) return 0;
+    const t = TenantContext.get();
+    const ids = rows.map((r) => r.productId);
+    const qty = rows.map((r) => r.quantity);
+    return tx.$executeRaw`
+      WITH upd AS (
+        UPDATE "Product" p SET "stock" = COALESCE(p."stock", 0) + x.qty
+        FROM unnest(${ids}::uuid[], ${qty}::int[]) AS x(id, qty)
+        WHERE p."id" = x.id AND p."workspaceId" = ${t.workspaceId}::uuid AND p."trackStock" AND NOT p."hasVariants"
+        RETURNING p."id" AS id, p."stock" AS after, x.qty AS qty
+      )
+      INSERT INTO "StockMovement" ("id","workspaceId","productId","type","quantity","quantityBefore","quantityAfter","reason","refType","refId","actorId","createdAt")
+      SELECT uuid_generate_v7(), ${t.workspaceId}::uuid, upd.id, 'in'::"MovementType", upd.qty, upd.after - upd.qty, upd.after,
+             ${ref.reason}::"MovementReason", ${ref.refType}::"MovementRefType", ${ref.refId ?? null}::uuid, ${t.userId ?? null}::uuid, now()
+      FROM upd`;
+  }
+
+  /** CAT-03: product stock = Σ stock of its active, live variants (recomputed, never incremented). */
+  async recomputeProductStock(tx: Tx, productId: string): Promise<number> {
+    const sum = await tx.productVariant.aggregate({ where: { productId, deletedAt: null, isActive: true }, _sum: { stock: true } });
+    const stock = sum._sum.stock ?? 0;
+    await tx.product.update({ where: { id: productId }, data: { stock } });
+    return stock;
+  }
+
+  /** WS `product.updated { product: { id, stock, isActive, moderationStatus, lowStock } }` (03-events §2). */
+  async emitProductUpdated(tx: Tx, productId: string) {
+    const p = await tx.product.findFirst({
+      where: { id: productId },
+      select: { id: true, stock: true, minStock: true, trackStock: true, isActive: true, moderationStatus: true, deletedAt: true, variants: { where: { deletedAt: null, isActive: true }, select: { stock: true, minStock: true } } },
+    });
+    if (!p) return;
+    const lowStock = p.trackStock && ((p.stock ?? 0) <= p.minStock || p.variants.some((v) => v.stock <= v.minStock));
+    await this.outbox.ws(tx, `ws:${TenantContext.workspaceId()}`, 'product.updated', {
+      id: p.id,
+      product: { id: p.id, stock: p.stock, isActive: p.isActive, moderationStatus: p.moderationStatus, lowStock, archived: !!p.deletedAt },
+    });
+  }
+
+  // --- POST /stock/adjustments (CAT-05) -----------------------------------------------------------------------------------
+  async adjust(input: StockAdjustmentInput): Promise<StockMovementView> {
+    if (input.type !== 'set' && input.quantity === 0) throw new AppException('STOCK_QUANTITY_ZERO', {}, { quantity: 'validation.quantity' });
+    const movementId = await prisma.$transaction(async (db) => {
+      const tx = db as Tx;
+      const live = await tx.product.findFirst({ where: { id: input.productId, deletedAt: null }, select: { id: true } });
+      if (!live) throw notFound();
+      const r = await this.move(tx, {
+        productId: input.productId,
+        variantId: input.variantId ?? null,
+        change: input.type === 'set' ? { setTo: input.quantity } : { delta: input.type === 'in' ? input.quantity : -input.quantity },
+        reason: input.reason,
+        note: input.note ?? null,
+        refType: 'manual',
+        allowNegative: input.force === true,
+        requireChange: true,
+      });
+      return r.movement!.id;
+    });
+    return this.getMovement(movementId);
+  }
+
+  // --- movements journal (GDS-02) -------------------------------------------------------------------------------------------
+  private where(q: MovementsQuery): Prisma.StockMovementWhereInput {
+    const and: Prisma.StockMovementWhereInput[] = [];
+    if (q.productId) and.push({ productId: q.productId });
+    if (q.variantId) and.push({ variantId: q.variantId });
+    if (q.type?.length) and.push({ type: { in: q.type } });
+    if (q.reason?.length) and.push({ reason: { in: q.reason } });
+    if (q.refType?.length) and.push({ refType: { in: q.refType } });
+    if (q.refId) and.push({ refId: q.refId });
+    if (q.createdById) and.push({ actorId: q.createdById === 'system' ? null : q.createdById });
+    if (q.from) and.push({ createdAt: { gte: algiersDayStart(q.from) } });
+    if (q.to) and.push({ createdAt: { lt: algiersDayEnd(q.to) } });
+    // quantities are signed: the range applies to the absolute value
+    if (q.minQty !== undefined) and.push({ OR: [{ quantity: { gte: q.minQty } }, { quantity: { lte: -q.minQty } }] });
+    if (q.maxQty !== undefined) and.push({ quantity: { gte: -q.maxQty, lte: q.maxQty } });
+    if (q.categoryId) and.push({ product: { categoryId: q.categoryId } });
+    if (q.q && q.q.length >= 2) {
+      const contains = { contains: q.q, mode: 'insensitive' as const };
+      and.push({ OR: [{ product: { name: contains } }, { product: { sku: contains } }, { variant: { name: contains } }, { note: contains }] });
+    }
+    return { AND: and };
+  }
+
+  private async referenceLabels(rows: { refType: MovementRefType | null; refId: string | null }[]) {
+    const ids = (type: MovementRefType) => [...new Set(rows.filter((r) => r.refType === type && r.refId).map((r) => r.refId!))];
+    const labels = new Map<string, string>();
+    const [orders, sales, purchases, variants, inventories] = await Promise.all([
+      ids('order').length ? prisma.order.findMany({ where: { id: { in: ids('order') } }, select: { id: true, number: true } }) : [],
+      ids('sale').length ? prisma.sale.findMany({ where: { id: { in: ids('sale') } }, select: { id: true, number: true } }) : [],
+      ids('purchase').length ? prisma.purchase.findMany({ where: { id: { in: ids('purchase') } }, select: { id: true, number: true } }) : [],
+      ids('variant').length ? prisma.productVariant.findMany({ where: { id: { in: ids('variant') } }, select: { id: true, name: true } }) : [],
+      ids('inventory').length ? prisma.inventoryCount.findMany({ where: { id: { in: ids('inventory') } }, select: { id: true, number: true } }) : [],
+    ]);
+    for (const r of [...orders, ...sales, ...purchases, ...inventories]) labels.set(r.id, r.number);
+    for (const v of variants) labels.set(v.id, v.name);
+    return labels;
+  }
+
+  private view(m: MovementRow, labels: Map<string, string>): StockMovementView {
+    const isReversal = !!m.reverses;
+    const reversible = !isReversal && !m.reversedByMovementId && REVERSIBLE_REF.includes(m.refType);
+    return {
+      id: m.id,
+      product: {
+        id: m.product.id,
+        name: m.product.name,
+        sku: m.product.sku,
+        price: m.product.price,
+        primaryImageUrl: m.product.images[0] ? thumbUrlOf(m.product.images[0].url) : null,
+        hasVariants: m.product.hasVariants,
+        trackStock: m.product.trackStock,
+      },
+      variant: m.variant,
+      type: m.type,
+      quantity: m.quantity,
+      before: m.quantityBefore,
+      after: m.quantityAfter,
+      reason: m.reason,
+      note: m.note,
+      reference: m.refType && m.refId ? { type: m.refType, id: m.refId, label: labels.get(m.refId) ?? m.refId.slice(0, 8) } : null,
+      actor: m.actor,
+      reversed: !!m.reversedByMovementId,
+      createdAt: m.createdAt.toISOString(),
+      actions: [action('open_product', 'catalog.read'), action('reverse', 'stock.adjust', { reasonCode: reversible ? undefined : 'GDS_MOVEMENT_IMMUTABLE' })],
+    };
+  }
+
+  private async views(rows: MovementRow[]) {
+    const labels = await this.referenceLabels(rows);
+    return rows.map((r) => this.view(r, labels));
+  }
+
+  async listMovements(q: MovementsQuery): Promise<Page<StockMovementView>> {
+    const field = (q.sort ?? '-createdAt').replace(/^-/, '');
+    if (!(SORTS as readonly string[]).includes(field)) throw new AppException('BAD_REQUEST');
+    const dir = (q.sort ?? '-createdAt').startsWith('-') ? 'desc' : 'asc';
+    const where = this.where(q);
+    const paging = q.limit ? { skip: 0, take: q.limit } : toSkipTake(q);
+    const [rows, total] = await Promise.all([
+      prisma.stockMovement.findMany({ where, include: MOVEMENT_INCLUDE, orderBy: [{ createdAt: dir }, { id: dir }], ...paging }),
+      prisma.stockMovement.count({ where }),
+    ]);
+    return page(await this.views(rows), total, q.limit ? { page: 1, pageSize: q.limit } : q);
+  }
+
+  async getMovement(id: string): Promise<StockMovementView> {
+    const row = await prisma.stockMovement.findFirst({ where: { id }, include: MOVEMENT_INCLUDE });
+    if (!row) throw notFound();
+    return (await this.views([row]))[0]!;
+  }
+
+  /** `POST /stock/movements/:id/reverse` — the journal is append-only: a new inverse movement with reason `correction`. */
+  async reverse(id: string, note?: string | null): Promise<StockMovementView> {
+    const inverseId = await prisma.$transaction(async (db) => {
+      const tx = db as Tx;
+      const m = await tx.stockMovement.findFirst({ where: { id }, include: { reverses: { select: { id: true } }, product: { select: { deletedAt: true } } } });
+      if (!m) throw notFound();
+      if (m.reverses || m.reversedByMovementId || !REVERSIBLE_REF.includes(m.refType) || m.product.deletedAt) throw new AppException('GDS_MOVEMENT_IMMUTABLE');
+      const r = await this.move(tx, {
+        productId: m.productId,
+        variantId: m.variantId,
+        change: { delta: -m.quantity },
+        reason: 'correction',
+        note: note ?? null,
+        refType: 'manual',
+        refId: m.id,
+        requireChange: true,
+      });
+      // conditional update: two concurrent reversals of the same movement cannot both succeed
+      const claimed = await tx.stockMovement.updateMany({ where: { id: m.id, reversedByMovementId: null }, data: { reversedByMovementId: r.movement!.id } });
+      if (!claimed.count) throw new AppException('GDS_MOVEMENT_IMMUTABLE');
+      return r.movement!.id;
+    });
+    return this.getMovement(inverseId);
+  }
+
+  private async exportTable(q: MovementsQuery, locale: 'fr' | 'ar' | 'en') {
+    const rows = await this.views(await prisma.stockMovement.findMany({ where: this.where(q), include: MOVEMENT_INCLUDE, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 50_000 }));
+    const h = MOVEMENT_HEADERS[locale] ?? MOVEMENT_HEADERS.fr;
+    type R = StockMovementView;
+    return {
+      sheetName: h.sheet,
+      fileName: `mouvements-${algiersDay()}`,
+      rows,
+      columns: [
+        { header: h.date, value: (r: R) => r.createdAt },
+        { header: h.product, value: (r: R) => r.product.name },
+        { header: 'SKU', value: (r: R) => r.product.sku },
+        { header: h.variant, value: (r: R) => r.variant?.name ?? '' },
+        { header: h.type, value: (r: R) => r.type },
+        { header: h.quantity, value: (r: R) => r.quantity },
+        { header: h.before, value: (r: R) => r.before },
+        { header: h.after, value: (r: R) => r.after },
+        { header: h.reason, value: (r: R) => r.reason ?? '' },
+        { header: h.note, value: (r: R) => r.note ?? '' },
+        { header: h.reference, value: (r: R) => r.reference?.label ?? '' },
+        { header: h.actor, value: (r: R) => (r.actor ? `${r.actor.firstName} ${r.actor.lastName}`.trim() : '') },
+      ],
+    };
+  }
+
+  // --- GET /stock/overview (GDS-01) -----------------------------------------------------------------------------------------
+  async overview() {
+    const t = TenantContext.get();
+    const ws = t.workspaceId;
+    const [totals] = await prisma.$queryRaw<
+      { total: number; active: number; tracked: number; services: number; low: number; out: number; items: number; cost: number; retail: number }[]
+    >`
+      WITH lines AS (
+        -- one line per stock holder: a tracked product without variants, or an active variant of a tracked product
+        SELECT p."id" AS pid, COALESCE(p."stock", 0) AS qty, p."minStock" AS min, COALESCE(p."costPrice", 0) AS cost, p."price" AS price
+        FROM "Product" p
+        WHERE p."workspaceId" = ${ws}::uuid AND p."deletedAt" IS NULL AND p."trackStock" AND NOT p."hasVariants"
+        UNION ALL
+        SELECT p."id", v."stock", v."minStock", COALESCE(v."costPrice", p."costPrice", 0), v."price"
+        FROM "ProductVariant" v JOIN "Product" p ON p."id" = v."productId"
+        WHERE p."workspaceId" = ${ws}::uuid AND p."deletedAt" IS NULL AND p."trackStock" AND p."hasVariants" AND v."deletedAt" IS NULL AND v."isActive"
+      ), alerts AS (
+        SELECT pid, bool_or(qty <= 0) AS any_out, bool_and(qty <= 0) AS all_out, bool_or(qty > 0 AND qty <= min) AS any_low FROM lines GROUP BY pid
+      )
+      SELECT
+        (SELECT count(*) FROM "Product" WHERE "workspaceId" = ${ws}::uuid AND "deletedAt" IS NULL)::int AS total,
+        (SELECT count(*) FROM "Product" WHERE "workspaceId" = ${ws}::uuid AND "deletedAt" IS NULL AND "isActive")::int AS active,
+        (SELECT count(*) FROM "Product" WHERE "workspaceId" = ${ws}::uuid AND "deletedAt" IS NULL AND "trackStock")::int AS tracked,
+        (SELECT count(*) FROM "Product" WHERE "workspaceId" = ${ws}::uuid AND "deletedAt" IS NULL AND NOT "trackStock")::int AS services,
+        (SELECT count(*) FROM alerts WHERE NOT all_out AND (any_low OR any_out))::int AS low,
+        (SELECT count(*) FROM alerts WHERE all_out)::int AS out,
+        COALESCE((SELECT sum(GREATEST(qty, 0)) FROM lines), 0)::int AS items,
+        COALESCE((SELECT sum(GREATEST(qty, 0)::bigint * cost) FROM lines), 0)::float8 AS cost,
+        COALESCE((SELECT sum(GREATEST(qty, 0)::bigint * price) FROM lines), 0)::float8 AS retail`;
+    const x = totals!;
+    const advanced = t.stockMode === 'advanced';
+    const recent = await this.listMovements({ page: 1, pageSize: 25, limit: 10 } as MovementsQuery);
+    return {
+      mode: t.stockMode,
+      totalProducts: x.total,
+      activeProducts: x.active,
+      trackedProducts: x.tracked,
+      services: x.services,
+      lowStockCount: x.low,
+      outOfStockCount: x.out,
+      totalItems: x.items,
+      // simple mode has no cost price (ONB-03): the value at cost is an advanced figure
+      valueAtCost: advanced ? Math.round(x.cost) : null,
+      valueAtRetail: Math.round(x.retail),
+      potentialMargin: advanced ? Math.round(x.retail - x.cost) : null,
+      recentMovements: recent.data,
+    };
+  }
+
+  /** `GET /products/low-stock` — alert lines (products and variants at or below their threshold), worst first. */
+  async lowStockLines(limit = 200) {
+    const ws = TenantContext.workspaceId();
+    const rows = await prisma.$queryRaw<{ productId: string; variantId: string | null; name: string; variantName: string | null; sku: string | null; stock: number; minStock: number; imageUrl: string | null }[]>`
+      SELECT * FROM (
+        SELECT p."id" AS "productId", NULL::uuid AS "variantId", p."name", NULL::text AS "variantName", p."sku", COALESCE(p."stock", 0) AS "stock", p."minStock",
+               (SELECT i."url" FROM "ProductImage" i WHERE i."productId" = p."id" AND i."isPrimary" LIMIT 1) AS "imageUrl"
+        FROM "Product" p
+        WHERE p."workspaceId" = ${ws}::uuid AND p."deletedAt" IS NULL AND p."trackStock" AND NOT p."hasVariants" AND COALESCE(p."stock", 0) <= p."minStock"
+        UNION ALL
+        SELECT p."id", v."id", p."name", v."name", COALESCE(v."sku", p."sku"), v."stock", v."minStock",
+               (SELECT i."url" FROM "ProductImage" i WHERE i."productId" = p."id" AND i."isPrimary" LIMIT 1)
+        FROM "ProductVariant" v JOIN "Product" p ON p."id" = v."productId"
+        WHERE p."workspaceId" = ${ws}::uuid AND p."deletedAt" IS NULL AND p."trackStock" AND p."hasVariants" AND v."deletedAt" IS NULL AND v."isActive" AND v."stock" <= v."minStock"
+      ) AS a ORDER BY a."stock" ASC, a."name" ASC LIMIT ${limit}`;
+    return rows.map((r) => ({
+      productId: r.productId,
+      variantId: r.variantId,
+      name: r.name,
+      variantName: r.variantName,
+      sku: r.sku,
+      stock: r.stock,
+      minStock: r.minStock,
+      state: stockStateOf(r.stock, r.minStock),
+      primaryImageUrl: r.imageUrl ? thumbUrlOf(r.imageUrl) : null,
+    }));
+  }
+
+  // --- GET /stock/snapshot?date (06 §8.6) -----------------------------------------------------------------------------------
+  /** Stock as of the end of `date` (Africa/Algiers) = current quantity − movements written after that instant. */
+  async snapshot(q: SnapshotQuery) {
+    const ws = TenantContext.workspaceId();
+    const workspace = await prisma.workspace.findUnique({ where: { id: ws }, select: { createdAt: true } });
+    if (!workspace || q.date < algiersDay(workspace.createdAt)) throw new AppException('INVALID_DATE_RANGE', {}, { date: 'validation.date' });
+    const end = algiersDayEnd(q.date);
+    const category = q.categoryId ? Prisma.sql`AND p."categoryId" = ${q.categoryId}::uuid` : Prisma.empty;
+    const pattern = q.q && q.q.length >= 2 ? likePattern(q.q) : null;
+    const search = pattern ? Prisma.sql`AND (f_unaccent(p."name") ILIKE f_unaccent(${pattern}) OR p."sku" ILIKE ${pattern})` : Prisma.empty;
+    const lines = Prisma.sql`
+      SELECT p."id" AS "productId", NULL::uuid AS "variantId", p."name" AS "name", p."sku" AS "sku", p."createdAt" AS "createdAt",
+             COALESCE(p."stock", 0) - COALESCE((SELECT sum(m."quantity") FROM "StockMovement" m WHERE m."productId" = p."id" AND m."variantId" IS NULL AND m."createdAt" >= ${end}), 0) AS qty,
+             COALESCE(p."costPrice", 0) AS cost
+      FROM "Product" p
+      WHERE p."workspaceId" = ${ws}::uuid AND p."deletedAt" IS NULL AND p."trackStock" AND NOT p."hasVariants" AND p."createdAt" < ${end} ${category} ${search}
+      UNION ALL
+      SELECT p."id", v."id", p."name" || ' — ' || v."name", COALESCE(v."sku", p."sku"), v."createdAt",
+             v."stock" - COALESCE((SELECT sum(m."quantity") FROM "StockMovement" m WHERE m."variantId" = v."id" AND m."createdAt" >= ${end}), 0),
+             COALESCE(v."costPrice", p."costPrice", 0)
+      FROM "ProductVariant" v JOIN "Product" p ON p."id" = v."productId"
+      WHERE p."workspaceId" = ${ws}::uuid AND p."deletedAt" IS NULL AND p."trackStock" AND p."hasVariants" AND v."deletedAt" IS NULL AND v."createdAt" < ${end} ${category} ${search}`;
+    const { skip, take } = toSkipTake(q);
+    const [rows, [agg]] = await Promise.all([
+      prisma.$queryRaw<{ productId: string; variantId: string | null; name: string; sku: string | null; qty: number | bigint; cost: number }[]>`
+        SELECT * FROM (${lines}) AS s ORDER BY s."name" ASC, s."createdAt" ASC LIMIT ${take} OFFSET ${skip}`,
+      prisma.$queryRaw<{ total: number; value: number }[]>`SELECT count(*)::int AS total, COALESCE(sum(GREATEST(s.qty, 0)::bigint * s.cost), 0)::float8 AS value FROM (${lines}) AS s`,
+    ]);
+    const data = rows.map((r) => {
+      const quantityAtDate = Number(r.qty);
+      return { productId: r.productId, variantId: r.variantId, name: r.name, sku: r.sku, quantityAtDate, costPriceAtDate: r.cost, valueAtDate: Math.max(quantityAtDate, 0) * r.cost };
+    });
+    return { ...page(data, agg?.total ?? 0, q), meta: { totalValue: Math.round(agg?.value ?? 0), date: q.date } };
+  }
+}
+
+const MOVEMENT_HEADERS = {
+  fr: { sheet: 'Mouvements', date: 'Date', product: 'Produit', variant: 'Variante', type: 'Type', quantity: 'Quantité', before: 'Avant', after: 'Après', reason: 'Motif', note: 'Note', reference: 'Référence', actor: 'Par' },
+  en: { sheet: 'Movements', date: 'Date', product: 'Product', variant: 'Variant', type: 'Type', quantity: 'Quantity', before: 'Before', after: 'After', reason: 'Reason', note: 'Note', reference: 'Reference', actor: 'By' },
+  ar: { sheet: 'الحركات', date: 'التاريخ', product: 'المنتج', variant: 'المتغيّر', type: 'النوع', quantity: 'الكمية', before: 'قبل', after: 'بعد', reason: 'السبب', note: 'ملاحظة', reference: 'المرجع', actor: 'بواسطة' },
+} as const;

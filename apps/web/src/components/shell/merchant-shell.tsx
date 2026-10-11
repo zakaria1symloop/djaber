@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { RESEND_COOLDOWN_S } from '@/components/auth/forgot-form';
 import { PageSessionExpired, PageSuspended, QueryError } from '@/components/global-states';
 import { authApi } from '@/features/auth/api';
+import { useCatalogEvents } from '@/features/catalog/api';
 import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import { routing } from '@/i18n/routing';
 import { apiSession } from '@/lib/api';
@@ -17,6 +18,8 @@ import type { LegalPending } from '@/lib/contracts';
 import { formatClock, retryAfterSeconds, useCooldown } from '@/lib/countdown';
 import { errorMessage } from '@/lib/forms';
 import { decideApp, loginHref } from '@/lib/guards';
+import { JobToaster } from '@/lib/jobs';
+import { useWsStatus, WsProvider } from '@/lib/ws';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { meKey, useSession } from '@/lib/session';
 import { AppShell } from './app-shell';
@@ -91,7 +94,7 @@ export function MerchantShell({ children }: { children: ReactNode }) {
 
   const suspended = decision.kind === 'state' && decision.state === 'suspended';
   return (
-    <>
+    <WsProvider>
       <AppShell groups={groups} footer={FOOTER_NAV} topBar={<TopBar />} banners={banners} counters={{ notifications: 0 }}>
         {suspended ? (
           <PageSuspended reason={t(`shell.suspendReason.${s.workspace?.suspendReason ?? 'other'}`)} supportHref={`/${locale}/help/contact`} />
@@ -99,9 +102,17 @@ export function MerchantShell({ children }: { children: ReactNode }) {
           children
         )}
       </AppShell>
+      <JobToaster />
+      <LiveCaches />
       <LegalInterstitial />
-    </>
+    </WsProvider>
   );
+}
+
+/** WS events → TanStack Query cache (mounted inside WsProvider). */
+function LiveCaches() {
+  useCatalogEvents();
+  return null;
 }
 
 /* ---------- Banners: e-mail unverified, read-only member, suspended, deletion scheduled, offline ---------- */
@@ -170,12 +181,19 @@ function TopBar() {
   const t = useT();
   const s = useSession();
   const plan = s.workspace?.plan;
+  const ws = useWsStatus();
   return (
     <>
       {s.me && s.me.memberships.length > 1 ? (
         <div className="me-auto min-w-0">
           <WorkspaceSwitcher />
         </div>
+      ) : null}
+      {ws === 'reconnecting' ? (
+        <span role="status" data-testid="ws-reconnecting" className="inline-flex h-5 items-center gap-1.5 rounded-full border border-accent-starred/40 px-2 ts-label-meta text-accent-starred">
+          <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-accent-starred" />
+          {t('state.ws.reconnecting')}
+        </span>
       ) : null}
       {plan && plan.limits.monthlyCredits >= 0 ? (
         // links to /settings/credits from M9 (the page does not exist yet)

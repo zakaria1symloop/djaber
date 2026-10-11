@@ -41,7 +41,7 @@ Handshake: `auth: { token }` (access JWT, claims `{ sub, wid, role, pr, imp }`).
 | `job.updated` | `user:<createdById>` + `ws:<wsId>` | `{ job: { id, kind, status: 'queued'|'running'|'done'|'failed'|'cancelled', progress: 0–100, message?, result?, error? } }` | JobService progress/finish |
 | `channel.updated` | `ws:<wsId>` | `{ channel: { id, status, pausedReason, agentId, lastSeenAt } }` | connect/reconnect/pause/disconnect/token error/plan pause |
 | `agent.updated` | `ws:<wsId>` | `{ agent: { id, status, pausedReason, pendingInsights, version } }` | pause/resume/activate/insight created or resolved |
-| `product.updated` | `ws:<wsId>` | `{ product: { id, stock, isActive, moderationStatus, lowStock } }` | stock change, archive, moderation decision |
+| `product.updated` | `ws:<wsId>` | `{ product: { id, stock, isActive, moderationStatus, lowStock, archived } }` (hard delete: `{ product: { id, deleted: true } }`) | stock change, edit, image re-encoded, archive / restore, moderation decision |
 | `workspace.updated` | `ws:<wsId>` | `{ workspace: { status: 'active'\|'suspended'\|'deletion_scheduled', stockMode, locale, subscription: { planSlug, status, dunningStage, currentPeriodEnd } } }` | settings/subscription/status change (suspend, reactivate, deletion scheduled/cancelled) |
 | `member.updated` | `ws:<wsId>` | `{ membership: { userId, role, readOnly, removed? } }` | role change/remove |
 | `auth.expiring` | socket | `{ expiresAt }` | 60 s before JWT exp |
@@ -70,8 +70,8 @@ Global defaults: `removeOnComplete: 1000`, `removeOnFail: false` (kept for DLQ v
 | `outbox` | `sheets-upsert` | `{ connectionId, orderId }` | `sheets:<orderId>` (delay 5 s; new enqueue replaces) | 4 (global limiter 50/min) | 5 / exponential 30 s; 429 ⇒ pause queue 60 s | `SheetsConnection.status='error'`, `lastError`, `sheets.error` notification (token errors ⇒ immediately, no retry) |
 | `outbox` | `email-send` | `{ to, template, locale, params, notificationId? }` | `mail:<notificationId|uuid>` | 8 | 3 / 30 s | log; bounce handling via provider webhook sets `User.emailBounced` |
 | `outbox` | `push-send` | `{ userId, notificationId }` | `push:<notificationId>:<userId>` | 8 | 2 / 10 s | invalid tokens pruned (`UNREGISTERED`) |
-| `jobs` | `product-import-preview` | `{ jobId, uploadId, mapping? }` | `job:<jobId>` | 2 | 1 | `Job.status='failed'`, error code (`IMPORT_*`) |
-| `jobs` | `product-import-commit` | `{ jobId }` | `job:<jobId>:commit` | 1 per workspace | 1 (transaction; resumable = rerun is safe because preview rows carry `committedAt`) | `Job.failed`, nothing written |
+| `jobs` | `product-import-preview` | `{ jobId, workspaceId }` (file key and mapping live in `Job.payload`) | `job:<jobId>`, then `job:<jobId>:map<n>` for each re-mapping | 2 | 1 | `Job.status='failed'`, error code (`IMPORT_*`) |
+| `jobs` | `product-import-commit` | `{ jobId, workspaceId }` | `job:<jobId>:commit<n>` (n = preview revision) | 1 per workspace | 1 (transaction; rerun is safe: `Job.result.stage = committed` makes it a no-op) | `Job.failed`, nothing written |
 | `jobs` | `export` | `{ jobId, kind: 'orders'|'products'|'clients'|'report'|'audit'|'ledger'|'movements'|'conversation-eval', filters, format }` | `job:<jobId>` | 2 | 1 | `Job.failed` `REPORT_EXPORT_FAILED`; retry button |
 | `jobs` | `page-analysis` | `{ jobId, channelId }` | `job:<jobId>` | 2 | 1 + resumable (`Job.result.cursor`) | partial results kept, "retry remaining" |
 | `jobs` | `agent-generation` | `{ jobId, channelId, days }` | `job:<jobId>` | 2 | 1 | `Job.failed`, credits not debited |
