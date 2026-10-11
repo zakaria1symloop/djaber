@@ -1,0 +1,300 @@
+# 12 — Screen states
+
+For every screen: the states to design (Figma) and build, what each shows, which actions are available, and permission/RTL notes. Global states (apply everywhere) first. `[S]` = skeleton, `[E]` = empty, `[FE]` = filtered-empty, `[X]` = error, `[RO]` = read-only.
+
+## 0. Global
+
+| State | Shows | Actions |
+|---|---|---|
+| Loading | skeleton matching the final layout (no spinners for lists) | — |
+| Empty | icon, one-line reason, one primary CTA | CTA |
+| Filtered-empty | "No results for these filters" | Clear filters |
+| Error | message from 11 + Retry | Retry; details for admins |
+| Offline | top banner "No connection"; cached data visible; mutations disabled | auto-retry |
+| 403 | "You don't have permission" page with role explanation | back |
+| 404 | "Not found or no access" | back |
+| Session expired | redirect to login with return URL; drafts kept in memory | — |
+| Unsaved changes | dialog Leave / Stay | — |
+| Plan expired | banner "Plan expiré — limites du plan gratuit appliquées"; paused badges on excess channels/agents; everything else works | Upgrade |
+| Workspace suspended | full-page state (`WORKSPACE_SUSPENDED`) | contact support |
+| Credits exhausted | banner + thread state; AI badge "stopped" on agents | Upgrade |
+| Plan-paused resources | badge "paused by plan" on channels/agents | Upgrade |
+| Channel needs reconnect | banner on Home + page card + composer | Reconnect |
+| Approval pending (Meta/Google) | notice on connect screens | — |
+| Read-only member | banner; all mutations hidden | — |
+| Job running | toast with progress; result in notifications | View |
+| Conflict (409) | dialog "Changed by {name}, reload" | Reload |
+| RTL | mirrored layout; numbers, phones, SKUs LTR; icons with direction mirrored; date pickers mirrored | — |
+
+## 1. Auth
+
+| Screen | States |
+|---|---|
+| Login | default · submitting · invalid credentials (form-level) · rate-limited (countdown) · 2FA step (code / recovery code, invalid) · email unverified notice |
+| Sign up | default · field errors · email taken (links) · success → onboarding |
+| Forgot password | default · sent (always) · cooldown · mail unavailable |
+| Reset password | validating · form · weak password · expired/invalid (resend) · done (auto-login) |
+| Verify email | verifying · done · expired (resend) |
+| Accept invitation | logged-out (login/sign-up with that email — no workspace created) · logged-in (accept) · expired · already member · plan limit |
+
+### 1b. Public & CMS
+
+| Screen | States |
+|---|---|
+| Landing / features / pricing / help | [S] · published · 404 · locale fallback to `fr` with notice |
+| CMS / legal page | [S] · published · unpublished/404 · locale fallback |
+| "Aide" (in-app) | opens the in-app help center (§25, D46: embedded CMS help entries in the user's locale, status widget, contact form, "Mes demandes"); the public help page stays reachable at `/help` without login |
+
+## 2. Onboarding (each step: default, saving, skipped)
+
+Welcome · Stock mode (two Option Cards) · First product (minimal form; validation; "later") · Agent (4 Preset Cards + "from scratch") · Connect page (explainer; OAuth refused; approval pending; per-page report) · Ready (summary of what's done/skipped).
+
+## 3. Home
+
+[S] · new workspace (checklist 0/4, queue empty "Tout est calme") · normal · queue with items (needs-human cards with time/agent/last message, failed parcels, low stock, reconnect) · banners (credits 80 %, 100 %, plan expiring/expired, reconnect, approval) · KPI tiles with period "30 j" · my pages (0 / n, paused, reconnect badges). Actions: open queue item, quick actions, Get Started steps.
+
+## 4. Queue & inbox
+
+| Screen | States |
+|---|---|
+| Queue | [S] · [E] ("Tout est calme") · list = needs-human conversations + pending insights (types incl. error); badge = their sum · item actions (open, resolve, dismiss) · failed parcels are **not** here (Home À traiter, Delivery overview) |
+| Inbox list | [S] · no channel connected (CTA connect) · [E] per tab · list (unread, AI paused tag, assignee, channel badge, risk badge) · search results · [FE] · channel switcher (all / one / paused / needs reconnect) · loading more |
+| Thread | [S] · messages: customer text / image / audio (player + transcript, transcribing…, failed) / video / file / location / sticker / postback; AI reply + cards; human reply with name; system events (order created, handoff, resolved, AI paused/resumed, skipped-window); failed send (retry); outside-window skipped label · banners: handoff reason + Resume AI; AI paused by human + Resume; needs reconnect; credits exhausted; channel paused · composer: default, sending (optimistic), image attached, image too large, outside window (reason), disabled (channel inactive / read-only member) · quick replies popover · assign popover · notes panel · empty thread (new conversation) |
+| Client panel | known (card, orders, create order) · placeholder client (name "FB User", prompt to complete) · merged notice · no client |
+| Delete conversation | confirm dialog (Admin+) |
+
+## 5. Orders
+
+| Screen | States |
+|---|---|
+| List | [S] · [E] ("Aucune commande" + New order) · [FE] · tabs with counts (All / New / Confirmed / Preparing / Shipped / Delivered / Cancelled / Returned) · filters sheet (date, confirmation, payment, delivery, has remaining, source, wilaya, amount, risk) · row (number, AI/manual badge, channel, client+phone, items count, total, paid, remaining, status pill, confirmation pill + calls, risk badge, date, contextual CTA) · selection + bulk bar (only valid actions; per-item results dialog) · export running (job) · print preview |
+| Order page | [S] · editable (new/confirmed/preparing/shipped) · [RO] fields (delivered/cancelled/returned; actions limited to Mark returned (Admin+, from delivered) and notes) · contact edit inline with validation · items (variant, snapshot prices) · delivery block: not sent / sending… (queued) / sent with tracking timeline / failed with reason + actions / returned · payment block (unpaid/partial/paid/pending_link, COD note, payment link P2) · history timeline (actor, reason) · calls list · notes · linked conversation preview · conflict dialog |
+| New order | [S] · client picker (search results, "use existing" on phone conflict, create inline) · items (product search, variant select required, stock warnings) · delivery (wilaya select, commune select/free, address, stop-desk toggle, fee quote: grid / free / not served / override by Admin) · payment (amount paid, method) · status (new/confirmed) · validation errors inline · saving · insufficient stock error on line |
+| Confirm dialog | review (contact editable, region, items, totals, last 3 calls) · address missing (blocked) · outcome step (outcome = `CallResult` value `picked_up` · `no_answer` · `busy` · `voicemail` · `rejected` · `wrong_number` · `callback` + note; one `OrderCall` row each) · result step (status result, Prepare, Send to courier enabled/disabled with reason, Close) · [RO] for closed orders · call on terminal warning |
+| Cancel / Return / Delete dialogs | reason (cancel), "return received" checkbox (restores stock), typed confirmation (delete), blocked states (delivered delete) |
+| Payment link (P2) | create · created (copy/send) · paid · expired · failed · amount mismatch (admin) |
+
+## 6. Delivery
+
+| Screen | States |
+|---|---|
+| Overview | [S] · no courier (CTA) · tiles by `ShipmentStatus` (`pending` · `sent` · `picked_up` · `in_transit` · `out_for_delivery` · `delivered` · `failed` · `returned` · `cancelled` · `stale`) · failures list with actions (re-attempt, mark returned) · returns · "Sans mouvement" (no event > 5 d while `sent` / `picked_up` / `in_transit`) · `stale` shipments (no event 30 d) |
+| Fees | table 58 rows (default / custom source, active toggle) · inline edit/save/reset per row (reset = `DELETE /delivery/fees/:wilayaId`) · fill missing · reset all (confirm) · free-delivery rule (off / workspace threshold `Workspace.freeDeliveryThreshold` / per wilaya `DeliveryFeeRule.freeAbove`) · copy from courier (P2; choose courier; diff preview) |
+| Couriers | [E] · list cards (provider, sender, default, active, last test) · add/edit (provider select → dynamic fields; EcoTrack URL; test: testing / ok (latency) / rejected / unreachable; sender wilaya) · delete (blocked if active shipments) |
+| Send dialog | single (prefilled from order; editable; courier select with default; stop-desk select from `CourierCommuneMap` when stop-desk; rates from courier if available; weight) · bulk (n orders; invalid ones listed with reason) · sending · queued (courier down) · result per order (sent / error mapped to field / queued) |
+| Tracking | timeline (events with source; `picked_up` is a status step) · sync now (spinner, last sync) · failed (reason + actions) · stale · not found · cancelled |
+| Labels | single (PDF viewer) · merged (job) · fallback Djaber label |
+
+## 7. Clients
+
+List ([S], [E], [FE], filters, pagination, export job) · Detail (metrics tiles, addresses with default, orders list, conversations list, placeholder notice, merged-into notice, risk badge) · Add/edit (phone conflict → use existing; address with wilaya/commune) · Delete (confirm; blocked note none) .
+
+## 8. GDS — catalogue
+
+| Screen | States |
+|---|---|
+| Stock dashboard | [S] · simple (products, low stock, value retail) · advanced (+ cost value, items, suppliers, recent movements) · empty catalogue CTA |
+| Products list | [S] · [E] (Add / Import) · [FE] · table (image, name, variants count, SKU, category, price, cost adv., margin adv., qty with low pill, unit, active) · grid · filters sheet · sort · low-stock quick filter (deep link) · selection (archive, export) |
+| Product page | [S] · images gallery (primary, reorder, caption) · info · variants table (adv.) · stock (tracked / service) · expenses & margins (adv., P2) · agents using it · movements · archived state (restore) |
+| Add/edit | simple form · with variants (editor rows, per-variant errors) · from photo (analysing…, filled, failed) · validation inline · selling < cost warning · SKU taken · plan limit dialog · saving |
+| Adjust stock | type (in / out / set) · reason · variant selector (variant products) · insufficient error · service product blocked |
+| Import | step upload (drop zone; too large; wrong type) · parsing… · preview (valid rows, row errors, plan limit notice, missing columns state) · committing (job) · done (imported / skipped, download error report) |
+| Categories / Units | list · add/edit · delete with reassign select · in-use blocked |
+| Services | list ([E]) |
+
+## 9. AI agents
+
+| Screen | States |
+|---|---|
+| List | [S] · [E] (presets + scratch) · cards (active / paused manual / paused by plan / draft, channels chips, products scope, read-only model badge, pending insights badge) · limit reached (New agent → plan dialog; drafts never count toward `maxAgents`, the limit is checked at activation) |
+| Create | preset picker (4 cards + scratch) · wizard steps 1–5 (validation per step, read-only model badge assigned by `AiRoute` — the merchant never picks a model; `AGENT_MODEL_UNAVAILABLE` fallback note, channels list with "linked to X — move?" dialog, product selection with search) · saving · plan limit |
+| Agent page | metrics (period) · channels · insights (pending/resolved/dismissed filter, types) · config summary · paused banner · delete (confirm; open conversations notice) |
+| Edit | tabs · dirty guard · saving · conflict |
+| Playground | empty · conversation · typing · tool call chips (search, fee, order dry-run, cancel dry-run) · cards with real data · model badge · rate-limited · provider error |
+| Insights queue | [E] · list by type · resolve with instruction (text) · dismiss · already handled |
+| Generate from page | start (choose channel) · job progress (reading n conversations…) · review (summary, languages, questions, instructions editable) · apply (new agent / update linked agent confirm) · failed (retry) · rate-limited |
+
+## 10. Channels
+
+List ([S], [E] + connect CTAs, platform tabs, cards with statuses active / paused manual / paused by plan / needs reconnect / disconnected, pending approval notice) · Connect (explainer with permission list; approval pending; OAuth popup blocked (mobile: browser); refused; per-page report rows connected / skipped reason / warning; plan limit rows) · Page overview (insights tiles / unavailable; counts; agent summary / none + link; last sync) · Messages (same as inbox filtered) · History (filters, [E]) · Analysis (idle; permission required + reconnect; job progress; review grid with validation; importing; done counts; failed partial) · Disconnect dialog (consequences listed).
+
+## 11. Analytics & reports
+
+Period picker (presets; custom: empty dates, start chosen, applied; > 732 d error) · each tab: [S], [E] (no data in period), charts, tables, "revenue definition" tooltip · Reports hub ([S], search, [FE]) · report template ([S], [E], KPIs, chart, table, export running job, > 5 000 rows notice).
+
+## 12. GDS — operations (P2)
+
+Suppliers (list/[E]/detail/add-edit/delete) · Purchases (list with `PurchaseStatus` + payment pills, [E], detail, new with supplier picker + items, receive dialog with per-line qty + over-receive warning `200 ⚠ PURCHASE_OVER_RECEIVE` (accepted, line quantity raised, weighted-average cost recomputed), cancel confirm with stock reversal notice, delete blocked states, mark paid) · Sales (list, [E], detail, new with client link + partial payment, edit payment, delete blocked when paid) · Cash register (period pills in sync, KPIs, table with auto rows locked (tooltip), manual add/edit/delete, [E]) · Movements (filters, [E]) · Recommendations (list, [E], generate job, stats, toggle, delete).
+
+## 13. Notifications & settings
+
+Notifications (list with type icons, unread, filter by every type, [E], mark all, deep link) · Settings sections each with: default, saving, saved toast, validation; Workspace profile (logo upload states); Stock mode (two cards; advanced mode adds `Workspace.targetMarginPct`, default 35); Quick replies (list, [E], add, edit, delete, reorder); System messages (4 keys × 3 locales: `handoff`, `out_of_hours`, `out_of_stock`, `welcome`; preview, reset to default); Handoff reminder minutes; Members (list roles, invite dialog, pending invitations, resend (cooldown) / revoke, remove confirm, owner immutable, ownership transfer dialog (password + `totpCode` when 2FA enabled), plan limit); Security (password change, 2FA setup QR + codes, sessions list with revoke); Integrations (couriers link; Google Sheets: not connected / connecting / pick sheet (Picker / URL) / active with last sync / error token revoked / sheet missing; API keys: list, create → shown once dialog, revoke; webhooks: list, add/edit events, deliveries log with replay, disabled banner); Plan & billing (plan cards current/available, cycle toggle, Chargily checkout redirect, return page `/settings/billing/return`: verifying… / success / pending (webhook late, auto-poll) / failed / expired, invoices list with "Payer maintenant" on `unpaid`, cancel at period end confirm, expiring banner, dunning state); Credits (pill plan / packs, ledger table, buy pack, calculator); Danger zone (typed confirmation, blocked states).
+
+## 14. Platform admin (P2)
+
+Each list: [S], [E], [FE], filters, detail; providers test states (testing / ok / rejected / unreachable / no key); plan delete blocked (in use); subscription conflict (already active); CMS editor per locale with preview and unpublished state; audit log filters + export job; force-release channel confirm.
+
+## 15. Mobile parity notes
+
+Same states; `banner` → top sheet, `dialog` → bottom sheet (row actions from the same `ActionDescriptor[]`, long-press multi-select); Meta OAuth, Google OAuth and invitation acceptance open the system browser with "En attente du retour…" and the "J'ai terminé" fallback; no plan checkout on mobile (plan page read-only "Le changement de plan et le paiement se font sur le web"); credit packs = store IAP states (§28); file import via picker; push pre-prompt + permission states (granted / denied with settings link). Full rules and frame list: [14-mobile-app.md](14-mobile-app.md) (Figma pages Mobile V2 (base FR) + Screens (AR/EN)).
+
+
+---
+
+# States added from the Figma web design (2026-10-06)
+
+Sections 16–28 catalogue every state, dialog and tab drawn in Figma that §0–15 did not list. Frame names are exact (index in 08 §7.16). Workspace-editable customer system messages are exactly the **4 keys** of §13 (`handoff`, `out_of_hours`, `out_of_stock`, `welcome`, D43); the fixed platform texts `customer.unavailable`, `customer.unsupportedMedia`, `customer.voiceFailed` (11 §9) are not editable and have no settings state. "Aide" = in-app help center (§1b, §25, D46).
+
+## 16. GLOBAL catalogue `[GLOBAL — States, toasts, banners & system dialogs catalogue]`
+
+| Pattern | States (all pages reuse them — never design a new pattern) |
+|---|---|
+| List — 6 states | Squelette (5 rows, same grid, 300 ms delay, never a full-screen spinner) · Vide (icon, one-line reason, one primary CTA, e.g. "Aucune commande — + Nouvelle commande") · Vide filtré ("Aucun résultat … Effacer les filtres", names the active filters) · Erreur ("Impossible de charger (ref. xxxx) · Détails pour les admins ▸ · Réessayer") · Hors ligne (banner "données du 05 oct. 11:40", actions disabled) · Chargement de plus (skeleton row at the bottom, "25 de plus", `?page=&sort=` in the URL) |
+| Form — states | Enregistrement… (button disabled + spinner, fields locked) · Validation (summary "2 erreurs — …" at the top, scroll to the first, inline per field) · Quitter sans enregistrer ? (Rester / Quitter) · Modifié par quelqu'un d'autre (`CONFLICT 409`, actor + age, draft kept; Recharger merges untouched fields and highlights yours / Écraser) · Enregistré (toast 3 s + back to context, never a confirmation page) |
+| Detail — states | Introuvable (404 with "Retour aux …") · Supprimée (date, actor, "restaurable par un admin pendant 30 j", Restaurer) · Accès refusé (403 with the role explanation, Retour) |
+| System pages | 403 page (role shown, Retour à l'accueil) · Espace suspendu (`WORKSPACE_SUSPENDED`, reason visible, data kept, Contacter le support) · Session expirée (🔒, return URL shown, Se connecter) · Offline / 404 / Plan expiré / Crédits épuisés = the 4 dedicated GLOBAL frames · Nouvelle version disponible (web build changed: Recharger, drafts kept) · Mise à jour requise (mobile, blocking, `APP_UPDATE_REQUIRED`) · Maintenance (read-only banner, `MAINTENANCE_MODE`) · Ré-acceptation des conditions (interstitial, `LEGAL_REACCEPT_REQUIRED`) |
+| Toasts | bottom-right · 5 s · stacked max 3 · optional action. Drawn: "Commande #… confirmée · Ouvrir", `FORBIDDEN`, `PROVIDER_UNAVAILABLE`, `META_UNAVAILABLE` (auto-retry), `BAD_REQUEST` (ref + Détails), export progress "64 % (1 240 lignes) · Voir", export done "Télécharger", `PLAN_NEAR_LIMIT` "9 / 10 membres · Plans" |
+| Banners | top of content · one at a time · **priority: suspendu > reconnexion > crédits 100 % > plan expiré > crédits 80 % > plan expire > approbation Meta > e-mail non vérifié** (+ incident banner right after suspendu, D58; read-only member and deletion-scheduled banners at the level of plan expiré). Drawn: Crédits épuisés (Acheter des crédits) · 80 % (projection "épuisés le …") · Plan expire dans 7 j (Renouveler) · Plan expiré (Choisir un plan) · Page jeton expiré `PAGE_TOKEN_EXPIRED` (Reconnecter) · Instagram en attente Meta · Lecture seule `READ_ONLY_MEMBER` · Vérifiez votre e-mail (Renvoyer) · Reprendre la configuration étape n / 6 (Reprendre) · Hors ligne (Réessayer) · Suppression programmée le … (Annuler, Owner) |
+| System dialogs | Limite du plan atteinte (`PLAN_LIMIT` resource n / N, Plus tard / Comparer les plans) · Vérifiez votre e-mail (`AUTH_EMAIL_UNVERIFIED`, OK + Renvoyer) · Tâche en cours (n %, Annuler la tâche / Continuer en arrière-plan) · Nouvelle version disponible · Raccourcis clavier (Entrée / Maj+Entrée, Échap, ← →, `/`, C · Entrée · R · M · E · A · P · Suppr, Ctrl+K, ?) |
+
+## 17. AUTH catalogue `[AUTH — States catalogue]`
+
+| Screen | States |
+|---|---|
+| Connexion | envoi (button "Connexion…" + spinner) · identifiants (`AUTH_INVALID_CREDENTIALS` at form level, never per field) · trop d'essais (`RATE_LIMITED`, countdown "Réessayez dans 4:59", button disabled) · non vérifié (login accepted + Home banner) · session expirée (message + return to the origin URL) · 2FA step · language FR/AR/EN switch |
+| Double authentification | code (6 digits, "expire dans 4:32") · code invalide (`AUTH_2FA_INVALID`, "n essais restants") · code de récupération (single use, "9 restants ensuite") · expiré (`AUTH_MFA_TOKEN_EXPIRED` 5 min → "Recommencez la connexion") · bloqué (5 wrong codes ⇒ `RATE_LIMITED` 15 min); the 2FA code is asked at every login (no trusted-device option; the Figma checkbox is a text fix) |
+| Mot de passe oublié | default · envoyé (always "Si un compte existe…") · cooldown ("Renvoyer dans 0:58") · mail indisponible (`MAIL_NOT_CONFIGURED`) |
+| Réinitialiser | validation… (spinner) · invalide (`AUTH_RESET_TOKEN_INVALID` → Redemander) · expiré (dedicated frame) · formulaire (new + confirm; `AUTH_PASSWORD_WEAK` with strength bar; mismatch) · terminé (auto-login → Home; other sessions revoked) |
+| Vérification e-mail | vérification… · confirmée ✓ (frame "done + reminder") · expiré (`AUTH_VERIFY_TOKEN_EXPIRED`, Renvoyer with 60 s cooldown) · envoi échoué à l'inscription (banner "vérifiez plus tard") |
+| Invitation | logged-out (dedicated frame, data from `GET /invitations/:token`: fixed e-mail, names, password, "Aucun espace n'est créé") · connecté bon e-mail (Accepter = `POST /invitations/:token/accept`) · connecté autre e-mail (`INVITATION_EMAIL_MISMATCH`, "Déconnectez-vous puis utilisez …") · expirée (`INVITATION_EXPIRED`) · déjà membre (redirect + toast) · limite du plan (accepted read-only, `READ_ONLY_MEMBER` note) |
+| Créer mon espace | (user menu, invited-only users) shop name · wilaya · stock mode · "Créer et démarrer l'onboarding" (`POST /workspaces`: `Subscription(status=trial, plan=pro, +14 d)` + 300-credit grant per D60, becomes Owner, switcher appears) |
+| Sélecteur d'espace & menu utilisateur | switcher visible ≥ 2 memberships (name · role · plan, "+ Créer un espace"; switching reloads the current page in the new workspace or Home) · user menu: Profil · Langue ⌄ · Créer un espace · Plateforme (super admin) · Déconnexion · Déconnecter tous les appareils |
+| Onboarding — transverse | enregistrement (Continuer… disabled) · passé ("plus tard", Home checklist reminds) · reprise (banner at next login) · OAuth refusé (step 5: Connexion annulée + Réessayer / Plus tard) · approbation (step 5 IG pending, continue) · rapport pages (connected / ignored reason / limit) · e-mail non vérifié (step 5 blocked + Renvoyer) · quitter ("Passer la configuration" → Home 0/4) · step 6 Tout est prêt (summary + next actions) |
+
+## 18. Home & notifications `[ANA-01b, NTF-01]`
+
+Home: skeleton · À faire card types COLIS / STOCK / PAGE / INSIGHT / CONVERSATION / RAPPEL / TÂCHE (Waiting / Handled greyed 24 h "fait par …"; sort urgency then age; max 8 + Tout voir) · banners per 16 · page-card badges ACTIF / EN ATTENTE META / RECONNEXION REQUISE / EN PAUSE (PLAN) / 0 page card · AR mirrored frame. Notifications: family tabs with counts · unread count from server · type multi-filter · "Non lues" toggle · Tout marquer lu · rows with family label + slug + age + Ouvrir › · "Charger les 20 suivantes" · empty "Vous êtes à jour ✓" · skeleton 5 rows · deep link per type (03 §35) · preferences table (families × in-app / e-mail / push / son).
+
+## 19. Lists mechanics `[ORD-05 v2, MECH ×2, CAT-08 ×2, CLI-03, INB filter, GDS-05]`
+
+| Element | States |
+|---|---|
+| Row `Actions ⌄` | closed chip · open menu (state-aware items, primary highlighted with Enter, shortcuts, greyed items with the error code in the footer, e.g. "Envoyer au transporteur grisé : `DELIVERY_ORDER_NOT_CONFIRMED`") · row hover ink/raised · row click opens record · client click opens side sheet |
+| Selection bar | n sélectionnées · actions icon + label · Tout sélectionner (n) · Désélectionner · bulk result dialog (OK / ERREUR code / IGNORÉE reason rows, "Réessayer les n erreurs", Fermer) |
+| Filter panel | n actifs · n résultats · state in URL · groups with model source label · chips with × · Effacer tout · Enregistrer cette vue · Réinitialiser · Afficher n |
+| Saved views | chips (DÉFAUT) · + Enregistrer la vue courante… · menu renommer / définir par défaut / partager à l'équipe (admin) / supprimer · shared = read-only |
+| Density / columns | compact 44 / comfortable 56 · column picker · remembered per user |
+| Side sheet (quick edit) | saved on blur · "● Prix modifié · enregistré" · ‹ Précédent / Suivant › · Ouvrir la fiche · related tabs (Commandes · Mouvements · Agents · Recommandations) |
+| Responsive | 1024 icon sidebar (tooltips, secondary columns hidden) · 390 cards + bottom-sheet actions + full-screen filters, no multi-select · simple-mode sidebar (✕ items) · "Passer en avancé ?" dialog |
+
+## 20. Orders, delivery & clients — new states `[ORD-05 v2, ORD-06, DLV-08, DLV-06, DLG Orders ×2]`
+
+| Screen / dialog | States |
+|---|---|
+| Orders list v2 | KPI strip with sub-lines · SOURCE cell variants (IA agent·canal / MANUEL member / MOBILE member / API key / IMPORT file) · confirmation pills incl. RAPPEL hh:mm (`callback`), FAUX NUMÉRO (`wrong_number`) · delivery pills = `ShipmentStatus` incl. RAMASSÉE (`picked_up`), EN TRANSIT · ZR, LIVRÉE ✓ · risk pills · Importer button (`/orders/import`, P2, D69) · AR frame |
+| Order page | delivery block variants: NON ENVOYÉE (send disabled "Disponible une fois la commande confirmée") / sending… / sent + timeline / échec + actions / retournée; payment block with "Enregistrer un paiement" + "Lien de paiement"; history with actor types IA / Système / member; calls list with outcome pills; notes |
+| Annuler la commande | reason list (injoignable 3 appels · changé d'avis · faux numéro/blague ⇒ risk · indisponible · doublon · autre) · note · customer message checkbox · blocked if shipped (`DELIVERY_ORDER_ALREADY_SENT` → use Retour) |
+| Changer le statut | targets Livrée (COD effects) / Retournée (restock, courier fee, client +1) / Échec de livraison (`POST /shipments/:id/mark-failed { reason ∈ FailureReason }`: shipment `failed`, order stays `shipped`, `shipment.failed` notification) / Confirmée (retour arrière, only before a `picked_up` event else `ORDER_INVALID_TRANSITION`) · effective date ≤ 7 d back |
+| Assigner | members with open counts · Personne · Notifier · Assigner (n) |
+| Programmer un rappel | presets (1 h · 16:00 · demain 10:00 · choisir) · note · customer message now · past date `ORDER_CALLBACK_IN_PAST` |
+| Marquer livrée manuellement | amount cashed (default total, reason if different) · date · effects list |
+| Marquer retournée | reason · restock checkbox (unchecked = loss adjustment) · courier return fee line · client +1 retour note |
+| Imprimer les bordereaux | merged A6 / one per order / thermal 100 × 150 · internal recap · mark printed · ignored rows `SHIPMENT_NOT_CREATED` |
+| Exporter les commandes | scope selection / current filter / all · CSV ⌄ · columns preset · one line per item · ZR Express bulk format · > 5 000 rows ⇒ job |
+| Modifier l'adresse de livraison | free (not sent) / locked (`COURIER_ADDRESS_LOCKED`) · home vs stop-desk (agency list by commune) · phone 2 · fee recomputed line |
+| Résultat de l'appel | `CallResult` values: Confirmée `picked_up` / Sans réponse `no_answer` (3/3 ⇒ propose cancel or callback) / Occupé `busy` / Messagerie `voicemail` / Rappeler plus tard `callback` (→ `Order.callbackAt`) / Faux numéro `wrong_number` (cancel + risk) / Refus `rejected` (cancel) · each = one `OrderCall` row |
+| Fusionner les clients | kept vs merged cards · irreversible note `CUSTOMER_MERGE_IRREVERSIBLE` |
+| Enregistrer un paiement | amount (partial ⇒ partial) · method · note · locked on closed order `ORDER_PAYMENT_LOCKED` (button disabled + tooltip) |
+| Supprimer la commande | typed number (exact) · blocked delivered (`ORDER_DELETE_DELIVERED` toast "Marquez-la retournée") · active parcel (`DELIVERY_ORDER_ALREADY_SENT`) |
+| Lien de paiement (P2) | créer · créé (copy / send) · payé · expiré · échec `PAYMENT_FAILED` · montant différent `PAYMENT_AMOUNT_MISMATCH` (admin accept / refund) |
+| Rembourser (P2) | amount ≤ paid · reason · PSP 3–7 d · cash row refund · order → refunded |
+| Conflit 409 | actor + change + age · Recharger (merge) / Ignorer et écraser |
+| Ajouter un transporteur | provider tabs ZR Express / EcoTrack / Yalidine / Livraison propre (no credentials) · provider fields · sender block · default / active toggles · test: en cours ≤ 10 s / OK latency + wilayas / refusé `COURIER_CREDENTIALS_INVALID` / injoignable `COURIER_UNAVAILABLE` (save allowed) |
+| Supprimer le transporteur | blocked `COURIER_HAS_ACTIVE_SHIPMENTS` n → Désactiver |
+| Grille des frais — actions | reset all (confirm text) · fill missing (n completed) · copy from courier P2 (diff preview, apply all / per row) · free delivery off / workspace threshold (`Workspace.freeDeliveryThreshold`) / per wilaya (`DeliveryFeeRule.freeAbove`) · reset row ↺ = `DELETE /delivery/fees/:wilayaId` (`FEE_RULE_NOT_FOUND` if already default) |
+| Bordereau indisponible | retry courier PDF · Djaber A6 (tracking n°, sender, recipient, COD, barcode) |
+| Annuler le colis | before pickup · after ⇒ `COURIER_CANCEL_NOT_ALLOWED` · options: back to Confirmée (resend) / also cancel the order |
+| Nouveau client | phone conflict "Déjà utilisé par … — Utiliser ce client" (`CLIENT_PHONE_EXISTS`) · tags · default address checkbox |
+| Supprimer le client | soft (conversations stay without card) · with orders ⇒ propose Archiver (`CUSTOMER_HAS_ORDERS`) |
+| Tags | bulk add / remove · + nouveau tag |
+| Delivery overview | tiles per `ShipmentStatus` (incl. RAMASSÉE `picked_up`) · tabs Échecs / Sans mouvement / À envoyer / En transit / Retours / Toutes · failure rows with reason pills = `FailureReason` (INJOIGNABLE `unreachable` / ADRESSE `address` / REFUSÉ `refused` / ENDOMMAGÉ `damaged` / AUTRE `other`) + attempt n/3 · "Sans mouvement" rows (no event > 5 d while `sent` / `picked_up` / `in_transit`, days without event) · `stale` rows (30 d) · no-courier empty card |
+| Tracking panel | timeline (source courier / Djaber member) · Actualiser: actualisation… / à jour / limite 1 / 5 min (disabled, `TRACKING_SYNC_RATE_LIMITED`) / `TRACKING_NOT_FOUND` / `COURIER_UNAVAILABLE` · actions · alternative panels Annulée / Livrée ✓ (COD cashed) / Retournée (restocked) |
+| Bulk send results | header n OK · n échecs · rows Créée + tracking / `COURIER_VALIDATION` field / ignored `DELIVERY_ORDER_ALREADY_SENT` · Imprimer n bordereaux · Réessayer les échecs (n) |
+| Labels viewer | loading PDF · courier label · error → Djaber label · A5 slip options · merge job EN COURS n / m · PRÊT (open / download) · PARTIEL (fallback rows) · ÉCHEC `REPORT_EXPORT_FAILED` Réessayer |
+| Send dialog | courier radios with cost + delay · stop-desk point required (`COURIER_VALIDATION` mapped) · content line · courier error banner "rien n'a été créé chez le transporteur" |
+| Clients list | KPI line · detail sheet (merged notice, risk pills, channels, orders, conversations) · quick edit panel · filters incl. record quality · row menu (Compléter la fiche · Fusionner · Ouvrir la conversation · Nouvelle commande · Commandes · Étiquettes · Exporter · Supprimer) |
+
+## 21. GDS — new states `[CAT-09, CAT-11/GDS-06b, GDS-01, GDS-05…10, MOD ×2, DLG GDS ×2]`
+
+| Screen / dialog | States |
+|---|---|
+| Product page (full) | active / archived banner + Restaurer (fields read-only) · gallery states · variants inline edit · recent movements · Prix & marge (advanced) / simple (price + stock) · Stock block (reserved, available for AI, last inventory) · Agents & canaux · Validation Djaber: validé (date, content vN, next review rule) / en attente (SLA 2 h ouvrées) / refusé (motif + Modifier / Contester) / contestation en cours · Actions menu (Supprimer only if no order) |
+| Moderation (merchant) | list tabs Tous / Actifs / En attente de validation / Refusés / Masqués · VALIDATION DJABER pills · IA column PROPOSÉ / EXCLU / ANCIENNE VERSION · rejected banner with "Modifier et resoumettre" / "Contester" · form banner "Soumis le … validation en cours" · import banner "n produits en attente" · rejected view (reason, rule ref, highlighted fields: title / description / price / image REFUSÉE · LOGO, validation timeline, appeal window date) · appeal dialog (message ≤ 500, attachment) · after send: pill CONTESTATION, `MODERATION_APPEAL_ALREADY_USED` on retry |
+| Services list | rows with IA PROPOSÉ / EXCLU · empty text · no stock actions |
+| New purchase | lines with `PURCHASE_UNTRACKED_PRODUCT` · totals + reste dû · Brouillon (`draft`) / Commander (`pending`) · status legend = `PurchaseStatus` `draft` → `pending` → `partial` → `received` · `cancelled` |
+| Purchase detail | pills REÇU · DÛ n · blocks · actions (Payer le solde · Imprimer · Dupliquer · Annuler blocked `PURCHASE_ALREADY_RECEIVED`) |
+| Sale detail | PARTIELLE · RESTE n · payments · actions (Encaisser le reste · Ticket PDF · Lier à un client · Annuler ≤ 7 d) · no edit after validation (`SALE_IMMUTABLE`) |
+| Receive dialog | remaining to receive · lines déjà reçu / reçu aujourd'hui / coût · added line · over-receipt warning `PURCHASE_OVER_RECEIVE` (accepted) · reception date · invoice n° · payment at reception · "Crée n mouvements ENTRÉE" |
+| New sale | product search / scan · lines with stock + price edited note · subtotal / discount / total · client optional (created if unknown) · payment method segmented · amount received · reste dû ⇒ PARTIELLE · partial without client blocked `SALE_PARTIAL_REQUIRES_CUSTOMER` · Brouillon / Valider · blocked during inventory `SALE_BLOCKED_BY_INVENTORY` |
+| Cash register | KPIs (opening, current, cashed, paid out, unclosed days) · filters direction / type / method / actor / day · AUTO 🔒 rows (click = reference; tooltips `CAISSE_EDIT_AUTOMATIC` / `CAISSE_DELETE_AUTOMATIC`) · MANUEL rows (⋯ Modifier ≤ 24 h · Supprimer · Dupliquer; `CASH_ENTRY_EDIT_WINDOW_EXPIRED`) · Clôturer dialog (theoretical, counted, gap, note required, creates CORRECTION, locks) · closed day: add refused `CASH_DAY_CLOSED` + "rouvrir la journée" (admin) · manual row dialog (in/out, type, method, amount, date, label, receipt photo) |
+| Movements | KPIs · filter panel (type = `MovementType` `in` / `out` / `adjustment_in` (AJUST. +) / `adjustment_out` (AJUST. −) / `inventory` / `return`, reason = `MovementReason`, reference type + n°, period, actor, quantity, category) · row menu (Contre-passer, Voir le stock à cette date = `GET /stock/snapshot?date`, Modifier/Supprimer impossible `GDS_MOVEMENT_IMMUTABLE`) · Enregistrer la vue |
+| Suppliers | list (balance due, last purchase, status) · detail sheet (KPIs, terms, notes, last purchases with pills, actions) · delete blocked `SUPPLIER_HAS_PURCHASES` → Désactiver |
+| Recommendations | job banner EN COURS n % (cards from last night) · KPIs · tabs by type · filters priority / category / status · cards with RULE label and actions (Créer l'achat · Ignorer · Rappeler dans 7 j · Créer la promo · Modifier le prix · Voir le fournisseur · Voir les insights) · VIDE · MODE SIMPLE subset · APPLIQUÉE (greyed 24 h with link) · menu (Ouvrir le produit · Voir les ventes · Régler le seuil · Désactiver cette règle) · `RECO_RATE_LIMITED` |
+| Stock dashboard | advanced tiles (+ services excluded note, purchases & suppliers block) · adjust dialog (variant required, in / out / set, reason select, note, insufficient error with result preview) |
+| Dialogs GDS I | Nouvelle catégorie (name unique `CATEGORY_ALREADY_EXISTS`, parent 2 levels, image) · Nouvelle unité (abbreviation, contains n × unit) · Supprimer / archiver (hard delete disabled `PRODUCT_HAS_ORDERS`, "sortir le stock restant") · Prix en masse (increase / decrease / set, %, round up, variants, preview, below-cost warning) · Changer la catégorie · Générer des variantes (attributes, defaults, n created, existing kept, max 100 `VARIANT_LIMIT`) · Dupliquer (copy images / variants stock 0 / cost; re-moderation note) · Nouveau fournisseur (payment terms, delivery delay) · Paiement fournisseur (amount ≤ due, method, allocate to purchase or oldest, locked cash row) · Annuler la vente (reason, restock, refund cash row, > 7 d blocked) · Encaisser le reste · Mouvement de caisse manuel (closed day blocked) · Lancer un inventaire (scope = `InventoryScope` `all` / `category` / `alerts_only`, block counter sales; creates `InventoryCount(status=draft)`, `counting` once a line is saved) · Valider l'inventaire (lines with variance %, note required > 10 %, Reprendre / Valider n mouvements ⇒ `validated`; cancel ⇒ `cancelled`) · Correspondance des colonnes (auto-detected mapping, invalid URLs warning, ignore column, update existing by name, save mapping) |
+| Dialogs GDS II | Limite du plan (generic; Archiver des produits / Comparer les plans; `PLAN_NEAR_LIMIT` toast at 90 %) · Créer depuis une photo (1–5 photos; analyse… ≤ 15 s; rempli highlighted; échec `IMAGE_ANALYSIS_FAILED` no credits; indisponible `IMAGE_ANALYSIS_UNAVAILABLE` button hidden + tooltip) · Images inline errors (`IMAGE_TOO_LARGE` "Compresser automatiquement ?", `IMAGE_TYPE_INVALID`, `IMAGES_LIMIT`, `IMAGE_SMALL` warning, upload progress + retry) · Ajuster — cas (variant required `PRODUCT_HAS_VARIANTS`, `STOCK_INSUFFICIENT` with "Forcer (stock négatif)" admin + reason, `STOCK_QUANTITY_ZERO` disabled, service hidden `PRODUCT_NOT_STOCK_TRACKED`) · Supprimer la catégorie (reassign, move sub-categories to root; unit variant `UNIT_IN_USE`; system unit `UNIT_SYSTEM_READONLY`) · Dépense produit (category, amount, per unit / fixed, note, margin preview) · Achats — verrous · Ventes — verrous (`SALE_DELETE_PAID` → Annuler, `SALE_INSUFFICIENT_STOCK`, `VARIANT_REQUIRED` opens selector) · Caisse verrous · Règle de recommandation (product, recommended, cross / up-sell, score, active, reason) · Restaurer (SKU conflict ⇒ new SKU; re-moderation if > 90 d) |
+
+## 22. Agents & channels — new states `[AGT-02 ×5, AGT-03, AGT-04, AGT-07, AGT-08, CHN-07b, CHN-08, DLG Agents]`
+
+| Screen / dialog | States |
+|---|---|
+| Wizard (5 steps) | stepper ✓ done / active / upcoming (back allowed) · autosave label "Brouillon enregistré il y a 12 s" · Enregistrer et quitter · right rail summary + credit estimate · step 1 (starting point cards, identity fields, avatar options, languages checklist, default language, tone, tutoiement, emojis, live preview) · step 2 (catalogue scope radios, out-of-stock options, policies 4 fields, FAQ rows with source pills SAISI / EXTRAIT DE LA PAGE FB / SUGGÉRÉ PAR L'IA, add / extract / import file / see unanswered questions) · step 3 (capability toggles with their credit cost, order fields with 🔒, `maxQtyPerOrder` / `maxAmountPerOrder`, `riskyClientBehavior` select, `recapMode` select, handoff checklist + `handoffKeywords`, `businessHours` (days + from/to; outside them the workspace system message `out_of_hours` is sent — link "Modifier le message" → Settings › Messages système), `responseDelaySec`; the handoff text is the workspace `handoff` system message, not an agent field) · step 4 (channel cards LIÉE À → "Déplacer ici" dialog, SÉLECTIONNÉE, À RECONNECTER) · step 5 (readiness checklist ✓/⚠ with links, 8 scenario rows with results and Ouvrir ›, Relancer, Tester moi-même, Envoyer un lien de test, Activer maintenant / Enregistrer en brouillon / Activer à une date; blocked reasons `AGENT_NO_CHANNEL` · `PLAN_LIMIT` · e-mail unverified) |
+| Agent page | header pills (ACTIF / EN PAUSE / BROUILLON / PAUSE (PLAN), V3 · modifié hier) · tabs · KPI tiles with deltas · config summary with "Modifier (étape n) ›" · versions list (ACTUELLE, Diff, Restaurer) · preset update notice · actions menu · Operator read-only |
+| Configuration tab | section dirty dots · Enregistrer (n sections) · Annuler les modifications · leave guard · ENREGISTREMENT… (locked) → toast "Version vN créée" · CONFLIT 409 (Recharger merge per section / Écraser) · VALIDATION (max qty ≥ 1, instruction > 4 000, ≥ 1 language) |
+| Insights tab | tabs En attente / Résolus / Ignorés · filters · "Regrouper par sujet" · grouped cards (n ×, client / IA / cause) · VIDE "votre agent s'en sort bien 🎉" · DÉJÀ TRAITÉ `INSIGHT_ALREADY_RESOLVED` (toast + row removed) · resolve dialog |
+| Playground | simulation banner (turns n / 60) · tool-call bubbles (search_products, get_shipping_fee, create_order simulé → TEST-n) · status line per AI turn (OK · SALE · 0,97) · scenario chips · photo / voice inputs · inspector · quick-fix actions · rate-limited `PLAYGROUND_RATE_LIMITED` · provider error |
+| Channel page tabs | Messages (inbox filtered, same tabs) · IA & agent (agent card with Changer ⌄ / Détacher; no-agent card with Rattacher / Créer; welcome message preview = workspace system message `welcome` with link to Settings › Messages système; switch note `AGENT_CHANNEL_SWITCH_NEXT_THREAD`) · Historique (events list, filters, Synchroniser 7/30/90 j, empty, `PAGE_SYNC_TOKEN_EXPIRED`) · Analyse (PERMISSION REQUISE / EN COURS n/30 / AUCUN PRODUIT / TERMINÉ grid with NOUVEAU · EXISTE DÉJÀ · PRIX MANQUANT, Désélectionner les doublons, import note) · overview health block, Meta insights unavailable state |
+| Channels list | limit banner (3 / 3) · Meta approval banner · cards ACTIVE / EN ATTENTE META / À RECONNECTER / EN PAUSE · PLAN (Reprendre swap note) / DÉSACTIVÉ |
+| Dialogs | Supprimer l'agent (typed name; `AGENT_HAS_CHANNELS`) · Mettre en pause (n open threads, checkbox "envoyer le message hors horaires" = workspace system message `out_of_hours` sent once per open thread, `AGENT_PAUSED_WITH_OPEN_THREADS`) · Résoudre l'insight (instruction / FAQ / ignorer 30 j; `INSIGHT_ALREADY_RESOLVED`) · Déconnecter la page (3 consequences) · Réactiver at limit (`CHANNEL_PAUSED_BY_PLAN`, choose page to pause, Comparer les plans, Réactiver et échanger) · Reconnexion Meta — issues (POP-UP BLOQUÉE → "Ouvrir dans cet onglet", EN ATTENTE, REFUSÉ `OAUTH_CANCELLED`, ÉTAT INVALIDE `OAUTH_STATE_INVALID`, E-MAIL NON VÉRIFIÉ, SUCCÈS) · Rapport de connexion (CONNECTÉE / EN ATTENTE META `PAGE_INSTAGRAM_PENDING_APPROVAL` / IGNORÉE `PAGE_ALREADY_CONNECTED_ELSEWHERE` · `PAGE_MESSAGING_PERMISSION_MISSING` / LIMITE `PLAN_LIMIT` / AVERTISSEMENT `PAGE_WEBHOOK_SUBSCRIBE_FAILED`; agent selector; Plus tard / Rattacher et terminer) · Connecter une page — explications · Synchroniser l'historique · Modèle IA indisponible (`AGENT_MODEL_UNAVAILABLE`, fallback note) · Générer un agent depuis ma page (CHOISIR / ANALYSE… n % cancellable / REVUE / APPLIQUER new or update → version; ÉCHEC retry no credits; `ANALYSIS_RATE_LIMITED`; `PAGE_ANALYSIS_PERMISSION_REQUIRED`) |
+
+## 23. Inbox — new states `[DLG Inbox, SAFE]`
+
+Conversation banners (one at a time, priority): IA EN PAUSE (by member, Reprendre) › À TRAITER (reason, Assigner · Résoudre) › RECONNEXION REQUISE (`PAGE_TOKEN_EXPIRED`, composer disabled) › CRÉDITS ÉPUISÉS (Acheter, manual replies possible) › PAGE EN PAUSE (PLAN) (`CHANNEL_PAUSED_BY_PLAN`) › IA INDISPONIBLE (`AI_PROVIDER_ERROR`) › CLIENT BLOQUÉ (date, actor, Débloquer) › HORS FENÊTRE 24 H (FB: template only; IG: impossible). Composer: ENVOI… (optimistic, cancellable 2 s) · IMAGE JOINTE (1 image, size errors inline) · TROP LONG (`REPLY_TOO_LONG`, counter red) · HORS FENÊTRE (`REPLY_OUTSIDE_WINDOW`: FB "Envoyer un message modèle" = `POST /conversations/:id/messages { templateKey ∈ orderShipped | orderOutForDelivery | orderDelivered | orderFailed | reminderScheduled }` with the `HUMAN_AGENT` tag / IG disabled) · CANAL INACTIF (`REPLY_CHANNEL_INACTIVE` + Reconnecter) · LECTURE SEULE (`READ_ONLY_MEMBER`, composer hidden) · PREMIÈRE RÉPONSE tooltip. Message types: image (full screen), audio (player, transcription… / transcript / "transcription impossible" no credits / > 2 min not transcribed), video, file, location, sticker, postback, product cards, human with name, system events (order created, AI paused by, AI resumed, resolved by, skipped-window), failed send + Réessayer, "⚠ Non délivré — hors fenêtre 24 h", empty thread. Client panel: PLACEHOLDER (Compléter la fiche, new order disabled) · FUSIONNÉ (link) · AUCUN CLIENT · RISQUE (reason). List: tab "Bloqués n" collapsed · WS "reconnexion…" pill · channel switcher rows with counts and states · bulk result per conversation. Conversation menu additions: Bloquer ce client (confirm, optional reason) · Signaler à Djaber (dialog) · Marquer « risque » · Signaler une réponse IA incorrecte (on AI message). Queue empty "Tout est calme".
+
+## 24. Analytics, reports, billing — new states `[ANA-02, ANA-02b, ANA-03, ANA-04, BIL-01, BIL-04, DLG Settings]`
+
+Analytics: presets (Aujourd'hui · 7 j · 30 j · Ce mois · Mois dernier · Trimestre · Année · Personnalisé) · comparison = query `compare=previous` on every tab (previous period of the same length) / none ⇒ deltas hidden (the Figma option "same period N−1" is a text fix: not built) · PÉRIODE VIDE (tiles "—", CTA Connecter une page) · CHARGEMENT skeletons · > 732 d `REPORT_RANGE_TOO_LONG` · `REPORT_CUSTOM_RANGE_REQUIRED` · `INVALID_DATE_RANGE` · per-tab empty "Aucune donnée sur la période" + revenue definition tooltip · credits tab projection with packs link · tables clickable to filtered lists. Reports hub (Admin+ only, `reports.read`; Operators get 403 and no sidebar item): favourites ★ = `PATCH /me/prefs { reportFavorites }` · search · groups · Exports récents = `GET /jobs?kind=export` rows EN COURS n % (Annuler = `POST /jobs/:id/cancel`) / PRÊT (expire dans n j, Télécharger) / ÉCHEC `REPORT_EXPORT_FAILED` (Réessayer = `POST /jobs/:id/retry`) · simple mode 9 reports. Report template: filter chips as query string · large export banner (job, 7 d retention) · totals row · Exporter ⌄ (CSV immediate ≤ 5 000 / XLSX job / PDF page + totals / Copier le lien) · Planifier = `POST /reports/:key/schedule { email, dayOfMonth }` (unschedule `DELETE`; plan feature `scheduled_reports`, else `PLAN_FEATURE_REQUIRED` dialog). Plan & billing: expiry banner (7 d, `subscription.expiring`) · plan cards (VOTRE PLAN / POPULAIRE, monthly / yearly −2 mois) · usage bars · ledger · invoices = `InvoiceStatus` PAYÉE `paid` / IMPAYÉE `unpaid` (Payer maintenant = `POST /billing/invoices/:id/pay → { checkoutUrl }`) / À VENIR `upcoming` / ANNULÉE `void` / REMBOURSÉE `refunded` · dunning banner (`Subscription.status=dunning`, `dunningStage`) · cancel at period end. Credits page: plan vs packs remaining (`CreditLedger.bucket`) · burn projection ⚠ · DA / credit · ledger actions = `CreditAction` TEXTE `text_reply` / PHOTO `image_recognition` / VOCAL `voice_transcription` / GESTE `grant` / PACK `pack_purchase` / RENOUVELLEMENT `renewal` / REMBOURSEMENT STORE `store_refund` / AJUSTEMENT `adjustment` (+ `reserve` / `release` rows) · empty · negative balance banner (AI blocked) · Acheter un pack (`GET /credit-packs`, `POST /credits/packs/checkout { packId }`) · Calculateur. Checkout return page (`/settings/billing/return?ref=`, `GET /billing/checkout/return?ref=`): VÉRIFICATION… (5 s × 12) · SUCCÈS (invoice n°, Retour) · EN ATTENTE (bank not confirmed, Retour; billing shows "en attente") · ÉCHEC `PAYMENT_FAILED` (Réessayer / Autre moyen) · EXPIRÉ `PAYMENT_EXPIRED` (Recommencer). Changer de plan dialog: cycle radios · prorata line · RÉTROGRADER warning (resources that will pause) · RÉSILIER · errors `PLAN_IS_FREE` / `PLAN_NOT_FOUND` · CODE PROMO applied ✓ / `PROMO_INVALID` / `PROMO_EXPIRED` / `PROMO_PLAN_MISMATCH` / `PROMO_ALREADY_USED` / `PROMO_NOT_STACKABLE` · Payer n DA.
+
+## 25. Settings, help & safety — new states `[SET ×4, HELP, SAFE, DLG Settings]`
+
+Settings dialogs: Activer la 2FA (step 1 QR/key, step 2 code `AUTH_2FA_INVALID`, step 3 10 recovery codes + download + checkbox) · Désactiver / Régénérer (password, `AUTH_CURRENT_PASSWORD_INCORRECT`) · Changer le mot de passe (strength bar, mismatch, other sessions revoked note) · Changer l'e-mail (`AUTH_EMAIL_TAKEN`, link 24 h, old address notified) · Supprimer mon compte (blocked `ACCOUNT_OWNS_WORKSPACE` → Aller à la zone de danger; else grace flow) · Logo & avatar (ENVOI… n %, RECADRER, errors) · Réponse rapide (title unique `QUICK_REPLY_TITLE_TAKEN`, text ≤ 1 000 with variables, shortcut, delete confirm, empty) · Message système — réinitialiser (3 locales) · Supprimer l'espace (typed name, no refund note, `WORKSPACE_HAS_DEBT`, already scheduled) · Google Sheets (Picker / URL `SHEETS_SPREADSHEET_NOT_FOUND` / create; filters; backfill range; CONNEXION…; RATTRAPAGE job; DÉCONNECTER) · Webhook (URL https `WEBHOOK_URL_INVALID`, events, secret once + regenerate, TEST ping, RÉACTIVER after `WEBHOOK_ENDPOINT_DISABLED`, SUPPRIMER) · Inviter un membre (`MEMBER_ALREADY_EXISTS` / `INVITATION_PENDING`, role explainer, limit note read-only) · Transférer la propriété (`POST /workspaces/:id/transfer-ownership { newOwnerUserId, password, totpCode? }`: Admin target select (`OWNERSHIP_TRANSFER_TARGET_INVALID`), password (`AUTH_INVALID_CREDENTIALS`), `totpCode` field shown only when 2FA is enabled (`TWO_FA_CONFIRMATION_REQUIRED`), irreversible note) · Langue & région. Members page: LECTURE SEULE · PLAN pill, "Renvoyer (dans 42 s)" cooldown, invite limit banner. Security page: sessions with CETTE SESSION, Déconnecter per device, "Déconnecter tous les autres appareils", 2FA ACTIVÉE (codes used n/10). Integrations: Sheets CONNECTÉ / NON CONNECTÉ / ERREUR accès révoqué / FEUILLE INTROUVABLE / VÉRIFICATION GOOGLE EN ATTENTE (≤ 100 test users) · API keys (RÉVOQUÉE pill, create dialog shown once) · webhooks (DÉSACTIVÉ banner + Réactiver, deliveries log with Rejouer). Help: status line (operational / incident) · categories · contact form (auto-context editable, suggestion guide, min 20 chars, attachments) · Mes demandes pills = `TicketStatus` OUVERT `open` (RÉPONSE REÇUE when support replied last) / EN ATTENTE CLIENT `pending_customer` / RÉSOLU `resolved` / FERMÉ `closed` + satisfaction · "?" contextual panel (`GET /help/articles?context=`) · mobile notes. Safety: blocked list rows = `BlockSource` (MANUEL `manual` / AUTO `auto_rule` / PLATEFORME 🔒 `platform`, non-unblockable) · + Bloquer un numéro · auto-rule toggles · workspace blocked words · report dialog (reasons, details, "Bloquer aussi", 24 h note) · inbox banner "Client bloqué" · manual order warning.
+
+## 26. Platform admin — new states `[ADM-01…17, DLG Platform admin]`
+
+| Page | States |
+|---|---|
+| Overview | KPI tiles with sub-lines · signups / activations / churn chart · alerts list (AI error rate with fallback active, IG review backlog, workspaces at 100 % credits, queue delays, expired courier keys) · top workspaces · AI cost per model · trials expiring |
+| Workspaces | filters · status pills ACTIF / ESSAI / EXPIRÉ (limites du plan gratuit) / SUSPENDU (`Workspace.status=suspended`, admin action only) / SUPPRESSION PROGRAMMÉE · row menu (open, impersonate (read-only), change plan, add credits, extend trial, suspend, schedule deletion) · detail sheet tabs · impersonation dialog (reason ≥ 10 chars, optional ticket, read-only only, 30 min; `POST /admin/impersonation/sessions`; every non-GET ⇒ `ADMIN_IMPERSONATION_FORBIDDEN_ACTION`) · red impersonation banner in the merchant shell "Vous agissez en tant que {workspace} · lecture seule · {mm} min · Quitter" · expired session state (`ADMIN_IMPERSONATION_EXPIRED`, back to admin) |
+| Users | filters · role pills · status ACTIF / BLOQUÉ / NON VÉRIFIÉ / SUPPRESSION PROGRAMMÉE · row menu (resend verification 10 min cooldown, reset password, disable 2FA with ticket + reason, revoke sessions, promote (2FA), block `AUTH_USER_BLOCKED`, schedule deletion `ACCOUNT_OWNS_WORKSPACE`) · user detail (identity, memberships, sessions, activity, deletion state) |
+| Plans | cards VISIBLE / POPULAIRE / ARCHIVÉ · edit form (version n → n+1, impact warning `PLAN_LIMIT_GRANDFATHERED`, price notice 30 d) · Migrer les abonnés · create dialog (validation: slug unique `PLAN_SLUG_TAKEN`, ≥ 1 limit > 0, card preview) · delete blocked `PLAN_IN_USE` (migrate / archive) |
+| Subscriptions & invoices | KPIs · tabs Abonnements · Factures · Paiements manuels · Packs de crédits · state pills = `SubscriptionStatus` ESSAI `trial` / ACTIF `active` / RELANCE J0 · J+3 `dunning` (`dunningStage` d0 / d_plus_3) / EXPIRÉ `expired` / RÉSILIÉ `cancelled` · invoice pills = `InvoiceStatus` · manual payment dialog (method ∈ `manual_transfer` / `manual_ccp` / `manual_cash`, reference, amount, date, proof upload; amount = remaining ⇒ `paid` + "Confirmer et réactiver"; amount < remaining ⇒ `200 ⚠ INVOICE_PARTIAL_PAYMENT {remaining}`, invoice stays `unpaid`; amount > remaining ⇒ `422 VALIDATION_ERROR` on `amount`) · "Prolonger l'essai" (+7 d / +30 d / date, reason) · row menu · create/edit subscription dialog (reason; `SUBSCRIPTION_ALREADY_ACTIVE` → edit existing) |
+| AI providers | provider cards ACTIF · PRINCIPAL / SECOURS / DÉSACTIVÉ, key tested state, health % with threshold ⚠, "bascule active" · routing table rows with ÉTAT OK / BASCULE ACTIVE · key dialog test states (TEST… / OK latency / REJETÉE `AI_PROVIDER_KEY_REJECTED` / INJOIGNABLE `AI_PROVIDER_UNREACHABLE` save anyway / AUCUNE CLÉ `AI_PROVIDER_NO_KEY`) · model dialog · calculator with margin warnings and recommendation |
+| Presets | cards V7 PUBLIÉE · BROUILLON V8 / PUBLIÉ / BROUILLON / ARCHIVÉ · editor with locale pills (EN ⚠ manquant) · publish checks list · menu (archive `PRESET_ARCHIVED`, restore, delete impossible once published) · new preset dialog |
+| CMS | type tabs with counts · rows with FR / AR / EN status pills (PUBLIÉ / MANQUANT / BROUILLON) · window · editor with AI translation · publish blocked `CMS_LOCALE_MISSING` unless "replier sur FR" · scheduled state · preview banner · new entry dialog (`CMS_SLUG_INVALID` / `CMS_SLUG_TAKEN`, 3 languages) · version history |
+| Audit log | filters incl. impersonation · rows (actor with role, action slug, target, reason, context ip/device) · detail with before / after diff (identical lines greyed, secrets hashed) · linked impersonation entries · export dialog (CSV signed / JSON, job, link 24 h) |
+| Moderation | KPIs · tabs À vérifier / Urgents / Appels / Auto-approuvés (échantillon) / Rejetés / Agents IA (prompts) · filters · rows with URGENT, trust pill, AI reason, score, waiting time · bulk approve / reject / assign · review panel (context, flagged fields with evidence, history, decision radios, message, Rejeter / Demander une modification / Approuver) · legend blocks |
+| Reports (abuse) | KPIs · tabs · rows type · origin · object · reason · severity · assignee · 👁 · treatment panel (masked extract, decision checkboxes, Clore & notifier / Demander plus d'infos) |
+| Support | KPIs · tabs · rows with SLA pills (DÉPASSÉ DE n / n RESTANTES / EN ATTENTE CLIENT) · ticket thread (auto-context system message, canned replies, internal note, Envoyer & attendre / Résoudre) · context column · actions |
+| Platform settings | app versions table (`AppVersion.minVersion` / `recommendedVersion` / `latestVersion`) with store states (PUBLIÉE n % / EN REVUE APPLE) · force update 2FA dialog with impact · flags table (% / plan / list) · maintenance scheduled / incident banner toggle · legal docs table with acceptance % · Meta permission table (APPROUVÉE / EN REVUE n j / NON DEMANDÉE) · providers health (OK / ERREUR 401 / quota ⚠) · limits form · Historique |
+| Jobs & health | KPI tiles · queues table states OK / ATTENTION / INCIDENT (paused) with actions · DLQ rows (click = payload + trace + Rejouer) · incidents OUVERT / RÉSOLU with post-mortem · Meta webhooks 24 h stats |
+| Credit packs & promos | packs table (store ids, store tier, MASQUÉ MOBILE) · rules note · promo table with UTILISÉ / EXPIRÉ · new code form |
+| Roles & deletion | role matrix · members with 2FA NON ⚠ (accès bloqué) + Forcer la 2FA · deletion requests EN GRÂCE · export envoyé / EN GRÂCE · retirée des espaces / BLOQUÉE `ACCOUNT_OWNS_WORKSPACE` + dette / ANONYMISÉ · actions |
+| Viewers | read-only conversation (masked phone, Afficher super admin + reason, no composer, no export) · products list with validation + IA pills · user admin sheet |
+
+## 27. Public pages `[PUB ×4]`
+
+Legal/CMS page: skeleton (title + 8 lines) · published (version + date, sections, language tabs) · unpublished 404 (+ signed preview for admins) · language missing banner (FR fallback) · version history diff. Landing / features / help: published · 404 with search · language fallback banner. Pricing: monthly / yearly toggle · plan cards (Populaire) · FAQ accordion · footer. Account deletion: form · "e-mail envoyé" (always) · rate-limited · after link: deactivated + final date + Exporter / Annuler · LIEN EXPIRÉ · partial deletion link. Meta data-deletion status: EN COURS · TERMINÉ · INTROUVABLE (404). Status page: all operational / incident banner (updated n min ago) · component rows OPÉRATIONNEL / INCIDENT with 90-day % · incident history EN COURS / RÉSOLU with updates · subscribe. Public tracking page `/s/:code`: timeline · not found · "Signaler ce vendeur".
+
+## 28. Mobile parity additions
+
+Blocking "Mise à jour requise" screen (`426 APP_UPDATE_REQUIRED {minVersion, storeUrl, message}` from `GET /app/version` or any call, store button) · recommended-update banner (dismissible 7 d) · legal re-acceptance interstitial (`GET /legal/pending`, `POST /legal/accept { key, version }`) · IAP purchase states (store sheet, "validation du reçu…" = `POST /credits/packs/iap/validate`, crédité, `IAP_RECEIPT_INVALID` / `IAP_STORE_UNAVAILABLE` retry, "Restaurer les achats", refund banner) · plan page read-only "Le changement de plan et le paiement se font sur le web" · help center WebView + native ticket form with photo · block / report from the conversation menu · maintenance screen (`503 MAINTENANCE_MODE`, automatic retry every 60 s) · offline banner (read cache, no queued mutation) · session expired · workspace suspended · push pre-prompt · biometrics (offer after first login, each cold start, 3 failures ⇒ password) · deep links `djaber://` + the web path of 03 §15 · account deletion from Settings (password + 2FA; `ACCOUNT_OWNS_WORKSPACE` blocked). Frame names and rules: [14-mobile-app.md](14-mobile-app.md) §3 (`V2 — Système — …` frames).

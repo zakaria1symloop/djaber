@@ -1,0 +1,310 @@
+# 04 — Business rules
+
+Enforced in the backend domain layer, never only in the UI. Each rule has a unit test (13). Baseline = V1 code; **fix** marks a closed defect.
+
+## 1. Order workflow
+
+### 1.1 Fields (V1 split kept)
+
+`status` (fulfilment), `confirmationStatus` (call), `paymentStatus` (money), `deliveryStatus` (courier). CDC's single list maps: DRAFT/PENDING = AI cart in `Conversation.context.cart = {items[], recapShownAt?, orderId?}` — `recapShownAt` set when the AI sends the recap (FL-02 step 5); cart cleared on `create_order` or 7 days after `recapShownAt`; **Abandon rate** = carts with `recapShownAt` in period and no `orderId`; CONFIRMED = `confirmed`; PAID = `paymentStatus=paid`; PROCESSING = `preparing`; SHIPPED/IN_TRANSIT = `shipped` + `deliveryStatus`; DELIVERED/RETURNED/CANCELLED = same.
+
+### 1.2 `status` transitions (V1 matrix + D14)
+
+| From | To | Who |
+|---|---|---|
+| `new` | confirmed, preparing, shipped, delivered, cancelled | Operator+ (AI creates `new` only) |
+| `confirmed` | preparing, shipped, delivered, cancelled | Operator+ |
+| `preparing` | shipped, delivered, cancelled | Operator+ |
+| `shipped` | delivered, returned | Operator+ or courier sync |
+| `delivered` | returned | Admin+ (and courier sync) |
+| `cancelled`, `returned` | — terminal | — |
+
+`shipped` = parcel created at a courier **or** marked shipped manually (creates a Shipment `provider=manual`, status `sent`, optional `trackingNumber`). Manual `→ delivered` without shipment sets `deliveryStatus=delivered`. Courier events never move an order backwards. Other transitions ⇒ `422 ORDER_INVALID_TRANSITION`; terminal ⇒ `422 ORDER_TERMINAL`. Every change appends `OrderStatusHistory`. Manual create may be `new` or `confirmed` (confirm fields validated).
+
+### 1.3 Confirmation calls (V1 guards)
+
+Results: `picked_up → confirmed` (and `status=confirmed` if `new`); `no_answer | busy | voicemail → no_answer`; `rejected → rejected` and auto-cancel **only if** `status ∈ new/confirmed/preparing` and `deliveryStatus = not_sent` (stock restored); `picked_up` on a terminal order is logged with a warning, order unchanged. `callAttempts` = count of calls.
+
+### 1.4 Payment
+
+`paymentStatus`: `unpaid → partial → paid`; `pending_link` while an online link is active (P2); `refunded`. Derived from `amountPaid` (clamped 0..total): 0 ⇒ unpaid (paid if total = 0), ≥ total ⇒ paid, else partial. Sending `paymentStatus` without `amountPaid` is rejected (V1 let them disagree — **fix**). **COD rule (V1):** `→ delivered` while unpaid ⇒ `amountPaid = total`, `paymentStatus = paid`, income cash row = total "(COD - delivered)". Terminal orders lock payment fields.
+
+### 1.5 Delivery (`deliveryStatus`)
+
+`Order.deliveryStatus`: `not_sent → pending (queued) → sent → in_transit → out_for_delivery → delivered | failed | returned`. `Shipment.status` (courier level, `ShipmentStatus`) is `pending | sent | picked_up | in_transit | out_for_delivery | delivered | failed | returned | cancelled | stale`; `picked_up` is a status (pill RAMASSÉE) and maps to `deliveryStatus=in_transit`; `cancelled` and `stale` leave `deliveryStatus` unchanged. Raw courier statuses are mapped per provider in one table (05-integrations §2); unknown raw status ⇒ event stored, status unchanged. `failed` keeps `status`, sets `Shipment.failureReason ∈ FailureReason (address | unreachable | refused | damaged | other)`; actions: re-attempt (adapter) or mark returned. Terminal courier `delivered` ⇒ order `delivered` (COD rule); `returned` ⇒ order `returned` after the merchant confirms "return received" (stock restored then).
+
+### 1.6 Required data
+
+Create: ≥ 1 item, client name, phone (validated). Confirm: + wilaya, commune, address (or stop-desk), delivery fee computed. Ship via courier: + courier account. Missing ⇒ dialog "address missing" state (FIG).
+
+## 2. Validation (shared `packages/shared` validators; used by API, web, mobile, AI tools)
+
+| Field | Rule | Error key |
+|---|---|---|
+| Full name | trimmed, 3–80 chars, ≥ 2 letters, letters/digits/spaces/`'-.` (digits allowed — V1 QA fix) | `validation.name` |
+| Phone (DZ) | normalise `+213`/`00213`/spaces/dots → `0…`; mobile `^0[5-7]\d{8}$`; landline `^0[2-4]\d{7}$`; stored normalised | `validation.phone` |
+| Wilaya | 1–58 | `validation.wilaya` |
+| Commune | must belong to the wilaya (after seed); free text ≤ 100 until seeded | `validation.commune` |
+| Address | ≥ 10 chars when home delivery | `validation.address` |
+| Email | RFC-lite, lowercased | `validation.email` |
+| Selling price | integer > 0 | `validation.price` |
+| Cost price | integer ≥ 0, optional; selling < cost ⇒ warning `SELLING_BELOW_COST` in `meta.warnings` (non-blocking, D24; 11 §11) | — |
+| Quantity | integer ≥ 1 (lines), ≥ 0 (stock) | `validation.quantity` |
+| SKU | 1–255, unique per workspace among live products **and** variants | `validation.sku_taken` (with `409 PRODUCT_SKU_ALREADY_EXISTS`) |
+| Client phone | unique per workspace (normalised) | `validation.phone_taken` (with `409 CLIENT_PHONE_EXISTS`) |
+| Agent fields | name ≤ 100, description ≤ 1000, customInstructions ≤ 10 000, closing/handoff/template ≤ 5000, responseDelaySec 0–60, temperature 0–2, maxTokens 100–4096 | `validation.length` / `validation.range` |
+| Reply | ≤ 2000 chars; image ≤ 5 MB | `validation.length` |
+| Dates | `orderedAt`, `soldAt`, `purchasedAt` ≤ now + 1 day | `validation.date` |
+
+## 3. Side-effects (one DB transaction per action; outbound effects via outbox after commit)
+
+| Action | Stock | Cash register (cash actually moved) | Client aggregates | Outbox |
+|---|---|---|---|---|
+| Order created | − qty per item/variant if `trackStock` (conditional `quantity ≥ qty`, else `422 ORDER_INSUFFICIENT_STOCK`), movement `out` reason `order_created` | + income `order` for `amountPaid` if > 0 | recompute | notification, WS, Sheets, webhook `order.created` |
+| Order amount paid changed | — | auto `order` rows for this order replaced by one row for `amountPaid` | — | `order.paid` when paid |
+| Order → delivered (COD unpaid) | — | + income = total "(COD - delivered)" | recompute | customer msg, `order.delivered` |
+| Order → cancelled (any path) | + qty restored, movement `return` reason `order_cancelled` | auto rows removed; `amountPaid=0`, unpaid | recompute | customer msg, `order.status_changed` |
+| Order → returned | + qty restored when "return received" confirmed, movement `return` reason `order_returned` | auto income rows removed; + expense `shipping` = grid `returnPrice` (D27) | recompute | alert |
+| Order deleted (not `delivered`) | restore if not already (movement `return` reason `order_cancelled`) | **auto** rows removed only (**fix**) | recompute | — |
+| Sale created / payment changed / deleted (unpaid only) | − (`out`, reason `sale`; conditional `quantity ≥ qty`, else `422 SALE_INSUFFICIENT_STOCK`) / — / + (`return`, reason `sale_cancelled`) | + income `sale` for paid; replaced; removed | recompute | — |
+| Purchase created / paid changed | — | + expense `purchase` for paid; replaced | — | — |
+| Purchase received (partial/full) | + receivedQty per line (variant or product), movement `in` reason `purchase`; **weighted-average cost recomputed at every receipt** (04 §20, R-M): `costPrice = round_half_up((stock × costPrice + recvQty × unitCost) / (stock + recvQty))`, integer DA | — | — | — |
+| Purchase cancelled | − received qty, movement `adjustment_out` reason `purchase_cancelled` (conditional, else `422 STOCK_INSUFFICIENT`) | auto rows removed, `amountPaid=0` | — | — |
+| Manual adjustment | ± with reason: movement `adjustment_in` (positive) or `adjustment_out` (negative) | — | — | `stock.low/out` if crossed |
+
+One effects service per source (`OrderEffects`, `SaleEffects`, `PurchaseEffects`); controllers never touch stock or cash (**fix**: V1 duplicated rollback paths). Untracked products (`trackStock=false`) never change stock. Variant products: stock changes at variant level only; product stock = Σ active variants.
+
+## 4. Money
+
+- DZD, integer dinars. Catalogue `Decimal(10,2)` from V1 is rounded at migration.
+- `lineTotal = unitPrice × qty − lineDiscount`; `subtotal = Σ lineTotal`.
+- `deliveryFee = 0 if freeDeliveryThreshold && subtotal ≥ threshold else grid[wilaya][home|stopdesk]` (customer price, D15); Admin+ may override per order.
+- `total = subtotal − discount + tax + deliveryFee` (V1 order), `sale.total = subtotal − discount + tax`, `purchase.total = Σ(unitCost×qty) + tax + shipping`.
+- Prices snapshotted on lines.
+- **Named figures (used verbatim in every KPI label):** **Revenue** = Σ `Sale.total` (soldAt) + Σ `Order.total` (delivered, deliveredAt) (V1 reports, D16); **Net revenue** = Revenue − delivery fees; **Pipeline** = Σ `Order.total` status ∈ new/confirmed/preparing/shipped; **Cash collected** = Σ `amountPaid`; **AI revenue** = Revenue restricted to AI orders (analytics › agents/channels, labelled).
+- P&L: COGS = Σ lines × cost price snapshot (variant cost when variant); expenses = manual cash expenses + product expenses + return costs; **purchases are not subtracted again** (**fix**).
+
+## 5. Conversation & AI rules
+
+| Rule | |
+|---|---|
+| Statuses | `active`, `needs_human` (AI paused by handoff/manual), `resolved`, `archived`; `aiPaused` flag independent (manual pause keeps `active`). |
+| AI answers only if | channel `active` ∧ agent linked & active ∧ not `needs_human`/paused ∧ credits available on the current subscription ∧ monthly conversation quota not exceeded. |
+| New customer message | on `resolved/archived` ⇒ `active`; on `needs_human` ⇒ stays, notify (throttled). |
+| Handoff | one handoff message per episode; resuming is manual (button) or automatic when a human replies and `autoPauseOnManualReply` is off. |
+| Batching | window `responseDelaySec`; messages within it answered together; abuse guard (D33): ≥ 20 inbound / 1 min ⇒ window 10 s; ≥ 50 / 10 min ⇒ handoff. |
+| **Idempotent runs** (**new**) | `AiRun` created at job start (`running`); each tool call persisted as `AiToolCall(runId, callId, args, result)` before execution and **replayed from storage on retry** (no second `create_order`); outbound sends keyed by `runId` in the outbox; job attempts 3 with backoff 10 s/1 min/5 min; final failure ⇒ insight `error` + notification; `running` runs > 5 min reaped. |
+| Credits | reserved at run start, settled per 02 §6; nothing charged on provider error. |
+| Image confidence | `< 0.7` ⇒ confirm or handoff; price never stated for an unconfirmed match. |
+| AI order | only after explicit recap confirmation; `new`, source `ai`; duplicate guard: identical items + phone within 10 min ⇒ return existing. |
+| AI cancel | only this client's `new/confirmed/preparing` orders with `deliveryStatus=not_sent`; else handoff. |
+| Customer system messages (D43, R-G) | **Workspace-editable** = `Workspace.systemMessages` JSON `{ handoff, out_of_hours, out_of_stock, welcome } × { fr, ar, en }`, seeded at workspace creation, edited in Settings › Messages système (preview, reset to default), locale = the customer's last language (`Conversation.context.lastLanguage`). `handoff`: sent once per handoff episode when the AI hands off (FL-03). `out_of_hours`: sent at most once per conversation per 24 h when `Agent.businessHours` is set and `now` (Africa/Algiers) is outside it — the AI keeps answering and taking orders. `out_of_stock`: never sent as a message; injected verbatim in the system prompt as the sentence the AI uses for an out-of-stock product (`{product}` placeholder); with `Agent.outOfStockBehavior=suggest_alternative` the AI appends alternatives after it. `welcome`: sent as a standalone message immediately before the first AI reply of a newly created conversation; empty string ⇒ not sent. **Fixed platform texts** (not workspace-editable, i18n keys `customer.unavailable` for credits/quota exhausted, `customer.unsupportedMedia`, `customer.voiceFailed`, `customer.outsideWindowSkipped`; 11 §9) are sent in their situations at most once per conversation per 24 h. The handoff and out-of-hours texts are these workspace keys only; `Agent` has no text column for them. |
+| 24 h window | MSG-06. |
+
+## 6. Online payment (P2) `[CDC §6.5]`
+
+Link valid 15 min; one active per order (regenerate invalidates); webhook: signature → idempotent on event id → amount = total → paid. Failure/expiry ⇒ customer offered retry or COD; mismatch ⇒ flagged, not paid.
+
+## 7. Plans, limits, credits
+
+02 §5–6; checks run inside the creating transaction.
+
+## 8. Dates & time
+
+Africa/Algiers for "today", periods, buckets, numbering; stored UTC. Date-only `to` = end of day inclusive. Presets today / 7 d / 30 d / 90 d / this month / last month / year / custom (≤ 732 d).
+
+## 9. Deletion & retention
+
+| Entity | Rule |
+|---|---|
+| Product | archive (soft); SKU freed; excluded from AI/search/recommendations; lines keep snapshot |
+| Variant | soft; parent recalculated; last variant ⇒ `hasVariants=false` |
+| Category / unit | blocked if used (`*_IN_USE`) with reassign |
+| Client | soft; orders/conversations keep FK; identities kept for merge |
+| Supplier | soft |
+| Order | hard only if not `delivered` (rollback first) and no active courier Shipment (`409 DELIVERY_ORDER_ALREADY_SENT` — cancel the parcel first via `cancelParcel`, else mark returned); otherwise cancel/return |
+| Sale | hard only if unpaid (validated sales are immutable, 04 §20); Purchase hard only while `status ∈ {draft, pending}` ∧ `paymentStatus=unpaid` (`422 PURCHASE_DELETE_NOT_PENDING` otherwise; received units go through cancel/adjustment, 04 §20) |
+| Conversation | soft (Admin+); messages purged after 12 months (D28); Meta deletion = hard for that sender |
+| Agent | hard; channel links removed; conversations keep `agentId` null; pending insights dismissed |
+| Channel | disconnect = unsubscribe + token cleared + status `disconnected`; conversations/orders kept; agent link removed; hard purge only with workspace |
+| Member | removed ⇒ sessions revoked; assignments cleared; authored notes/replies kept |
+| Workspace | soft, AI stops, channels unsubscribed, purge after 30 days (D31) |
+| Payment logs 5 y · Audit logs 2 y · Webhook deliveries 30 d · Raw inbound events 7 d |
+
+## 10. Numbering
+
+Per-workspace row-locked counters: orders `CMD-1001…` (legacy `ORD-…` kept, counter starts after max), sales `VNT-…`, purchases `ACH-…`. Never reused.
+
+## 11. Concurrency
+
+Orders, products, agents, conversations carry `version`; `PATCH` with stale version ⇒ `409 CONFLICT`. Stock decrements are conditional updates. Counters row-locked. Idempotency keys stored 24 h (06 §1).
+
+---
+
+# Rules added from the Figma web design (2026-10-06)
+
+Sections 12–24 implement decisions D36–D71 (README Decisions, all DECIDED, closed 2026-10-11). Each rule names its Figma source so the coder can check the wording; where a Figma text differs from a value below, the value below wins (D65). Every rule is enforced server-side and has a test in 13. Every enum value and column name below is the Prisma schema name (`docs/implementation/prisma-schema.prisma`), verbatim.
+
+## 12. Product moderation (D36, D52) `[FIG ADM-10, MOD]`
+
+| Rule | |
+|---|---|
+| Trigger | `ModerationItem` created on product create and on update of `name`, `images`, `categoryId`, `description`, or `price` when `|new − old| / old ≥ 0.5`. Stock, variants, minStock, keywords, weight, unit, isActive do not trigger. Duplicate, import rows, page-analysis imports, restore of an archived product whose content is > 90 d old: trigger. |
+| Pre-screen | job `moderation-prescreen` (free): `aiScore ∈ [0,1]`, `aiFlags[] ⊂ {protected_brand, prohibited_category, misleading_price, logo_in_image, health_claim, counterfeit_wording, single_image, missing_warranty}`; market reference price from the category median when available. |
+| Auto-approval | `aiScore ≥ 0.9 ∧ trustLevel ∈ {standard, trusted} ∧ category ∉ sensitive` ⇒ `approved` at once; 5 % random sample flagged `sampled=true` for the "Auto-approuvés (échantillon)" tab. Otherwise `pending` in the human queue. Sensitive categories = platform list (electronics, health/supplements, children, cosmetics) editable by super admin. |
+| Visibility while pending | New product: hidden from AI grounding, cards, search, recommendations, public tracking page; visible in the merchant's lists with pill EN ATTENTE; counter sales and stock operations allowed. Changed product: the **last approved snapshot** keeps selling (pill ANCIENNE VERSION on the IA column) until the decision. |
+| Decisions | `approved` (snapshot becomes live) · `rejected` (`ModerationItem.decision ∈ ModerationDecision = counterfeit \| prohibited \| inappropriate_image \| misleading \| missing_info \| other` + `merchantMessage`; product hidden from AI & public lists; merchant notified in-app + e-mail + push + banner) · `changes_requested` (product stays in its previous state, merchant notified). Decision and message are mandatory on reject (`MODERATION_REASON_REQUIRED`). A decided item cannot be decided again (`MODERATION_ITEM_ALREADY_DECIDED`); a new submission creates a new item. `ModerationItem.status ∈ pending \| auto_approved \| approved \| rejected \| changes_requested \| appealed \| appeal_rejected`; `Product.moderationStatus ∈ not_required \| pending \| approved \| rejected \| appealed`. |
+| SLA | Target 2 h business hours (Sun–Thu 9h–18h Africa/Algiers); `slaDueAt` computed at creation; past due ⇒ `urgent=true`, red in the queue and counted in ADM-01 alerts. |
+| Appeal | One per product (`MODERATION_APPEAL_ALREADY_USED`), within 7 days of the rejection (`MODERATION_APPEAL_WINDOW_EXPIRED`), message ≤ 500 chars, attachment ≤ 5 MB; status `appealed`; must be decided by a moderator different from the first (`reviewerId ≠ appealReviewerId`) within 24 h; decision final; notification `moderation.appeal_result`. |
+| Trust levels (D52) | `Workspace.trustLevel ∈ TrustLevel = new \| standard \| trusted \| watch`; `new` at creation. `new → standard` **automatically** (daily job `sched-trust-levels` and on each approval) when the workspace has ≥ 10 moderation items `approved` (incl. `auto_approved`) and 0 `rejected` in the last 30 days. `standard → trusted` **manual only** (moderator, reason, audited). `any → watch` **automatically** when `count(status=rejected ∧ decision=counterfeit, last 90 d) ≥ 3` (every item of the workspace then goes to human review); at 5 the workspace is listed in ADM-01 "Suspension proposée" (the admin decides; no automatic suspension). `watch → standard` **manual only** (moderator, reason). Every manual change writes `Workspace.trustSetById` and is audited with a reason (`AuditLog.reason`). |
+| Agent prompts | `ModerationItem(type=agent_prompt)` created when a saved agent configuration contains a platform blocked word or a protected brand in `customInstructions`; the agent stays active unless rejected (then `Agent.status=paused`, `Agent.pausedReason=moderation` — `PausedReason ∈ manual \| plan \| moderation`). |
+| Merchant notifications | `product.approved` in-app only, grouped per day; `product.rejected` in-app + e-mail + push; `product.changes_requested` in-app + e-mail; `moderation.appeal_result` in-app + e-mail. |
+
+## 13. Trust & safety (D37) `[FIG SAFE, ADM-11]`
+
+| Rule | |
+|---|---|
+| Block scope | `CustomerBlock` is per workspace and keyed on `clientId` **and** normalised phone (so a new placeholder with the same phone is blocked too). `CustomerBlock.source ∈ BlockSource = manual \| auto_rule \| platform`: `manual` = merchant action, `auto_rule` = workspace auto-rule, `platform` = row created from `PlatformBlacklist` and applied to every workspace. |
+| Effects of a block | AI eligibility (04 §5) adds `∧ customer not blocked`; `create_order` tool returns `CUSTOMER_BLOCKED` (AI says the shop cannot take the order and hands off silently — no "you are blocked"); manual order form shows a warning and requires a confirmation flag; conversation moves to tab "Bloqués", removed from Queue/Home, no notifications; messages still stored. |
+| Unblock | Admin+ for `source ∈ {manual, auto_rule}`; `source=platform` rows only by a moderator (`403 CUSTOMER_BLOCKED_BY_PLATFORM` for the merchant). `auto_rule` blocks are cancellable from the notification for 24 h. |
+| Auto-rules (workspace toggles, `Workspace.safetyRules`) | `riskAfterReturns` (default 2): `Client.riskLevel=high` after ≥ 2 orders returned or refused in 90 d (extends ORD-12: also when ≥ 3 cancelled in 30 d); `autoBlockAfterUncollected` (default 3, rule OFF by default): ≥ 3 unclaimed parcels (`Shipment.failureReason ∈ {unreachable, refused}` terminal) ⇒ `CustomerBlock(source=auto_rule)` + `customer.auto_blocked`; `handoffOnRisk` (default true): handoff when the client is `riskLevel=high` (AI-08 rule). |
+| Blocked words | Platform list + workspace list (case/diacritic-insensitive, Arabic + Latin). Outbound AI text containing a word ⇒ reply discarded, handoff message sent instead, insight `error` with detail `blocked_word`, no credits. Inbound containing a word ⇒ `Message.flags += blocked_word` (thread marker), no automatic block. |
+| Reports (`POST /safety/reports`) | `Report` acknowledged at once (toast + e-mail), `slaDueAt = createdAt + 24 h`; the reporter is notified at decision (`report.resolved`). Same reporter + same target with an open report ⇒ `409 ABUSE_REPORT_ALREADY_OPEN`; > 20 reports / day / workspace ⇒ `429 ABUSE_REPORT_RATE_LIMITED`; reporting one's own workspace ⇒ `422 ABUSE_REPORT_SELF` (prefix `ABUSE_REPORT_*`; `REPORT_*` belongs to the reports module). No automatic sanction for abusive reporting in v2. |
+| Platform auto-rules | Same phone blocked by ≥ 3 workspaces in 7 d ⇒ system `Report(type=customer)` proposing the blacklist; ≥ 3 end-customer reports of one workspace in 30 d ⇒ system `Report(type=merchant)` "revue de l'espace"; ≥ 5 reports of AI messages for one agent in 30 d ⇒ platform alert on its preset + insights. |
+| Evidence | Report extract = 10 messages around the reported one, read-only, customer phone masked `05•• •• •• 56`; "Afficher" (super admin, reason) unmasks and is audited; export of a report extract is forbidden. |
+| Retention | Reports and blocks kept 2 years (with audit); monthly export for store compliance (CSV, counts by type / decision). |
+
+## 14. Billing additions: dunning, packs, IAP, promo, plan versions (D40, D49, D57, D60, D63) `[FIG ADM-05, ADM-15, ADM-04, BIL-04]`
+
+| Rule | |
+|---|---|
+| Trial (D60, R-K) | Sign-up and `POST /workspaces` create `Subscription(status=trial, plan=pro, billingCycle=none, provider=none, currentPeriodEnd=+14 d, trialEndsAt=+14 d)` and one `CreditLedger` row `action=grant, kind=credit, bucket=plan, credits=300` (platform default `trialCredits=300`). At `trialEndsAt` the daily job applies the 02 §5 single rule (free plan). Public pricing shows "Essai gratuit 14 jours". The merchant cannot extend a trial; admin "Prolonger l'essai" (+7 d / +30 d / date, reason) moves `trialEndsAt` and `currentPeriodEnd` and is audited. `Plan.trialDays=14` on every plan is used only at sign-up (trial is always Pro). |
+| Dunning (D49, R-J) | Applies to paid subscriptions (`billingCycle ≠ none`) with `cancelAtPeriodEnd=false`. The renewal invoice `Invoice(kind=subscription, status=upcoming)` exists from J−7. **J−7**: `subscription.expiring` (e-mail + in-app + push), `Subscription.dunningStage=d_minus_7`. **J0** (`currentPeriodEnd`): invoice becomes `unpaid`, `Subscription.status=dunning`, `dunningStage=d0`, pill RELANCE J0; renewal attempt = a Chargily checkout link (`POST /billing/invoices/:id/pay → { checkoutUrl }`) sent by e-mail + in-app `invoice.unpaid` (+ push; + SMS when enabled). Paid-plan limits stay in force during dunning. **J+3**: second reminder `invoice.unpaid`, `dunningStage=d_plus_3`, pill RELANCE J+3. **J+7**: `Subscription.status=expired`, `dunningStage=expired`, the renewal invoice stays `unpaid`; the 02 §5 single rule applies immediately: new free `Subscription(provider=none, status=active)`, free-plan limits, extra resources paused by plan, banner "Plan expiré", `subscription.expired`; nothing deleted; **no read-only, no suspension for non-payment, no postponement**. Paying the unpaid invoice at any stage (checkout or manual payment by finance) ⇒ `status=active`, `dunningStage=null`, new period, pauses lifted. Enums: `SubscriptionStatus ∈ trial \| active \| dunning \| expired \| cancelled`; `DunningStage ∈ d_minus_7 \| d0 \| d_plus_3 \| expired`. "Suspended" is only `Workspace.status=suspended`, set by an admin (04 §16). |
+| Invoices | `Invoice(number U F-<year>-<seq>, kind ∈ InvoiceKind = subscription \| credit_pack \| manual, status ∈ InvoiceStatus = upcoming \| unpaid \| paid \| void \| refunded, method? ∈ PaymentMethodBilling = cib \| edahabia \| manual_transfer \| manual_ccp \| manual_cash \| google_play \| app_store, dueAt?, paidAt?, pdfUrl?, lines JSON, billingInfo JSON snapshot, dunningStage?)`; `À VENIR` row = `status=upcoming` for the next renewal; `unpaid` ⇒ "Payer maintenant"; PDF with the workspace billing info (company name, NIF, address, VAT). `BillingPayment` (05 §2) is the per-payment record (provider-side or manual). There is no credit note in v2. |
+| Manual payment (D71, R-J) | Finance only (`POST /admin/invoices/:id/mark-paid`): `method ∈ manual_transfer \| manual_ccp \| manual_cash`, reference, amount, date, proof upload ⇒ `BillingPayment(provider=manual, status=paid, recordedById)`. `amount = remaining` ⇒ invoice `paid` + immediate reactivation (`Subscription.status=active`, new period); `amount < remaining` ⇒ invoice stays `unpaid`, payment recorded, `200 ⚠ INVOICE_PARTIAL_PAYMENT {remaining}`; `amount > remaining` ⇒ `422 VALIDATION_ERROR` (`fields.amount = validation.range`, max = remaining) — no credit notes in v2. Audited (`invoice.mark_paid`). |
+| Debt guards | Workspace with an `unpaid` invoice: account deletion request blocked (`WORKSPACE_HAS_DEBT`), downgrade allowed, pack purchase allowed. |
+| Credit packs (D40) | `CreditLedger.bucket=pack` rows never expire; consumption order = period plan credits (`bucket=plan`) first, then packs (oldest pack first); balance shown as `plan remaining + packs remaining`; 80 % / exhausted notifications are computed on the plan part, "épuisés" only when both are 0. Web purchase = Chargily checkout (`GET /credit-packs`, `POST /credits/packs/checkout { packId }`), ledger row `action=pack_purchase, kind=credit, bucket=pack`, `Invoice(kind=credit_pack, method=cib\|edahabia)`. Seed packs: `pack-500` 500 credits = 450 DA, `pack-2000` 2 000 = 1 500 DA, `pack-6000` 6 000 = 3 900 DA. |
+| IAP (D74) | `POST /credits/packs/iap/validate { platform, productId, receipt }` ⇒ server verifies with Google Play Developer API / App Store Server API; unknown product ⇒ `404 IAP_PRODUCT_UNKNOWN`; invalid ⇒ `422 IAP_RECEIPT_INVALID`; already consumed (`CreditPackPurchase.storeTransactionId` unique) ⇒ `409 IAP_RECEIPT_ALREADY_USED` (treated as success by the app); store down ⇒ `503 IAP_STORE_UNAVAILABLE` (app retries, purchase stays pending in the store); credited once (`action=pack_purchase, kind=credit, bucket=pack`), `Invoice(kind=credit_pack, method=google_play\|app_store)` net of the 30 % store commission for accounting. Store refund notification (RTDN / App Store Server Notifications, `InboundEvent.provider=google_play\|app_store`) ⇒ ledger `action=store_refund, kind=debit, bucket=pack` (negative credits); balance < 0 ⇒ `402 CREDITS_NEGATIVE_BALANCE {balance}` on AI runs + red banner until a purchase or grant restores ≥ 0. Subscriptions are never sold through IAP; mobile shows the plan page read-only with "Le changement de plan et le paiement se font sur le web" (D73). |
+| Promo codes (D57) | `PromoCode.kind ∈ PromoKind = percent_discount \| fixed_discount \| credits \| trial_extension`; `target ∈ PromoTarget = new_workspaces \| existing \| all \| workspace`. Validation at checkout: exists and active (`PROMO_INVALID`), window (`PROMO_EXPIRED`), uses < `maxUses` (`PROMO_LIMIT_REACHED`), not used by this workspace (`PROMO_ALREADY_USED`), plan in `planSlugs[]` (`PROMO_PLAN_MISMATCH`), no other active discount on the subscription (`PROMO_NOT_STACKABLE`), subscription-discount codes refused on mobile (`PROMO_MOBILE_SUBSCRIPTION_FORBIDDEN` — mobile accepts `kind=credits` only); `credits` codes credit the ledger immediately (`CreditLedger(action=grant, kind=credit, bucket=plan, reason="promo:<code>")` linked from `PromoRedemption.ledgerEntryId`); `trial_extension` codes extend `trialEndsAt` and `currentPeriodEnd` of a `status=trial` subscription; referral `PARRAIN-*` credits both sides when the referee's first paid invoice is paid. |
+| Plan versions | `Plan.version` increments on every edit; `Subscription.planVersion` frozen until renewal; limit lower than current usage ⇒ `PLAN_LIMIT_GRANDFATHERED` on creation attempts (existing resources untouched, not paused — differs from expiry rule 02 §5); price change effective at renewal with e-mail 30 d before; `isFeatured` unique; slug immutable (`PLAN_SLUG_TAKEN` on create); delete blocked with subscribers (`PLAN_IN_USE`) ⇒ archive (hidden, subscribers kept) or migrate at next period. |
+| Credit pricing | `CreditPricing(version, text, image, voice, order=0, effectiveFrom)`; a new version applies at each workspace's next credit period; requires a published CMS announcement + e-mail; the calculator uses the current version. |
+| Discounts (admin) | % or DA for 1–12 periods, optional promo code link; shown on the invoice; audited. |
+
+## 15. Platform settings: versions, flags, maintenance, legal (D39, D58) `[FIG ADM-13]`
+
+| Rule | |
+|---|---|
+| App version gate (D39, D75) | Mobile sends `X-App-Platform` (`android \| ios`) and `X-App-Version` (semver); `GET /app/version` returns the `AppVersion` row of the platform (`latestVersion, minVersion, recommendedVersion, storeUrl, updateMessage {fr,ar,en}`). On every authenticated call `X-App-Version < AppVersion.minVersion` ⇒ `426 APP_UPDATE_REQUIRED {minVersion, storeUrl, message}` (the app shows the blocking screen); `< AppVersion.recommendedVersion` ⇒ response header `X-App-Update: recommended` (banner, dismissible 7 d). Saving a new `minVersion` sends `app.update_required`, a new `recommendedVersion` sends `app.update_recommended` (push only). Web: a new build ⇒ dialog "Nouvelle version disponible — Recharger" (drafts kept). |
+| Force update | Changing `AppVersion.minVersion` requires a 2FA code (`TWO_FA_CONFIRMATION_REQUIRED` when missing or wrong), shows the impact (devices below, from `DeviceToken.appVersion`), sets `AppVersion.forceUpdateAt`, audited `app_version.force_update`. |
+| Feature flags | Evaluated per workspace (`hash(workspaceId) % 100 < pct` or `workspaceId ∈ list`, per platform); result cached 60 s; API returns `403 FEATURE_DISABLED {feature}` on a disabled feature's endpoints; plan-gated features return `403 PLAN_FEATURE_REQUIRED {feature}` (features list = `Plan.features[]`: voice_notes, image_recognition, google_sheets, couriers, api_keys, webhooks, advanced_stock, scheduled_reports, instagram, priority_support, multi_workspace). |
+| Maintenance | `PlatformSetting.maintenance {from, to, scope}`: during the window every mutation ⇒ `503 MAINTENANCE_MODE {until}` (reads allowed), banner on web/mobile, Meta webhooks acknowledged 200 and stored in `InboundEvent` with `processedAt=null`, replayed in order after the window; cron jobs paused. |
+| Incident banner | Text FR/AR/EN, visible toggle; shown as the top banner with priority just below "suspended" (12 §0 priority list). |
+| Legal documents (D39) | `LegalDocument(key ∈ LegalDocKey = terms \| privacy \| account_deletion \| content_rules, version Int, isMajor, cmsEntryId, requiresReacceptance)`, `U(key, version)`. Publishing a version with `isMajor=true` sets `requiresReacceptance=true` and sends `legal.reacceptance_required`; every user without a `LegalAcceptance(userId, legalDocumentId, version)` row then gets `403 LEGAL_REACCEPT_REQUIRED {document, version}` on all calls except auth and legal endpoints (`GET /legal/pending`, `POST /legal/accept { key, version }`); web + mobile show the interstitial (read + accept); acceptance stored with `ip` and `client ∈ web \| android \| ios`. Versions with `isMajor=false` never prompt. `content_rules` is required from Owners and Admins only (acceptance at next login); `terms` and `privacy` from every user; `account_deletion` is informational (never prompts). |
+| Meta app | Permission statuses are informational (manual update by super admin, date); `instagram_manage_messages` approved ⇒ job activates every `Channel(platform=instagram, status=pending_review)` and sends `channel.approved`. |
+| Providers | `PlatformProvider.key ∈ chargily \| email \| sms \| push \| courier_zr \| courier_ecotrack \| courier_yalidine \| google_oauth`; secrets encrypted, never redisplayed; "Tester" (`POST /admin/providers/:key/test`) runs a minimal call with states testing / ok (latency) / rejected / unreachable and writes `status ∈ ProviderStatus = ok \| warning \| error \| disabled`, `lastCheckedAt`, `lastError`; SMS balance warning < 1 000; APNs key expiry warning 30 d before `expiresAt`. |
+| Defaults | `apiRateLimitPerMin=600` (per key, `429 RATE_LIMITED`), `webhookAttempts=6 / 24 h`, `trialDays=14`, `trialCredits=300`, `workspaceDeletionDays=30`, `impersonationMinutes=30`. Changes versioned (`PlatformSettingVersion`) and audited. |
+
+## 16. Account & workspace deletion, ownership (D50, D51, D31) `[FIG ADM-16, PUB deletion, DLG Settings]`
+
+| Rule | |
+|---|---|
+| Request | In-app: password (+ 2FA code when enabled); public: e-mail ⇒ `EmailToken(kind=account_deletion, 24 h)`; response always 200 "si un compte existe…"; `3 / h / IP` ⇒ `RATE_LIMITED`; expired link ⇒ `ACCOUNT_DELETION_TOKEN_EXPIRED`; a second request while one is pending ⇒ `ACCOUNT_DELETION_PENDING`. |
+| Guards | Owner of a non-deleted workspace ⇒ `ACCOUNT_OWNS_WORKSPACE` (dialog: transfer ownership or delete the workspace); unpaid invoice on an owned workspace ⇒ `WORKSPACE_HAS_DEBT`; admin requests follow the same guards (ADM-16 `BLOQUÉE`). |
+| Confirmation effects | `User.status=deletion_scheduled`, `deletedAt=null`, `AccountDeletionRequest.status=grace`, `scheduledAt = confirmedAt + 30 d`; all sessions and device tokens revoked, memberships removed (assignments cleared, authored content kept), login shows "Compte désactivé — suppression le … — Exporter / Annuler"; export job (`Job(kind=data_export)`: JSON + CSV of profile, memberships, notifications) available 7 d; e-mail `account.deletion_confirmed` (e-mail only). Guard hits set `status=blocked` with `blockedReason ∈ ACCOUNT_OWNS_WORKSPACE \| WORKSPACE_HAS_DEBT`. |
+| Grace & cancel | 30 d (platform default); logging in during grace (password) ⇒ dialog "Annuler la suppression ?" ⇒ `status=active`, memberships **not** restored automatically (Owner re-invites); admin "Annuler" with reason. |
+| Anonymisation | Job at `scheduledAt`: `firstName/lastName → "Membre supprimé"`, `email → deleted+<id>@anon.djaber.ai`, phone/avatar null, TOTP/recovery cleared, `AuditLog.actorId` kept (actor shown as "membre supprimé"); invoices keep the workspace billing info only; `status=anonymised`. Irreversible. |
+| Ownership transfer (D51, R-I) | `POST /workspaces/:id/transfer-ownership { newOwnerUserId, password, totpCode? }` (Owner only, permission `workspace.transfer`): target must be an Admin member of the workspace (`422 OWNERSHIP_TRANSFER_TARGET_INVALID`); `password` always required (`401 AUTH_INVALID_CREDENTIALS` on mismatch); `totpCode` required when the Owner has `totpEnabled=true` (`TWO_FA_CONFIRMATION_REQUIRED` when missing or wrong), ignored otherwise; no e-mail confirmation link. Effects in one transaction: old owner `Membership.role=admin`, new owner `role=owner` (exactly one Owner at any time), `User.ownedWorkspaceId` moved to the new owner, audit `workspace.transfer_ownership`, e-mail to both, notification `member.role_changed` to both. Irreversible except by the new Owner doing the same. The Owner still cannot be removed/demoted by anyone else (`OWNER_IMMUTABLE`). |
+| Workspace deletion by admin | "Programmer la suppression" ⇒ `Workspace.status=deletion_scheduled`, `Workspace.deletionScheduledAt = now + 30 d`, export e-mailed to the Owner, channels disconnected, subscription cancelled, banner, `workspace.deletion_scheduled`; every mutation other than cancel ⇒ `409 WORKSPACE_DELETION_SCHEDULED {at}`; cancel (Owner from the banner via `POST /workspace/deletion/cancel`, or admin) restores `status=active` and channels as `disconnected` (reconnect needed). Owner-side deletion (FL-14) sets the same fields. Purge at the date (D31). |
+| Suspension | `Workspace.status=suspended`, `suspendedAt`, `suspendReason ∈ SuspendReason = fraud \| unpaid \| content \| owner_request \| other`, `suspendNote` (detail visible to the merchant); set only by an admin (ADM-02 "Suspendre"; roles per 01-nest-module-map §3.2), audited `workspace.suspend` with reason. Effects: AI + webhooks stopped, every mutation ⇒ `403 WORKSPACE_SUSPENDED` (read-only), banner, e-mail + `workspace.suspended` (in-app + e-mail + push). Lift = "Réactiver" (`POST /admin/workspaces/:id/reactivate`, reason, audited) ⇒ `status=active`, `workspace.reactivated`. Non-payment never suspends (04 §14). |
+
+## 17. Admin impersonation & viewers (D21-bis) `[FIG ADM-02, ADM-17, ADM-09]`
+
+| Rule | |
+|---|---|
+| Start (D21-bis, R-F) | Read-only only — there is no write mode in v2. `POST /admin/impersonation/sessions { workspaceId, reason (≥ 10 chars), ticketId? } → { data: { sessionId, token, expiresAt } }` (platform roles `super_admin` and `support`); `422 ADMIN_REASON_REQUIRED` when the reason is shorter. Creates `ImpersonationSession { adminUserId, workspaceId, reason, ticketId?, startedAt, expiresAt = startedAt + 30 min, endedAt?, actionsCount }`; audit `impersonation.start`. The token is sent as `X-Impersonation-Session`; after `expiresAt` ⇒ `401 ADMIN_IMPERSONATION_EXPIRED`. `GET /admin/impersonation/sessions` lists sessions; `DELETE /admin/impersonation/sessions/:id` ends one (`endedAt`). |
+| During | Red persistent banner "Vous agissez en tant que {workspace} · lecture seule · {mm} min · Quitter". Every non-GET request under `X-Impersonation-Session` ⇒ `403 ADMIN_IMPERSONATION_FORBIDDEN_ACTION`. Every request increments `actionsCount` and is logged `impersonation.action` with `AuditLog.impersonationSessionId`; stop logs `impersonation.stop` with duration. No e-mail to the Owner. |
+| Viewers | Conversation / product viewers (ADM-17): customer phone and name partially masked; "Afficher" (super admin, reason) audited `viewer.unmask`; no composer, no export; every open logged `viewer.open` with reason. |
+| Audit | `AuditLog` immutable, 24 months, secrets hashed; export = signed CSV (SHA-256 header) or JSON, as a job with a 24 h link, itself logged. |
+
+## 18. Agent versioning, drafts, activation & presets (D53, D54) `[FIG AGT-02…04, ADM-07]`
+
+| Rule | |
+|---|---|
+| Draft (D67) | Wizard (5 steps: Identité → Connaissances → Comportement → Canaux → Test & activation, D54) creates `Agent(status=draft)` at step 1 save; each step `PATCH` autosaves (`Agent.wizardStep`). **Drafts never count toward `Plan.maxAgents`**: the limit is checked at activation on the count of agents with `status ∈ {active, paused}` ⇒ `403 PLAN_LIMIT {resource: agents}`. A draft never answers. |
+| Activation checks | ≥ 1 channel free or pending Meta (`AGENT_NO_CHANNEL`), plan limit (`403 PLAN_LIMIT {resource: agents}`), e-mail verified (`AUTH_EMAIL_UNVERIFIED`), required identity fields and ≥ 1 language (`AGENT_DRAFT_INCOMPLETE {missing[]}`); warnings (non-blocking, `meta.warnings`): products without photo, fee grid incomplete, policies < 4, products pending moderation. Scheduled activation = `Agent.scheduledActivateAt`, job. |
+| Channel switch | Linking/moving a channel sets `AgentChannel` immediately; conversations with `agentId` of another active agent keep it until `resolved/archived`; new conversations use the new agent; info flag `AGENT_CHANNEL_SWITCH_NEXT_THREAD` in the response. Detach ⇒ channel without AI (manual replies only). |
+| Versions (D53) | `AgentVersion(agentId, version, snapshot, note?, createdById, source ∈ manual \| wizard \| insight \| preset_update \| restore \| generation, restoredFromVersion?)` on every successful save (wizard step save in draft does **not** version; the first activation creates v1); `Agent.currentVersion` = latest; restore = copy snapshot into the agent + new version with note "Restauré depuis vN"; diff = JSON diff of the structured columns + compiled prompt fields. |
+| Compiled fields (D23, D54, R-H) | `Agent` has no single JSON configuration blob. The wizard stores the **structured `Agent` columns** `displayName, avatarUploadId, avatarMode, languages[], defaultLanguage, tone, formality, emojiLevel, catalogScope, scopeCategoryIds[], outOfStockBehavior, showMissingVariants, policies JSON, capabilities JSON, orderFields JSON, maxQtyPerOrder, maxAmountPerOrder, riskyClientBehavior, recapMode, handoffRules JSON, handoffKeywords[], businessHours JSON` plus `AgentFaq` rows. **At every save** the server compiles them into `customInstructions` (sections) and `humanHandoffRules` (one line per rule), so the AI pipeline (AI-02…08) reads only the prompt fields; `AgentVersion.snapshot` holds both. The merchant edits either the structured form or the raw instructions (advanced mode), never both in one save. FAQ limit 50 entries / 20 000 chars (`AGENT_FAQ_LIMIT`). Out-of-hours and handoff texts are the workspace system messages `out_of_hours` / `handoff` (04 §5), not agent columns. |
+| Limits in behaviour | `Agent.maxQtyPerOrder` (default 5 when null) and `Agent.maxAmountPerOrder` (default 50 000 DA when null): the `create_order` tool refuses above them and returns the internal handoff hint `order_limit` ⇒ AI-08 handoff with reason `order_limit` (never an API error code). |
+| Pause | `AGENT_PAUSED_WITH_OPEN_THREADS {count}` is returned as 409 unless `confirm=true`; on confirm, conversations awaiting a reply become `needs_human`; `Agent.pausedReason=manual` (`plan` when paused by the plan rule, `moderation` by a moderation rejection); customers who write during the pause receive the workspace system message `out_of_hours` once per 24 h per conversation when `Agent.businessHours` is set, else nothing. |
+| Delete | Blocked while channels are linked (`AGENT_HAS_CHANNELS`); typed-name confirmation; conversations keep `agentId=null` shown as "agent supprimé"; pending insights dismissed (04 §9). |
+| Test link | `AgentTestLink(token, expiresAt +24 h)` gives playground access to a non-member (no catalogue edit); expired ⇒ `AGENT_TEST_LINK_EXPIRED`; counts in the 60 turns/h workspace limit. |
+| Presets | Publishing a preset version never changes existing agents; agents store `presetVersionId`; "Mise à jour disponible" when a newer published version exists; apply = new `AgentVersion` with the preset diff merged (merchant edits win on conflict, shown in the dialog). Creating from an archived preset ⇒ `PRESET_ARCHIVED`; publish requires FR + AR complete (`PRESET_LOCALE_INCOMPLETE`) and the 5 scenarios passed; published versions cannot be deleted (`PRESET_PUBLISHED_IMMUTABLE`). |
+| Model choice (R-H) | The merchant never selects a model. `Agent.modelId` is assigned by the platform routing (`AiRoute` per capability, ADM-06) at every save and refreshed at run time on fallback (`AiRoute.primaryModelId → fallbackModelId` when the provider error rate exceeds `AiRoute.errorThresholdPct` or a call exceeds `AiRoute.timeoutSec`, default 20 s; AI HTTP timeout 45 s overall). `temperature` / `maxTokens` come from the preset (`AgentPresetVersion.config`), not from the merchant. The UI shows the current model as a read-only badge; the AGT-02 frame still showing a "Model" step is a Figma text fix (D65). |
+
+## 19. Inventory counts (D55) `[FIG DLG GDS]`
+
+| Rule | |
+|---|---|
+| `InventoryCount.status ∈ InventoryStatus = draft \| counting \| validated \| cancelled` (`draft` = created, `counting` = entry in progress, `validated` = movements written, `cancelled`). One count with `status ∈ {draft, counting}` per workspace (`409 INVENTORY_IN_PROGRESS {number}`); `InventoryCount.scope ∈ InventoryScope = all \| category \| alerts_only`: `all` excludes untracked and archived products; `category` includes sub-categories (`Category.parentId`); `alerts_only` = products and variants with `stock ≤ minStock`. |
+| `blockCounterSales=true` ⇒ `POST /sales` returns `409 SALE_BLOCKED_BY_INVENTORY` while `status ∈ {draft, counting}`; orders and AI are never blocked. |
+| Expected qty (`InventoryCountLine.expectedQty`) snapshot at start; movements during the count are applied to the expected qty at validation (`expected + Σ movements since start`) so the variance is real. |
+| Variance line: `difference = countedQty − expectedQty`; `differencePct = \|difference\| / max(expectedQty, 1)`; any line > 10 % ⇒ `note` mandatory (`422 INVENTORY_VARIANCE_NOTE_REQUIRED`); validation (Admin+, permission `stock.count` for entry) creates `StockMovement(type=inventory, quantity=difference, refType=inventory, refId, reason=inventory, actorId)` per non-zero line (variant level for variant products), stores `InventoryCountLine.movementId`, updates `Product.lastInventoryAt`. |
+| Cancel a count = `status=cancelled`, no movement; lines kept for 30 d. Operators may enter counts (web/mobile scan, `PUT /inventories/:id/lines`) but only Admin+ validates. |
+
+## 20. Cash register locks & closing, purchases & sales locks (D56, D64) `[FIG GDS-07/08/09, DLG GDS, DLG GDS II]`
+
+| Rule | |
+|---|---|
+| Day closing (D56) | `POST /cash/close { day, countedBalance, note? }`: `theoreticalBalance = previous CashClosing.countedBalance (0 if none) + Σ CashTransaction of the day with method=cash (income − expense)`; `difference = countedBalance − theoreticalBalance`; `difference ≠ 0` ⇒ `note` required; creates `CashClosing(day, theoreticalBalance, countedBalance, difference, note, closedById, closedAt)` (`U(workspaceId, day)`) and, when `difference ≠ 0`, `CashTransaction(category=correction, amount=\|difference\|, type=income if difference > 0 else expense, isAutomatic=true, sourceType=closing, sourceId=closing.id, closingId)`; the next day's opening balance = `countedBalance`. Closing a day with an open earlier day is allowed (list shows them "à clôturer"). |
+| Locked day | Any create / update / delete of a row dated on a closed day ⇒ `409 CASH_DAY_CLOSED`; automatic rows generated later for that date (e.g. a delivery marked today for an order dated yesterday) are dated **today** (the cash moved today). Reopen = `POST /cash/days/:day/reopen { reason }`, Admin+, audited, sets `CashClosing.reopenedById` / `reopenedAt`; the closing correction row is reversed by a new `correction` row (`correctsTransactionId`), never deleted. |
+| Manual rows | Editable/deletable by the author or Admin+ ≤ 24 h after creation (`422 CASH_ENTRY_EDIT_WINDOW_EXPIRED` after) and only while the day is open. Automatic rows (`isAutomatic=true`) are immutable: `403 CAISSE_EDIT_AUTOMATIC`; a correction of an automatic row = manual `category=correction` row linked to it (`CashTransaction.correctsTransactionId`), never an edit. |
+| Purchases (D64, R-M) | `Purchase.status ∈ PurchaseStatus = draft \| pending \| partial \| received \| cancelled` (`pending` = "Commandé"): `draft → pending → partial → received`; `cancelled` from `draft` / `pending` / `partial` only (`409 PURCHASE_ALREADY_RECEIVED` once fully received; a partial cancellation keeps received units in stock and reverses only unpaid amounts); delete = `status ∈ {draft, pending}` ∧ unpaid (`422 PURCHASE_DELETE_NOT_PENDING`). **Over-receipt accepted**: the line `quantity` is raised to `receivedQty`, `200 ⚠ PURCHASE_OVER_RECEIVE {ordered, received}` in `meta.warnings`. **Weighted-average cost recomputed at every receipt** (product or variant level): `costPrice = round_half_up((stock × costPrice + recvQty × unitCost) / (stock + recvQty))`, integer DA (`stock` = quantity before the receipt; `stock + recvQty = 0` ⇒ `costPrice = unitCost`; a null `costPrice` counts as 0). Supplier payment dialog allocates to a purchase or oldest first and creates a locked cash row (`PaymentEntry` + `CashTransaction(isAutomatic=true, sourceType=payment_entry)`). |
+| Sales | Immutable after validation (`SALE_IMMUTABLE`): corrections = cancel + redo; cancel ≤ 7 d (`SALE_CANNOT_CANCEL_AFTER_7D`) with reason, restocks, reverses cash rows (refund row if money was taken); partial payment requires `clientId` (`SALE_PARTIAL_REQUIRES_CUSTOMER`); "Encaisser le reste" adds a cash row and sets `paid`; price edited on a line is snapshotted with the catalogue price for the margin report. Supplier delete ⇒ `SUPPLIER_HAS_PURCHASES` → deactivate. |
+| Movements | Immutable (`GDS_MOVEMENT_IMMUTABLE` on PATCH/DELETE); "Contre-passer" = new inverse movement (`adjustment_in` or `adjustment_out`) with `reason=correction`, `StockMovement.reversedByMovementId` set on the original. `StockMovement.type ∈ MovementType = in \| out \| adjustment_in \| adjustment_out \| inventory \| return` — there is no bare `adjustment`: a manual adjustment (`POST /stock/adjustments`) writes `adjustment_in` for a positive quantity and `adjustment_out` for a negative one. `StockMovement.reason ∈ MovementReason` (16 values): `order_delivered · order_created · order_cancelled · order_returned · sale · sale_cancelled · purchase · purchase_cancelled · breakage · loss · initial · inventory · correction · archive · import · other`. Stock may go negative only with `force=true` by Admin+ and a reason; otherwise every decrement is conditional: sale lines ⇒ `422 SALE_INSUFFICIENT_STOCK {product, available}`, order lines ⇒ `422 ORDER_INSUFFICIENT_STOCK {product, available}`, every other decrement (adjustments, purchase cancellation, archive) ⇒ `422 STOCK_INSUFFICIENT {available}`. |
+| Archive with stock | "Sortir le stock restant" checkbox on archive ⇒ `adjustment_out` movement, `reason=archive`. Hard delete of a product blocked when referenced by orders/sales (`PRODUCT_HAS_ORDERS`). Variant generator max 100 variants per product (`VARIANT_LIMIT`). Recommendations regenerate ≤ 1 / 10 min (`RECO_RATE_LIMITED`). |
+
+## 21. Orders: source, assignment, callbacks, bulk limits (D61) `[FIG ORD-05 v2, DLG Orders]`
+
+| Rule | |
+|---|---|
+| `Order.source` = `ai` (AI tool; `agentId`, `channelId`), `manual` (web form; `createdById`), `mobile` (Flutter; `createdById`), `api` (API key; `apiKeyId`), `import` (CSV job; `importJobId`). The SOURCE column renders agent·channel / member / member / key name / file date. |
+| Assignment: `Order.assigneeId` (member), set from the Assign dialog or bulk; "Notifier la personne" ⇒ in-app notification; filter "Assignée à". |
+| Callback: `Order.callbackAt` (future, else `ORDER_CALLBACK_IN_PAST`), note, optional customer message "nous vous rappelons à {heure}" (MSG-06 rules); at the time ⇒ `order.callback_due` to the assignee or all Operators+, pill RAPPEL hh:mm, Home card RAPPEL; cleared by the next logged call. |
+| Call outcome `wrong_number` ⇒ `confirmationStatus=wrong_number`, auto-cancel with reason "faux numéro" (same guard as `rejected`: not sent, status ∈ new/confirmed/preparing), client `riskLevel=high`; the AI must not create another order for that phone without an explicit confirmation step (tool hint). 3rd `no_answer` ⇒ UI proposes cancel or reminder. |
+| Status-change dialog effective date: back-datable ≤ 7 d (affects `deliveredAt` / cash row date — the cash row is dated the effective date **only if that day is open**, else today). "Confirmée (retour arrière)" from `shipped` only while the courier has not picked up (`Shipment.status ∈ {pending, sent}`), else `422 ORDER_INVALID_TRANSITION`. |
+| Manual delivered: `amountCashed` default = total; a different amount requires a reason and is stored on the cash row; COD rule unchanged (04 §1.4) — the order becomes `paid` with `amountPaid = amountCashed` (partial if lower). |
+| Returned dialog: `Shipment.failureReason ∈ unreachable / refused / damaged / address`; restock checkbox default on (checked ⇒ movement `return` reason `order_returned`; unchecked ⇒ no restock and one `adjustment_out` movement reason `loss` for the audit trail of the lost units); courier return fee from the grid `returnPrice` (D27) or the courier's quoted fee when known; client `returnCount += 1` (recomputed). |
+| Address edit: free before any courier shipment; after `createParcel` ⇒ `COURIER_ADDRESS_LOCKED` (cancel the parcel first); fee recomputed on change (Admin override kept if set), customer informed through the AI when the conversation is active and inside 24 h. |
+| Bulk: allowed = confirm, prepare, mark shipped (self-delivery), send to courier (same courier, sequential, per-row results, partial retry), print labels (only created shipments), export, cancel, assign; **forbidden** = mark delivered, mark returned (COD / stock effects are per order). Bulk results never stop on the first error. |
+| Delete: typed order number must match exactly; delivered ⇒ `ORDER_DELETE_DELIVERED`; active parcel ⇒ `DELIVERY_ORDER_ALREADY_SENT`. |
+| Import orders (CSV, ORD-05 v2 "Importer", D69, R-M) — **P2**, permission `orders.import` (Admin+). Same wizard as CAT-06: upload → column mapping → preview with per-row errors → commit as a job. Columns: `clientName, phone, wilaya, commune?, address, items ("SKU×qty;SKU×qty"), note?`. Endpoints: `POST /orders/import` (multipart) → `202 { data: { jobId } }` (parse + preview), `POST /orders/import/:jobId/commit` (idempotent) → `202`. Each valid row creates `Order(source=import, status=new, importJobId=jobId, createdById)`; client find-or-create by normalised phone; stock checked per row (`ORDER_INSUFFICIENT_STOCK` on the row, other rows continue); per-row validation uses 04 §2; the job result holds per-row results (`Job.result`), notification `job.finished` / `job.failed`. |
+
+## 22. Delivery additions (DLV) `[FIG DLV-08, MECH Delivery, DLG Orders ×2]`
+
+| Rule | |
+|---|---|
+| Tracking refresh: manual "Actualiser" ≤ 1 per 5 min per shipment (`429 TRACKING_SYNC_RATE_LIMITED {retryAfter}`); automatic cadence per DLV-04: every 2 h for the first 3 days after `sent`, then every 12 h (Figma "30 min par transporteur" is the per-account batch wording; the DLV-04 cadence is the rule). |
+| Statuses: `Shipment.status ∈ ShipmentStatus = pending \| sent \| picked_up \| in_transit \| out_for_delivery \| delivered \| failed \| returned \| cancelled \| stale`; `picked_up` **is a status** (pill RAMASSÉE, written when the courier reports the pickup); the Figma word "created" = `sent`. "Sans mouvement" = no `ShipmentEvent` for > 5 d while `status ∈ {sent, picked_up, in_transit}` ⇒ listed under "Sans mouvement" and counted in KPIs; no event for 30 d ⇒ `status=stale` (DLV-04). |
+| Failure handling: `failureReason ∈ {address, unreachable, refused, damaged, other}`; attempts counter per shipment (`attempt n/3` from courier events); actions: retry (adapter `retryDelivery` when supported, else new parcel after cancel) + customer message (MSG-06), fix address → retry (requires `COURIER_ADDRESS_LOCKED` release = cancel parcel), mark returned, call client, open order; at 3 failed attempts the UI proposes return. |
+| Cancel parcel: allowed while `Shipment.status ∈ {pending, sent}` and the adapter supports `cancelParcel` ⇒ `Shipment.status=cancelled`, `cancelledAt`, order back to `confirmed` (option) or cancelled (option); from `picked_up` onwards or unsupported ⇒ `409 COURIER_CANCEL_NOT_ALLOWED` ⇒ use return at reception. |
+| Change courier on a failed/unsent order: recomputes the courier cost (informational), never the customer fee (D15). |
+| Self-delivery courier type `self` (DLV-10 provider `manual`): no credentials, label = Djaber label, status updates manual only. |
+| Labels: thermal 100 × 150 and A6 merged PDF; orders without a created shipment are ignored with `SHIPMENT_NOT_CREATED`; "Marquer bordereau imprimé" sets `Shipment.labelPrintedAt`. Public tracking page `djaber.ai/s/:code` (QR on labels) shows the mapped status timeline only. |
+
+## 23. Messaging window per platform & COD (reconfirmed) `[FIG DLG Inbox, ORD-06]`
+
+| Platform | Inside 24 h since last customer message | Outside 24 h |
+|---|---|---|
+| Facebook Messenger | AI and human: standard send | AI: never (`skipped_window`, thread label "Non délivré — hors fenêtre 24 h"); human: `HUMAN_AGENT` tag (approved) — composer offers "Envoyer un message modèle"; transactional order updates: `POST_PURCHASE_UPDATE` |
+| Instagram DM | AI and human: standard send | Nothing can be sent (`REPLY_OUTSIDE_WINDOW`, composer disabled "impossible"); transactional updates stored `skipped_window` |
+
+Banner "HORS FENÊTRE 24 H" appears when `lastCustomerMessageAt < now − 24 h`; the inbox filter "Dernier message < 24 h (réponse possible)" uses the same field. **COD rule reconfirmed**: `→ delivered` (manual, courier sync, or "Marquer livrée manuellement") while `paymentStatus ≠ paid` ⇒ `amountPaid = total` (or the cashed amount entered), `paymentStatus = paid`, one locked income cash row "Commande #… livrée (COD)" dated the day the cash moved; never applied twice; reversed on `returned`.
+
+## 24. Saved views, density, deep links (D42, D47, D48) `[FIG REF, ORD-05 v2]`
+
+| Rule | |
+|---|---|
+| `SavedView` name unique per (user, page) (`SAVED_VIEW_NAME_TAKEN`); `isDefault` unique per (user, page); a shared view is owned by its author — others may clone, not edit (`SAVED_VIEW_SHARED_READONLY`); deleting a shared view removes it for everyone (confirmation shows the count). |
+| `User.prefs { listDensity: compact|comfortable, columns: {page: []}, reportFavorites: [] }` — client-settable, no validation beyond enum. |
+| Deep-link resolution order: parse `NotificationType` → target template (03 §15, the single source of web paths) → check the object belongs to a workspace the user is a member of → switch `X-Workspace-Id` when needed → open with filters; failures: 404 page (object) / 403 page (membership). Mobile uses `djaber://` + identical path. |
