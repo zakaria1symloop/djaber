@@ -245,7 +245,8 @@ export function useCatalogEvents() {
     void qc.invalidateQueries({ queryKey: catalogKeys.product(ws, u.id) });
     void qc.invalidateQueries({ queryKey: catalogKeys.lowStock(ws) });
     void qc.invalidateQueries({ queryKey: [ws, 'stock'] });
-    void qc.invalidateQueries({ queryKey: [ws, 'products', 'list'], refetchType: 'none' });
+    // stock state pills, margins and variant summaries are derived by the server: the visible lists are refetched
+    void qc.invalidateQueries({ queryKey: [ws, 'products', 'list'] });
   });
   useWsEvent<{ productId?: string }>('moderation.updated', (p) => {
     if (p?.productId) void qc.invalidateQueries({ queryKey: catalogKeys.product(ws, p.productId) });

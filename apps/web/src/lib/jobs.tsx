@@ -36,10 +36,12 @@ export function useJobEvents() {
   useWsEvent<{ job?: Partial<JobDto> & { id: string } }>('job.updated', (p) => {
     const job = p?.job;
     if (!job?.id) return;
-    const known = qc.getQueryData<JobDto>(jobKey(ws, job.id));
-    if (known) qc.setQueryData<JobDto>(jobKey(ws, job.id), { ...known, ...job });
-    // the event carries no result for large payloads: fetch the final state once
-    if (job.status && job.status !== 'queued' && job.status !== 'running') void qc.invalidateQueries({ queryKey: jobKey(ws, job.id) });
+    const key = jobKey(ws, job.id);
+    // the event has no `resultUrl` (signed per reader) and may omit the result: a finished job is read from the API,
+    // the cached one stays "running" until that answer arrives — otherwise the toast would end without its download
+    if (job.status && job.status !== 'queued' && job.status !== 'running') return void qc.invalidateQueries({ queryKey: key });
+    const known = qc.getQueryData<JobDto>(key);
+    if (known && isJobRunning(known)) qc.setQueryData<JobDto>(key, { ...known, status: job.status ?? known.status, progress: job.progress ?? known.progress });
   });
 }
 

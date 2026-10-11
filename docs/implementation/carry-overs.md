@@ -25,4 +25,5 @@ Each line: where it came from → the stage that must close it. Remove the line 
 | M2 | KPI tiles of `/movements` and filter-following KPIs of `/products` (need `/stock/movements/stats`, `/products/stats`) | M7 / M8 |
 | M2 | Stock dashboard block "ACHATS & FOURNISSEURS", "Réapprovisionner" → purchase, product expenses editor | M7 |
 | M2 | Saved views ("Enregistrer cette vue") on products and movements | milestone that adds the saved-view endpoints (06 §8.1) |
-| M2 | Category delete without reassignment ("Sans catégorie" answers 409 `CATEGORY_IN_USE`); appeal attachment and category image fields in the web (upload kinds `appeal_attachment`, `category_image` exist in the API) | M10 polish (moderation) / API follow-up |
+| M2 | Appeal attachment field and category image field in the web (API upload kinds `appeal_attachment`, `category_image` exist) | M10 (appeals) / M11 polish |
+| M2 | Conflict detection on the product form treats any change arriving within 5 s of this tab's own write as its own (a foreign edit inside that window is rebased silently) | M11 polish: tag WS events with the originating session id |

@@ -1,6 +1,7 @@
 // CLAUDE.md rule 11 + 08-coder-playbook §6: integer DZD, Latin digits, thin-space thousands, Africa/Algiers.
 export const TIMEZONE = 'Africa/Algiers';
-const THIN = ' ';
+// no-break space: U+202F (narrow) collapses to almost nothing in Geist, so amounts read 3900DA — 06 §6 wants 12 500 DA
+const THIN = '\u00a0';
 
 export const formatNumber = (n: number) =>
   Math.round(n)

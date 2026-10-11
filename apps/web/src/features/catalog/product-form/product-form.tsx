@@ -15,7 +15,7 @@ import { AppPage } from '@/components/app-page';
 import { ConflictDialog } from '@/components/global-states';
 import { Link, useRouter } from '@/i18n/navigation';
 import { actionState } from '@/lib/actions';
-import { ApiError, apiSession } from '@/lib/api';
+import { ApiError, apiSession, msSinceOwnWrite } from '@/lib/api';
 import { conflictOf } from '@/lib/conflict';
 import { errorMessage, fieldError, useLeaveGuard } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
@@ -78,6 +78,8 @@ function WithLtr({ text, value }: { text: string; value: string }) {
   );
 }
 const SLOT = '@@';
+/** A product refresh this soon after a write of this tab is our own change (save, adjustment, image, variant), not someone else's. */
+const OWN_WRITE_WINDOW_MS = 5_000;
 
 function Section({ title, name, children }: { title: string; name: string; children: ReactNode }) {
   return (
@@ -122,17 +124,28 @@ export function ProductForm(props: Props) {
   const values = form.watch();
   const errors = form.formState.errors;
 
-  // a fresh server version (own save, WS event, adjustment, generated variants): untouched fields follow it, the draft stays
+  // A fresh server version reaches the form in two ways (12-screen-states F "conflict"):
+  //  - our own write (save, adjustment, generated variants, images) or a clean form: untouched fields follow it and the
+  //    form takes its version;
+  //  - someone else's change (WS `product.updated`) while the form is dirty: nothing is rebased and the form keeps the
+  //    version it was loaded with, so that saving answers 409 and the conflict dialog is shown.
   const serverForm = useMemo(() => (product ? toForm(product) : null), [product]);
   const signature = serverForm ? JSON.stringify(serverForm) : '';
+  const versionRef = useRef(product?.version ?? 0);
+  const serverVersion = product?.version ?? 0;
+  const cleanNow = dirtyItems(base, values, mode).length === 0;
   useEffect(() => {
-    if (!serverForm || JSON.stringify(baseRef.current) === signature) return;
+    if (!serverForm) return;
+    const untouched = dirtyItems(baseRef.current, form.getValues(), mode).length === 0;
+    if (!untouched && serverVersion !== versionRef.current && msSinceOwnWrite() > OWN_WRITE_WINDOW_MS) return;
+    versionRef.current = serverVersion;
+    if (JSON.stringify(baseRef.current) === signature) return;
     const merged = rebaseForm(baseRef.current, serverForm, form.getValues());
     baseRef.current = serverForm;
     setBase(serverForm);
     form.reset(merged, { keepErrors: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the server values only
-  }, [signature]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the server values, its version and the clean flag
+  }, [signature, serverVersion, cleanNow]);
 
   const [done, setDone] = useState(false);
   const changes = useMemo(() => dirtyItems(base, values, mode), [base, values, mode]);
@@ -272,6 +285,7 @@ export function ProductForm(props: Props) {
       const patch = toUpdatePayload(from, v, version, { advanced });
       if (Object.keys(patch).length > 1) {
         const r = await catalogApi.updateProduct(product.id, patch);
+        versionRef.current = r.data.version;
         qc.setQueryData<Product>(key, r.data);
         afterSave(r.warnings);
       }
@@ -321,7 +335,7 @@ export function ProductForm(props: Props) {
   };
   const submit = form.handleSubmit((v) => {
     setSummary(null);
-    return mode === 'create' ? create(v) : update(v, product!.version);
+    return mode === 'create' ? create(v) : update(v, versionRef.current || product!.version);
   }, onInvalid);
 
   /* ---------- "Remplir depuis la photo" ---------- */
@@ -703,6 +717,7 @@ export function ProductForm(props: Props) {
           if (current) {
             const next = toForm(current);
             baseRef.current = next;
+            versionRef.current = current.version;
             setBase(next);
             form.reset(next);
             qc.setQueryData<Product>(catalogKeys.product(ws, product.id), current);

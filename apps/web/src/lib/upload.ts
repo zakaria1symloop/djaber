@@ -1,6 +1,6 @@
 // Multipart upload with progress (product images: "ENVOI…" + bar per image). `fetch` exposes no upload progress,
 // so this goes through XMLHttpRequest with the same headers, envelope and single silent refresh as `apiRaw`.
-import { API_URL, ApiError, apiSession, refreshSession, type ApiErrorBody, type Envelope } from './api';
+import { API_URL, ApiError, apiSession, markOwnWrite, refreshSession, type ApiErrorBody, type Envelope } from './api';
 
 const send = <T>(path: string, formData: FormData, onProgress?: (pct: number) => void, signal?: AbortSignal) =>
   new Promise<{ status: number; json: (Envelope<T> & { error?: ApiErrorBody }) | null; ref: string }>((resolve, reject) => {
@@ -28,7 +28,9 @@ const send = <T>(path: string, formData: FormData, onProgress?: (pct: number) =>
   });
 
 export async function uploadWithProgress<T>(path: string, formData: FormData, o: { onProgress?: (pct: number) => void; signal?: AbortSignal } = {}): Promise<Envelope<T>> {
+  markOwnWrite();
   let res = await send<T>(path, formData, o.onProgress, o.signal);
+  markOwnWrite();
   if (res.status === 401 && (await refreshSession())) res = await send<T>(path, formData, o.onProgress, o.signal);
   if (res.status < 200 || res.status >= 300 || !res.json || res.json.error) {
     throw new ApiError(res.status, {
