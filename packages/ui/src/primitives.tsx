@@ -22,6 +22,14 @@ const BUTTON: Record<ButtonVariant, string> = {
   ghost: 'bg-transparent text-text-secondary hover:text-text-primary hover:bg-ink-raised border border-transparent',
   danger: 'bg-accent-alert text-black hover:bg-accent-alert/90 border border-accent-alert',
 };
+const BUTTON_BASE =
+  'inline-flex items-center justify-center gap-2 rounded-card font-medium whitespace-nowrap transition-colors ' +
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-inbound ' +
+  'disabled:opacity-45 disabled:cursor-not-allowed';
+/** Button look for a link (`<Link className={buttonClass({ variant: 'primary' })}>`): never nest a button inside an anchor. */
+export const buttonClass = ({ variant = 'secondary', size = 'md', className }: { variant?: ButtonVariant; size?: ButtonSize; className?: string } = {}) =>
+  cn(BUTTON_BASE, size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-10 px-4 text-[14px]', BUTTON[variant], className);
+
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'secondary', size = 'md', loading, disabled, disabledReason, className, children, type = 'button', ...rest },
   ref,
@@ -35,14 +43,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
       aria-disabled={off || undefined}
       aria-busy={loading || undefined}
       title={disabledReason ?? rest.title}
-      className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-card font-medium whitespace-nowrap transition-colors',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-inbound',
-        'disabled:opacity-45 disabled:cursor-not-allowed',
-        size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-10 px-4 text-[14px]',
-        BUTTON[variant],
-        className,
-      )}
+      className={buttonClass({ variant, size, className })}
       {...rest}
     >
       {loading ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}

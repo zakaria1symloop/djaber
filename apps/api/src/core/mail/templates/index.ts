@@ -1,0 +1,192 @@
+// 03-events-and-jobs §5.3 — transactional e-mails as plain TypeScript functions (fr / ar / en, RTL for ar).
+// Names follow the catalogue: `auth/verify`, `auth/reset`, `workspace/invitation`, …
+import { formatMessage, isAppLocale, type AppLocale } from '@djaber/shared';
+
+export type MailTemplateName =
+  | 'auth/verify'
+  | 'auth/verify-reminder'
+  | 'auth/reset'
+  | 'auth/email-change'
+  | 'auth/email-change-notice'
+  | 'auth/account-deletion-confirm'
+  | 'workspace/invitation'
+  | 'workspace/ownership-transferred'
+  | 'workspace/deletion-scheduled'
+  | 'workspace/deleted';
+
+type L = Record<AppLocale, string>;
+type Copy = { subject: L; title: L; body: L; cta?: L; footer?: L };
+
+const l = (fr: string, ar: string, en: string): L => ({ fr, ar, en });
+
+const COPY: Record<MailTemplateName, Copy> = {
+  'auth/verify': {
+    subject: l('Vérifiez votre e-mail', 'تحقق من بريدك الإلكتروني', 'Verify your e-mail'),
+    title: l('Bienvenue sur Djaber, {firstName}', 'مرحبًا بك في جابر، {firstName}', 'Welcome to Djaber, {firstName}'),
+    body: l(
+      'Confirmez votre adresse e-mail pour connecter vos pages Facebook et Instagram. Ce lien est valable 24 heures.',
+      'أكّد بريدك الإلكتروني لربط صفحاتك على فيسبوك وإنستغرام. هذا الرابط صالح لمدة 24 ساعة.',
+      'Confirm your e-mail address to connect your Facebook and Instagram pages. This link is valid for 24 hours.',
+    ),
+    cta: l('Vérifier mon e-mail', 'تحقق من بريدي', 'Verify my e-mail'),
+  },
+  'auth/verify-reminder': {
+    subject: l('Rappel : vérifiez votre e-mail', 'تذكير: تحقق من بريدك الإلكتروني', 'Reminder: verify your e-mail'),
+    title: l('Votre e-mail n’est pas encore vérifié', 'لم يتم التحقق من بريدك بعد', 'Your e-mail is not verified yet'),
+    body: l(
+      'Sans vérification, vous ne pouvez pas connecter de page. Ce lien est valable 24 heures.',
+      'بدون التحقق لا يمكنك ربط أي صفحة. هذا الرابط صالح لمدة 24 ساعة.',
+      'Without verification you cannot connect a page. This link is valid for 24 hours.',
+    ),
+    cta: l('Vérifier mon e-mail', 'تحقق من بريدي', 'Verify my e-mail'),
+  },
+  'auth/reset': {
+    subject: l('Réinitialisez votre mot de passe', 'إعادة تعيين كلمة المرور', 'Reset your password'),
+    title: l('Mot de passe oublié ?', 'هل نسيت كلمة المرور؟', 'Forgot your password?'),
+    body: l(
+      'Cliquez sur le bouton pour choisir un nouveau mot de passe. Ce lien est valable 60 minutes et ne peut servir qu’une fois. Si vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail.',
+      'اضغط على الزر لاختيار كلمة مرور جديدة. هذا الرابط صالح لمدة 60 دقيقة ويُستعمل مرة واحدة. إن لم تطلب ذلك فتجاهل هذه الرسالة.',
+      'Click the button to choose a new password. This link is valid for 60 minutes and can be used once. If you did not ask for it, ignore this e-mail.',
+    ),
+    cta: l('Choisir un nouveau mot de passe', 'اختيار كلمة مرور جديدة', 'Choose a new password'),
+  },
+  'auth/email-change': {
+    subject: l('Confirmez votre nouvelle adresse e-mail', 'أكّد بريدك الإلكتروني الجديد', 'Confirm your new e-mail address'),
+    title: l('Changement d’adresse e-mail', 'تغيير البريد الإلكتروني', 'E-mail address change'),
+    body: l(
+      'Confirmez {newEmail} comme nouvelle adresse de connexion. Ce lien est valable 24 heures.',
+      'أكّد {newEmail} كبريد جديد لتسجيل الدخول. هذا الرابط صالح لمدة 24 ساعة.',
+      'Confirm {newEmail} as your new sign-in address. This link is valid for 24 hours.',
+    ),
+    cta: l('Confirmer la nouvelle adresse', 'تأكيد البريد الجديد', 'Confirm the new address'),
+  },
+  'auth/email-change-notice': {
+    subject: l('Changement d’adresse e-mail demandé', 'طلب تغيير البريد الإلكتروني', 'E-mail address change requested'),
+    title: l('Changement d’adresse e-mail demandé', 'طلب تغيير البريد الإلكتروني', 'E-mail address change requested'),
+    body: l(
+      'Une demande de changement vers {newEmail} a été faite sur votre compte. Si ce n’est pas vous, changez votre mot de passe immédiatement.',
+      'تم طلب تغيير بريد حسابك إلى {newEmail}. إن لم تكن أنت فغيّر كلمة المرور فورًا.',
+      'A change to {newEmail} was requested on your account. If this was not you, change your password immediately.',
+    ),
+  },
+  'auth/account-deletion-confirm': {
+    subject: l('Suppression de votre compte programmée', 'تمت برمجة حذف حسابك', 'Your account deletion is scheduled'),
+    title: l('Compte désactivé', 'تم تعطيل الحساب', 'Account deactivated'),
+    body: l(
+      'Votre compte sera supprimé définitivement le {scheduledAt}. Pour annuler, connectez-vous avant cette date.',
+      'سيُحذف حسابك نهائيًا في {scheduledAt}. للإلغاء، سجّل الدخول قبل هذا التاريخ.',
+      'Your account will be permanently deleted on {scheduledAt}. To cancel, sign in before that date.',
+    ),
+    cta: l('Annuler (se connecter)', 'إلغاء (تسجيل الدخول)', 'Cancel (sign in)'),
+  },
+  'workspace/invitation': {
+    subject: l('{inviterName} vous invite sur {workspaceName}', '{inviterName} يدعوك إلى {workspaceName}', '{inviterName} invites you to {workspaceName}'),
+    title: l('Invitation à rejoindre {workspaceName}', 'دعوة للانضمام إلى {workspaceName}', 'Invitation to join {workspaceName}'),
+    body: l(
+      '{inviterName} vous invite à rejoindre l’espace {workspaceName} sur Djaber avec le rôle {role}. Cette invitation est valable 7 jours.',
+      '{inviterName} يدعوك للانضمام إلى مساحة {workspaceName} على جابر بدور {role}. هذه الدعوة صالحة لمدة 7 أيام.',
+      '{inviterName} invites you to join the {workspaceName} workspace on Djaber as {role}. This invitation is valid for 7 days.',
+    ),
+    cta: l('Accepter l’invitation', 'قبول الدعوة', 'Accept the invitation'),
+  },
+  'workspace/ownership-transferred': {
+    subject: l('Propriété de {workspaceName} transférée', 'تم نقل ملكية {workspaceName}', 'Ownership of {workspaceName} transferred'),
+    title: l('Transfert de propriété', 'نقل الملكية', 'Ownership transfer'),
+    body: l(
+      '{newOwnerName} est désormais propriétaire de l’espace {workspaceName}. {oldOwnerName} devient administrateur.',
+      '{newOwnerName} هو الآن مالك مساحة {workspaceName}. أصبح {oldOwnerName} مديرًا.',
+      '{newOwnerName} is now the owner of the {workspaceName} workspace. {oldOwnerName} becomes an admin.',
+    ),
+    cta: l('Voir les membres', 'عرض الأعضاء', 'View members'),
+  },
+  'workspace/deletion-scheduled': {
+    subject: l('Suppression de {workspaceName} programmée', 'تمت برمجة حذف {workspaceName}', 'Deletion of {workspaceName} scheduled'),
+    title: l('Suppression programmée', 'حذف مبرمج', 'Deletion scheduled'),
+    body: l(
+      'L’espace {workspaceName} sera supprimé définitivement le {at}. Vous pouvez annuler la suppression jusqu’à cette date depuis Paramètres › Zone de danger.',
+      'ستُحذف مساحة {workspaceName} نهائيًا في {at}. يمكنك إلغاء الحذف حتى هذا التاريخ من الإعدادات › منطقة الخطر.',
+      'The {workspaceName} workspace will be permanently deleted on {at}. You can cancel the deletion until then from Settings › Danger zone.',
+    ),
+    cta: l('Annuler la suppression', 'إلغاء الحذف', 'Cancel the deletion'),
+  },
+  'workspace/deleted': {
+    subject: l('Espace {workspaceName} supprimé', 'تم حذف مساحة {workspaceName}', 'Workspace {workspaceName} deleted'),
+    title: l('Espace supprimé', 'تم حذف المساحة', 'Workspace deleted'),
+    body: l(
+      'L’espace {workspaceName} et ses données ont été supprimés définitivement.',
+      'تم حذف مساحة {workspaceName} وبياناتها نهائيًا.',
+      'The {workspaceName} workspace and its data have been permanently deleted.',
+    ),
+  },
+};
+
+const ROLE_LABEL: Record<string, L> = {
+  owner: l('Propriétaire', 'مالك', 'Owner'),
+  admin: l('Administrateur', 'مدير', 'Admin'),
+  operator: l('Opérateur', 'موظف', 'Operator'),
+};
+
+const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** `11 oct. 2026 14:05` in Africa/Algiers (08-coder-playbook §6 "Date / time display"), Latin digits. */
+export const formatMailDate = (iso: string, locale: AppLocale) =>
+  new Intl.DateTimeFormat(locale === 'ar' ? 'ar-DZ-u-nu-latn' : locale === 'en' ? 'en-GB' : 'fr-FR', {
+    timeZone: 'Africa/Algiers',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(iso));
+
+export type RenderedMail = { subject: string; html: string; text: string };
+
+export const isMailTemplate = (name: string): name is MailTemplateName => name in COPY;
+
+/**
+ * `params.url` is the call-to-action link; `*At` params are ISO dates rendered in Africa/Algiers;
+ * `role` is a MemberRole rendered with its label.
+ */
+export const renderMail = (name: MailTemplateName, localeIn: string, paramsIn: Record<string, unknown>): RenderedMail => {
+  const locale: AppLocale = isAppLocale(localeIn) ? localeIn : 'fr';
+  const copy = COPY[name];
+  const params: Record<string, string> = {};
+  for (const [k, v] of Object.entries(paramsIn)) {
+    if (v === null || v === undefined) continue;
+    if (k === 'role' && typeof v === 'string') params[k] = ROLE_LABEL[v]?.[locale] ?? v;
+    else if ((k === 'at' || k.endsWith('At')) && typeof v === 'string') params[k] = formatMailDate(v, locale);
+    else params[k] = String(v);
+  }
+  const t = (m: L) => formatMessage(m[locale], params);
+  const subject = t(copy.subject);
+  const title = t(copy.title);
+  const body = t(copy.body);
+  const url = typeof paramsIn.url === 'string' ? paramsIn.url : undefined;
+  const cta = copy.cta && url ? t(copy.cta) : undefined;
+  const dir = locale === 'ar' ? 'rtl' : 'ltr';
+  const html = `<!doctype html>
+<html lang="${locale}" dir="${dir}">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(subject)}</title></head>
+<body style="margin:0;background:#f5f6f8;font-family:${locale === 'ar' ? "'Changa'," : ''}Arial,Helvetica,sans-serif;color:#14171f;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" dir="${dir}">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;">
+        <tr><td style="padding:28px 32px 0;font-size:20px;font-weight:700;">Djaber</td></tr>
+        <tr><td style="padding:20px 32px 0;font-size:18px;font-weight:700;">${esc(title)}</td></tr>
+        <tr><td style="padding:12px 32px 0;font-size:14px;line-height:22px;">${esc(body)}</td></tr>
+        ${
+          cta && url
+            ? `<tr><td style="padding:24px 32px 0;"><a href="${esc(url)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:12px 20px;border-radius:8px;">${esc(cta)}</a></td></tr>
+        <tr><td style="padding:12px 32px 0;font-size:12px;line-height:18px;color:#6b7280;word-break:break-all;"><span dir="ltr">${esc(url)}</span></td></tr>`
+            : ''
+        }
+        <tr><td style="padding:28px 32px 28px;font-size:12px;color:#6b7280;">© Djaber</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+  const text = [title, '', body, ...(url ? ['', cta ? `${cta}: ${url}` : url] : [])].join('\n');
+  return { subject, html, text };
+};

@@ -2,17 +2,24 @@
 // GLOBAL — States, toasts, banners & system dialogs catalogue (Figma 996:42199). All copy comes in through props.
 import { Ban, FileQuestion, Lock, PauseCircle, SearchX, Square, TriangleAlert, WifiOff, Wrench, X } from 'lucide-react';
 import * as React from 'react';
-import { Button, Card, cn, type Tone } from './primitives';
+import { Button, buttonClass, Card, cn, type Tone } from './primitives';
 
-export type StateAction = { label: string; onClick?: () => void; href?: string; variant?: 'primary' | 'secondary' };
+export type StateAction = { label: string; onClick?: () => void; href?: string; variant?: 'primary' | 'secondary'; disabled?: boolean };
 
 function ActionButton({ action }: { action: StateAction }) {
-  const b = (
-    <Button variant={action.variant ?? 'primary'} onClick={action.onClick}>
+  // a link stays a link (styled as a button): no button nested in an anchor
+  if (action.href) {
+    return (
+      <a href={action.href} onClick={action.onClick} className={buttonClass({ variant: action.variant ?? 'primary' })}>
+        {action.label}
+      </a>
+    );
+  }
+  return (
+    <Button variant={action.variant ?? 'primary'} onClick={action.onClick} disabled={action.disabled}>
       {action.label}
     </Button>
   );
-  return action.href ? <a href={action.href}>{b}</a> : b;
 }
 
 /** Centered block used by empty / filtered-empty / error / not-found / forbidden states. */

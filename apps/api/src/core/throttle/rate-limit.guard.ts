@@ -43,6 +43,22 @@ export class RateLimitGuard implements CanActivate {
     }
   }
 
+  /** Throws RATE_LIMITED when the counter already reached `max` (no increment): used with failure-only counters (login). */
+  async assertBelow(name: string, subject: string, max: number, windowSeconds: number) {
+    const key = `rl:${name}:${subject}`;
+    const n = Number((await this.redis.client.get(key)) ?? 0);
+    if (n >= max) {
+      const ttl = await this.redis.client.ttl(key);
+      throw new AppException('RATE_LIMITED', { retryAfter: ttl > 0 ? ttl : windowSeconds });
+    }
+  }
+
+  /** Seconds until the counter expires (0 when absent): cooldown hints such as `resendAvailableAt`. */
+  async ttl(name: string, subject: string) {
+    const t = await this.redis.client.ttl(`rl:${name}:${subject}`);
+    return t > 0 ? t : 0;
+  }
+
   async reset(name: string, subject: string) {
     await this.redis.client.del(`rl:${name}:${subject}`);
   }

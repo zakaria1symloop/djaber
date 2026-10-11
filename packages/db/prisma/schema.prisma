@@ -1391,6 +1391,7 @@ model Workspace {
   blockedWords           String[]        @default([])
   billingInfo            Json?
   assistedOnboarding     Boolean         @default(false)
+  version                Int             @default(1) // optimistic concurrency of PATCH /workspace (api-contract §1.8, WorkspaceDto.version)
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
   deletedAt              DateTime?

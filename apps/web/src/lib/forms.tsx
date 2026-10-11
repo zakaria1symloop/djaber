@@ -1,0 +1,96 @@
+'use client';
+// Form helpers (02-next-route-map §6): server `fields` → inputs, unknown field ⇒ form-level alert, leave guard.
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import type { FieldValues, Path, UseFormReturn } from 'react-hook-form';
+import { LeaveGuardDialog } from '@/components/global-states';
+import { ApiError } from './api';
+import type { TFunction } from './i18n';
+
+/** Message of any thrown value, already localized by the API when it is an `ApiError`. */
+export const errorMessage = (e: unknown, t: TFunction): string => {
+  if (e instanceof ApiError) {
+    const key = `error.${e.code}`;
+    // the server message carries the interpolated params; the catalogue is the fallback (network / proxy errors)
+    return e.message || (t.has(key) ? t(key, e.body.params) : t('state.list.error.title'));
+  }
+  return t('toast.noConnection');
+};
+export const errorCode = (e: unknown): string | null => (e instanceof ApiError ? e.code : null);
+
+/** Translates a validation message key (`validation.length`) with the limits of the field. */
+export const fieldError = (t: TFunction, message: string | undefined, params?: Record<string, string | number>): string | undefined => {
+  if (!message) return undefined;
+  return t.has(message) ? t(message, { max: '', min: '', ...params }) : message;
+};
+
+/**
+ * Maps the error envelope onto the form: `fields` → `setError(field)`, codes listed in `codeToField` → that field,
+ * everything else → returned as the form-level message (shown in a `FormAlert`, content preserved).
+ */
+export function applyServerErrors<T extends FieldValues>(
+  form: UseFormReturn<T>,
+  e: unknown,
+  t: TFunction,
+  opts: { fields: readonly Path<T>[]; codeToField?: Record<string, Path<T>> } = { fields: [] },
+): string | null {
+  if (!(e instanceof ApiError)) return t('toast.noConnection');
+  let mapped = 0;
+  let unknown = 0;
+  for (const [field, key] of Object.entries(e.body.fields ?? {})) {
+    if ((opts.fields as readonly string[]).includes(field)) {
+      form.setError(field as Path<T>, { type: 'server', message: key });
+      mapped++;
+    } else unknown++;
+  }
+  const direct = opts.codeToField?.[e.code];
+  if (direct) {
+    form.setError(direct, { type: 'server', message: errorMessage(e, t) });
+    return null;
+  }
+  if (mapped > 0 && unknown === 0) return null;
+  return errorMessage(e, t);
+}
+
+/**
+ * Leave guard for dirty forms: warns on tab close / reload and intercepts in-app link clicks with the
+ * "Quitter sans enregistrer ?" dialog. Render the returned `guard` element once in the page.
+ */
+export function useLeaveGuard(dirty: boolean, name: string) {
+  const router = useRouter();
+  const [pending, setPending] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const onUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+      if (!a || a.target === '_blank' || a.origin !== window.location.origin) return;
+      if (a.pathname === window.location.pathname) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setPending(a.href);
+    };
+    window.addEventListener('beforeunload', onUnload);
+    document.addEventListener('click', onClick, true);
+    return () => {
+      window.removeEventListener('beforeunload', onUnload);
+      document.removeEventListener('click', onClick, true);
+    };
+  }, [dirty]);
+
+  const leave = useCallback(() => {
+    const href = pending;
+    setPending(null);
+    if (!href) return;
+    const u = new URL(href);
+    // programmatic navigation is not intercepted by the click listener above
+    router.push(u.pathname + u.search + u.hash);
+  }, [pending, router]);
+
+  const guard = <LeaveGuardDialog open={pending !== null} name={name} onStay={() => setPending(null)} onLeave={leave} />;
+  return { guard };
+}

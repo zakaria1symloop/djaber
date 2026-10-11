@@ -278,6 +278,74 @@ async function platform(adminId: string) {
   }
 }
 
+/**
+ * 07-non-functional §7 "cms": one published CmsEntry(type=legal) per LegalDocKey with its LegalDocument version 1.
+ * Version 1 is the initial text: nothing to re-accept (requiresReacceptance=false). Texts are short placeholders
+ * replaced from the admin CMS before launch. Idempotent: existing entries and documents are left untouched.
+ */
+export async function legal(adminId: string) {
+  const docs = {
+    terms: {
+      title: { fr: "Conditions d'utilisation", ar: 'شروط الاستخدام', en: 'Terms of use' },
+      body: {
+        fr: "En utilisant Djaber, vous acceptez d'utiliser le service conformément à la loi et aux présentes conditions.",
+        ar: 'باستخدامك جابر، فإنك توافق على استعمال الخدمة وفق القانون وهذه الشروط.',
+        en: 'By using Djaber you agree to use the service in accordance with the law and these terms.',
+      },
+    },
+    privacy: {
+      title: { fr: 'Politique de confidentialité', ar: 'سياسة الخصوصية', en: 'Privacy policy' },
+      body: {
+        fr: 'Djaber traite les données de votre boutique et de vos clients uniquement pour fournir le service.',
+        ar: 'يعالج جابر بيانات متجرك وزبائنك فقط من أجل تقديم الخدمة.',
+        en: 'Djaber processes the data of your shop and of your customers only to provide the service.',
+      },
+    },
+    account_deletion: {
+      title: { fr: 'Suppression du compte', ar: 'حذف الحساب', en: 'Account deletion' },
+      body: {
+        fr: 'Vous pouvez demander la suppression de votre compte à tout moment ; elle est effective après 30 jours.',
+        ar: 'يمكنك طلب حذف حسابك في أي وقت، ويصبح الحذف نافذًا بعد 30 يومًا.',
+        en: 'You can request the deletion of your account at any time; it takes effect after 30 days.',
+      },
+    },
+    content_rules: {
+      title: { fr: 'Règles de contenu', ar: 'قواعد المحتوى', en: 'Content rules' },
+      body: {
+        fr: 'Les produits contrefaits, dangereux ou interdits par la loi ne peuvent pas être vendus avec Djaber.',
+        ar: 'لا يمكن بيع المنتجات المقلدة أو الخطرة أو الممنوعة قانونًا عبر جابر.',
+        en: 'Counterfeit, dangerous or legally prohibited products cannot be sold with Djaber.',
+      },
+    },
+  } as const;
+  const locales = ['fr', 'ar', 'en'] as const;
+  for (const [key, doc] of Object.entries(docs) as [keyof typeof docs, (typeof docs)[keyof typeof docs]][]) {
+    let entry = await db.cmsEntry.findUnique({ where: { key } });
+    if (!entry) {
+      entry = await db.cmsEntry.create({
+        data: {
+          key,
+          type: 'legal',
+          status: 'published',
+          currentVersion: 1,
+          createdById: adminId,
+          locales: {
+            create: locales.map((locale) => ({ locale, title: doc.title[locale], body: doc.body[locale], status: 'published' as const, updatedById: adminId })),
+          },
+          versions: { create: { version: 1, snapshot: { title: doc.title, body: doc.body }, createdById: adminId } },
+        },
+      });
+    }
+    const existing = await db.legalDocument.findFirst({ where: { key } });
+    if (!existing) {
+      await db.legalDocument.create({
+        data: { key, version: 1, isMajor: true, requiresReacceptance: false, cmsEntryId: entry.id, publishedById: adminId },
+      });
+    }
+  }
+  return Object.keys(docs).length;
+}
+
 async function main() {
   loadEnv();
   const g = await geo();
@@ -286,8 +354,9 @@ async function main() {
   const pr = await presets();
   const a = await admin();
   await platform(a.id);
+  const lg = await legal(a.id);
    
-  console.log(`seeded: ${g.wilayas} wilayas, ${g.communes} communes, ${u} units, ${p.plans} plans, ${p.packs} packs, ${pr} presets, admin + app versions + settings`);
+  console.log(`seeded: ${g.wilayas} wilayas, ${g.communes} communes, ${u} units, ${p.plans} plans, ${p.packs} packs, ${pr} presets, ${lg} legal documents, admin + app versions + settings`);
 }
 
 main()

@@ -92,6 +92,7 @@ export class TenantResolver {
       if (!u || u.status !== 'active') throw new AppException('UNAUTHORIZED');
       let workspaceId = typeof headerWorkspaceId === 'string' && headerWorkspaceId ? headerWorkspaceId : undefined;
       if (workspaceId && !/^[0-9a-f-]{36}$/i.test(workspaceId)) return null;
+      const fromHeader = !!workspaceId;
       workspaceId ??= u.ownedWorkspaceId ?? u.lastWorkspaceId ?? undefined;
       if (!workspaceId) throw new AppException('WORKSPACE_REQUIRED');
       const membership = await prisma.membership.findUnique({
@@ -100,6 +101,10 @@ export class TenantResolver {
       if (!membership) return null;
       const ctx = await this.workspaceCtx(workspaceId);
       if (!ctx) return null;
+      // workspace switcher: remember the last workspace used with an explicit header (api-contract §1.3)
+      if (fromHeader && u.lastWorkspaceId !== workspaceId) {
+        await prisma.user.update({ where: { id: u.id }, data: { lastWorkspaceId: workspaceId } });
+      }
       return this.toInfo(ctx, {
         userId: u.id,
         role: membership.role as MembershipRole,

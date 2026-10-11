@@ -1,11 +1,11 @@
 // Local infrastructure without Docker (root CLAUDE.md "Prerequisites").
 // Starts embedded Postgres 16 (port 54329) and a Redis-compatible server (port 63799), then stays alive.
 import EmbeddedPostgres from 'embedded-postgres';
-import { RedisMemoryServer } from 'redis-memory-server';
 import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import net from 'node:net';
+import { startRedis } from './redis.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const local = resolve(root, '.local');
@@ -46,8 +46,7 @@ await pg.start();
 if (fresh) await pg.createDatabase('djaber');
 // Extensions (pg_trgm, pgcrypto) are created by the first Prisma migration, not here (avoids schema drift).
 
-const redis = new RedisMemoryServer({ instance: { port: REDIS_PORT } });
-await redis.start();
+const redis = await startRedis(REDIS_PORT, local);
 
 writeFileSync(pidFile, String(process.pid));
 console.log(`[infra] postgres ready  postgresql://djaber:djaber@localhost:${PG_PORT}/djaber`);

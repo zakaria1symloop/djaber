@@ -11,6 +11,8 @@ export type AccessClaims = {
   role?: string;
   pr: string;
   imp?: string;
+  /** refresh-token family of the session that issued this access token (session list / logout) */
+  sid?: string;
   iat: number;
   exp: number;
 };
