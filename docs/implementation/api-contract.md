@@ -284,7 +284,7 @@ type ProductListItemDto = {
 };
 type ProductDto = ProductListItemDto & {
   description: string | null; weightGrams: number | null; keywords: string[]; images: { id: string; url: string; width: number; height: number; isPrimary: boolean; altText: string | null; moderationFlag: string | null }[];
-  variants: VariantDto[]; stock: { total: number | null; reserved: number; availableForAi: number; lastInventoryAt: string | null };
+  variants: VariantDto[]; stockDetail: { total: number | null; reserved: number; availableForAi: number; lastInventoryAt: string | null }; // `stock` stays the number of ProductListItemDto
   pricing: { weightedCost: Money | null; expensesPerUnit: Money; trueCost: Money | null; marginDzd: Money | null; marginPct: number | null; sales30d: { units: number; revenue: Money } };
   agents: AgentRef[]; mentions30d: { conversations: number; orders: number }; moderationDetail: ModerationDetailDto | null; version: number;
 };

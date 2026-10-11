@@ -313,7 +313,7 @@ GET /products/:id/card-preview → rendered Messenger card · GET /products/:id/
 DELETE /products/:id?mode=archive|hard&releaseStock (hard only if no order/sale line: PRODUCT_HAS_ORDERS)
 POST /products/import/mapping { jobId, mapping, updateExisting?, saveMapping? }   `[FIG DLG Correspondance des colonnes]`
 POST /products/ai-fill (multipart 1–5 photos, 5 credits) → { name, description, categoryId?, attributes } (the only create-from-photo endpoint)   `[FIG DLG Créer depuis une photo]`
-POST /stock/adjustments { productId, variantId?, type: in|out|set, quantity, reason: MovementReason, note?, force? } (force = Admin+, negative stock; `in` ⇒ MovementType adjustment_in, `out`/`set` downwards ⇒ adjustment_out)
+POST /stock/adjustments { productId, variantId?, type: in|out|set, quantity, reason: breakage|loss|initial|inventory|correction|other, note? (≤ 255), force? } (force = negative stock; `in` ⇒ MovementType adjustment_in, `out`/`set` downwards ⇒ adjustment_out)
 GET /stock/movements/:id · GET /stock/movements/export → 202 · POST /stock/movements/:id/reverse { note } (new inverse movement)
 GET /stock/snapshot?date=YYYY-MM-DD&categoryId&q&page → [{ productId, variantId?, name, sku, quantityAtDate, costPriceAtDate, valueAtDate }] + meta.totalValue (stock as of end of `date` Africa/Algiers, replayed from StockMovement; date ≥ workspace creation, else 422 INVALID_DATE_RANGE)   `[FIG GDS-05 "Voir le stock à cette date"]`
 GET|POST /inventories { scope: InventoryScope, categoryId? } · GET /inventories/:id · PUT /inventories/:id/lines { lines[{productId, variantId?, countedQty, note?}] } · POST /inventories/:id/validate · POST /inventories/:id/cancel · GET /inventories/:id/sheet (PDF)   `[FIG DLG Lancer / Valider l'inventaire]`
@@ -427,10 +427,10 @@ Mirror of `../implementation/01-nest-module-map.md` §3.2 (the single permission
 | Orders: bulk status (`to` ≠ delivered/returned, bulk cancel included) / bulk send / bulk print `[ORD-05 v2]` | ● | ● | ● |
 | Orders: delete | ● | ● | — |
 | Orders: import CSV (`orders.import`) | ● | ● | — |
-| Products & categories & units: create, edit, images, variants, archive (`catalog.write`) | ● | ● | ● |
+| Products & categories & units: read (`catalog.read`) · create, edit, images, variants, archive (`catalog.write`) | ● · ● | ● · ● | R · — |
 | Products: moderation view · resubmit, appeal `[MOD]` (`catalog.write`) | ● · ● | ● · ● | R · — |
 | Products: bulk price / category / agent / archive, duplicate, variants generate, AI fill, import | ● | ● | — |
-| Stock: adjustments, movements read (`stock.read`), snapshot, reverse movement | ● | ● | ● (`force` = Admin+) |
+| Stock: movements read, snapshot, movements export (`stock.read`) · adjustments (`force` included), reverse movement (`stock.adjust`) | ● · ● | ● · ● | R · — |
 | Inventory count: start, validate, cancel · count lines (`stock.count`) `[DLG GDS]` | ● · ● | ● · ● | — · ● |
 | Suppliers, purchases, sales, cash rows, cash close / reopen (`gds.*`) | ● | ● | — |
 | Reports, exports, schedules (`/reports*`, `/jobs*`) | ● | ● | — |

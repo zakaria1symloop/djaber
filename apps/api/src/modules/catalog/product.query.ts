@@ -1,0 +1,114 @@
+// 06 §10 "Produits" — filters and sorts of `GET /products`, as one SQL statement returning the ids of the page
+// (computed filters: margin, stock state incl. variants, trigram search). 07-non-functional: p95 < 500 ms at 10 k products.
+import { prisma, Prisma, TenantContext } from '@djaber/db';
+import { AppException } from '../../core/errors/app.exception';
+import { algiersDayEnd, algiersDayStart } from '../../core/time/algiers';
+import { likePattern } from './catalog.util';
+import type { ProductsQuery } from './dto';
+
+const VARIANT_LOW = Prisma.sql`EXISTS (SELECT 1 FROM "ProductVariant" v WHERE v."productId" = p."id" AND v."deletedAt" IS NULL AND v."isActive" AND v."stock" <= v."minStock")`;
+/** CAT-09 alert: tracked and (quantity ≤ minStock, or one active variant at or below its own threshold). */
+const ALERT = Prisma.sql`(p."trackStock" AND (COALESCE(p."stock", 0) <= p."minStock" OR ${VARIANT_LOW}))`;
+const OUT = Prisma.sql`(p."trackStock" AND COALESCE(p."stock", 0) <= 0)`;
+
+const SORT_SQL: Record<string, Prisma.Sql> = {
+  name: Prisma.sql`lower(p."name")`,
+  sku: Prisma.sql`lower(p."sku")`,
+  price: Prisma.sql`p."price"`,
+  cost: Prisma.sql`p."costPrice"`,
+  stock: Prisma.sql`p."stock"`,
+  updatedAt: Prisma.sql`p."updatedAt"`,
+};
+
+const or = (parts: Prisma.Sql[]) => Prisma.sql`(${Prisma.join(parts, ' OR ')})`;
+
+export const productWhere = (q: Partial<ProductsQuery>): Prisma.Sql => {
+  const ws = TenantContext.workspaceId();
+  const and: Prisma.Sql[] = [Prisma.sql`p."workspaceId" = ${ws}::uuid`];
+
+  // status: archived rows only on request (CAT-10)
+  const status = new Set<string>(q.status ?? []);
+  if (q.active === true) status.add('active');
+  if (q.active === false) status.add('inactive');
+  if (!status.size) and.push(Prisma.sql`p."deletedAt" IS NULL`);
+  else {
+    const parts: Prisma.Sql[] = [];
+    if (status.has('active')) parts.push(Prisma.sql`(p."deletedAt" IS NULL AND p."isActive")`);
+    if (status.has('inactive')) parts.push(Prisma.sql`(p."deletedAt" IS NULL AND NOT p."isActive")`);
+    if (status.has('archived')) parts.push(Prisma.sql`p."deletedAt" IS NOT NULL`);
+    and.push(or(parts));
+  }
+
+  if (q.ids?.length) and.push(Prisma.sql`p."id" = ANY(${q.ids}::uuid[])`);
+  if (q.categoryIds?.length) {
+    // a parent category also selects the products of its sub-categories
+    and.push(Prisma.sql`p."categoryId" IN (SELECT c."id" FROM "Category" c WHERE c."workspaceId" = ${ws}::uuid AND (c."id" = ANY(${q.categoryIds}::uuid[]) OR c."parentId" = ANY(${q.categoryIds}::uuid[])))`);
+  }
+  if (q.type?.length) {
+    const parts: Prisma.Sql[] = [];
+    if (q.type.includes('stock')) parts.push(Prisma.sql`p."trackStock"`);
+    if (q.type.includes('service')) parts.push(Prisma.sql`NOT p."trackStock"`);
+    if (q.type.includes('variants')) parts.push(Prisma.sql`p."hasVariants"`);
+    if (q.type.includes('no_variants')) parts.push(Prisma.sql`NOT p."hasVariants"`);
+    and.push(or(parts));
+  }
+  const states = new Set<string>(q.stockState ?? []);
+  if (states.size) {
+    const parts: Prisma.Sql[] = [];
+    if (states.has('low')) parts.push(Prisma.sql`(${ALERT} AND NOT ${OUT})`);
+    if (states.has('out')) parts.push(OUT);
+    if (states.has('in_stock')) parts.push(Prisma.sql`(p."trackStock" AND COALESCE(p."stock", 0) > 0)`);
+    and.push(or(parts));
+  }
+  if (q.lowStock) and.push(ALERT);
+
+  if (q.minQty !== undefined) and.push(Prisma.sql`p."stock" >= ${q.minQty}`);
+  if (q.maxQty !== undefined) and.push(Prisma.sql`p."stock" <= ${q.maxQty}`);
+  if (q.minPrice !== undefined) and.push(Prisma.sql`p."price" >= ${q.minPrice}`);
+  if (q.maxPrice !== undefined) and.push(Prisma.sql`p."price" <= ${q.maxPrice}`);
+  if (q.minCost !== undefined) and.push(Prisma.sql`p."costPrice" >= ${q.minCost}`);
+  if (q.maxCost !== undefined) and.push(Prisma.sql`p."costPrice" <= ${q.maxCost}`);
+  const margin = Prisma.sql`((p."price" - p."costPrice") * 100.0 / p."price")`;
+  if (q.minMargin !== undefined) and.push(Prisma.sql`(p."costPrice" IS NOT NULL AND ${margin} >= ${q.minMargin})`);
+  if (q.maxMargin !== undefined) and.push(Prisma.sql`(p."costPrice" IS NOT NULL AND ${margin} <= ${q.maxMargin})`);
+
+  if (q.agentId?.length) and.push(Prisma.sql`EXISTS (SELECT 1 FROM "AgentProduct" ap WHERE ap."productId" = p."id" AND ap."agentId" = ANY(${q.agentId}::uuid[]))`);
+  if (q.noAgent) and.push(Prisma.sql`NOT EXISTS (SELECT 1 FROM "AgentProduct" ap WHERE ap."productId" = p."id")`);
+  if (q.moderationStatus?.length) and.push(Prisma.sql`p."moderationStatus"::text = ANY(${q.moderationStatus}::text[])`);
+
+  if (q.createdFrom) and.push(Prisma.sql`p."createdAt" >= ${algiersDayStart(q.createdFrom)}`);
+  if (q.createdTo) and.push(Prisma.sql`p."createdAt" < ${algiersDayEnd(q.createdTo)}`);
+  if (q.updatedFrom) and.push(Prisma.sql`p."updatedAt" >= ${algiersDayStart(q.updatedFrom)}`);
+  if (q.updatedTo) and.push(Prisma.sql`p."updatedAt" < ${algiersDayEnd(q.updatedTo)}`);
+
+  // search (accent-insensitive via f_unaccent, migration m2_unaccent_search): substring on name / SKU / keywords, plus trigram word similarity on the name for typos (min 2 chars)
+  if (q.q && q.q.length >= 2) {
+    const pattern = likePattern(q.q);
+    and.push(
+      Prisma.sql`(f_unaccent(p."name") ILIKE f_unaccent(${pattern}) OR p."sku" ILIKE ${pattern} OR f_unaccent(array_to_string(p."keywords", ' ')) ILIKE f_unaccent(${pattern}) OR f_unaccent(${q.q}::text) <% f_unaccent(p."name"))`,
+    );
+  }
+  return Prisma.join(and, ' AND ');
+};
+
+/** Sort whitelist of 06 §10: name | sku | price | cost | stock | updatedAt (unknown field ⇒ 400 BAD_REQUEST). */
+export const productOrder = (sort: string | undefined): Prisma.Sql => {
+  const s = sort ?? '-updatedAt';
+  const field = s.replace(/^-/, '');
+  const column = SORT_SQL[field];
+  if (!column) throw new AppException('BAD_REQUEST');
+  const dir = s.startsWith('-') ? Prisma.sql`DESC` : Prisma.sql`ASC`;
+  // ties broken by id (08-coder-playbook §6 "Sort"); products without the value come last
+  return Prisma.sql`${column} ${dir} NULLS LAST, p."id" DESC`;
+};
+
+export const findProductIds = async (q: ProductsQuery, paging?: { skip: number; take: number }): Promise<{ ids: string[]; total: number }> => {
+  const where = productWhere(q);
+  const order = productOrder(q.sort);
+  const limit = paging ? Prisma.sql`LIMIT ${paging.take} OFFSET ${paging.skip}` : Prisma.sql`LIMIT 50000`;
+  const [rows, count] = await Promise.all([
+    prisma.$queryRaw<{ id: string }[]>`SELECT p."id" FROM "Product" p WHERE ${where} ORDER BY ${order} ${limit}`,
+    paging ? prisma.$queryRaw<{ n: number }[]>`SELECT count(*)::int AS n FROM "Product" p WHERE ${where}` : Promise.resolve([]),
+  ]);
+  return { ids: rows.map((r) => r.id), total: paging ? (count[0]?.n ?? 0) : rows.length };
+};

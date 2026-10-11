@@ -43,6 +43,14 @@ export const apiSession = {
 };
 const emit = (e: ApiEvent) => listeners.forEach((l) => l(e));
 
+let lastWriteAt = 0;
+/** Called for every non-GET request of this tab (uploads included). */
+export const markOwnWrite = () => {
+  lastWriteAt = Date.now();
+};
+/** Milliseconds since this tab last sent a write: a refreshed resource right after it is our own change, not a foreign one. */
+export const msSinceOwnWrite = () => Date.now() - lastWriteAt;
+
 let refreshing: Promise<boolean> | null = null;
 /** Exchanges the refresh cookie for a new access token. Shared by concurrent 401s. */
 export const refreshSession = (): Promise<boolean> => {
@@ -102,6 +110,8 @@ export async function apiRaw<T>(path: string, o: RequestOptions = {}): Promise<E
     headers['Content-Type'] = 'application/json';
     body = JSON.stringify(o.body);
   }
+  const write = (o.method ?? 'GET') !== 'GET';
+  if (write) markOwnWrite();
   let res: Response;
   try {
     res = await fetch(`${API_URL}/api/v1${path}${toQuery(o.query)}`, {
@@ -124,6 +134,7 @@ export async function apiRaw<T>(path: string, o: RequestOptions = {}): Promise<E
       emit('session-expired');
     }
   }
+  if (write) markOwnWrite();
   if (res.status === 204) return { data: null as T, meta: {} };
   const json = (await res.json().catch(() => null)) as (Envelope<T> & { error?: ApiErrorBody }) | null;
   if (!res.ok || !json || json.error) {

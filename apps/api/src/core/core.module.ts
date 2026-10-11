@@ -10,6 +10,7 @@ import { MailOutbox } from './mail/mail.outbox';
 import { MailService } from './mail/mail.service';
 import { OutboxService } from './outbox/outbox.service';
 import { ProcessorRegistry } from './queue/processor.registry';
+import { QueueOutbox } from './queue/queue.outbox';
 import { QueueService } from './queue/queue.service';
 import { RedisService } from './redis/redis.provider';
 import { StorageService } from './storage/storage.service';
@@ -28,6 +29,7 @@ const providers = [
   OutboxService,
   AuditService,
   QueueService,
+  QueueOutbox,
   StorageService,
   MailService,
   MailOutbox,

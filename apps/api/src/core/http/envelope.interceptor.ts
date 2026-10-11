@@ -3,11 +3,11 @@ import { CallHandler, ExecutionContext, Injectable, NestInterceptor, StreamableF
 import { map } from 'rxjs';
 import { isPage } from './pagination';
 
-export type Warning = { code: string; params?: Record<string, unknown> };
+export type Warning = { code: string; params?: Record<string, unknown>; field?: string };
 
 /** Request-scoped warnings (`meta.warnings`) are kept on the request object to avoid request-scoped providers. */
-export const addWarning = (req: { warnings?: Warning[] }, code: string, params?: Record<string, unknown>) => {
-  (req.warnings ??= []).push({ code, params });
+export const addWarning = (req: { warnings?: Warning[] }, code: string, params?: Record<string, unknown>, field?: string) => {
+  (req.warnings ??= []).push({ code, params, ...(field ? { field } : {}) });
 };
 
 /** Marker for handlers that already return the final body (webhook acks, redirects, files). */
@@ -27,7 +27,9 @@ export class EnvelopeInterceptor implements NestInterceptor {
         const warnings: Warning[] = req.warnings ?? [];
         if (body === undefined || body === null) return { data: null, meta: { warnings } };
         if (isPage(body)) {
-          return { data: body.data, meta: { page: body.page, pageSize: body.pageSize, total: body.total, warnings } };
+          // list-level figures that follow the filters (e.g. `meta.totalValue` of GET /stock/snapshot) ride in `body.meta`
+          const extra = (body as { meta?: Record<string, unknown> }).meta ?? {};
+          return { data: body.data, meta: { ...extra, page: body.page, pageSize: body.pageSize, total: body.total, warnings } };
         }
         if (typeof body === 'object' && 'nextCursor' in body && 'data' in body) {
           const b = body as { data: unknown; nextCursor: string | null };

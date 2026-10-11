@@ -40,3 +40,20 @@ One entry per finished stage: what was built, checks passing, what is still simu
 - In-app notifications for team events arrive with the notifications module (M5); e-mails are already sent.
 - Public account-deletion page and personal data export arrive with the public pages (M11).
 - Onboarding buttons "add products / create agent / connect a page" only move to the next step until M2–M4.
+
+## M2 — Catalogue and stock (2026-10-11)
+
+**Built**
+- Products and services: create, edit, duplicate, archive, restore, delete; variants (manual and generated); up to 10 images with background re-encoding and thumbnails; categories (2 levels) and units with reassignment on delete; SKU unique across products and variants; plan limit on the number of products.
+- Stock: adjustments that always create a movement, low-stock and out-of-stock detection per product and variant, movements list with reversal and stock-at-date, stock dashboard (simple and advanced modes), product expenses and margins (data + endpoints).
+- Bulk actions (category, minimum stock, price with preview, archive, export), import wizard for CSV / XLSX with column mapping, row errors and atomic commit, export files as background jobs with progress.
+- Product moderation records (auto-approved for now), "create from photo" entry point, accent-insensitive search.
+- Web: products list (search, filter panel, tabs, sort, density, columns, grid, selection and bulk bar, row `Actions ⌄`, quick-edit sheet), product form and page, categories and units, services, import wizard, stock dashboard, movements. Reusable list kit (filters, data table, side sheet, list state in the URL) for the next stages. Live updates over WebSocket with polling fallback.
+- Fixed on the way: real-time connection refused by the server (tenant scope bug), amounts now display `12 500 DA`.
+
+**Checks** — lint ✔ · typecheck ✔ · unit ✔ (260: shared 28, web 153, api 79) · integration ✔ (342, incl. list p95 127 ms on 10 000 products and 2 000-row import preview < 5 s) · browser ✔ (64, incl. AT-CAT-01…13 UI side, RTL product form, accessibility) · translations ✔ (2 092 texts × 3 languages) · web production build ✔.
+
+**Simulated / deferred** (tracked in `carry-overs.md`)
+- Image captions and "create from photo" use a stand-in until the AI stage (M4). Moderation auto-approves until the admin queue (M10).
+- Product labels (PDF) arrive with delivery labels (M6); links to orders / agents / purchases arrive with those modules (M4, M5, M7).
+- Two acceptance checks that need orders (stock never decremented by an unconfirmed order line, variant required on an order line) are verified in M5.

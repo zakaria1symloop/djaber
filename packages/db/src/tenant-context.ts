@@ -42,8 +42,18 @@ export const NO_LIMITS: TenantLimits = {
   monthlyCredits: 0,
 };
 
+/**
+ * Prisma promises are lazy: the query starts when `.then` is called. If a callback returns one without awaiting it,
+ * the query would start after the AsyncLocalStorage scope is gone. Awaiting inside the scope keeps the tenant visible.
+ */
+const settleInside = <T>(fn: () => T): T => {
+  const r = fn();
+  if (r && typeof (r as { then?: unknown }).then === 'function') return (async () => await r)() as T;
+  return r;
+};
+
 export const TenantContext = {
-  run: <T>(info: TenantInfo, fn: () => T) => als.run(info, fn),
+  run: <T>(info: TenantInfo, fn: () => T) => als.run(info, () => settleInside(fn)),
   get: (): TenantInfo => {
     const t = als.getStore();
     if (!t) throw new Error('TenantContextMissing');
@@ -55,12 +65,12 @@ export const TenantContext = {
   runSystem: <T>(fn: () => T) =>
     als.run(
       { workspaceId: '', readOnly: false, locale: 'fr', stockMode: 'simple', suspended: false, limits: NO_LIMITS, bypass: true },
-      fn,
+      () => settleInside(fn),
     ),
   /** Runs `fn` scoped to one workspace (worker jobs, admin acting on a target workspace). */
   runAs: <T>(workspaceId: string, fn: () => T, extra: Partial<TenantInfo> = {}) =>
     als.run(
       { workspaceId, readOnly: false, locale: 'fr', stockMode: 'simple', suspended: false, limits: NO_LIMITS, ...extra },
-      fn,
+      () => settleInside(fn),
     ),
 };

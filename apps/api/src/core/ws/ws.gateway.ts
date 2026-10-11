@@ -25,7 +25,8 @@ export class WsGateway implements OnGatewayInit, OnGatewayConnection {
         }
         socket.data.claims = claims;
         next();
-      } catch {
+      } catch (e) {
+        this.log.warn({ err: String(e) }, 'ws handshake refused');
         next(new Error('UNAUTHORIZED'));
       }
     });

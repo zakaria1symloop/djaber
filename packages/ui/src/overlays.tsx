@@ -4,7 +4,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import * as Dropdown from '@radix-ui/react-dropdown-menu';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
-import { ChevronDown, X } from 'lucide-react';
+import { ChevronDown, MoreHorizontal, X } from 'lucide-react';
 import * as React from 'react';
 import { Button, cn, toneDot, type Tone } from './primitives';
 
@@ -26,7 +26,7 @@ export function Dialog({
   description?: string;
   children?: React.ReactNode;
   footer?: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   closeLabel: string;
   /** blocking dialogs (legal re-acceptance): no ✕, Esc and outside clicks are ignored */
   hideClose?: boolean;
@@ -41,7 +41,7 @@ export function Dialog({
           className={cn(
             'fixed start-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100vw-2rem)] -translate-y-1/2 overflow-y-auto rounded-card border border-line-edge bg-ink-surface p-5',
             'ltr:-translate-x-1/2 rtl:translate-x-1/2',
-            size === 'sm' ? 'max-w-sm' : size === 'lg' ? 'max-w-2xl' : 'max-w-md',
+            size === 'sm' ? 'max-w-sm' : size === 'lg' ? 'max-w-2xl' : size === 'xl' ? 'max-w-4xl' : 'max-w-md',
           )}
         >
           <div className="flex items-start justify-between gap-4">
@@ -124,38 +124,70 @@ export type MenuAction = {
   destructive?: boolean;
   /** translated reason; the item is greyed and the reason is listed in the footer */
   disabledReason?: string;
+  /** mono note on the end side: where the action leads (PAGE PRODUIT, DIALOGUE) or its shortcut (Enter, Del) */
+  hint?: string;
+  /** draws a separator above the item */
+  separated?: boolean;
 };
-export function ActionsMenu({ label, actions, size = 'sm', align = 'end' }: { label: string; actions: MenuAction[]; size?: 'sm' | 'md'; align?: 'start' | 'end' }) {
+export function ActionsMenu({
+  label,
+  actions,
+  size = 'sm',
+  align = 'end',
+  heading,
+  variant = 'secondary',
+  iconOnly,
+}: {
+  label: string;
+  actions: MenuAction[];
+  size?: 'sm' | 'md';
+  align?: 'start' | 'end';
+  /** mono line on top of the menu (row identity: "PARFUM OUD 50 ML · PO-50") */
+  heading?: string;
+  variant?: 'secondary' | 'ghost';
+  /** compact trigger "⋯" for narrow tables (variants editor); `label` stays its accessible name */
+  iconOnly?: boolean;
+}) {
   const disabled = actions.filter((a) => a.disabledReason);
   if (!actions.length) return null;
   return (
     <Dropdown.Root>
       <Dropdown.Trigger asChild>
-        <Button size={size} variant="secondary" onClick={(e) => e.stopPropagation()}>
-          {label}
-          <ChevronDown className="size-3.5" aria-hidden />
-        </Button>
+        {iconOnly ? (
+          <Button size={size} variant={variant} aria-label={label} title={label} className="w-8 !px-0" onClick={(e) => e.stopPropagation()}>
+            <MoreHorizontal className="size-4" aria-hidden />
+          </Button>
+        ) : (
+          <Button size={size} variant={variant} onClick={(e) => e.stopPropagation()}>
+            {label}
+            <ChevronDown className="size-3.5" aria-hidden />
+          </Button>
+        )}
       </Dropdown.Trigger>
       <Dropdown.Portal>
         <Dropdown.Content
           align={align}
           sideOffset={4}
-          className="z-50 min-w-48 max-w-72 rounded-card border border-line-edge bg-ink-raised p-1 shadow-xl"
+          className="z-50 min-w-48 max-w-80 rounded-card border border-line-edge bg-ink-raised p-1 shadow-xl"
           onClick={(e) => e.stopPropagation()}
         >
+          {heading ? <Dropdown.Label className="truncate px-2.5 py-1.5 ts-label-micro text-text-muted">{heading}</Dropdown.Label> : null}
           {actions.map((a) => (
             <Dropdown.Item
               key={a.key}
+              data-action={a.key}
               disabled={!!a.disabledReason}
               onSelect={a.onSelect}
               className={cn(
-                'flex cursor-pointer items-center rounded-[6px] px-2.5 py-2 text-[13px] outline-none data-[highlighted]:bg-ink-raised-high',
+                'flex cursor-pointer items-center justify-between gap-4 rounded-[6px] px-2.5 py-2 text-[13px] outline-none data-[highlighted]:bg-ink-raised-high',
+                a.separated && 'mt-1 border-t border-line-hairline pt-2.5',
                 a.primary && 'font-medium text-text-primary',
                 a.destructive && 'text-accent-alert',
                 a.disabledReason && 'cursor-not-allowed opacity-45',
               )}
             >
-              {a.label}
+              <span>{a.label}</span>
+              {a.hint ? <span className="ts-label-micro shrink-0 text-text-muted">{a.hint}</span> : null}
             </Dropdown.Item>
           ))}
           {disabled.length ? (
@@ -235,7 +267,15 @@ export function Tooltip({ content, children }: { content: React.ReactNode; child
 }
 
 /* ---------- Toasts: bottom-end, max 3, 5 s, optional action (GLOBAL frame) ---------- */
-export type ToastInput = { tone?: Tone; message: string; action?: { label: string; onClick: () => void }; durationMs?: number };
+export type ToastInput = {
+  tone?: Tone;
+  message: string;
+  action?: { label: string; onClick: () => void };
+  /** 0 ⇒ stays until dismissed or updated (job progress) */
+  durationMs?: number;
+  /** 0–100: draws a progress line under the message (export / import jobs); null = indeterminate */
+  progress?: number | null;
+};
 type ToastItem = ToastInput & { id: number };
 let toasts: ToastItem[] = [];
 let seq = 0;
@@ -245,8 +285,24 @@ export const toast = (t: ToastInput | string) => {
   const item: ToastItem = { id: ++seq, tone: 'success', ...(typeof t === 'string' ? { message: t } : t) };
   toasts = [...toasts, item].slice(-3);
   emit();
-  if (typeof window !== 'undefined') window.setTimeout(() => dismissToast(item.id), item.durationMs ?? 5000);
+  schedule(item.id, item.durationMs);
   return item.id;
+};
+const timers = new Map<number, number>();
+const schedule = (id: number, durationMs: number | undefined) => {
+  if (typeof window === 'undefined') return;
+  window.clearTimeout(timers.get(id));
+  timers.delete(id);
+  if (durationMs === 0) return;
+  timers.set(id, window.setTimeout(() => dismissToast(id), durationMs ?? 5000));
+};
+/** Patches a visible toast (job progress → done). A new `durationMs` restarts its timer. */
+export const updateToast = (id: number, patch: Partial<ToastInput>) => {
+  if (!toasts.some((t) => t.id === id)) return false;
+  toasts = toasts.map((t) => (t.id === id ? { ...t, ...patch } : t));
+  emit();
+  if ('durationMs' in patch) schedule(id, patch.durationMs);
+  return true;
 };
 export const dismissToast = (id: number) => {
   toasts = toasts.filter((t) => t.id !== id);
@@ -267,9 +323,14 @@ export function ToastRegion({ label, closeLabel }: { label: string; closeLabel: 
   return (
     <div role="region" aria-label={label} aria-live="polite" className="pointer-events-none fixed bottom-4 end-4 z-[60] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2">
       {items.map((t) => (
-        <div key={t.id} className="pointer-events-auto flex items-center gap-3 rounded-card border border-line-edge bg-ink-raised px-3 py-2.5 text-[13px] shadow-xl">
+        <div key={t.id} data-toast={t.tone ?? 'success'} className="pointer-events-auto relative flex items-center gap-3 overflow-hidden rounded-card border border-line-edge bg-ink-raised px-3 py-2.5 text-[13px] shadow-xl">
           <span className={cn('size-2 shrink-0 rounded-full', toneDot[t.tone ?? 'success'])} />
           <span className="min-w-0 flex-1">{t.message}</span>
+          {t.progress !== undefined ? (
+            <span aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 bg-ink-raised-high">
+              <span className={cn('block h-full bg-signal-live transition-[width]', t.progress === null && 'w-1/3 animate-pulse')} style={t.progress === null ? undefined : { width: `${Math.max(0, Math.min(100, t.progress))}%` }} />
+            </span>
+          ) : null}
           {t.action ? (
             <button
               type="button"

@@ -13,7 +13,8 @@ export const relativeTime = (iso: string | Date | null | undefined, locale: stri
   const diff = Math.round((t - now) / 1000);
   const tag = locale === 'ar' ? 'ar-u-nu-latn' : locale;
   // always numeric ("il y a 2 j", never "avant-hier"), except the "now" form
-  const fmt = new Intl.RelativeTimeFormat(tag, { numeric: 'always', style: 'narrow' });
+  // French narrow gives "-2 j": the short form is the readable one ("il y a 2 j")
+  const fmt = new Intl.RelativeTimeFormat(tag, { numeric: 'always', style: locale === 'fr' ? 'short' : 'narrow' });
   for (const [unit, seconds] of UNITS) {
     if (Math.abs(diff) >= seconds) return fmt.format(Math.trunc(diff / seconds), unit);
   }

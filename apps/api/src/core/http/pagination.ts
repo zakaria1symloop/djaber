@@ -3,12 +3,18 @@ import type { PageQuery } from '@djaber/shared';
 
 export type Page<T> = { data: T[]; page: number; pageSize: number; total: number };
 export type CursorPage<T> = { data: T[]; nextCursor: string | null };
-export type BulkResult = { id: string; ok: boolean; code?: string; params?: Record<string, unknown> };
+/** api-contract §1.4: one entry per id of a bulk request. */
+export type BulkResult = {
+  id: string;
+  ok: boolean;
+  error?: { code: string; message: string; params: Record<string, string | number>; fields?: Record<string, string>; ref: string };
+  data?: unknown;
+};
 
 export const isPage = (b: unknown): b is Page<unknown> =>
   !!b && typeof b === 'object' && 'data' in b && 'total' in b && 'pageSize' in b;
 
-export const toSkipTake = (q: Pick<PageQuery, 'page' | 'pageSize'>) => ({
+export const toSkipTake = (q: { page: number; pageSize: number }) => ({
   skip: (q.page - 1) * q.pageSize,
   take: q.pageSize,
 });
@@ -25,7 +31,7 @@ export const toOrderBy = (
   return field === 'id' ? [{ id: dir }] : [{ [field]: dir }, { id: 'desc' }];
 };
 
-export const page = <T>(data: T[], total: number, q: Pick<PageQuery, 'page' | 'pageSize'>): Page<T> => ({
+export const page = <T>(data: T[], total: number, q: { page: number; pageSize: number }): Page<T> => ({
   data,
   total,
   page: q.page,
