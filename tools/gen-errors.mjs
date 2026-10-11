@@ -15,6 +15,8 @@ for (const line of src) {
     const code = codeCell[1]; const status = m0[1] === '—' ? 0 : Number(m0[1]);
     const params = codeCell[2] ? codeCell[2].replace(/[{}]/g, '').split(',').map((s) => s.trim()).filter(Boolean) : [];
     if (codes[code]) continue;
+    // placeholders used by the messages are params too (the code cell of 11 does not always list them)
+    for (const t of [cells[2], cells[3], cells[4]]) for (const m of (t ?? '').matchAll(/\{(\w+)\}/g)) if (m[1] !== 'ref' && !params.includes(m[1]) && !params.includes(`${m[1]}[]`)) params.push(m[1]);
     codes[code] = { status: status === 0 ? 0 : status, params };
     fr[code] = cells[2]; ar[code] = cells[3]; en[code] = cells[4];
     continue;

@@ -1,0 +1,44 @@
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
+import { ZodValidationPipe } from 'nestjs-zod';
+import { AuditInterceptor } from './core/audit/audit.interceptor';
+import { AuthGuard } from './core/auth/auth.guard';
+import { CoreModule } from './core/core.module';
+import { AppExceptionFilter } from './core/errors/app-exception.filter';
+import { HealthController } from './core/health/health.controller';
+import { EnvelopeInterceptor } from './core/http/envelope.interceptor';
+import { RequestContextMiddleware } from './core/http/request-context.middleware';
+import { IdempotencyInterceptor } from './core/idempotency/idempotency.interceptor';
+import { PermissionGuard } from './core/rbac/permission.guard';
+import { FilesController } from './core/storage/files.controller';
+import { TenantGuard } from './core/tenancy/tenant.guard';
+import { RateLimitGuard } from './core/throttle/rate-limit.guard';
+import { WsGateway } from './core/ws/ws.gateway';
+import { PlatformPublicModule } from './modules/platform-public/platform-public.module';
+
+/** Feature modules are appended here milestone after milestone (00-build-order). */
+export const FEATURE_MODULES = [PlatformPublicModule];
+
+@Module({
+  imports: [CoreModule, ...FEATURE_MODULES],
+  controllers: [HealthController, FilesController],
+  providers: [
+    WsGateway,
+    { provide: APP_FILTER, useClass: AppExceptionFilter },
+    { provide: APP_PIPE, useClass: ZodValidationPipe },
+    // Guard order = pipeline of 01-nest-module-map §3: auth → rate limit → tenant → permission
+    { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_GUARD, useClass: RateLimitGuard },
+    { provide: APP_GUARD, useClass: TenantGuard },
+    { provide: APP_GUARD, useClass: PermissionGuard },
+    // Interceptor order: envelope (outermost) → idempotency → audit
+    { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
+  ],
+})
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestContextMiddleware).forRoutes('*path');
+  }
+}

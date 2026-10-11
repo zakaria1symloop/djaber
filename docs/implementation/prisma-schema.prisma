@@ -1233,6 +1233,7 @@ model User {
   blockedAt        DateTime?
   blockReason      String?
   ownedWorkspaceId String?      @unique @db.Uuid
+  lastWorkspaceId  String?      @db.Uuid // last workspace used with an explicit X-Workspace-Id (api-contract §1.2); no FK on purpose
   prefs            Json         @default("{}") // { listDensity, soundOnMessage, dismissedAnnouncementIds[] }
   lastLoginAt      DateTime?
   lastSeenPlatform DevicePlatform?

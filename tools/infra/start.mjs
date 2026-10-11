@@ -33,6 +33,8 @@ const pg = new EmbeddedPostgres({
   password: 'djaber',
   port: PG_PORT,
   persistent: true,
+  // Windows defaults to WIN1252: Arabic text needs UTF-8
+  initdbFlags: ['--encoding=UTF8', '--locale=C'],
   onLog: () => {},
   onError: (e) => console.error('[pg]', String(e).trim()),
 });
