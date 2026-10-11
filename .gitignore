@@ -13,3 +13,6 @@ playwright-report/
 test-results/
 storybook-static/
 *.tsbuildinfo
+test-results/
+playwright-report/
+*.tsbuildinfo

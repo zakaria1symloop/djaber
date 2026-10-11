@@ -27,7 +27,7 @@ export const prisma = base.$extends({
           if (process.env.ALLOW_NO_TENANT === '1') return query(args);
           throw new Error(`TenantContextMissing for ${model}.${operation}`);
         }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const a: any = args ?? {};
         if (SCOPED_READS.has(operation)) {
           a.where = { AND: [{ workspaceId: t.workspaceId }, a.where ?? {}] };

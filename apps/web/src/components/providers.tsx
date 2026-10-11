@@ -1,0 +1,39 @@
+'use client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToastRegion } from '@djaber/ui';
+import { useEffect, useState, type ReactNode } from 'react';
+import { ApiError, apiSession } from '@/lib/api';
+import { MessagesProvider, useT } from '@/lib/i18n';
+
+function Toasts() {
+  const t = useT();
+  return <ToastRegion label={t('nav.notifications')} closeLabel={t('action.close')} />;
+}
+
+export function Providers({ locale, messages, children }: { locale: string; messages: Record<string, string>; children: ReactNode }) {
+  const [client] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 15_000,
+            refetchOnWindowFocus: false,
+            // never retry client errors (403/404/422…): the UI shows the matching state immediately
+            retry: (count, err) => !(err instanceof ApiError && err.status < 500) && count < 2,
+          },
+          mutations: { retry: false },
+        },
+      }),
+  );
+  useEffect(() => {
+    apiSession.set({ locale });
+  }, [locale]);
+  return (
+    <MessagesProvider locale={locale} messages={messages}>
+      <QueryClientProvider client={client}>
+        {children}
+        <Toasts />
+      </QueryClientProvider>
+    </MessagesProvider>
+  );
+}

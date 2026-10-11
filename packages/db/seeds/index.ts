@@ -127,7 +127,7 @@ async function plans() {
     { slug: 'pack-6000', credits: 6000, priceWebDzd: 3900, isFeatured: true, sortOrder: 2 },
   ];
   for (const p of packs) {
-    const n = p.credits.toLocaleString('fr-FR').replace(/ /g, ' ');
+    const n = String(p.credits).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
     await db.creditPack.upsert({
       where: { slug: p.slug },
       create: {
@@ -286,13 +286,13 @@ async function main() {
   const pr = await presets();
   const a = await admin();
   await platform(a.id);
-  // eslint-disable-next-line no-console
+   
   console.log(`seeded: ${g.wilayas} wilayas, ${g.communes} communes, ${u} units, ${p.plans} plans, ${p.packs} packs, ${pr} presets, admin + app versions + settings`);
 }
 
 main()
   .catch((e) => {
-    // eslint-disable-next-line no-console
+     
     console.error(e);
     process.exitCode = 1;
   })

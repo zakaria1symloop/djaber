@@ -1,0 +1,134 @@
+// HTTP client for /api/v1 (api-contract §1): envelope { data, meta } / { error }, access token kept in memory,
+// refresh through the httpOnly cookie, X-Workspace-Id, Accept-Language, Idempotency-Key on demand.
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4010';
+
+export type ApiErrorBody = {
+  code: string;
+  message: string;
+  params: Record<string, string | number>;
+  fields: Record<string, string>;
+  details: unknown;
+  ref: string;
+};
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly body: ApiErrorBody,
+  ) {
+    super(body.message);
+  }
+  get code() {
+    return this.body.code;
+  }
+}
+
+export type Meta = { page?: number; pageSize?: number; total?: number; nextCursor?: string | null; hasMore?: boolean; warnings?: { code: string; params?: Record<string, unknown> }[] };
+export type Envelope<T> = { data: T; meta: Meta };
+
+type Session = { accessToken: string | null; workspaceId: string | null; locale: string };
+const session: Session = { accessToken: null, workspaceId: null, locale: 'fr' };
+const listeners = new Set<(event: 'session-expired' | 'offline' | 'online') => void>();
+
+export const apiSession = {
+  set(patch: Partial<Session>) {
+    Object.assign(session, patch);
+  },
+  get: () => session,
+  on(fn: (event: 'session-expired' | 'offline' | 'online') => void) {
+    listeners.add(fn);
+    return () => void listeners.delete(fn);
+  },
+};
+const emit = (e: 'session-expired' | 'offline' | 'online') => listeners.forEach((l) => l(e));
+
+let refreshing: Promise<boolean> | null = null;
+/** Exchanges the refresh cookie for a new access token. Shared by concurrent 401s. */
+export const refreshSession = (): Promise<boolean> => {
+  refreshing ??= fetch(`${API_URL}/api/v1/auth/refresh`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', 'Accept-Language': session.locale },
+    body: '{}',
+  })
+    .then(async (r) => {
+      if (!r.ok) return false;
+      const json = (await r.json()) as Envelope<{ accessToken: string; workspaceId?: string | null }>;
+      session.accessToken = json.data.accessToken;
+      if (json.data.workspaceId !== undefined && !session.workspaceId) session.workspaceId = json.data.workspaceId;
+      return true;
+    })
+    .catch(() => false)
+    .finally(() => {
+      refreshing = null;
+    });
+  return refreshing;
+};
+
+export type RequestOptions = {
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  body?: unknown;
+  query?: Record<string, string | number | boolean | null | undefined | string[]>;
+  /** true ⇒ a random Idempotency-Key is generated; a string is used as the key */
+  idempotent?: boolean | string;
+  signal?: AbortSignal;
+  /** do not try to refresh on 401 (login, refresh itself) */
+  noRefresh?: boolean;
+  formData?: FormData;
+};
+
+const toQuery = (q: RequestOptions['query']) => {
+  if (!q) return '';
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(q)) {
+    if (v === undefined || v === null || v === '') continue;
+    if (Array.isArray(v)) {
+      if (v.length) p.set(k, v.join(','));
+    } else p.set(k, String(v));
+  }
+  const s = p.toString();
+  return s ? `?${s}` : '';
+};
+
+export async function apiRaw<T>(path: string, o: RequestOptions = {}): Promise<Envelope<T>> {
+  const headers: Record<string, string> = { 'Accept-Language': session.locale };
+  if (session.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
+  if (session.workspaceId) headers['X-Workspace-Id'] = session.workspaceId;
+  if (o.idempotent) headers['Idempotency-Key'] = typeof o.idempotent === 'string' ? o.idempotent : crypto.randomUUID();
+  let body: BodyInit | undefined;
+  if (o.formData) body = o.formData;
+  else if (o.body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(o.body);
+  }
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/api/v1${path}${toQuery(o.query)}`, {
+      method: o.method ?? 'GET',
+      headers,
+      body,
+      credentials: 'include',
+      signal: o.signal,
+    });
+    emit('online');
+  } catch (e) {
+    if ((e as Error).name !== 'AbortError') emit('offline');
+    throw e;
+  }
+  if (res.status === 401 && !o.noRefresh) {
+    if (await refreshSession()) return apiRaw<T>(path, { ...o, noRefresh: true });
+    emit('session-expired');
+  }
+  if (res.status === 204) return { data: null as T, meta: {} };
+  const json = (await res.json().catch(() => null)) as (Envelope<T> & { error?: ApiErrorBody }) | null;
+  if (!res.ok || !json || json.error) {
+    throw new ApiError(
+      res.status,
+      json?.error ?? { code: 'INTERNAL', message: res.statusText, params: {}, fields: {}, details: null, ref: res.headers.get('x-request-id') ?? '' },
+    );
+  }
+  return json;
+}
+
+/** Returns `data` only. Use `apiRaw` when `meta` (pagination, warnings) is needed. */
+export const api = async <T>(path: string, o: RequestOptions = {}): Promise<T> => (await apiRaw<T>(path, o)).data;

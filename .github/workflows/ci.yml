@@ -1,0 +1,46 @@
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build --filter=@djaber/shared --filter=@djaber/db
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm i18n:check
+      - run: pnpm test
+      # Integration tests start their own embedded Postgres + redis-memory-server (no Docker, see CLAUDE.md)
+      - run: pnpm test:int
+      - run: pnpm build
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: checks
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @djaber/web exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+
+  images:
+    runs-on: ubuntu-latest
+    needs: checks
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      matrix: { target: [api, worker, web] }
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f Dockerfile --target ${{ matrix.target }} -t djaber-${{ matrix.target }}:${{ github.sha }} .

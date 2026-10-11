@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+**/dist
+**/.next
+.local
+.env
+.env.*
+!.env.example
+.git
+docs
+*.pdf

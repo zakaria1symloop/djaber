@@ -12,7 +12,11 @@ export const formatMoney = (n: number) => `${formatNumber(n)}${THIN}DA`;
 export const roundHalfUp = (n: number) => Math.floor(n + 0.5);
 
 /** `0555123456` → `05 55 12 34 56` */
-export const formatPhoneDz = (p: string) => p.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
+/** 06-i18n §6: mobiles `0555 12 34 56` (4-2-2-2); landlines `021 23 45 67` (3-2-2-2). Stored form is unchanged. */
+export const formatPhoneDz = (p: string) => {
+  const m = /^(\d{4})(\d{2})(\d{2})(\d{2})$/.exec(p) ?? /^(\d{3})(\d{2})(\d{2})(\d{2})$/.exec(p);
+  return m ? m.slice(1).join(' ') : p;
+};
 
 const MONTHS: Record<'fr' | 'ar' | 'en', string[]> = {
   fr: ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'],

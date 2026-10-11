@@ -1,0 +1,12 @@
+{
+  "name": "@djaber/worker",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node --watch-path=../api/dist main.js",
+    "start": "node main.js"
+  },
+  "dependencies": {
+    "@djaber/api": "workspace:*"
+  }
+}

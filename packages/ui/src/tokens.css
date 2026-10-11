@@ -1,0 +1,78 @@
+/*
+ * Djaber v2 — design tokens exported from the Figma file 3SieH2XU0UvTnTNRl991LO
+ * (local variables "Color" (mode Dark) and "Space & Form", local text styles), 2026-10-11.
+ * Copy this file to packages/ui/src/tokens.css in M0. Do not hand-edit values:
+ * if the Figma variables change, re-export them (use_figma: getLocalVariableCollectionsAsync / getLocalTextStylesAsync).
+ * The product is dark-only (single Figma mode "Dark").
+ * Fonts (Google Fonts): Syne 700, Geist 400/500/600, JetBrains Mono 500, Changa 400/500/700 (Arabic).
+ */
+
+:root {
+  /* Color — surfaces */
+  --ink-base: #000000;
+  --ink-surface: #0a0a0a;
+  --ink-raised: #141414;
+  --ink-raised-high: #1c1c1c;
+
+  /* Color — text */
+  --text-primary: #ffffff;
+  --text-secondary: #a3a3a3;
+  --text-muted: #666666;
+
+  /* Color — lines (white with alpha) */
+  --line-hairline: rgba(255, 255, 255, 0.08); /* #ffffff14 */
+  --line-edge: rgba(255, 255, 255, 0.12);     /* #ffffff1f */
+  --line-lit: rgba(255, 255, 255, 0.18);      /* #ffffff2e */
+
+  /* Color — signals and accents (pill colours: see Figma "REF — Component sheet") */
+  --signal-live: #34d399;     /* AI, toggles on */
+  --accent-money: #34d399;    /* positive / done */
+  --accent-alert: #f87171;    /* blocking / negative / destructive */
+  --accent-inbound: #60a5fa;  /* in progress / links */
+  --accent-starred: #fbbf24;  /* attention */
+  --accent-orders: #fb923c;
+  --accent-clients: #a78bfa;
+
+  /* Space & Form */
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-28: 28px;
+  --gutter-content: 16px;
+  --gutter-label: 20px;
+  --radius-card: 8px;
+  --stroke-hairline: 1px;
+  --extrusion-quiet: 3px;
+  --extrusion-action: 4px;
+  --extrusion-urgent: 5px;
+  --extrusion-pressed: 0px;
+
+  /* Font families */
+  --font-display: "Syne", system-ui, sans-serif;
+  --font-sans: "Geist", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-arabic: "Changa", system-ui, sans-serif;
+}
+
+/* Text styles (Figma name → class). Line heights and letter spacing are the Figma values. */
+.ts-display-l  { font-family: var(--font-display); font-weight: 700; font-size: 30px;   line-height: 1.12; letter-spacing: -0.02em; }
+.ts-display-m  { font-family: var(--font-display); font-weight: 700; font-size: 27px;   line-height: 1.15; letter-spacing: -0.02em; }
+.ts-display-s  { font-family: var(--font-display); font-weight: 700; font-size: 16px;   line-height: 1.20; letter-spacing: -0.02em; }
+.ts-numeral-l  { font-family: var(--font-sans);    font-weight: 600; font-size: 21px;   line-height: 1.30; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
+.ts-numeral-m  { font-family: var(--font-sans);    font-weight: 600; font-size: 14px;   line-height: 1.30; letter-spacing: -0.01em;  font-variant-numeric: tabular-nums; }
+.ts-title      { font-family: var(--font-sans);    font-weight: 500; font-size: 14px;   line-height: 1.32; letter-spacing: -0.01em; }
+.ts-body       { font-family: var(--font-sans);    font-weight: 400; font-size: 13px;   line-height: 1.32; letter-spacing: 0; }
+.ts-body-ar    { font-family: var(--font-arabic);  font-weight: 400; font-size: 13px;   line-height: 1.45; letter-spacing: 0; }
+.ts-label-section { font-family: var(--font-mono); font-weight: 500; font-size: 10.5px; line-height: 1.30; letter-spacing: 0.16em; text-transform: uppercase; }
+.ts-label-meta    { font-family: var(--font-mono); font-weight: 500; font-size: 9px;    line-height: 1.30; letter-spacing: 0.14em; }
+.ts-label-micro   { font-family: var(--font-mono); font-weight: 500; font-size: 8px;    line-height: 1.30; letter-spacing: 0.10em; text-transform: uppercase; }
+
+/* Arabic: every Geist/Syne text renders with Changa when dir="rtl" (14 MOB-R20, 02-next-route-map RTL rules). */
+[dir="rtl"] { --font-display: "Changa", system-ui, sans-serif; --font-sans: "Changa", system-ui, sans-serif; }
+
+body { background: var(--ink-base); color: var(--text-primary); font-family: var(--font-sans); }

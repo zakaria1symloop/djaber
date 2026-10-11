@@ -1,0 +1,26 @@
+@import url('https://fonts.googleapis.com/css2?family=Changa:wght@400;500;700&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Syne:wght@700&display=swap');
+@import 'tailwindcss';
+@import '../src/tokens.css';
+@source '../src';
+
+@theme inline {
+  --color-ink-base: var(--ink-base);
+  --color-ink-surface: var(--ink-surface);
+  --color-ink-raised: var(--ink-raised);
+  --color-ink-raised-high: var(--ink-raised-high);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-line-hairline: var(--line-hairline);
+  --color-line-edge: var(--line-edge);
+  --color-line-lit: var(--line-lit);
+  --color-signal-live: var(--signal-live);
+  --color-accent-money: var(--accent-money);
+  --color-accent-alert: var(--accent-alert);
+  --color-accent-inbound: var(--accent-inbound);
+  --color-accent-starred: var(--accent-starred);
+  --color-accent-orders: var(--accent-orders);
+  --color-accent-clients: var(--accent-clients);
+  --radius-card: 8px;
+}
+body { font-size: 13px; }

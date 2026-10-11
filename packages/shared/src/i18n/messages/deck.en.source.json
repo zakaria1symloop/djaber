@@ -1,0 +1,10 @@
+{
+ "customer.handoff": "I'm passing this to a team member who will reply shortly.",
+ "customer.out_of_hours": "Our team is away right now; I'll take your order meanwhile and we'll call you back at opening.",
+ "customer.out_of_stock": "Sorry, {product} is out of stock right now.",
+ "customer.outsideWindowSkipped": "Not delivered — outside the 24 h window",
+ "customer.unavailable": "Sorry, our assistant is temporarily unavailable. A team member will reply soon. 🙏",
+ "customer.unsupportedMedia": "I can't read this type of message. Please send text or a photo 😊",
+ "customer.voiceFailed": "I couldn't hear your voice note, could you type it?",
+ "customer.welcome": "Hello 👋 Welcome to {shop}! How can I help you?"
+}

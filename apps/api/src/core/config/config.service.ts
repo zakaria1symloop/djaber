@@ -19,7 +19,7 @@ const loadDotEnv = () => {
       if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
         value = value.slice(1, -1);
       }
-      // eslint-disable-next-line no-restricted-properties
+       
       if (process.env[key] === undefined) process.env[key] = value;
     }
   }
@@ -30,7 +30,7 @@ let cached: AppConfig | undefined;
 export const loadConfig = (): AppConfig => {
   if (cached) return cached;
   loadDotEnv();
-  // eslint-disable-next-line no-restricted-properties
+   
   const parsed = ConfigSchema.safeParse(process.env);
   if (!parsed.success) {
     const keys = parsed.error.issues.map((i) => i.path.join('.')).join(', ');

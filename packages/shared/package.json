@@ -10,7 +10,8 @@
     "./enums": { "types": "./dist/enums/index.d.ts", "default": "./dist/enums/index.js" },
     "./validators": { "types": "./dist/validators/index.d.ts", "default": "./dist/validators/index.js" },
     "./schemas": { "types": "./dist/schemas/index.d.ts", "default": "./dist/schemas/index.js" },
-    "./i18n": { "types": "./dist/i18n/index.d.ts", "default": "./dist/i18n/index.js" }
+    "./i18n": { "types": "./dist/i18n/index.d.ts", "default": "./dist/i18n/index.js" },
+    "./messages": { "types": "./dist/i18n/messages.d.ts", "default": "./dist/i18n/messages.js" }
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

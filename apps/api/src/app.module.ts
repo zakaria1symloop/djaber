@@ -14,10 +14,11 @@ import { FilesController } from './core/storage/files.controller';
 import { TenantGuard } from './core/tenancy/tenant.guard';
 import { RateLimitGuard } from './core/throttle/rate-limit.guard';
 import { WsGateway } from './core/ws/ws.gateway';
+import { AccountModule } from './modules/account/account.module';
 import { PlatformPublicModule } from './modules/platform-public/platform-public.module';
 
 /** Feature modules are appended here milestone after milestone (00-build-order). */
-export const FEATURE_MODULES = [PlatformPublicModule];
+export const FEATURE_MODULES = [PlatformPublicModule, AccountModule];
 
 @Module({
   imports: [CoreModule, ...FEATURE_MODULES],

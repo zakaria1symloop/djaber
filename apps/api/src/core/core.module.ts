@@ -8,6 +8,7 @@ import { FlagsService } from './flags/flags.service';
 import { I18nService } from './i18n/i18n.service';
 import { MailService } from './mail/mail.service';
 import { OutboxService } from './outbox/outbox.service';
+import { ProcessorRegistry } from './queue/processor.registry';
 import { QueueService } from './queue/queue.service';
 import { RedisService } from './redis/redis.provider';
 import { StorageService } from './storage/storage.service';
@@ -16,6 +17,7 @@ import { RateLimitGuard } from './throttle/rate-limit.guard';
 import { WsEmitter } from './ws/ws.emitter';
 
 const providers = [
+  ProcessorRegistry,
   ConfigService,
   RedisService,
   I18nService,

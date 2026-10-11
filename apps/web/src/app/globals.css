@@ -1,0 +1,49 @@
+@import 'tailwindcss';
+@import '@djaber/ui/tokens.css';
+@source '../../../../packages/ui/src';
+
+/* Tailwind theme = the Figma tokens (packages/ui/src/tokens.css). No other colours or radii are allowed. */
+@theme inline {
+  --color-ink-base: var(--ink-base);
+  --color-ink-surface: var(--ink-surface);
+  --color-ink-raised: var(--ink-raised);
+  --color-ink-raised-high: var(--ink-raised-high);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-line-hairline: var(--line-hairline);
+  --color-line-edge: var(--line-edge);
+  --color-line-lit: var(--line-lit);
+  --color-signal-live: var(--signal-live);
+  --color-accent-money: var(--accent-money);
+  --color-accent-alert: var(--accent-alert);
+  --color-accent-inbound: var(--accent-inbound);
+  --color-accent-starred: var(--accent-starred);
+  --color-accent-orders: var(--accent-orders);
+  --color-accent-clients: var(--accent-clients);
+  --radius-card: 8px;
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-display: var(--font-display);
+}
+
+html { color-scheme: dark; }
+body { min-height: 100dvh; -webkit-font-smoothing: antialiased; font-size: 13px; }
+* { scrollbar-width: thin; scrollbar-color: var(--line-lit) transparent; }
+::selection { background: rgba(96, 165, 250, 0.35); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* next/font families (hashed names) feed the token font variables */
+html:root {
+  --font-display: var(--f-syne), system-ui, sans-serif;
+  --font-sans: var(--f-geist), system-ui, sans-serif;
+  --font-mono: var(--f-mono), ui-monospace, monospace;
+  --font-arabic: var(--f-changa), system-ui, sans-serif;
+}
+html:root[dir='rtl'] {
+  --font-display: var(--f-changa), system-ui, sans-serif;
+  --font-sans: var(--f-changa), system-ui, sans-serif;
+}
+/* Arabic has no monospace companion: labels use Changa without letter-spacing */
+html:root[dir='rtl'] { --font-mono: var(--f-changa), system-ui, sans-serif; }
+html[dir='rtl'] :is(.ts-label-section, .ts-label-meta, .ts-label-micro) { letter-spacing: 0; font-size: 11px; }
