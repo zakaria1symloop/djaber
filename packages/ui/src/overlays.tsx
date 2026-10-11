@@ -18,6 +18,7 @@ export function Dialog({
   footer,
   size = 'md',
   closeLabel,
+  hideClose,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -27,12 +28,16 @@ export function Dialog({
   footer?: React.ReactNode;
   size?: 'sm' | 'md' | 'lg';
   closeLabel: string;
+  /** blocking dialogs (legal re-acceptance): no ✕, Esc and outside clicks are ignored */
+  hideClose?: boolean;
 }) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-black/70" />
         <DialogPrimitive.Content
+          onEscapeKeyDown={hideClose ? (e) => e.preventDefault() : undefined}
+          onInteractOutside={hideClose ? (e) => e.preventDefault() : undefined}
           className={cn(
             'fixed start-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100vw-2rem)] -translate-y-1/2 overflow-y-auto rounded-card border border-line-edge bg-ink-surface p-5',
             'ltr:-translate-x-1/2 rtl:translate-x-1/2',
@@ -41,9 +46,11 @@ export function Dialog({
         >
           <div className="flex items-start justify-between gap-4">
             <DialogPrimitive.Title className="ts-title">{title}</DialogPrimitive.Title>
-            <DialogPrimitive.Close aria-label={closeLabel} className="text-text-muted hover:text-text-primary">
-              <X className="size-4" />
-            </DialogPrimitive.Close>
+            {hideClose ? null : (
+              <DialogPrimitive.Close aria-label={closeLabel} className="text-text-muted hover:text-text-primary">
+                <X className="size-4" />
+              </DialogPrimitive.Close>
+            )}
           </div>
           {description ? (
             <DialogPrimitive.Description className="ts-label-meta mt-2 text-text-muted">{description}</DialogPrimitive.Description>

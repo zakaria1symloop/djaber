@@ -18,7 +18,7 @@ export const ConfigSchema = z.object({
   JWT_PRIVATE_KEY: z.string().default(''),
   JWT_PUBLIC_KEY: z.string().default(''),
   JWT_ACCESS_TTL_S: z.coerce.number().int().default(900),
-  REFRESH_TTL_DAYS: z.coerce.number().int().default(30),
+  REFRESH_TTL_DAYS: z.coerce.number().int().default(7), // AUTH-02: rotating refresh token, 7 days
   // AES-256-GCM key ring: `v1:<base64 32 bytes>,v2:...` (last = current).
   ENCRYPTION_KEYS: z.string().default(''),
 

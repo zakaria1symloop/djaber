@@ -35,7 +35,7 @@ export class AuthGuard implements CanActivate {
     if (header?.startsWith('Bearer ')) {
       try {
         const claims = await this.tokens.verifyAccess(header.slice('Bearer '.length).trim());
-        req.user = { id: claims.sub, platformRole: claims.pr ?? 'none' };
+        req.user = { id: claims.sub, platformRole: claims.pr ?? 'none', sessionId: claims.sid };
         req.claims = claims;
         return true;
       } catch {

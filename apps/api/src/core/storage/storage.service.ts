@@ -4,6 +4,7 @@ import { createHmac } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
 import { ConfigService } from '../config/config.service';
+import { fromRepoRoot } from '../config/repo-root';
 
 export type StoredObject = { key: string; url: string };
 
@@ -18,7 +19,7 @@ export class StorageService {
   private get root() {
     const dir = this.config.get('STORAGE_LOCAL_DIR');
     // relative paths are anchored at the monorepo root so api and worker share the same folder
-    return resolve(process.cwd(), dir.startsWith('.') && !this.config.isTest ? `../../${dir}` : dir);
+    return fromRepoRoot(dir);
   }
   private localPath(key: string) {
     const p = resolve(this.root, key);

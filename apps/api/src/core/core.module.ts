@@ -6,6 +6,7 @@ import { ConfigService } from './config/config.service';
 import { CryptoService } from './crypto/crypto.service';
 import { FlagsService } from './flags/flags.service';
 import { I18nService } from './i18n/i18n.service';
+import { MailOutbox } from './mail/mail.outbox';
 import { MailService } from './mail/mail.service';
 import { OutboxService } from './outbox/outbox.service';
 import { ProcessorRegistry } from './queue/processor.registry';
@@ -29,6 +30,7 @@ const providers = [
   QueueService,
   StorageService,
   MailService,
+  MailOutbox,
   FlagsService,
   WsEmitter,
   RateLimitGuard,

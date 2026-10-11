@@ -5,6 +5,7 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ConfigService } from '../config/config.service';
+import { fromRepoRoot } from '../config/repo-root';
 
 @Injectable()
 export class CryptoService {
@@ -16,7 +17,7 @@ export class CryptoService {
     if (!ring) {
       if (config.isProd) throw new Error('ENCRYPTION_KEYS is required');
       // dev / test: one generated key kept under .local/keys (git-ignored)
-      const dir = resolve(process.cwd(), config.isTest ? '.local/test-keys' : '../../.local/keys');
+      const dir = fromRepoRoot(config.isTest ? '.local/test-keys' : '.local/keys');
       const file = resolve(dir, 'encryption.keys');
       if (existsSync(file)) ring = readFileSync(file, 'utf8').trim();
       else {

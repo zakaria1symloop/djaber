@@ -254,7 +254,7 @@ POST /workspaces/:id/transfer-ownership { newOwnerUserId, password, totpCode? } 
 POST /workspace/deletion/cancel (Owner; Workspace.status deletion_scheduled → active, audited; 409 CONFLICT when not scheduled)   `[FIG SET danger zone banner]`
 GET /invitations/:token (public) → { workspaceName, workspaceLogoUrl, inviterName, email, role, expiresAt } (INVITATION_EXPIRED; logged-in user with another e-mail ⇒ INVITATION_EMAIL_MISMATCH)   `[FIG AUTH Invitation]`
 PATCH /workspace/quick-replies/order { ids[] } (full ordered list of the workspace's QuickReply ids; 422 VALIDATION_ERROR when an id is missing or unknown)   `[FIG SET quick replies drag]`
-GET /legal/pending → [{ key: LegalDocKey, version, url }] · POST /legal/accept { key, version } → { acceptedAt } (creates LegalAcceptance; LEGAL_REACCEPT_REQUIRED is lifted once every pending key is accepted)   `[FIG ADM-13 ré-acceptation]`
+GET /legal/pending → [{ key: LegalDocKey, version, url }] · POST /legal/accept { key, version } → 204 (creates LegalAcceptance; LEGAL_REACCEPT_REQUIRED is lifted once every pending key is accepted)   `[FIG ADM-13 ré-acceptation]`
 GET /announcements (active CmsEntry announcements for my plan/workspace) · POST /announcements/:id/dismiss
 ```
 
@@ -417,7 +417,7 @@ Mirror of `../implementation/01-nest-module-map.md` §3.2 (the single permission
 | Workspace settings, system messages, onboarding (`PATCH /workspace`, `/workspace/system-messages`) | ● | ● | R |
 | Workspace: transfer ownership (`workspace.transfer`) · delete / cancel deletion | ● · ● | — · — | — · — |
 | Members & invitations: list (`members.read`) · invite, change role, remove (`members.write`) | ● · ● | R · — | R · — |
-| Quick replies (`/workspace/quick-replies*`) | ● | ● | ● |
+| Quick replies: list (`inbox.read`) · create, edit, delete, reorder (`workspace.settings`) | ● · ● | ● · ● | ● · — |
 | Channels: connect, reconnect, pause, agent assignment, delete | ● | ● | R |
 | Inbox: read, reply, notes, assign, resolve, bulk actions, template messages | ● | ● | ● |
 | Inbox: restore a deleted conversation | ● | ● | — |
@@ -519,7 +519,7 @@ DELETE /me/devices/:token → 204 (called on logout; unknown token ⇒ 204)
 POST /credits/packs/iap/validate { platform: google_play|app_store, productId, transactionId, receipt?, purchaseToken? } → { credited: number, balance } (§8.9; IAP_RECEIPT_INVALID / IAP_PRODUCT_UNKNOWN / IAP_STORE_UNAVAILABLE / 409 IAP_RECEIPT_ALREADY_USED)
 GET /credit-packs?platform=google_play|app_store → [{ id, slug, credits, storeProductId }] (store product ids only, no web price)
 GET /legal/pending → [{ key: terms|privacy|account_deletion|content_rules, version, url }] — shown at launch when non-empty (every protected call answers 403 LEGAL_REACCEPT_REQUIRED {document, version} until accepted)
-POST /legal/accept { key, version } → { acceptedAt }
+POST /legal/accept { key, version } → 204
 GET /workspaces → [{ id, name, logoUrl, role: owner|admin|operator, status: active|suspended|deletion_scheduled, planSlug }] (memberships of the current user; the picker in the app bar; `X-Workspace-Id` = the chosen id)
 GET /feature-flags?platform=mobile → { [key]: boolean } (evaluated for the current workspace)
 GET /status (incident banner inside the app) · GET /help/articles (WebView content) · POST /support/tickets (native form with photo)

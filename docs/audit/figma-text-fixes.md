@@ -65,6 +65,8 @@ Legend for codes: canonical codes are in `docs/specs/11-error-catalogue.md`; ali
 | Web V2 | SET — Settings — Integrations | `order.created · #CMD-1042` | `order.created · #CMD-1042 (événement webhook ; notification = order.ai_created)` |
 | Web V2 | AUTH — States catalogue | `Code invalide (TWO_FA_CODE_INVALID)` | `Code invalide (AUTH_2FA_INVALID)` |
 | Web V2 | AUTH — States catalogue | `(toujours, 30 min de validité)` | `(toujours, 60 min de validité)` |
+| Web V2 | SET — Settings — Profile · Workspace · Security | `PNG/JPG · 1 Mo · utilisé sur PDF et étiquettes` | `PNG/JPG · 5 Mo · utilisé sur PDF et étiquettes` |
+| Web V2 | DLG — Settings & billing | `PNG / JPG ≤ 2 Mo · carré recommandé` | `PNG / JPG / WEBP · 5 Mo max · carré recommandé` |
 | Web V2 | GLOBAL — Plan expired — free limits applied | `passez au plan Business pour en connecter davantage` | `passez au plan Pro pour en connecter davantage` |
 | Web V2 | MECH — Agents filters + row menu | `désactivé à la limite (PLAN_AGENT_LIMIT)` | `désactivé à la limite (PLAN_LIMIT · agents)` |
 | Web V2 | MECH — Agents filters + row menu | `IA stoppée · CHANNEL_DISCONNECT_CONFIRM` | `IA stoppée (dialogue « Déconnecter la page », pas de code)` |

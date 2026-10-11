@@ -206,7 +206,7 @@ Preconditions: channel active, agent linked and active, workspace has credits.
 
 ## FL-14 Account & workspace deletion
 
-1. Owner: Danger zone ⇒ type password + workspace name. 2. S: soft delete; channels unsubscribed; AI stops; members lose access; 30-day purge job (D31); confirmation e-mail (`workspace.deleted`). Failure: active paid subscription ⇒ warn (no refund) but allow.
+1. Owner: Danger zone ⇒ type password + workspace name (`DELETE /workspace { password, confirmName }`). 2. S: `Workspace.status=deletion_scheduled`, `deletionScheduledAt=+30 d` (04 §16); channels disconnected; AI stops; every mutation ⇒ `409 WORKSPACE_DELETION_SCHEDULED {at}` (reads allowed; the Owner may cancel with `POST /workspace/deletion/cancel`); e-mail `workspace.deletion_scheduled`; purge job at the date (D31) with the e-mail `workspace.deleted`. Failure: active paid subscription ⇒ warn (no refund) but allow.
 
 ## FL-15 Page analysis → product import `[V1 page-analysis.service.ts]`
 

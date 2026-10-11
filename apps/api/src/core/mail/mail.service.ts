@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { ConfigService } from '../config/config.service';
+import { fromRepoRoot } from '../config/repo-root';
 
 export type MailMessage = {
   to: string;
@@ -22,7 +23,7 @@ export class MailService {
 
   private get dir() {
     const dir = this.config.get('MAIL_LOCAL_DIR');
-    return resolve(process.cwd(), dir.startsWith('.') && !this.config.isTest ? `../../${dir}` : dir);
+    return fromRepoRoot(dir);
   }
 
   async send(m: MailMessage): Promise<void> {

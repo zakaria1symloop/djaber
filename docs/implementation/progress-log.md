@@ -20,3 +20,23 @@ One entry per finished stage: what was built, checks passing, what is still simu
 - Every external service runs on its fake driver (Meta, Chargily, AI, couriers, Google Sheets, push, in-app purchases). Mail is written to `.local/mail`, files to `.local/storage`.
 - Sentry is not connected (no DSN). Agent preset prompts are placeholders until M3.
 - The merchant shell is shown with sample data on the gallery page; real session, login and workspace data arrive in M1.
+
+## M1 — Accounts, workspaces, team, onboarding, settings (2026-10-11)
+
+**Built**
+- Accounts: sign-up (creates the workspace, the owner and a 14-day Pro trial), login, session renewal with theft detection, logout everywhere, forgotten / reset password, e-mail verification with reminder, two-step login (authenticator app + recovery codes), profile, avatar, password and e-mail change, list and revoke sessions, account deletion request.
+- Workspaces: create (one owned workspace per user), profile and logo, language, stock mode, auto-pause, reminder delay, free-delivery threshold, ownership transfer, deletion with 30-day grace and cancel, workspace switcher.
+- Team: members list, invitations (send, resend, revoke, accept by link), role change, removal, member limit of the plan.
+- Settings: quick replies (create, edit, reorder, delete), customer system messages (4 messages × 3 languages, preview, reset), security page, danger zone.
+- Legal documents acceptance (4 documents seeded), onboarding tunnel (6 steps, resumable, skippable), "Get started" checklist computed from real data, empty home page.
+- Web: login / sign-up / reset / verify / invitation / new workspace pages with every state of the Figma catalogue, merchant shell with real session (sidebar by role and stock mode, user menu, language switch, banners), settings area. French, Arabic (right-to-left) and English: 1 318 translated texts.
+- 10 e-mail templates in 3 languages, delivered through the background worker.
+- Local Redis replaced by Redis 7.2 (the previous one was too old for background jobs).
+
+**Checks** — lint ✔ · typecheck ✔ · unit ✔ (72: shared 19, web 40, api 13) · integration ✔ (291) · browser ✔ (29: AT-AUTH-01…12, AT-ONB-01/02, AT-SET-01, AT-UX-02, accessibility on public screens) · translations ✔ · web production build ✔.
+
+**Simulated / deferred** (tracked in `carry-overs.md`)
+- E-mails are written to `.local/mail` (no mail provider key).
+- In-app notifications for team events arrive with the notifications module (M5); e-mails are already sent.
+- Public account-deletion page and personal data export arrive with the public pages (M11).
+- Onboarding buttons "add products / create agent / connect a page" only move to the next step until M2–M4.

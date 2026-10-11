@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 export const BANNER_PRIORITY = [
   'maintenance',
   'suspended',
+  'deletionScheduled',
   'reconnect',
   'credits100',
   'negativeCredits',

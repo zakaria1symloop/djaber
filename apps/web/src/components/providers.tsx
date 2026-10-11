@@ -4,6 +4,7 @@ import { ToastRegion } from '@djaber/ui';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ApiError, apiSession } from '@/lib/api';
 import { MessagesProvider, useT } from '@/lib/i18n';
+import { SessionProvider } from '@/lib/session';
 
 function Toasts() {
   const t = useT();
@@ -25,13 +26,15 @@ export function Providers({ locale, messages, children }: { locale: string; mess
         },
       }),
   );
+  // the locale must reach the API client before the first request (session boot runs in the first effect pass)
+  if (apiSession.get().locale !== locale) apiSession.set({ locale });
   useEffect(() => {
     apiSession.set({ locale });
   }, [locale]);
   return (
     <MessagesProvider locale={locale} messages={messages}>
       <QueryClientProvider client={client}>
-        {children}
+        <SessionProvider>{children}</SessionProvider>
         <Toasts />
       </QueryClientProvider>
     </MessagesProvider>

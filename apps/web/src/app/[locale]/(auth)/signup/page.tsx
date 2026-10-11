@@ -1,0 +1,124 @@
+'use client';
+// /signup — Figma "AUTH — Sign up — field errors" (AUTH-01, FL-04).
+import { zodResolver } from '@hookform/resolvers/zod';
+import { RegisterSchema, type RegisterInput } from '@djaber/shared';
+import { Button, Field, FormAlert, Input, PasswordInput } from '@djaber/ui';
+import { useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { AuthCard, AuthLink, LocaleSwitch } from '@/components/auth/auth-card';
+import { authApi } from '@/features/auth/api';
+import { Link } from '@/i18n/navigation';
+import { ApiError } from '@/lib/api';
+import { formatClock, retryAfterSeconds, useCooldown } from '@/lib/countdown';
+import { applyServerErrors, fieldError } from '@/lib/forms';
+import { useLocaleCode, useT } from '@/lib/i18n';
+import { useSession } from '@/lib/session';
+
+const FIELDS = ['firstName', 'lastName', 'email', 'password'] as const;
+
+export default function SignupPage() {
+  const t = useT();
+  const locale = useLocaleCode();
+  const { signIn } = useSession();
+  const form = useForm<RegisterInput>({ resolver: zodResolver(RegisterSchema), defaultValues: { firstName: '', lastName: '', email: '', password: '' } });
+  const [formError, setFormError] = useState<string | null>(null);
+  const [emailTaken, setEmailTaken] = useState(false);
+  const [lockedFor, lock] = useCooldown();
+  const register = useMutation({ mutationFn: authApi.register });
+
+  const submit = form.handleSubmit(async (values) => {
+    setFormError(null);
+    setEmailTaken(false);
+    try {
+      // the owned workspace starts at onboarding step 1: the (app) layout redirects to /onboarding/welcome
+      signIn(await register.mutateAsync({ ...values, locale }));
+    } catch (e) {
+      const wait = retryAfterSeconds(e);
+      if (wait > 0) return lock(wait);
+      if (e instanceof ApiError && e.code === 'AUTH_EMAIL_TAKEN') return setEmailTaken(true);
+      setFormError(applyServerErrors(form, e, t, { fields: FIELDS, codeToField: { AUTH_PASSWORD_WEAK: 'password' } }));
+    }
+  });
+
+  const busy = register.isPending;
+  const errors = form.formState.errors;
+  const password = form.watch('password');
+  return (
+    <AuthCard
+      title={t('auth.signup.title')}
+      description={t('auth.signup.description')}
+      footer={
+        <>
+          <p>
+            {t('auth.signup.legal.before')} <AuthLink href="/legal/terms">{t('auth.signup.legal.terms')}</AuthLink> {t('auth.signup.legal.and')}{' '}
+            <AuthLink href="/legal/privacy">{t('auth.signup.legal.privacy')}</AuthLink>.
+          </p>
+          <p className="mt-4">
+            {t('auth.signup.haveAccount')} <AuthLink href="/login">{t('action.login')}</AuthLink>
+          </p>
+          <LocaleSwitch className="mt-5" />
+        </>
+      }
+    >
+      <form onSubmit={submit} noValidate className="flex flex-col gap-4" aria-busy={busy}>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={t('auth.field.firstName')} htmlFor="firstName" required error={fieldError(t, errors.firstName?.message, { max: 80 })}>
+            <Input id="firstName" autoComplete="given-name" disabled={busy} aria-invalid={!!errors.firstName} {...form.register('firstName')} />
+          </Field>
+          <Field label={t('auth.field.lastName')} htmlFor="lastName" required error={fieldError(t, errors.lastName?.message, { max: 80 })}>
+            <Input id="lastName" autoComplete="family-name" disabled={busy} aria-invalid={!!errors.lastName} {...form.register('lastName')} />
+          </Field>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Field label={t('common.email')} htmlFor="email" required error={fieldError(t, errors.email?.message)}>
+            <Input
+              id="email"
+              type="email"
+              dir="ltr"
+              autoComplete="email"
+              placeholder={t('auth.placeholder.email')}
+              disabled={busy}
+              aria-invalid={!!errors.email || emailTaken}
+              {...form.register('email', { onChange: () => setEmailTaken(false) })}
+            />
+          </Field>
+          {emailTaken ? (
+            <p role="alert" className="ts-label-meta text-accent-alert">
+              {t('auth.signup.emailTaken')} —{' '}
+              <Link href="/login" className="underline underline-offset-2">
+                {t('action.login')}
+              </Link>
+              {' · '}
+              <Link href="/forgot-password" className="underline underline-offset-2">
+                {t('auth.login.forgot')}
+              </Link>
+            </p>
+          ) : null}
+        </div>
+        <Field
+          label={t('common.password')}
+          htmlFor="password"
+          required
+          error={errors.password ? t('auth.signup.passwordRule', { count: password.length }) : undefined}
+          hint={t('validation.password')}
+        >
+          <PasswordInput
+            id="password"
+            autoComplete="new-password"
+            disabled={busy}
+            aria-invalid={!!errors.password}
+            showLabel={t('auth.password.show')}
+            hideLabel={t('auth.password.hide')}
+            {...form.register('password')}
+          />
+        </Field>
+        {formError ? <FormAlert>{formError}</FormAlert> : null}
+        {lockedFor > 0 ? <FormAlert>{t('auth.login.rateLimited', { time: formatClock(lockedFor) })}</FormAlert> : null}
+        <Button type="submit" variant="primary" loading={busy} disabled={lockedFor > 0} className="w-full">
+          {busy ? t('auth.signup.submitting') : t('auth.signup.submit')}
+        </Button>
+      </form>
+    </AuthCard>
+  );
+}

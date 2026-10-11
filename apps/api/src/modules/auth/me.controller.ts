@@ -1,0 +1,99 @@
+// 06-api "Auth & account" + §8.1 — /me: profile, preferences, password, e-mail change, sessions, deletion request.
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Authenticated, CurrentUser, type AuthUser } from '../../core/auth/decorators';
+import { ImageUploadService, type UploadedFile as Incoming } from '../uploads/image-upload.service';
+import { imageInterceptor } from '../uploads/uploads.controller';
+import { AccountDeletionService } from './account-deletion.service';
+import { ChangePasswordDto, DeletionRequestDto, EmailChangeDto, PrefsDto, UpdateMeDto } from './dto';
+import { MeService } from './me.service';
+import { clientOf } from './session.service';
+
+@Controller('me')
+export class MeController {
+  constructor(
+    private readonly me: MeService,
+    private readonly deletion: AccountDeletionService,
+    private readonly images: ImageUploadService,
+  ) {}
+
+  @Get()
+  @Authenticated()
+  get(@CurrentUser() user: AuthUser, @Req() req: any) {
+    return this.me.me(user.id, req.headers['x-workspace-id'], req.headers['accept-language'] || req.query?.lang ? req.locale : undefined);
+  }
+
+  @Patch()
+  @Authenticated()
+  update(@CurrentUser() user: AuthUser, @Body() dto: UpdateMeDto, @Req() req: any) {
+    return this.me.update(user.id, dto, req.headers['x-workspace-id']);
+  }
+
+  /** Direct avatar upload (multipart `file`); the two-step flow `POST /uploads` + `PATCH /me { avatarUploadId }` also works. */
+  @Post('avatar')
+  @Authenticated()
+  @HttpCode(200)
+  @UseInterceptors(imageInterceptor())
+  async avatar(@CurrentUser() user: AuthUser, @UploadedFile() file: Incoming | undefined) {
+    const upload = await this.images.store(file, 'avatar', user.id, null);
+    await this.me.setAvatar(user.id, upload.url);
+    return { avatarUrl: upload.url, upload };
+  }
+
+  @Get('prefs')
+  @Authenticated()
+  getPrefs(@CurrentUser() user: AuthUser) {
+    return this.me.getPrefs(user.id);
+  }
+
+  @Patch('prefs')
+  @Authenticated()
+  patchPrefs(@CurrentUser() user: AuthUser, @Body() dto: PrefsDto) {
+    return this.me.patchPrefs(user.id, dto);
+  }
+
+  @Patch('password')
+  @Authenticated()
+  changePassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto, @Req() req: any) {
+    return this.me.changePassword(user.id, dto.currentPassword, dto.newPassword, user.sessionId, clientOf(req));
+  }
+
+  @Post('email-change')
+  @Authenticated()
+  @HttpCode(202)
+  emailChange(@CurrentUser() user: AuthUser, @Body() dto: EmailChangeDto, @Req() req: any) {
+    return this.me.requestEmailChange(user.id, dto.email, dto.password, clientOf(req));
+  }
+
+  @Get('sessions')
+  @Authenticated()
+  sessions(@CurrentUser() user: AuthUser) {
+    return this.me.listSessions(user.id, user.sessionId);
+  }
+
+  @Delete('sessions/:id')
+  @Authenticated()
+  @HttpCode(204)
+  async revokeSession(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Req() req: any) {
+    await this.me.revokeSession(user.id, id, clientOf(req));
+  }
+
+  @Post('deletion-request')
+  @Authenticated()
+  @HttpCode(202)
+  requestDeletion(@CurrentUser() user: AuthUser, @Body() dto: DeletionRequestDto, @Req() req: any) {
+    return this.deletion.request(user.id, dto, clientOf(req));
+  }
+
+  @Get('deletion-request')
+  @Authenticated()
+  getDeletion(@CurrentUser() user: AuthUser) {
+    return this.deletion.current(user.id);
+  }
+
+  @Delete('deletion-request')
+  @Authenticated()
+  @HttpCode(200)
+  cancelDeletion(@CurrentUser() user: AuthUser, @Req() req: any) {
+    return this.deletion.cancel(user.id, clientOf(req));
+  }
+}

@@ -46,9 +46,10 @@ module.exports = async () => {
 
   let REDIS_URL = 'redis://127.0.0.1:63799/1';
   if (!(await portOpen(63799))) {
-    const { RedisMemoryServer } = require('redis-memory-server');
-    const redis = new RedisMemoryServer();
-    REDIS_URL = `redis://${await redis.getHost()}:${await redis.getPort()}`;
+    // same launcher as `pnpm infra:up` (Redis 7; the Windows build of redis-memory-server is too old for BullMQ)
+    const { startRedis } = await import(require('node:url').pathToFileURL(resolve(ROOT, 'tools/infra/redis.mjs')).href);
+    const redis = await startRedis(63809, resolve(ROOT, '.local'));
+    REDIS_URL = 'redis://127.0.0.1:63809';
     globalThis.__REDIS__ = redis;
   }
 

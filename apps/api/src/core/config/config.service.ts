@@ -2,12 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ConfigSchema, type AppConfig } from './config.schema';
+import { repoRoot } from './repo-root';
 
 /** Minimal `.env` loader (no dependency): the first existing file wins; real env vars always win. */
 const loadDotEnv = () => {
   const candidates = [
     resolve(process.cwd(), '.env'),
-    resolve(process.cwd(), '../../.env'),
+    resolve(repoRoot(), '.env'),
   ];
   for (const file of candidates) {
     if (!existsSync(file)) continue;

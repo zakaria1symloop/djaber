@@ -87,3 +87,7 @@ export const FOOTER_NAV: NavItem[] = [
 ];
 
 export const NAV_ICON_FALLBACK = Boxes;
+
+/** Sidebar entries for a member: advanced-only entries need `stockMode = advanced` (D12), others their permission. */
+export const filterNav = <T extends NavItem>(items: T[], o: { stockMode: 'simple' | 'advanced'; can: (key: string) => boolean }): T[] =>
+  items.filter((i) => (!i.advancedOnly || o.stockMode === 'advanced') && (!i.permission || o.can(i.permission)));

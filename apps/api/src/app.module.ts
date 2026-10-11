@@ -15,10 +15,14 @@ import { TenantGuard } from './core/tenancy/tenant.guard';
 import { RateLimitGuard } from './core/throttle/rate-limit.guard';
 import { WsGateway } from './core/ws/ws.gateway';
 import { AccountModule } from './modules/account/account.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
+import { LegalGuard } from './modules/workspace/legal.guard';
+import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { PlatformPublicModule } from './modules/platform-public/platform-public.module';
 
 /** Feature modules are appended here milestone after milestone (00-build-order). */
-export const FEATURE_MODULES = [PlatformPublicModule, AccountModule];
+export const FEATURE_MODULES = [PlatformPublicModule, AccountModule, UploadsModule, WorkspaceModule, AuthModule];
 
 @Module({
   imports: [CoreModule, ...FEATURE_MODULES],
@@ -32,6 +36,8 @@ export const FEATURE_MODULES = [PlatformPublicModule, AccountModule];
     { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: TenantGuard },
     { provide: APP_GUARD, useClass: PermissionGuard },
+    // 04 §15: 403 LEGAL_REACCEPT_REQUIRED until a major legal version is accepted (auth / legal routes exempt)
+    { provide: APP_GUARD, useClass: LegalGuard },
     // Interceptor order: envelope (outermost) → idempotency → audit
     { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
     { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
