@@ -57,3 +57,21 @@ One entry per finished stage: what was built, checks passing, what is still simu
 - Image captions and "create from photo" use a stand-in until the AI stage (M4). Moderation auto-approves until the admin queue (M10).
 - Product labels (PDF) arrive with delivery labels (M6); links to orders / agents / purchases arrive with those modules (M4, M5, M7).
 - Two acceptance checks that need orders (stock never decremented by an unconfirmed order line, variant required on an order line) are verified in M5.
+
+## M3 — Connected pages, Meta message intake, inbox (2026-10-11)
+
+**Built**
+- Connected pages: connect Facebook pages and Instagram accounts (with per-page report, plan limit, linked Instagram), pause, resume (with swap at the plan limit), disconnect, reconnect when the token expires, page overview and figures, history import (25 conversations × 25 messages), token refresh, approval status.
+- Message intake: signed webhook with immediate acknowledgement, raw event storage, de-duplication, conversation and customer identity creation, every message type (text, image, audio, video, file, sticker, story reply, buttons, reactions, echoes of replies sent from the Page inbox), attachment download in the background, sending with the 24-hour rules and tags, product cards, delivery status, data-deletion callback and public status page, retention purge.
+- Inbox: three panes, tabs with server counts, search and filters, thread with upward loading, reply box (text, image, quick replies, templates, undo), pause / resume AI, resolve / reopen / archive, assign, internal notes, customer panel, bulk selection bar, block and report a customer, soft delete. Queue page ("File d'attente"). Live updates everywhere.
+- Notification centre: in-app notifications with live bell and badges, list with filters, read / read all; team events from M1 now notify in the app. Safety settings (blocked customers, automatic rules, blocked words).
+- A development-only simulator injects a signed fake customer message so the whole chain can be seen working without Meta.
+
+**Checks** — lint ✔ · typecheck ✔ · unit ✔ (665: shared 38, web 280, api 347) · integration ✔ (403, incl. AT-CHN, AT-MSG, AT-INB server side; 1 000-webhook burst acknowledged with p99 28–39 ms) · browser ✔ (117, now run against a production build of the web app) · translations ✔ (2 669 texts × 3 languages) · production build ✔.
+
+**Simulated / not verifiable here**
+- Meta is simulated: only the fake connection ran. The real Graph connection is fully written and covered by tests with recorded answers, but it has never talked to Meta, and the server refuses to start it in development unless `META_ALLOW_LIVE=true`. The exit criterion "a real Facebook page and Instagram account receive messages" is therefore **not verified** — it can only be checked at cutover, when the webhook is deliberately pointed at the new server.
+- To check with Meta at that time: the customer identifier sent by the data-deletion callback.
+
+**Deferred** (tracked in `carry-overs.md`)
+- Page analysis and agent linking on the channel page (M4, needs the AI). E-mail and push delivery of notifications and preferences (M5). Order and customer links from the inbox (M5). Admin release of a page held by another workspace, approval polling (M10). Credits-exhausted banner and plan links (M9).
