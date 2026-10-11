@@ -19,7 +19,7 @@ Multi-tenant SaaS: AI sales agent for Facebook Messenger / Instagram shops in Al
 
 ## Commands
 - `pnpm i` · `pnpm infra:up` (embedded Postgres 16 + Redis, no Docker) · `pnpm infra:down`
-- `pnpm dev` (api :4010, worker health :4011, web :3010 — ports 4000/3000 are used by V1 on the owner's machine) · `pnpm --filter @djaber/api dev` …
+- `pnpm dev` (api :4010, worker health :4011, web :3010 — ports 4000/3000 are already in use on the owner's machine) · `pnpm --filter @djaber/api dev` …
 - `pnpm --filter db prisma migrate dev --name <name>` · `pnpm --filter db seed` · never `prisma db push`
 - `pnpm lint` · `pnpm typecheck` · `pnpm test` (unit) · `pnpm test:int` (embedded Postgres + Redis) · `pnpm test:e2e` (Playwright) · `pnpm test:evals` · `pnpm i18n:check`
 - API contract: `docs/implementation/api-contract.md` (Swagger UI is not generated: DTOs are zod schemas, see assumptions-log M0)
