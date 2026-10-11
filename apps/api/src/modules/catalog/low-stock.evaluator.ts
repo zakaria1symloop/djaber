@@ -44,6 +44,9 @@ export class LowStockEvaluator {
       sku: c.variant?.sku ?? c.product.sku,
       stock: c.after,
       minStock,
+      // placeholders of `notification.stock.low|out` (title: {product} ({stock} restants) · body: Seuil : {min})
+      product: c.variant ? `${c.product.name} · ${c.variant.name}` : c.product.name,
+      min: minStock,
     };
     await this.notifications.emit(tx, { type: kind === 'out' ? 'stock_out' : 'stock_low', workspaceId, key: `stock_${kind}:${c.product.id}:${day}`, data });
     await this.outbox.enqueue(tx, {

@@ -1,0 +1,219 @@
+'use client';
+// Mutations of a conversation shared by the thread header, the row menu and the banners: versioned PATCH
+// (resolve / reopen / archive / pause / resume / assign) with the 409 dialog, read / unread, delete / restore,
+// block / unblock / report. The menu items follow the frame "INB — Inbox — filter sheet + conversation menu".
+import { ConfirmDialog, toast, type MenuAction } from '@djaber/ui';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
+import { ConflictDialog } from '@/components/global-states';
+import { BlockCustomerDialog, ReportCustomerDialog, type ReportTarget } from '@/features/safety/dialogs';
+import { useRouter } from '@/i18n/navigation';
+import { toMenuActions, type ActionHandler } from '@/lib/actions';
+import { ApiError } from '@/lib/api';
+import { conflictOf } from '@/lib/conflict';
+import { errorMessage } from '@/lib/forms';
+import { useLocaleCode, useT } from '@/lib/i18n';
+import { useSession, useWorkspaceId } from '@/lib/session';
+import { relativeTime } from '@/lib/time';
+import { inboxApi, inboxKeys, useInboxRefresh, writeConversation } from './api';
+import type { ActionDescriptor, Conversation, ConversationListItem, ConversationPatchBody } from './contracts';
+
+type Row = ConversationListItem | Conversation;
+
+/** The rule of `ConversationService.actions` for a list row (no descriptors on rows): same keys, same order. */
+export const localActions = (row: Pick<ConversationListItem, 'status' | 'aiPaused' | 'unreadCount' | 'blocked'>, may: { block: boolean; unblock: boolean; remove: boolean }): ActionDescriptor[] => [
+  { key: 'resolve', enabled: row.status !== 'resolved' },
+  { key: 'reopen', enabled: row.status === 'resolved' || row.status === 'archived' },
+  { key: 'archive', enabled: row.status !== 'archived' },
+  { key: 'pauseAi', enabled: !row.aiPaused },
+  { key: 'resumeAi', enabled: row.aiPaused || row.status === 'needs_human' },
+  { key: 'assign', enabled: true },
+  { key: 'markUnread', enabled: row.unreadCount === 0 },
+  { key: 'block', enabled: !row.blocked && may.block },
+  { key: 'unblock', enabled: row.blocked && may.unblock },
+  { key: 'report', enabled: may.block },
+  { key: 'delete', enabled: may.remove },
+];
+type Change = Omit<ConversationPatchBody, 'version'>;
+type Conflict = { name: string; ago: string; current: Conversation | null };
+
+export function useConversationActions(o: { onDeleted?: (id: string) => void } = {}) {
+  const t = useT();
+  const locale = useLocaleCode();
+  const ws = useWorkspaceId();
+  const qc = useQueryClient();
+  const router = useRouter();
+  const { me, can } = useSession();
+  const refresh = useInboxRefresh();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<Conflict | null>(null);
+  const [toDelete, setToDelete] = useState<Row | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [toBlock, setToBlock] = useState<Row | null>(null);
+  const [toReport, setToReport] = useState<{ target: ReportTarget; name: string } | null>(null);
+
+  /** Versioned PATCH. The version comes from the freshest copy in the cache (WS keeps it current). */
+  const patch = useCallback(
+    async (row: Row, change: Change, done?: string): Promise<boolean> => {
+      const cached = qc.getQueryData<Conversation>(inboxKeys.detail(ws, row.id));
+      const version = Math.max(row.version ?? 1, cached?.version ?? 1);
+      setBusy(row.id);
+      try {
+        const next = await inboxApi.patch(row.id, { ...change, version });
+        if (next) writeConversation(qc, ws, next);
+        void refresh({ id: row.id });
+        if (done) toast(done);
+        return true;
+      } catch (e) {
+        const c = conflictOf<Conversation>(e);
+        if (c) {
+          setConflict({ name: c.changedBy || t('inbox.conflict.someone'), ago: c.changedAt ? relativeTime(c.changedAt, locale) : '—', current: c.current });
+        } else {
+          toast({ tone: 'danger', message: e instanceof ApiError ? `${errorMessage(e, t)} (${e.code})` : errorMessage(e, t) });
+        }
+        return false;
+      } finally {
+        setBusy(null);
+      }
+    },
+    [qc, ws, refresh, t, locale],
+  );
+
+  const run = useCallback(
+    async (id: string, fn: () => Promise<unknown>, done?: string) => {
+      setBusy(id);
+      try {
+        await fn();
+        void refresh({ id });
+        if (done) toast(done);
+      } catch (e) {
+        toast({ tone: 'danger', message: e instanceof ApiError ? `${errorMessage(e, t)} (${e.code})` : errorMessage(e, t) });
+      } finally {
+        setBusy(null);
+      }
+    },
+    [refresh, t],
+  );
+
+  const resolve = (row: Row) => patch(row, { status: 'resolved' }, t('inbox.toast.resolved'));
+  const reopen = (row: Row) => patch(row, { status: 'active' }, t('inbox.toast.reopened'));
+  const archive = (row: Row) => patch(row, { status: 'archived' }, t('inbox.toast.archived'));
+  const pauseAi = (row: Row) => patch(row, { aiPaused: true }, t('inbox.toast.aiPaused'));
+  /** resuming hands the conversation back to the AI: a needs-human thread becomes active again */
+  const resumeAi = (row: Row) => patch(row, row.status === 'needs_human' ? { aiPaused: false, status: 'active' } : { aiPaused: false }, t('inbox.toast.aiResumed'));
+  const assign = (row: Row, assigneeId: string | null) => patch(row, { assigneeId }, assigneeId ? t('inbox.toast.assigned') : t('inbox.toast.unassigned'));
+  const markUnread = (row: Row) =>
+    run(row.id, async () => {
+      await inboxApi.unread(row.id);
+      writeConversation(qc, ws, { id: row.id, unreadCount: Math.max(1, row.unreadCount) });
+    });
+  const unblock = (row: Row) => run(row.id, () => inboxApi.unblock(row.id), t('inbox.toast.unblocked'));
+  const restore = (row: Row) => run(row.id, () => inboxApi.restore(row.id), t('inbox.toast.restored'));
+
+  const confirmDelete = async () => {
+    if (!toDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await inboxApi.remove(toDelete.id);
+      const id = toDelete.id;
+      setToDelete(null);
+      toast(t('inbox.toast.deleted'));
+      void refresh({ id });
+      o.onDeleted?.(id);
+    } catch (e) {
+      // shown inside the dialog, which stays open
+      setDeleteError(e instanceof ApiError ? `${errorMessage(e, t)} (${e.code})` : errorMessage(e, t));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  /**
+   * Items of the conversation menu, in the order of the frame. The detail carries the server `actions` (D42: a
+   * refused item stays visible, greyed, with its reason); a list row has none, so the same rule is derived from the row
+   * and the API still refuses what it must.
+   */
+  const menu = (row: Row, opts: { inThread?: boolean } = {}): MenuAction[] => {
+    if (!can('inbox.read')) return [];
+    const mine = row.assignee?.id === me?.id;
+    const name = row.client?.name ?? '';
+    const descriptors: ActionDescriptor[] = 'actions' in row && row.actions?.length ? row.actions : localActions(row, { block: can('safety.block'), unblock: can('safety.manage'), remove: can('inbox.delete') });
+    // a role that may not delete / unblock does not see the item at all (permission ⇒ hidden, state ⇒ greyed)
+    const hidden = (key: string, allowed: boolean) => !allowed || descriptors.some((d) => d.key === key && !d.enabled && d.reasonCode === 'FORBIDDEN');
+    const handlers: Record<string, ActionHandler> = {
+      open: { label: t('action.open'), onSelect: () => router.push(`/inbox/${row.id}`), hint: t('common.shortcut.enter'), local: true, hidden: !!opts.inThread },
+      resumeAi: { label: t('action.resumeAi'), onSelect: () => void resumeAi(row), hidden: !(row.aiPaused || row.status === 'needs_human') },
+      pauseAi: { label: t('action.pauseAi'), onSelect: () => void pauseAi(row), hidden: row.aiPaused || row.status === 'needs_human' },
+      assign: { label: mine ? t('action.unassign') : t('inbox.menu.assignMe'), onSelect: () => void assign(row, mine ? null : (me?.id ?? null)) },
+      resolve: { label: t('inbox.menu.resolve'), onSelect: () => void resolve(row), hidden: row.status === 'resolved' },
+      reopen: { label: t('inbox.menu.reopen'), onSelect: () => void reopen(row), hidden: row.status !== 'resolved' && row.status !== 'archived' },
+      archive: { label: t('action.archive'), onSelect: () => void archive(row), hidden: row.status === 'archived' },
+      markUnread: { label: t('inbox.menu.markUnread'), onSelect: () => void markUnread(row), hidden: row.unreadCount > 0 },
+      // M5: "Fiche client", "Nouvelle commande", "Commandes de ce client" (clients / orders modules) · M4: "Insights IA de ce fil"
+      block: { label: t('inbox.menu.block'), onSelect: () => setToBlock(row), destructive: true, separated: true, hidden: row.blocked || hidden('block', can('safety.block')) },
+      unblock: { label: t('action.unblock'), onSelect: () => void unblock(row), separated: true, hidden: !row.blocked || hidden('unblock', can('safety.manage')) },
+      report: { label: t('inbox.menu.report'), onSelect: () => setToReport({ target: { type: 'customer', conversationId: row.id, clientId: row.client?.id }, name }), hidden: hidden('report', can('safety.block')) },
+      delete: { label: t('inbox.menu.delete'), onSelect: () => setToDelete(row), destructive: true, separated: true, hint: t('inbox.menu.deleteHint'), hidden: hidden('delete', can('inbox.delete')) },
+    };
+    return toMenuActions(descriptors, handlers, t).map((a) => (a.key === 'open' ? { ...a, primary: true } : a));
+  };
+
+  const dialogs = (
+    <>
+      <ConflictDialog
+        open={!!conflict}
+        name={conflict?.name ?? ''}
+        ago={conflict?.ago ?? ''}
+        onClose={() => setConflict(null)}
+        onReload={() => {
+          if (conflict?.current) writeConversation(qc, ws, conflict.current);
+          void refresh({ id: conflict?.current?.id });
+          setConflict(null);
+        }}
+      />
+      <ConfirmDialog
+        open={!!toDelete}
+        onOpenChange={(open) => {
+          if (!open && !deleting) {
+            setToDelete(null);
+            setDeleteError(null);
+          }
+        }}
+        title={t('dialog.deleteConversation.title')}
+        description={t('inbox.delete.context')}
+        confirmLabel={t('action.delete')}
+        cancelLabel={t('action.cancel')}
+        closeLabel={t('action.close')}
+        onConfirm={() => void confirmDelete()}
+        destructive
+        loading={deleting}
+      >
+        <p className="text-[13px] text-text-secondary">{t('inbox.delete.description')}</p>
+        {deleteError ? (
+          <p role="alert" className="mt-3 text-[12px] text-accent-alert">
+            {deleteError}
+          </p>
+        ) : null}
+      </ConfirmDialog>
+      <BlockCustomerDialog
+        open={!!toBlock}
+        onClose={() => setToBlock(null)}
+        conversationId={toBlock?.id ?? ''}
+        clientName={toBlock?.client?.name ?? ''}
+        onDone={() => void refresh({ id: toBlock?.id })}
+      />
+      <ReportCustomerDialog
+        open={!!toReport}
+        onClose={() => setToReport(null)}
+        target={toReport?.target ?? { type: 'customer' }}
+        name={toReport?.name ?? ''}
+        onDone={() => void refresh({ id: toReport?.target.conversationId })}
+      />
+    </>
+  );
+
+  return { busy, menu, dialogs, patch, resolve, reopen, archive, pauseAi, resumeAi, assign, markUnread, unblock, restore, askDelete: setToDelete, askBlock: setToBlock, askReport: setToReport };
+}
+export type ConversationActions = ReturnType<typeof useConversationActions>;

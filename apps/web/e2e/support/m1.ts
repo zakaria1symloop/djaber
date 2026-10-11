@@ -4,6 +4,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
+import { clearRateLimits } from './global-setup';
 
 export const API = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4010'}/api/v1`;
 export const PASSWORD = 'Passw0rd123';
@@ -63,9 +64,17 @@ async function reuseAccount(request: APIRequestContext, o: { prefix: string; fin
 async function registerAccount(request: APIRequestContext, o: { prefix: string; firstName?: string; finishOnboarding?: boolean; invitationToken?: string }): Promise<Account> {
   const email = uniqueEmail(o.prefix);
   const firstName = o.firstName ?? 'Amel';
-  const res = await request.post(`${API}/auth/register`, {
-    data: { firstName, lastName: 'Benali', email, password: PASSWORD, locale: 'fr', ...(o.invitationToken ? { invitationToken: o.invitationToken } : {}) },
-  });
+  const register = () =>
+    request.post(`${API}/auth/register`, {
+      data: { firstName, lastName: 'Benali', email, password: PASSWORD, locale: 'fr', ...(o.invitationToken ? { invitationToken: o.invitationToken } : {}) },
+    });
+  let res = await register();
+  // sign-ups are limited to 20 / h / IP and the whole suite creates more accounts than that from one machine:
+  // the counters of the local dev Redis are cleared (as global-setup does before the run) and the call is repeated once
+  if (res.status() === 429) {
+    await clearRateLimits();
+    res = await register();
+  }
   expect(res.status(), `register ${email}: ${await res.text()}`).toBeLessThan(300);
   const { data } = (await res.json()) as { data: { accessToken: string; user: { ownedWorkspaceId: string | null } } };
   const account: Account = { email, password: PASSWORD, firstName, lastName: 'Benali', accessToken: data.accessToken, workspaceId: data.user.ownedWorkspaceId };
@@ -74,6 +83,22 @@ async function registerAccount(request: APIRequestContext, o: { prefix: string; 
     expect(r.ok(), await r.text()).toBeTruthy();
   }
   return account;
+}
+
+const globToRegExp = (glob: string): RegExp =>
+  new RegExp(
+    `^${glob
+      .split('**')
+      .map((part) => part.split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*'))
+      .join('.*')}$`,
+  );
+/**
+ * Waits for the address of a navigation. The app navigates on the client (history API) and prefetched links change the
+ * URL inside the click itself: `page.waitForURL` then waits for a navigation event that has already fired. The URL is
+ * polled instead (web-first assertion).
+ */
+export async function expectUrl(page: Page, url: string | RegExp, o: { timeout?: number } = {}) {
+  await expect(page).toHaveURL(typeof url === 'string' ? globToRegExp(url) : url, { timeout: o.timeout ?? 30_000 });
 }
 
 export const authHeaders = (a: Pick<Account, 'accessToken' | 'workspaceId'>) => ({
@@ -90,13 +115,13 @@ export async function login(page: Page, a: { email: string; password: string }, 
 
 export async function loginHome(page: Page, a: { email: string; password: string }, locale = 'fr') {
   await login(page, a, locale);
-  await page.waitForURL(`**/${locale}/home`);
+  await expectUrl(page, `**/${locale}/home`);
 }
 
 export async function logout(page: Page) {
   await page.getByRole('button', { name: /Menu utilisateur/ }).click();
   await page.getByRole('menuitem', { name: 'Déconnexion', exact: true }).click();
-  await page.waitForURL('**/login**');
+  await expectUrl(page, '**/login**');
 }
 
 type Mail = { to: string; template: string; subject: string; text: string; params: Record<string, unknown>; at: string };

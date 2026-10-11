@@ -1,8 +1,6 @@
 // M1 — AUTH-01…09: register, login, refresh rotation + reuse detection, logout, sessions, forgot / reset,
 // e-mail verification, TOTP 2FA, profile, password / e-mail change, account deletion request, scheduled jobs.
-import { Controller, Post } from '@nestjs/common';
 import sharp from 'sharp';
-import { RequirePermission, RequireVerifiedEmail } from '../../src/core/auth/decorators';
 import { TokenService } from '../../src/core/auth/token.service';
 import { ProcessorRegistry } from '../../src/core/queue/processor.registry';
 import { AccountDeletionService } from '../../src/modules/auth/account-deletion.service';
@@ -12,20 +10,9 @@ import { anonymous, asAdmin, asLoneUser, asOwner, asPlatform, createUser } from 
 import { createTestApp, type TestApp } from '../support/app';
 import { api, clearRate, cookieHeader, db, eventually, login, mailsTo, PASSWORD, refreshCookie, register, setPassword, tokenOf, uniqEmail, withToken } from '../support/m1';
 
-/** Stand-in for `POST /channels/connect/*` (M3): the only action an unverified account cannot do (D32). */
-@Controller('_m1')
-class ConnectHarnessController {
-  @Post('connect')
-  @RequirePermission('channels.manage')
-  @RequireVerifiedEmail()
-  connect() {
-    return { ok: true };
-  }
-}
-
 let app: TestApp;
 beforeAll(async () => {
-  app = await createTestApp({ controllers: [ConnectHarnessController] });
+  app = await createTestApp();
 });
 afterAll(async () => {
   await app.close();
@@ -339,7 +326,8 @@ describe('AUTH-09 e-mail verification', () => {
 
   it('AT-AUTH-08 unverified account cannot connect a channel, everything else works; reminder e-mail at day 7', async () => {
     const u = await register(app);
-    const blocked = await u.post('/_m1/connect').expect(403);
+    // the real connect route (M3): the only action an unverified account cannot do (D32)
+    const blocked = await u.get('/channels/connect/facebook').expect(403);
     expect(blocked.body.error.code).toBe('AUTH_EMAIL_UNVERIFIED');
     // everything else works
     await u.get('/workspace').expect(200);
@@ -363,7 +351,8 @@ describe('AUTH-09 e-mail verification', () => {
 
     // the reminder link verifies the account, after which connecting is allowed
     await api(app).post('/api/v1/auth/verify-email').send({ token: tokenOf(reminders[0]) }).expect(200);
-    await u.post('/_m1/connect').expect(201);
+    const start = await u.get('/channels/connect/facebook').expect(200);
+    expect(start.body.data.url).toContain('/api/v1/channels/callback/facebook?code=');
   });
 });
 

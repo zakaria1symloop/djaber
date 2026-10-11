@@ -1,7 +1,7 @@
 'use client';
 // /settings/security — Figma "SET — Settings — Profile · Workspace · Security" (Sécurité) + DLG "Activer la double
 // authentification" (3 steps), "Désactiver la 2FA / Régénérer les codes", "Changer le mot de passe", "Changer l'e-mail".
-// The blocked-customers part of the route (SAFE-04) arrives with the trust & safety milestone.
+// + "SAFE — Trust & safety (merchant)": blocked customers and automatic rules (features/safety).
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ChangePasswordSchema, passwordStrength, type ChangePasswordInput } from '@djaber/shared';
 import { Button, Card, Checkbox, Dialog, Field, FormAlert, OtpInput, PasswordInput, Pill, SectionLabel, Skeleton, Spinner, StrengthBar, toast } from '@djaber/ui';
@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { ListLoading, QueryError } from '@/components/global-states';
 import { authApi } from '@/features/auth/api';
+import { SafetySections } from '@/features/safety/safety-sections';
 import { ChangeEmailDialog } from '@/features/settings/account-dialogs';
 import { Section, SettingsPage } from '@/features/settings/common';
 import { describeUserAgent } from '@/features/settings/user-agent';
@@ -44,6 +45,7 @@ export default function SecurityPage() {
       </Section>
       <TwoFactorSection />
       <SessionsSection />
+      <SafetySections />
       <ChangeEmailDialog open={emailOpen} onClose={() => setEmailOpen(false)} />
     </SettingsPage>
   );

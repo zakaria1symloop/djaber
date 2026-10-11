@@ -201,7 +201,7 @@ type WorkspaceDto = {
   targetMarginPct: number; systemMessages: Record<'handoff'|'out_of_hours'|'out_of_stock'|'welcome', LocalizedText>;   // R-G; defaults seeded at creation
   status: 'active'|'suspended'|'deletion_scheduled'; suspendReason: 'fraud'|'unpaid'|'content'|'owner_request'|'other'|null; deletionScheduledAt: string | null;
   trustLevel: 'new'|'standard'|'trusted'|'watch';                                   // D36, D52
-  safetyRules: { riskAfterReturns: number; autoBlockAfterUncollected: number; handoffOnRisk: boolean }; blockedWords: string[]; // D37
+  safetyRules: { riskAfterReturns: number; autoBlockEnabled: boolean /* default false: the auto-block rule is OFF until switched on */; autoBlockAfterUncollected: number /* its threshold, ≥ 1, default 3 */; handoffOnRisk: boolean }; blockedWords: string[]; // D37
   billingInfo: { companyName?: string; nif?: string; address?: string } | null;
   plan: { slug: string; name: string; limits: PlanLimits; usage: PlanUsage; periodEnd: string; status: SubscriptionStatus };
   version: number;

@@ -26,7 +26,8 @@ export default function StatesGallery() {
   const [leave, setLeave] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [page, setPage] = useState(1);
-  if (process.env.NODE_ENV === 'production') notFound();
+  // never served by a production deployment; the e2e build opts in (playwright.config.ts)
+  if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_DEV_GALLERY !== '1') notFound();
   const err = new ApiError(500, { code: 'INTERNAL', message: 'x', params: {}, fields: {}, details: null, ref: '8f2a-19' });
 
   return (

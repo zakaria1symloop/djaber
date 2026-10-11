@@ -8,9 +8,11 @@ import { conflict, notFound, validationError } from '../../core/errors/app.excep
 import { MailOutbox } from '../../core/mail/mail.outbox';
 import { OutboxService } from '../../core/outbox/outbox.service';
 import { ProcessorRegistry } from '../../core/queue/processor.registry';
+import { QueueOutbox } from '../../core/queue/queue.outbox';
 import { TenantResolver } from '../../core/tenancy/tenant.resolver';
 import { ReauthService } from '../auth/reauth.service';
 import type { ClientInfo } from '../auth/session.service';
+import { NotificationProducer } from '../notifications/notification.producer';
 
 const DAY = 86_400_000;
 
@@ -25,6 +27,8 @@ export class WorkspaceDeletionService implements OnModuleInit {
     private readonly tenants: TenantResolver,
     private readonly config: ConfigService,
     private readonly registry: ProcessorRegistry,
+    private readonly queue: QueueOutbox,
+    private readonly notifications: NotificationProducer,
   ) {}
 
   onModuleInit() {
@@ -49,11 +53,14 @@ export class WorkspaceDeletionService implements OnModuleInit {
 
     const updated = await prisma.$transaction(async (tx) => {
       const row = await tx.workspace.update({ where: { id: ws.id }, data: { status: 'deletion_scheduled', deletionScheduledAt: at } });
-      // channels are disconnected at once: nothing is received or answered any more (AI stops with them)
-      await tx.channel.updateMany({
-        where: { status: { not: 'disconnected' } },
-        data: { status: 'disconnected', accessToken: null, tokenExpiresAt: null, pausedReason: null },
-      });
+      // channels are disconnected at once: nothing is received or answered any more (AI stops with them).
+      // The pages are unsubscribed at Meta by the `channel-unsubscribe` job (Meta port), which then wipes the token.
+      const connected = await tx.channel.findMany({ where: { status: { not: 'disconnected' } }, select: { id: true } });
+      await tx.channel.updateMany({ where: { status: { not: 'disconnected' } }, data: { status: 'disconnected', pausedReason: null, webhookSubscribed: false } });
+      await tx.agentChannel.deleteMany({ where: { channelId: { in: connected.map((c) => c.id) } } });
+      for (const c of connected) {
+        await this.queue.add(tx, 'jobs', 'channel-unsubscribe', { channelId: c.id, workspaceId: ws.id }, `chn-unsub:${c.id}:${at.getTime()}`, { attempts: 3, backoff: { type: 'fixed', delay: 30_000 } });
+      }
       await this.mail.send(
         {
           to: owner.email,
@@ -66,6 +73,14 @@ export class WorkspaceDeletionService implements OnModuleInit {
         tx,
       );
       await this.outbox.ws(tx, `ws:${ws.id}`, 'workspace.updated', { id: ws.id, workspace: { status: row.status, stockMode: row.stockMode, locale: row.locale } });
+      // 03-events §5.1 `workspace.deletion_scheduled`: in-app, to the Owner
+      await this.notifications.emit(tx, {
+        type: 'workspace_deletion_scheduled',
+        workspaceId: ws.id,
+        target: { owner: true },
+        key: `workspace_deletion_scheduled:${ws.id}:${at.getTime()}`,
+        data: { at: at.toISOString(), date: at.toISOString().slice(0, 10) },
+      });
       return row;
     });
     await this.tenants.invalidate(ws.id);
@@ -126,6 +141,13 @@ export class WorkspaceDeletionService implements OnModuleInit {
       let purged = 0;
       for (const ws of due) {
         try {
+          // safety net: a page whose token is still stored was not unsubscribed yet (job lost or failed) — do it now,
+          // through the Meta port, before the rows disappear
+          const unsubscribe = this.registry.handlers.get('jobs')?.get('channel-unsubscribe');
+          if (unsubscribe) {
+            const left = await prisma.channel.findMany({ where: { workspaceId: ws.id, accessToken: { not: null } }, select: { id: true } });
+            for (const c of left) await unsubscribe({ channelId: c.id, workspaceId: ws.id }, { attemptsMade: 0 } as never).catch((e) => this.log.warn({ channelId: c.id, err: String(e) }, 'unsubscribe at purge failed'));
+          }
           await prisma.$transaction(async (tx) => {
             const owner = await tx.user.findFirst({ where: { ownedWorkspaceId: ws.id } });
             await tx.user.updateMany({ where: { ownedWorkspaceId: ws.id }, data: { ownedWorkspaceId: null } });

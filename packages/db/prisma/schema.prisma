@@ -1387,7 +1387,7 @@ model Workspace {
   deletionScheduledAt    DateTime?
   trustLevel             TrustLevel      @default(new) // D36, D52
   trustSetById           String?         @db.Uuid
-  safetyRules            Json            @default("{\"riskAfterReturns\":2,\"autoBlockAfterUncollected\":3,\"handoffOnRisk\":true}") // D37
+  safetyRules            Json            @default("{\"riskAfterReturns\":2,\"autoBlockEnabled\":false,\"autoBlockAfterUncollected\":3,\"handoffOnRisk\":true}") // D37 — autoBlockEnabled: the auto-block rule is OFF by default (04 §13); autoBlockAfterUncollected = its threshold
   blockedWords           String[]        @default([])
   billingInfo            Json?
   assistedOnboarding     Boolean         @default(false)
@@ -1845,6 +1845,7 @@ model Channel {
   connectedById   String          @db.Uuid
   icebreaker      String?
   grantedScopes   String[]        @default([])
+  webhookSubscribed Boolean       @default(true) // false after PAGE_WEBHOOK_SUBSCRIBE_FAILED; retried by sched-channel-webhook-retry (05-integrations §1.5)
   lastSyncAt      DateTime?
   lastInfoSyncAt  DateTime?
   lastSeenAt      DateTime?

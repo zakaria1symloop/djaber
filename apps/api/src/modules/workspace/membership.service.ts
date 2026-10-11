@@ -6,6 +6,7 @@ import { AppException, notFound } from '../../core/errors/app.exception';
 import { OutboxService } from '../../core/outbox/outbox.service';
 import { TenantResolver } from '../../core/tenancy/tenant.resolver';
 import { SessionService, type ClientInfo } from '../auth/session.service';
+import { NotificationProducer } from '../notifications/notification.producer';
 import type { MembersQuery } from './dto';
 
 export const toMemberDto = (m: Membership & { user: User }) => ({
@@ -24,6 +25,7 @@ export class MembershipService {
     private readonly outbox: OutboxService,
     private readonly tenants: TenantResolver,
     private readonly sessions: SessionService,
+    private readonly notifications: NotificationProducer,
   ) {}
 
   /** `GET /workspace/members` — MembersQuery { role[], state[], q }; pending invitations are `GET /workspace/invitations`. */
@@ -69,6 +71,14 @@ export class MembershipService {
     if (member.role === role) return toMemberDto(member);
     const updated = await prisma.$transaction(async (tx) => {
       const row = await tx.membership.update({ where: { id }, data: { role }, include: { user: true } });
+      // 03-events §5.1 `member.role_changed`: in-app, to the member whose role changed
+      await this.notifications.emit(tx, {
+        type: 'member_role_changed',
+        workspaceId: t.workspaceId,
+        userIds: [row.userId],
+        key: `member_role_changed:${row.id}:${row.updatedAt.getTime()}`,
+        data: { userId: row.userId, from: member.role, to: role, role },
+      });
       await this.outbox.ws(tx, `ws:${t.workspaceId}`, 'member.updated', {
         id: row.id,
         membership: { userId: row.userId, role: row.role, readOnly: row.readOnly },

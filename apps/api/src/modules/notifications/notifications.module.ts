@@ -1,7 +1,12 @@
 import { Global, Module } from '@nestjs/common';
 import { NotificationProducer } from './notification.producer';
+import { NotificationService } from './notification.service';
+import { NotificationsController } from './notifications.controller';
 
-/** Producer side only (see notification.producer.ts); the notification centre is built in M5. */
+/**
+ * Producer (in-app rows + WS, fan-out channels plug in with `registerChannel`) and the notification centre endpoints.
+ * Preferences, e-mail and push channels arrive with M5.
+ */
 @Global()
-@Module({ providers: [NotificationProducer], exports: [NotificationProducer] })
+@Module({ controllers: [NotificationsController], providers: [NotificationProducer, NotificationService], exports: [NotificationProducer, NotificationService] })
 export class NotificationsModule {}

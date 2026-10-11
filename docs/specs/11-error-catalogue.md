@@ -274,7 +274,7 @@ Every code drawn in a Figma frame (dialog footers, greyed menu items, grey "ÉTA
 | 422 | `AGENT_FAQ_LIMIT` | 50 questions / 20 000 caractères max. | 50 سؤالًا / 20 000 حرف كحد أقصى. | Max 50 questions / 20,000 characters. | inline | shorten |
 | 410 | `AGENT_TEST_LINK_EXPIRED` | Lien de test expiré (24 h). | انتهت صلاحية رابط الاختبار (24 س). | Test link expired (24 h). | state | ask a new link |
 | 404 | `AGENT_VERSION_NOT_FOUND` | Version introuvable. | الإصدار غير موجود. | Version not found. | toast | reload |
-| 429 | `CHANNEL_SYNC_RATE_LIMITED` {retryAfter} | Synchronisation possible dans {retryAfter}. | المزامنة ممكنة بعد {retryAfter}. | Sync possible in {retryAfter}. | tooltip (disabled button) | wait |
+| 429 | `CHANNEL_SYNC_RATE_LIMITED` {retryAfter} | Synchronisation possible dans {retryAfter}. | المزامنة ممكنة بعد {retryAfter}. | Sync possible in {retryAfter}. | tooltip (disabled button) | wait; not emitted for the channel info sync, which answers `RATE_LIMITED` (api-contract §1.9) |
 | 409 | `PRESET_ARCHIVED` | Préréglage archivé, choisissez-en un autre. | الإعداد المسبق مؤرشف، اختر آخر. | Preset archived, choose another. | inline (step 1) | pick |
 | 422 | `PRESET_LOCALE_INCOMPLETE` {locales} | Complétez {locales} avant de publier. | أكمل {locales} قبل النشر. | Complete {locales} before publishing. | inline (admin) | translate |
 | 409 | `PRESET_PUBLISHED_IMMUTABLE` | Un préréglage publié ne se supprime pas : archivez-le. | لا يُحذف الإعداد المنشور: أرشفه. | A published preset cannot be deleted: archive it. | toast (admin) | archive |

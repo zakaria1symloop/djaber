@@ -1,8 +1,8 @@
 'use client';
 // ONB-01 — Onboarding tunnel, steps 1–6 (Figma "ONB-01 — Onboarding — step 1…6"). Progress = Workspace.onboardingStep:
 // leaving step n writes n + 1, "Passer la configuration" writes 99, so the next login resumes at the saved step.
-// Step 3 creates the first product (`POST /products`, M2). Steps 4–5 create entities of later milestones (agents M4,
-// channels M3): they are drawn as designed and both of their buttons follow the "plus tard" path until those endpoints exist.
+// Step 3 creates the first product (`POST /products`, M2). Step 5 starts the page connect flow (M3). Step 4 creates an
+// entity of a later milestone (agents M4): it is drawn as designed and both of its buttons follow the "plus tard" path.
 import { CreateProductSchema } from '@djaber/shared';
 import { Button, buttonClass, Card, ChecklistRow, cn, Field, FormAlert, Input, MoneyInput, NumberInput, OptionCard, Select, Skeleton, Steps, toast, type StepItem } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
@@ -12,6 +12,8 @@ import { RESEND_COOLDOWN_S } from '@/components/auth/forgot-form';
 import { QueryError } from '@/components/global-states';
 import { authApi } from '@/features/auth/api';
 import { catalogApi, useCategories } from '@/features/catalog/api';
+import { useConnectFlow } from '@/features/channels/connect';
+import { reportCounts } from '@/features/channels/logic';
 import { flattenCategories } from '@/features/catalog/contracts';
 import { checkImageFile, IMAGE_ACCEPT } from '@/features/catalog/product-form/images';
 import { useOnboarding, useOnboardingStep, usePatchWorkspace } from '@/features/workspace/api';
@@ -388,11 +390,13 @@ function AgentPreset() {
   );
 }
 
-/* ---------- 5. Connect a page (channel endpoints arrive with M3; e-mail verification is checked now, D32) ---------- */
+/* ---------- 5. Connect a page: the main button starts the connect flow (FL-05), the step advances once a page is connected ---------- */
 function Connect() {
   const t = useT();
   const { me } = useSession();
   const { go, saving } = useAdvance('connect');
+  // same outcomes as `/channels`: pop-up blocked, waiting, refused, invalid state, e-mail unverified, per-page report
+  const connect = useConnectFlow({ onReportClosed: (report) => void (reportCounts(report).connected > 0 ? go() : undefined) });
   const [platform, setPlatform] = useState<'facebook' | 'instagram'>('facebook');
   const [cooldown, startCooldown] = useCooldown();
   const resend = useMutation({ mutationFn: authApi.resendVerification });
@@ -450,11 +454,12 @@ function Connect() {
         onLater={go}
         saving={saving}
         primary={
-          <Button variant="primary" onClick={go} loading={saving} disabledReason={unverified ? t('error.AUTH_EMAIL_UNVERIFIED') : undefined}>
+          <Button variant="primary" onClick={() => void connect.start(platform)} loading={saving || connect.busy} disabledReason={unverified ? t('error.AUTH_EMAIL_UNVERIFIED') : undefined} data-testid="onboarding-connect">
             {saving ? t('onboarding.continuing') : t(`onboarding.connect.${platform}.submit`)}
           </Button>
         }
       />
+      {connect.element}
     </Shell>
   );
 }

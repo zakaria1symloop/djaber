@@ -3,7 +3,8 @@
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 
-export default async function globalSetup() {
+/** Clears the limiter counters (`rl:*`) of the local development Redis. */
+export async function clearRateLimits() {
   const require = createRequire(resolve(__dirname, '../../../api/package.json'));
   const Redis = require('ioredis');
   const redis = new Redis(process.env.E2E_REDIS_URL ?? 'redis://127.0.0.1:63799', { maxRetriesPerRequest: 2 });
@@ -13,4 +14,8 @@ export default async function globalSetup() {
   } finally {
     await redis.quit();
   }
+}
+
+export default async function globalSetup() {
+  await clearRateLimits();
 }

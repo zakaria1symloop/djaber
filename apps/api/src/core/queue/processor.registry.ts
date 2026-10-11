@@ -18,6 +18,7 @@ export class ProcessorRegistry {
   readonly concurrency = new Map<QueueName, number>();
   readonly outbox = new Map<string, OutboxHandler>();
   readonly crons: CronTask[] = [];
+  private readonly cronSteps = new Map<string, Map<string, () => Promise<unknown>>>();
 
   register(queue: QueueName, name: string, handler: JobHandler, opts: ProcessorOptions = {}) {
     let m = this.handlers.get(queue);
@@ -33,6 +34,19 @@ export class ProcessorRegistry {
 
   /** Scheduled job, cron pattern evaluated in Africa/Algiers (03 §4). Singleton across worker instances. */
   cron(name: string, pattern: string, handler: () => Promise<unknown>) {
-    if (!this.crons.some((c) => c.name === name)) this.crons.push({ name, pattern, handler });
+    if (this.crons.some((c) => c.name === name)) return;
+    const run = async () => {
+      const result = await handler();
+      for (const step of this.cronSteps.get(name)?.values() ?? []) await step();
+      return result;
+    };
+    this.crons.push({ name, pattern, handler: run });
+  }
+
+  /** Adds a step to a scheduled job owned by another module (`sched-retention` purges rows of several modules). Keyed: registering twice is a no-op. */
+  extendCron(name: string, key: string, step: () => Promise<unknown>) {
+    let steps = this.cronSteps.get(name);
+    if (!steps) this.cronSteps.set(name, (steps = new Map()));
+    steps.set(key, step);
   }
 }

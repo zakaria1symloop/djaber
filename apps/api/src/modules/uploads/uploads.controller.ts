@@ -11,9 +11,11 @@ import { IMAGE_MAX_BYTES, ImageUploadService, type UploadedFile as Incoming } fr
 export const imageInterceptor = () => FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: IMAGE_MAX_BYTES * 2, files: 1 } });
 
 /** Kinds served by this endpoint so far; the other `UploadKind`s arrive with their milestone. */
-const KINDS = ['avatar', 'logo', 'category_image', 'appeal_attachment'] as const;
+const KINDS = ['avatar', 'logo', 'category_image', 'appeal_attachment', 'reply'] as const;
 /** Kinds that belong to a workspace and need an Admin+ member of it (M2: category picture, moderation appeal attachment). */
-const WORKSPACE_KINDS: readonly string[] = ['logo', 'category_image', 'appeal_attachment'];
+const WORKSPACE_KINDS: readonly string[] = ['logo', 'category_image', 'appeal_attachment', 'reply'];
+/** Workspace kinds every member may upload: the image of an inbox reply (INB-03, `inbox.read` = every role). */
+const MEMBER_KINDS: readonly string[] = ['reply'];
 type Kind = (typeof KINDS)[number];
 
 @Controller('uploads')
@@ -37,7 +39,7 @@ export class UploadsController {
             prisma.membership.findUnique({ where: { workspaceId_userId: { workspaceId: candidate, userId: user.id } } }),
           )
         : null;
-      if (!membership || membership.role === 'operator' || membership.readOnly) throw validationError({ kind: 'validation.invalid' });
+      if (!membership || membership.readOnly || (membership.role === 'operator' && !MEMBER_KINDS.includes(kind))) throw validationError({ kind: 'validation.invalid' });
       workspaceId = membership.workspaceId;
     }
     return this.images.store(file, kind, user.id, workspaceId);

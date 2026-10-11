@@ -1,5 +1,6 @@
 'use client';
 // AuthLayout card (Figma "AUTH — Login — default"): 440 px card on ink/base, logo + tagline, title, description.
+import { useDocumentTitle } from '@/lib/document-title';
 import { Card, cn, Pill, type Tone } from '@djaber/ui';
 import { useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -23,6 +24,7 @@ export function AuthCard({
   footer?: ReactNode;
   wide?: boolean;
 }) {
+  useDocumentTitle(title);
   const t = useT();
   return (
     <Card className={cn('w-full p-8', wide ? 'max-w-[480px]' : 'max-w-[440px]')}>

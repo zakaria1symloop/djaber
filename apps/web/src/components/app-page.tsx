@@ -7,6 +7,7 @@ import { ArrowLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Page403 } from '@/components/global-states';
 import { Link } from '@/i18n/navigation';
+import { useDocumentTitle } from '@/lib/document-title';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 
@@ -40,6 +41,7 @@ export function AppPage({
   const t = useT();
   const locale = useLocaleCode();
   const { role } = useSession();
+  useDocumentTitle(title);
   const keys = permission ? (Array.isArray(permission) ? permission : [permission]) : [];
   if (keys.some((k) => !roleCan(role, k))) return <Page403 role={role ? t(`enum.Membership.role.${role}`) : '—'} homeHref={`/${locale}/home`} />;
   return (
