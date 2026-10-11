@@ -1,0 +1,29 @@
+{
+  "name": "djaber",
+  "private": true,
+  "packageManager": "pnpm@12.4.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "infra:up": "node tools/infra/start.mjs",
+    "infra:down": "node tools/infra/stop.mjs",
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:int": "turbo run test:int",
+    "test:e2e": "turbo run test:e2e",
+    "i18n:check": "node tools/i18n-check.mjs",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "embedded-postgres": "16.14.0-beta.17",
+    "pg": "^8.23.1",
+    "prettier": "^3.3.3",
+    "redis-memory-server": "^0.12.1",
+    "turbo": "^2.3.0",
+    "typescript": "^5.6.3"
+  }
+}

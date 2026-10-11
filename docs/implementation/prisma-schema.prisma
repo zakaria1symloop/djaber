@@ -1424,6 +1424,7 @@ model Workspace {
   categories           Category[]
   units                Unit[]
   products             Product[]
+  productVariants      ProductVariant[]
   productExpenses      ProductExpense[]
   recommendations      Recommendation[]
   stockMovements       StockMovement[]
@@ -2500,8 +2501,9 @@ model ProductImage {
 }
 
 model ProductVariant {
-  id         String    @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
-  productId  String    @db.Uuid
+  id          String    @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  workspaceId String    @db.Uuid // denormalised from Product: tenant scoping + partial unique (workspaceId, sku)
+  productId   String    @db.Uuid
   name       String
   sku        String?
   attributes Json      @default("{}")
@@ -2514,6 +2516,7 @@ model ProductVariant {
   updatedAt  DateTime  @updatedAt
   deletedAt  DateTime?
 
+  workspace      Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   product        Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
   movements      StockMovement[]
   orderItems     OrderItem[]
@@ -2523,6 +2526,8 @@ model ProductVariant {
   stockRecos     StockRecommendation[]
 
   @@unique([productId, name])
+  @@index([workspaceId])
+  // PARTIAL UNIQUE: (workspaceId, sku) WHERE deletedAt IS NULL AND sku IS NOT NULL
 }
 
 model ProductExpense {

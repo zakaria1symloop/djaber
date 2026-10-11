@@ -125,7 +125,7 @@ export class EnvelopeInterceptor implements NestInterceptor {
 import { z } from 'zod';
 export const PageQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).default(20),
+  pageSize: z.union([z.literal(25), z.literal(50), z.literal(100)]).default(25),
   sort: z.string().regex(/^-?[a-zA-Z]+$/).optional(),            // "-createdAt"
 });
 export type PageQuery = z.infer<typeof PageQuery>;
