@@ -1,7 +1,7 @@
 // SET (03 §20) — workspace profile & settings, plan summary with real usage counts, creation for invited-only users (D30).
 import { Injectable } from '@nestjs/common';
 import { DEFAULT_SYSTEM_MESSAGES, prisma, TenantContext, type Plan, type Subscription, type Workspace } from '@djaber/db';
-import type { AppLocale } from '@djaber/shared';
+import { completeSafetyRules, type AppLocale } from '@djaber/shared';
 import { AuditService } from '../../core/audit/audit.service';
 import { AppException, conflict, notFound, validationError } from '../../core/errors/app.exception';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -71,7 +71,8 @@ export class WorkspaceService {
   /** PlanUsage from real rows (never a stored counter). Must run in the workspace's tenant context. */
   private async usage(periodStart: Date) {
     const [pages, agents, products, conversationsThisMonth, members, debits] = await Promise.all([
-      prisma.channel.count({ where: { status: { not: 'disconnected' } } }),
+      // CHN-10: a page holds a slot while it is live; a linked Instagram account rides on its page, paused pages hold none
+      prisma.channel.count({ where: { parentChannelId: null, status: { in: ['active', 'pending_review', 'needs_reconnect'] } } }),
       prisma.agent.count({ where: { status: { in: ['active', 'paused'] }, deletedAt: null } }),
       prisma.product.count({ where: { deletedAt: null } }),
       prisma.conversation.count({ where: { createdAt: { gte: algiersMonthStart() } } }),
@@ -124,7 +125,7 @@ export class WorkspaceService {
       suspendReason: ws.suspendReason,
       deletionScheduledAt: ws.deletionScheduledAt ? ws.deletionScheduledAt.toISOString() : null,
       trustLevel: ws.trustLevel,
-      safetyRules: ws.safetyRules,
+      safetyRules: completeSafetyRules(ws.safetyRules),
       blockedWords: ws.blockedWords,
       billingInfo: ws.billingInfo ?? null,
       plan: await this.planBlock(ws.id, locale),

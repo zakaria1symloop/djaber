@@ -2,7 +2,7 @@
 // Needs the API on :4010.
 import { expect, test } from '@playwright/test';
 import { expectNoA11yViolations } from './support/a11y';
-import { apiReady, createAccount, loginHome, type Account } from './support/m1';
+import { apiReady, createAccount, expectUrl, loginHome, type Account } from './support/m1';
 import { catalogReady, seedProduct } from './support/m2';
 
 test.describe.configure({ mode: 'serial' });
@@ -63,7 +63,7 @@ test('AT-CAT-12 services list shows only trackStock=false products, without any 
 
   // row click opens the product page: a service has no stock
   await table.getByText(SERVICE).click();
-  await page.waitForURL(`**/fr/products/${serviceId}`);
+  await expectUrl(page, `**/fr/products/${serviceId}`);
   await expect(page.getByTestId('stock-tracking')).toContainText('service, pas de stock');
   await expect(page.getByTestId('adjust-stock')).toHaveCount(0);
 });

@@ -356,8 +356,9 @@ describe('exports and jobs', () => {
     await worker.init();
     try {
       const registry = worker.get(ProcessorRegistry);
-      expect([...registry.handlers.get('jobs')!.keys()].sort()).toEqual(['export', 'product-import-commit', 'product-import-preview']);
-      expect([...registry.handlers.get('media')!.keys()].sort()).toEqual(['caption-image', 'reencode-image']);
+      // later milestones add their own job names to the same queues (M3: channel / history / data-deletion jobs, attachment downloads)
+      expect([...registry.handlers.get('jobs')!.keys()]).toEqual(expect.arrayContaining(['export', 'product-import-commit', 'product-import-preview']));
+      expect([...registry.handlers.get('media')!.keys()]).toEqual(expect.arrayContaining(['caption-image', 'reencode-image']));
       expect([...registry.outbox.keys()].sort()).toEqual(['audit', 'job', 'mail', 'notification', 'webhook', 'ws']);
     } finally {
       await worker.close();

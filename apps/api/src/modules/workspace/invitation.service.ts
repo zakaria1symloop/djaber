@@ -12,6 +12,7 @@ import { MailOutbox } from '../../core/mail/mail.outbox';
 import { OutboxService } from '../../core/outbox/outbox.service';
 import { TenantResolver } from '../../core/tenancy/tenant.resolver';
 import type { ClientInfo } from '../auth/session.service';
+import { NotificationProducer } from '../notifications/notification.producer';
 
 const INVITE_TTL_MS = 7 * 86_400_000;
 export const RESEND_COOLDOWN_S = 60;
@@ -34,6 +35,7 @@ export class InvitationService {
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
     private readonly tenants: TenantResolver,
+    private readonly notifications: NotificationProducer,
   ) {}
 
   private link(token: string) {
@@ -100,6 +102,14 @@ export class InvitationService {
         },
       });
       await this.sendMail(tx, row, token, inviter, workspace);
+      // 03-events §5.1 `member.invited`: in-app, Owner + Admins (the e-mail goes to the invitee)
+      await this.notifications.emit(tx, {
+        type: 'member_invited',
+        workspaceId: t.workspaceId,
+        target: { roles: ['owner', 'admin'] },
+        key: `member_invited:${row.id}`,
+        data: { invitationId: row.id, email: row.email, role: row.role },
+      });
       return row;
     });
     await this.audit.write({
@@ -232,6 +242,15 @@ export class InvitationService {
     await this.outbox.ws(tx, `ws:${inv.workspaceId}`, 'member.updated', {
       id: membership.id,
       membership: { userId: user.id, role: membership.role, readOnly: membership.readOnly },
+    });
+    // 03-events §5.1 `member.joined`: in-app, Owner + Admins
+    const joined = await tx.user.findUnique({ where: { id: user.id }, select: { firstName: true, lastName: true } });
+    await this.notifications.emit(tx, {
+      type: 'member_joined',
+      workspaceId: inv.workspaceId,
+      target: { roles: ['owner', 'admin'], exceptUserId: user.id },
+      key: `member_joined:${membership.id}`,
+      data: { userId: user.id, role: membership.role, name: `${joined?.firstName ?? ''} ${joined?.lastName ?? ''}`.trim() || user.email },
     });
     return { membership, created: true };
   }

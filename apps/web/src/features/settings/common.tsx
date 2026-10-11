@@ -1,5 +1,6 @@
 'use client';
 // Building blocks of the Settings pages (Figma "SET — Settings — …"): page frame with permission gate, section card, image upload.
+import { useDocumentTitle } from '@/lib/document-title';
 import { roleCan, type MerchantPermission } from '@djaber/shared';
 import { Card, cn, PageHeader } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
@@ -28,6 +29,7 @@ export function SettingsPage({
   permission?: MerchantPermission;
   children: ReactNode;
 }) {
+  useDocumentTitle(title);
   const t = useT();
   const locale = useLocaleCode();
   const { role } = useSession();

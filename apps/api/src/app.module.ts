@@ -17,7 +17,10 @@ import { WsGateway } from './core/ws/ws.gateway';
 import { AccountModule } from './modules/account/account.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
+import { ChannelsModule } from './modules/channels/channels.module';
 import { JobsModule } from './modules/jobs/jobs.module';
+import { MessagingModule } from './modules/messaging/messaging.module';
+import { MetaModule } from './modules/meta/meta.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { LegalGuard } from './modules/workspace/legal.guard';
@@ -25,7 +28,7 @@ import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { PlatformPublicModule } from './modules/platform-public/platform-public.module';
 
 /** Feature modules are appended here milestone after milestone (00-build-order). */
-export const FEATURE_MODULES = [PlatformPublicModule, AccountModule, UploadsModule, WorkspaceModule, AuthModule, NotificationsModule, JobsModule, CatalogModule];
+export const FEATURE_MODULES = [PlatformPublicModule, AccountModule, UploadsModule, WorkspaceModule, AuthModule, NotificationsModule, JobsModule, CatalogModule, MetaModule, ChannelsModule, MessagingModule];
 
 @Module({
   imports: [CoreModule, ...FEATURE_MODULES],

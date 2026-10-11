@@ -2,7 +2,7 @@
 // Needs the API on :4010 and the worker (dev mailbox `.local/mail`). AT-AUTH-11 (cross-workspace 404, table-driven)
 // is an API integration test; its UI side is the localized 404 of e2e/shell.spec.ts.
 import { expect, test, type Page } from '@playwright/test';
-import { API, apiReady, authHeaders, createAccount, freshTotp, login, loginHome, logout, mailLink, PASSWORD, uniqueEmail, waitForMail, type Account } from './support/m1';
+import { API, apiReady, authHeaders, createAccount, expectUrl, freshTotp, login, loginHome, logout, mailLink, PASSWORD, uniqueEmail, waitForMail, type Account } from './support/m1';
 
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(async ({ request }) => {
@@ -32,7 +32,7 @@ test.describe('sign-up and login', () => {
     await page.locator('#password').fill(owner.password);
     await page.getByRole('button', { name: 'Créer mon compte' }).click();
 
-    await page.waitForURL('**/fr/onboarding/welcome');
+    await expectUrl(page, '**/fr/onboarding/welcome');
     await expect(page.getByRole('heading', { name: /Bienvenue, Amel/ })).toBeVisible();
 
     const mail = await waitForMail(owner.email, /^auth\/verify$/, { after: signedUpAt });
@@ -52,7 +52,7 @@ test.describe('sign-up and login', () => {
 
     // "Passer la configuration" → Home with the checklist at 0 / 4
     await page.getByRole('button', { name: 'Passer la configuration' }).click();
-    await page.waitForURL('**/fr/home');
+    await expectUrl(page, '**/fr/home');
     await expect(page.getByTestId('checklist-count')).toHaveText('0 / 4');
   });
 
@@ -117,7 +117,7 @@ test.describe('sign-up and login', () => {
     await expect(page.getByRole('heading', { name: 'Adresse confirmée ✓' })).toBeVisible();
     await expect(page.getByText(`${owner.email} est vérifiée`)).toBeVisible();
     await page.getByRole('link', { name: 'Continuer vers mon espace' }).click();
-    await page.waitForURL('**/fr/home');
+    await expectUrl(page, '**/fr/home');
     await expect(page.getByText('Vérifiez votre e-mail pour pouvoir connecter une page')).toHaveCount(0);
 
     // the link is single use
@@ -145,7 +145,7 @@ test.describe('sign-up and login', () => {
     await page.locator('#email').fill(owner.email);
     await page.locator('#password').fill(owner.password);
     await page.locator('form button[type=submit]').click();
-    await page.waitForURL('**/fr/settings/security');
+    await expectUrl(page, '**/fr/settings/security');
     await expect(page.getByRole('heading', { name: 'Sécurité', exact: true })).toBeVisible();
     await expect(page.getByTestId('sessions')).toBeVisible();
   });
@@ -168,7 +168,7 @@ test.describe('sign-up and login', () => {
     await expect(page.getByText('Ne correspond pas')).toBeVisible();
     await page.locator('#confirm').fill('Nouveau-pass2');
     await page.getByRole('button', { name: 'Réinitialiser' }).click();
-    await page.waitForURL('**/fr/home');
+    await expectUrl(page, '**/fr/home');
     owner.password = 'Nouveau-pass2';
 
     // used twice ⇒ the expired / invalid card with "Recevoir un nouveau lien"
@@ -233,7 +233,7 @@ test.describe('two-factor authentication', () => {
     await enterOtp(page, '000000');
     await expect(page.getByRole('alert').filter({ hasText: 'Code invalide' })).toBeVisible();
     await enterOtp(page, await freshTotp(secret));
-    await page.waitForURL('**/fr/home');
+    await expectUrl(page, '**/fr/home');
 
     // a recovery code works once
     await logout(page);
@@ -241,7 +241,7 @@ test.describe('two-factor authentication', () => {
     await page.getByRole('button', { name: 'Utiliser un code de récupération' }).click();
     await page.locator('#recovery').fill(codes[0]!);
     await page.getByRole('button', { name: 'Vérifier' }).click();
-    await page.waitForURL('**/fr/home');
+    await expectUrl(page, '**/fr/home');
     await logout(page);
     await login(page, account);
     await page.getByRole('button', { name: 'Utiliser un code de récupération' }).click();
@@ -250,7 +250,7 @@ test.describe('two-factor authentication', () => {
     await expect(page.getByRole('alert').filter({ hasText: 'Code invalide' })).toBeVisible();
     await page.locator('#recovery').fill(codes[1]!);
     await page.getByRole('button', { name: 'Vérifier' }).click();
-    await page.waitForURL('**/fr/home');
+    await expectUrl(page, '**/fr/home');
 
     // regeneration: wrong password inline, right password ⇒ 10 new codes
     await page.goto('/fr/settings/security');
@@ -301,7 +301,7 @@ test.describe('members, ownership and deletion', () => {
     await p.locator('#lastName').fill('Ferhat');
     await p.locator('#password').fill(operator.password);
     await p.getByRole('button', { name: 'Créer mon compte et rejoindre' }).click();
-    await p.waitForURL('**/fr/home');
+    await expectUrl(p, '**/fr/home');
 
     // operator: no workspace settings, no danger zone, no invite button, 403 on a direct link
     await p.goto('/fr/settings/members');
@@ -354,12 +354,12 @@ test.describe('members, ownership and deletion', () => {
     await loginHome(page, operator);
     await page.getByRole('button', { name: /Menu utilisateur/ }).click();
     await page.getByRole('menuitem', { name: 'Créer un espace' }).click();
-    await page.waitForURL('**/fr/workspaces/new');
+    await expectUrl(page, '**/fr/workspaces/new');
     await page.locator('#name').fill('Atelier E2E');
     await page.getByRole('button', { name: 'Créer et démarrer l’onboarding' }).click();
-    await page.waitForURL('**/fr/onboarding/welcome');
+    await expectUrl(page, '**/fr/onboarding/welcome');
     await page.getByRole('button', { name: 'Passer la configuration' }).click();
-    await page.waitForURL('**/fr/home');
+    await expectUrl(page, '**/fr/home');
     // two memberships ⇒ the switcher appears; the menu no longer offers a creation
     await expect(page.getByRole('button', { name: 'Changer d’espace' })).toContainText('Atelier E2E');
     await page.getByRole('button', { name: /Menu utilisateur/ }).click();

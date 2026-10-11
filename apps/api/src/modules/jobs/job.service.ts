@@ -175,9 +175,21 @@ export class JobService {
         workspaceId: job.workspaceId,
         userIds: [job.createdById],
         key: `job_finished:${job.id}:${job.updatedAt.getTime()}`,
-        data: { jobId: job.id, kind: job.kind, name: this.nameOf(job) },
+        data: { jobId: job.id, kind: job.kind, name: this.nameOf(job), label: this.labelOf(job), ...this.importCounts(job.kind, out.result) },
       });
     });
+  }
+
+  /** `{label}` of `notification.job.finished|failed.title`: the job name of 03 §3, else its kind. */
+  private labelOf(job: Pick<Job, 'payload' | 'kind'>): string {
+    return this.nameOf(job) ?? job.kind;
+  }
+
+  /** An import that committed reports its counts: the notification uses the `job.finished.import` texts. */
+  private importCounts(kind: JobKind, result: unknown): { imported?: number; skipped?: number } {
+    const report = (result as { report?: { created?: unknown; updated?: unknown; skipped?: unknown } } | null | undefined)?.report;
+    if (kind !== 'import' || !report || typeof report.created !== 'number') return {};
+    return { imported: report.created + (typeof report.updated === 'number' ? report.updated : 0), skipped: typeof report.skipped === 'number' ? report.skipped : 0 };
   }
 
   async fail(id: string, error: JobError) {
@@ -188,7 +200,7 @@ export class JobService {
         workspaceId: job.workspaceId,
         userIds: [job.createdById],
         key: `job_failed:${job.id}:${job.updatedAt.getTime()}`,
-        data: { jobId: job.id, kind: job.kind, name: this.nameOf(job), error: error.code },
+        data: { jobId: job.id, kind: job.kind, name: this.nameOf(job), label: this.labelOf(job), error: error.code },
       });
     });
   }

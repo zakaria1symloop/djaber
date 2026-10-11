@@ -40,6 +40,8 @@ export const ConfigSchema = z.object({
 
   // Meta
   META_DRIVER: z.enum(['fake', 'graph']).default('fake'),
+  // safety guard: the Graph adapter refuses to start in development / test unless this is true (the V1 app is live on the same Meta app)
+  META_ALLOW_LIVE: bool.default(false),
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
   META_VERIFY_TOKEN: z.string().optional(),

@@ -9,6 +9,7 @@ import { OutboxService } from '../../core/outbox/outbox.service';
 import { TenantResolver } from '../../core/tenancy/tenant.resolver';
 import { ReauthService } from '../auth/reauth.service';
 import type { ClientInfo } from '../auth/session.service';
+import { NotificationProducer } from '../notifications/notification.producer';
 
 @Injectable()
 export class OwnershipTransferService {
@@ -19,6 +20,7 @@ export class OwnershipTransferService {
     private readonly mail: MailOutbox,
     private readonly tenants: TenantResolver,
     private readonly config: ConfigService,
+    private readonly notifications: NotificationProducer,
   ) {}
 
   async transfer(workspaceId: string, input: { newOwnerUserId: string; password: string; totpCode?: string | null }, client: ClientInfo) {
@@ -66,6 +68,14 @@ export class OwnershipTransferService {
         { id: target.id, userId: target.userId, role: 'owner' },
       ]) {
         await this.outbox.ws(tx, `ws:${ws.id}`, 'member.updated', { id: m.id, membership: { userId: m.userId, role: m.role, readOnly: false } });
+        // 03-events §5.1 `member.role_changed`: both parties of the transfer
+        await this.notifications.emit(tx, {
+          type: 'member_role_changed',
+          workspaceId: ws.id,
+          userIds: [m.userId],
+          key: `member_role_changed:${m.id}:transfer:${target.userId}:${Date.now()}`,
+          data: { userId: m.userId, from: m.role === 'owner' ? 'admin' : 'owner', to: m.role, role: m.role },
+        });
       }
       return ws;
     });

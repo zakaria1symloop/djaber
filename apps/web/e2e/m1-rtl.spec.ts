@@ -1,7 +1,7 @@
 // M1 — AT-UX-02 (UI side): the shell in Arabic is right-to-left, translated, and the language switch keeps the path.
 // The i18n key parity fr / ar / en is checked by `pnpm i18n:check`.
 import { expect, test } from '@playwright/test';
-import { apiReady, createAccount, login, type Account } from './support/m1';
+import { apiReady, createAccount, expectUrl, login, type Account } from './support/m1';
 
 test.describe.configure({ mode: 'serial' });
 let account: Account;
@@ -28,7 +28,7 @@ test('AT-UX-02 auth pages: Arabic is RTL and the FR · AR · EN switch keeps the
 test('AT-UX-02 merchant shell in Arabic: sidebar on the right, translated nav, numbers left-to-right', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await login(page, account, 'ar');
-  await page.waitForURL('**/ar/home');
+  await expectUrl(page, '**/ar/home');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 
   const sidebar = page.getByRole('complementary');
@@ -57,13 +57,13 @@ test('AT-UX-02 merchant shell in Arabic: sidebar on the right, translated nav, n
   await page.getByRole('button', { name: 'القائمة' }).click();
   await expect(sidebar).toBeInViewport();
   await sidebar.getByRole('link', { name: 'الإعدادات', exact: true }).click();
-  await page.waitForURL('**/ar/settings/profile');
+  await expectUrl(page, '**/ar/settings/profile');
   await expect(page.getByRole('navigation', { name: 'الإعدادات' }).getByRole('link', { name: 'منطقة الخطر' })).toBeVisible();
 });
 
 test('AT-UX-02 the language dialog of the user menu switches locale and keeps the current page', async ({ page }) => {
   await login(page, account);
-  await page.waitForURL('**/fr/home');
+  await expectUrl(page, '**/fr/home');
   await page.goto('/fr/settings/security');
   await page.getByRole('button', { name: /Menu utilisateur/ }).click();
   await page.getByRole('menuitem', { name: 'Langue : Français' }).click();
@@ -71,7 +71,7 @@ test('AT-UX-02 the language dialog of the user menu switches locale and keeps th
   await expect(dialog.getByRole('heading', { name: 'Langue & région' })).toBeVisible();
   await dialog.getByRole('radio', { name: 'العربية' }).check();
   await dialog.getByRole('button', { name: 'Appliquer' }).click();
-  await page.waitForURL('**/ar/settings/security');
+  await expectUrl(page, '**/ar/settings/security');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.getByRole('heading', { level: 1, name: 'الأمان' })).toBeVisible();
 
@@ -79,6 +79,6 @@ test('AT-UX-02 the language dialog of the user menu switches locale and keeps th
   await page.getByRole('menuitem', { name: /اللغة/ }).click();
   await page.getByRole('dialog').getByRole('radio', { name: 'English' }).check();
   await page.getByRole('dialog').getByRole('button', { name: 'تطبيق' }).click();
-  await page.waitForURL('**/en/settings/security');
+  await expectUrl(page, '**/en/settings/security');
   await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
 });

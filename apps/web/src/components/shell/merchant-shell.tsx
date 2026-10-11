@@ -4,13 +4,17 @@
 import { formatDate, formatNumber, isMerchantPermission, type AppLocale } from '@djaber/shared';
 import { Avatar, Button, Checkbox, cn, Dialog, FormAlert, Menu, MenuItem, MenuLabel, MenuSeparator, Spinner, toast } from '@djaber/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell, Check, ChevronDown, Zap } from 'lucide-react';
+import { Check, ChevronDown, Zap } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { RESEND_COOLDOWN_S } from '@/components/auth/forgot-form';
 import { PageSessionExpired, PageSuspended, QueryError } from '@/components/global-states';
 import { authApi } from '@/features/auth/api';
 import { useCatalogEvents } from '@/features/catalog/api';
+import { useChannelBanners, useChannelEvents } from '@/features/channels/shell';
+import { useInboxBadge, useInboxEvents } from '@/features/inbox/api';
+import { NotificationBell, useUnreadNotifications } from '@/features/notifications/shell';
+import { useQueueCount } from '@/features/queue/shell';
 import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import { routing } from '@/i18n/routing';
 import { apiSession } from '@/lib/api';
@@ -95,27 +99,37 @@ export function MerchantShell({ children }: { children: ReactNode }) {
   const suspended = decision.kind === 'state' && decision.state === 'suspended';
   return (
     <WsProvider>
-      <AppShell groups={groups} footer={FOOTER_NAV} topBar={<TopBar />} banners={banners} counters={{ notifications: 0 }}>
+      <LiveShell groups={groups} banners={banners}>
         {suspended ? (
           <PageSuspended reason={t(`shell.suspendReason.${s.workspace?.suspendReason ?? 'other'}`)} supportHref={`/${locale}/help/contact`} />
         ) : (
           children
         )}
-      </AppShell>
+      </LiveShell>
       <JobToaster />
-      <LiveCaches />
       <LegalInterstitial />
     </WsProvider>
   );
 }
 
-/** WS events → TanStack Query cache (mounted inside WsProvider). */
-function LiveCaches() {
+/**
+ * The frame fed with live data (mounted inside WsProvider): WS events → TanStack Query cache for every module, and
+ * the sidebar badges — `queue` (needs-human conversations + pending insights), `inbox` (unread conversations),
+ * `notifications` (server unread count, also shown on the bell).
+ */
+function LiveShell({ groups, banners, children }: { groups: NavGroup[]; banners: ShellBanner[]; children: ReactNode }) {
   useCatalogEvents();
-  return null;
+  useInboxEvents();
+  useChannelEvents();
+  const counters = { queue: useQueueCount(), inbox: useInboxBadge(), notifications: useUnreadNotifications() };
+  return (
+    <AppShell groups={groups} footer={FOOTER_NAV} topBar={<TopBar />} banners={banners} counters={counters}>
+      {children}
+    </AppShell>
+  );
 }
 
-/* ---------- Banners: e-mail unverified, read-only member, suspended, deletion scheduled, offline ---------- */
+/* ---------- Banners: channel reconnect / Meta approval, e-mail unverified, read-only member, suspended, deletion scheduled, offline ---------- */
 function useShellBanners(): ShellBanner[] {
   const t = useT();
   const locale = useLocaleCode() as AppLocale;
@@ -124,6 +138,8 @@ function useShellBanners(): ShellBanner[] {
   const [offline, setOffline] = useState(false);
   const [cooldown, startCooldown] = useCooldown();
   const resend = useMutation({ mutationFn: authApi.resendVerification });
+  // `reconnect` (a page lost its Meta token) and `approvalPending` (Instagram waiting for Meta)
+  const channelBanners = useChannelBanners();
 
   useEffect(() => {
     const sync = () => setOffline(!navigator.onLine);
@@ -153,7 +169,7 @@ function useShellBanners(): ShellBanner[] {
     }
   };
 
-  const banners: ShellBanner[] = [];
+  const banners: ShellBanner[] = [...channelBanners];
   if (s.workspace?.status === 'suspended') banners.push({ id: 'suspended', tone: 'danger', content: t('banner.suspended') });
   if (s.workspace?.status === 'deletion_scheduled') {
     banners.push({
@@ -208,14 +224,7 @@ function TopBar() {
           <bdi dir="ltr">{t('topbar.credits', { used: formatNumber(plan.usage.creditsUsed), limit: formatNumber(plan.limits.monthlyCredits) })}</bdi>
         </span>
       ) : null}
-      <Link
-        href="/notifications"
-        aria-label={t('nav.notifications')}
-        title={t('nav.notifications')}
-        className="flex size-9 items-center justify-center rounded-card border border-line-edge bg-ink-surface text-text-secondary hover:text-text-primary"
-      >
-        <Bell className="size-4" aria-hidden />
-      </Link>
+      <NotificationBell />
       <UserMenu />
     </>
   );

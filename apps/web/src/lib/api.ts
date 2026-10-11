@@ -111,7 +111,9 @@ export async function apiRaw<T>(path: string, o: RequestOptions = {}): Promise<E
     body = JSON.stringify(o.body);
   }
   const write = (o.method ?? 'GET') !== 'GET';
+  const before = lastWriteAt;
   if (write) markOwnWrite();
+  const stamp = lastWriteAt;
   let res: Response;
   try {
     res = await fetch(`${API_URL}/api/v1${path}${toQuery(o.query)}`, {
@@ -134,7 +136,12 @@ export async function apiRaw<T>(path: string, o: RequestOptions = {}): Promise<E
       emit('session-expired');
     }
   }
-  if (write) markOwnWrite();
+  // a refused or failed write changed nothing on the server: it does not count as "our own write", so a foreign change
+  // arriving right after a 409 is still seen as foreign (unless another write of this tab started meanwhile)
+  if (write) {
+    if (res.ok) markOwnWrite();
+    else if (lastWriteAt === stamp) lastWriteAt = before;
+  }
   if (res.status === 204) return { data: null as T, meta: {} };
   const json = (await res.json().catch(() => null)) as (Envelope<T> & { error?: ApiErrorBody }) | null;
   if (!res.ok || !json || json.error) {

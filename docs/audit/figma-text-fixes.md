@@ -125,3 +125,7 @@ Applied on 2026-10-11 by script to the Figma file: **95 / 95 rows** (Web V2: 86 
 | Web V2 | DLG — GDS (stock) II | `IMAGE_SMALL (< 500 px)` | `IMAGE_SMALL (< 600 px)` |
 | Web V2 | DLG — GDS (stock) II | `Déposez 1 à 5 photos (JPG/PNG ≤ 8 Mo)` | `Déposez 1 à 5 photos (JPG/PNG/WEBP ≤ 5 Mo)` |
 | Web V2 | DLG — GDS (stock) — dialogs catalogue | `correspondance par nom` | `correspondance par SKU` |
+| Web V2 | DLG — Inbox & queue — popovers, message types, banners, composer states | `REPLY_OUTSIDE_WINDOW · champ désactivé + « Envoyer un message modèle » (FB) / « impossible » (IG)` | `Hors fenêtre : FB — réponse avec la balise agent humain tant que le serveur l'autorise (7 j) + « Envoyer un message modèle » ; ensuite REPLY_OUTSIDE_WINDOW, champ désactivé / « impossible » (IG)` |
+| Web V2 | SAFE — Trust & safety (merchant) | `Les faux signalements répétés peuvent être sanctionnés.` | `Les signalements abusifs sont examinés par Djaber.` |
+| Web V2 | QUEUE — File d'attente — items | `INCOMPRIS` / `HORS SUJET` | `INCOMPRÉHENSION` / `SUJET INCONNU` |
+| Web V2 | DLG — Agents & channels — dialogs, connect flow & generate-from-page | `Tâche en arrière-plan · ~2 min / 1 000 conversations` | `Tâche en arrière-plan · 25 conversations × 25 messages au plus` (CHN-09) |

@@ -13,6 +13,16 @@ export const PILL_TONES = {
   'Job.status': { queued: 'neutral', running: 'info', done: 'success', partial: 'warning', failed: 'danger', cancelled: 'neutral' },
   'Unit.kind': { system: 'neutral', custom: 'success' },
   'Import.row': { ok: 'success', error: 'danger', update: 'info', skip: 'neutral' },
+  'Notification.group': { orders: 'success', queue: 'warning', ai: 'danger', stock: 'warning', parcels: 'danger', payments: 'info', pages: 'danger', credits_plan: 'warning', members: 'violet', integrations: 'info', jobs: 'neutral', moderation: 'warning', safety: 'danger', support: 'info', platform: 'neutral' },
+  'CustomerBlock.source': { manual: 'neutral', auto_rule: 'warning', platform: 'danger' },
+  'AgentInsight.type': { unclear: 'neutral', unknown_topic: 'info', handoff: 'warning', error: 'danger' },
+  'DataDeletion.status': { pending: 'warning', done: 'success', not_found: 'danger' },
+  'Channel.status': { active: 'success', paused: 'warning', pending_review: 'warning', needs_reconnect: 'danger', disabled: 'neutral', disconnected: 'neutral' },
+  'Channel.platform': { facebook: 'info', instagram: 'violet' },
+  'Agent.status': { draft: 'neutral', active: 'success', paused: 'warning' },
+  'Channel.permission': { granted: 'success', pending: 'warning', missing: 'danger' },
+  'Conversation.status': { active: 'success', needs_human: 'warning', resolved: 'neutral', archived: 'neutral' },
+  'Client.riskLevel': { normal: 'success', high: 'danger' },
   'Order.status': { new: 'info', confirmed: 'info', preparing: 'info', shipped: 'orange', delivered: 'success', returned: 'danger', cancelled: 'neutral' },
 } as const satisfies Record<string, Record<string, Tone>>;
 

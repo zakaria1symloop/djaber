@@ -9,6 +9,7 @@ import { WorkspaceDeletionService } from '../../src/modules/workspace/workspace-
 import { anonymous, asAdmin, asLoneUser, asMember, asOperator, asOwner } from '../support/actors';
 import { createTestApp, type TestApp } from '../support/app';
 import { api, db, eventually, mailsTo, PASSWORD, register, setPassword } from '../support/m1';
+import { drain } from '../support/m2';
 
 let app: TestApp;
 beforeAll(async () => {
@@ -250,7 +251,10 @@ describe('danger zone (FL-14)', () => {
     expect(res.body.data.status).toBe('deletion_scheduled');
     expect(Math.round((new Date(res.body.data.deletionScheduledAt).getTime() - Date.now()) / DAY)).toBe(30);
 
-    // channels unsubscribed: disconnected, token cleared ⇒ nothing is received or answered (AI stops)
+    // channels are disconnected at once ⇒ nothing is received or answered (AI stops); the Meta unsubscribe is a queued
+    // job (M3, through the Meta port) that wipes the stored token when it is done
+    expect((await db.channel.findUniqueOrThrow({ where: { id: channel.id } })).status).toBe('disconnected');
+    expect(await drain(app, owner.workspaceId, ['job'])).toContain('channel-unsubscribe');
     const ch = await db.channel.findUniqueOrThrow({ where: { id: channel.id } });
     expect(ch).toMatchObject({ status: 'disconnected', accessToken: null });
     // members: reads still work, every mutation is refused

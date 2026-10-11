@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { expectNoA11yViolations } from './support/a11y';
-import { apiReady, createAccount, loginHome, type Account } from './support/m1';
+import { apiReady, createAccount, expectUrl, loginHome, type Account } from './support/m1';
 import { archiveProduct, catalogReady, seedCategory, seedProduct, setStockMode, sku } from './support/m2';
 
 test.describe.configure({ mode: 'serial' });
@@ -109,7 +109,7 @@ test('AT-CAT-07 archive from the page: archived banner, read-only, hidden from t
   await page.getByRole('button', { name: 'Actions' }).click();
   await page.getByRole('menuitem', { name: 'Archiver' }).click();
   await page.getByTestId('archive-submit').click();
-  await page.waitForURL('**/fr/products');
+  await expectUrl(page, '**/fr/products');
   await page.waitForLoadState('networkidle');
   await expect(page.locator('[data-row]').filter({ hasText: TO_ARCHIVE })).toHaveCount(0);
 

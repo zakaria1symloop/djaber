@@ -53,8 +53,8 @@ GET|PUT /workspace/system-messages { handoff, out_of_hours, out_of_stock, welcom
 
 ### Channels
 ```
-GET /channels · GET /channels/:id · PATCH /channels/:id { status: active|paused } · DELETE /channels/:id
-GET /channels/connect/facebook → url · GET /channels/callback/facebook
+GET /channels · GET /channels/:id · PATCH /channels/:id { status: active|paused, swapWithChannelId? } · DELETE /channels/:id
+GET /channels/connect/facebook → url · GET /channels/callback/facebook · GET /channels/connect/reports/:id → ConnectReport (kept 10 min, same-tab return)
 GET /channels/connect/instagram → url · GET /channels/callback/instagram
 POST /channels/:id/reconnect → url
 GET /channels/:id/insights · GET /channels/:id/summary · GET /channels/:id/messages?direction&from&to
@@ -148,7 +148,7 @@ GET /reports · GET /reports/:key?from&to&format=json|xlsx|pdf (→ 202 when > 5
 
 ### Notifications, home, analytics
 ```
-GET /notifications?type&unread&cursor · GET /notifications/unread-count · POST /notifications/:id/read · POST /notifications/read-all
+GET /notifications?type&types&group&unread&from&to&cursor · GET /notifications/unread-count → { count } · POST /notifications/:id/read · POST /notifications/read-all
 GET|PUT /notification-preferences
 GET /dashboard/home
 GET /analytics/overview?from&to|period&compare=previous → { kpis: { [key]: { value, previous?, deltaPct? } }, series[] }   `[FIG ANA-02 overview]`
@@ -273,7 +273,7 @@ GET /safety/blocks?q&source&page · POST /safety/blocks { clientId | phone, reas
 POST /conversations/:id/block { reason: BlockReason, note? } · POST /conversations/:id/unblock · POST /conversations/bulk/block { ids[] }
 POST /safety/reports { type: conversation|customer|ai_message|product, conversationId?, clientId?, messageId?, productId?, reason: ReportReason, details?, blockAlso? } → { id, status } (Operator+; ABUSE_REPORT_ALREADY_OPEN / ABUSE_REPORT_RATE_LIMITED / ABUSE_REPORT_SELF) `[FIG SAFE Signaler à Djaber]`
 GET /safety/reports (mine / workspace) · GET /safety/reports/:id   (`GET /reports` is the reports hub, §2)
-GET|PUT /safety/rules { riskAfterReturns, autoBlockAfterUncollected, handoffOnRisk } (Admin+) · GET|PUT /safety/blocked-words { words[] }
+GET|PUT /safety/rules { riskAfterReturns, autoBlockEnabled, autoBlockAfterUncollected (≥ 1), handoffOnRisk } (Admin+) · GET|PUT /safety/blocked-words { words[] }
 POST /clients/:id/risk { riskLevel: normal|high }   `[FIG SAFE "Marquer risque"]`
 GET /conversations?blocked=1 (tab "Bloqués")
 ```

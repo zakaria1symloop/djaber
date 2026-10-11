@@ -3,7 +3,7 @@
 import { deflateSync } from 'node:zlib';
 import { expect, test, type Page } from '@playwright/test';
 import { expectNoA11yViolations } from './support/a11y';
-import { API, apiReady, authHeaders, createAccount, login, loginHome, type Account } from './support/m1';
+import { API, apiReady, authHeaders, createAccount, expectUrl, login, loginHome, type Account } from './support/m1';
 import { catalogReady, getProduct, seedProduct, setStockMode, sku, type SeedProduct } from './support/m2';
 
 test.describe.configure({ mode: 'serial' });
@@ -105,7 +105,7 @@ test('AT-CAT-01 price 0 ⇒ validation.price inline; selling < cost ⇒ saved wi
   await page.locator('#sku').fill('');
   await page.getByTestId('form-save').click();
   await expect(page.locator('[data-toast="warning"]').filter({ hasText: 'SELLING_BELOW_COST' })).toBeVisible({ timeout: 20_000 });
-  await page.waitForURL(/\/fr\/products\/[0-9a-f-]{36}$/);
+  await expectUrl(page, /\/fr\/products\/[0-9a-f-]{36}$/);
   const id = page.url().split('/').pop()!;
   const saved = (await getProduct(request, account, id)) as SeedProduct & { price: number; costPrice: number; stock: number };
   expect(saved.name).toBe(name);
@@ -281,7 +281,7 @@ test('leave guard on a dirty form, then 409 conflict: Recharger takes the server
 test('AT-UX-02 the product form in Arabic is right-to-left, SKU and amounts stay left-to-right, no horizontal overflow', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await login(page, account, 'ar');
-  await page.waitForURL('**/ar/home');
+  await expectUrl(page, '**/ar/home');
   await openEdit(page, withVariants.id, 'ar');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.locator('#sku')).toHaveAttribute('dir', 'ltr');
@@ -326,7 +326,7 @@ test('AT-ONB-01 the "first product" step creates the product, with inline errors
   const step = await request.patch(`${API}/workspace/onboarding`, { headers: authHeaders(fresh), data: { step: 3 } });
   expect(step.ok(), await step.text()).toBeTruthy();
   await login(page, fresh);
-  await page.waitForURL('**/fr/onboarding/first-product');
+  await expectUrl(page, '**/fr/onboarding/first-product');
   await expect(page.getByRole('heading', { name: 'Ajoutez votre premier produit' })).toBeVisible();
 
   await page.getByTestId('first-product-submit').click();
@@ -341,15 +341,15 @@ test('AT-ONB-01 the "first product" step creates the product, with inline errors
 
   await page.locator('#p-price').fill('4900');
   await page.getByTestId('first-product-submit').click();
-  await page.waitForURL('**/fr/onboarding/agent', { timeout: 20_000 });
+  await expectUrl(page, '**/fr/onboarding/agent', { timeout: 20_000 });
   const list = await request.get(`${API}/products?pageSize=25`, { headers: authHeaders(fresh) });
   const rows = ((await list.json()) as { data: { name: string; price: number; stock: number }[] }).data;
   expect(rows.map((r) => [r.name, r.price, r.stock])).toEqual([['La Robe satin', 4900, 14]]);
   // the step stays skippable: back, then "Plus tard" creates nothing
   await page.getByRole('link', { name: 'Produit', exact: true }).click();
-  await page.waitForURL('**/fr/onboarding/first-product');
+  await expectUrl(page, '**/fr/onboarding/first-product');
   await page.getByRole('button', { name: 'Plus tard' }).click();
-  await page.waitForURL('**/fr/onboarding/agent');
+  await expectUrl(page, '**/fr/onboarding/agent');
   const again = await request.get(`${API}/products?pageSize=25`, { headers: authHeaders(fresh) });
   expect(((await again.json()) as { data: unknown[] }).data).toHaveLength(1);
 });

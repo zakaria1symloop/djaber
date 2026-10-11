@@ -12,7 +12,7 @@ All names are final. WebSocket event names are `<entity>.<verb>`; queue names ar
 |---|---|
 | `ws` | `WsEmitter.emit(room, event, payload)` via Redis pub/sub |
 | `notification` | `NotificationProducer.emit(...)` |
-| `meta-send` | add job to queue `outbox` name `meta-send` (job id = key) |
+| `job` | add the job described by the payload `{ queue, name, data, opts }` to its queue, job id = key (`QueueOutbox.add`): `meta-send` (`send:<messageId>` on queue `outbox`), `fetch-attachment`, `process-event` (`inbound:<externalId>`), every `jobs` job |
 | `webhook` | add job to `outbox` name `webhook-dispatch` per active endpoint subscribed to the event |
 | `sheets` | add job to `outbox` name `sheets-upsert` (job id = `sheets:<orderId>`, delay 5 s, replaces pending) |
 | `audit` | insert `AuditLog` |
@@ -204,7 +204,7 @@ One row per value of the Postgres enum `NotificationType` (56 values, schema ord
 | `product_changes_requested` · `product.changes_requested` | `ModerationService.decide` (request-changes) | ● | ● | — | — | — | `/products/:id` | `{ productId, merchantMessage }` |
 | `moderation_appeal_result` · `moderation.appeal_result` | `ModerationService.decideAppeal` | ● | ● | — | — | — | `/products/:id` | `{ productId, outcome: 'upheld'\|'overturned' }` |
 | `report_resolved` · `report.resolved` | `AbuseReportService.decide` (`notifyReporter=true`) | ● | ● | — | — | — | `/settings/security` | `{ reportId, outcome }` |
-| `customer_auto_blocked` · `customer.auto_blocked` | `CustomerBlockService` auto rule (`safety/rules.autoBlockAfterUncollected`) and `sched-abuse-auto-rules` | ● | — | — | — | — | `/settings/security` | `{ clientId, rule }` |
+| `customer_auto_blocked` · `customer.auto_blocked` | `CustomerBlockService` auto rule (`safety/rules`: only when `autoBlockEnabled`, threshold `autoBlockAfterUncollected`) and `sched-abuse-auto-rules` | ● | — | — | — | — | `/settings/security` | `{ clientId, rule }` |
 | `support_reply` · `support.reply` | `SupportTicketService.reply` (admin message with `isInternal=false`, status changes) | ● (ticket author) | ● | — | — | — | `/help/tickets/:id` | `{ ticketId }` |
 | `credits_pack_purchased` · `credits.pack_purchased` | `CreditPackService.credit` (Chargily `payment-webhook`) and `IapService.validate` (`iap-validate`) | ● | ● | — | — | — | `/settings/credits` | `{ purchaseId, credits, channel }` |
 | `credits_negative` · `credits.negative` | `IapService` store refund (`POST /webhooks/store/*` ⇒ `CreditLedger action=store_refund`) | ● | ● | ● | — | — | `/settings/credits` | `{ balance }` |

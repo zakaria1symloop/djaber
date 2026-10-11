@@ -132,7 +132,9 @@ export function FilterRange({
   labels: { min: string; max: string };
 }) {
   const [draft, setDraft] = React.useState({ min, max });
-  React.useEffect(() => setDraft({ min, max }), [min, max]);
+  // each bound follows its own prop: committing "min" (blur) must not wipe a "max" already being typed
+  React.useEffect(() => setDraft((d) => ({ ...d, min })), [min]);
+  React.useEffect(() => setDraft((d) => ({ ...d, max })), [max]);
   const commit = () => {
     if (draft.min !== min || draft.max !== max) onChange(draft);
   };
