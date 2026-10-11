@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { exportPKCS8, exportSPKI, generateKeyPair, importPKCS8, importSPKI, jwtVerify, SignJWT, type KeyLike } from 'jose';
 import { ConfigService } from '../config/config.service';
+import { fromRepoRoot } from '../config/repo-root';
 
 export type AccessClaims = {
   sub: string;
@@ -32,7 +33,7 @@ export class TokenService implements OnModuleInit {
     } else {
       if (this.config.isProd) throw new Error('JWT_PRIVATE_KEY / JWT_PUBLIC_KEY are required');
       // dev / test: generate once and keep under .local/keys (git-ignored)
-      const dir = resolve(process.cwd(), this.config.isTest ? '.local/test-keys' : '../../.local/keys');
+      const dir = fromRepoRoot(this.config.isTest ? '.local/test-keys' : '.local/keys');
       const privFile = resolve(dir, 'jwt.key');
       const pubFile = resolve(dir, 'jwt.pub');
       if (existsSync(privFile) && existsSync(pubFile)) {

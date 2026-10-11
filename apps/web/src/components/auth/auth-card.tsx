@@ -78,7 +78,7 @@ export function LocaleSwitch({ className }: { className?: string }) {
 
 export function AuthLink({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
   return (
-    <Link href={href} className={cn('text-text-primary underline-offset-4 hover:underline', className)}>
+    <Link href={href} className={cn('text-text-primary underline decoration-line-lit underline-offset-4 hover:decoration-white', className)}>
       {children}
     </Link>
   );
