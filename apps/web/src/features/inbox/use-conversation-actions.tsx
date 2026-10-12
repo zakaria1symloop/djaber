@@ -9,7 +9,7 @@ import { ConflictDialog } from '@/components/global-states';
 import { BlockCustomerDialog, ReportCustomerDialog, type ReportTarget } from '@/features/safety/dialogs';
 import { useRouter } from '@/i18n/navigation';
 import { toMenuActions, type ActionHandler } from '@/lib/actions';
-import { ApiError } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { conflictOf } from '@/lib/conflict';
 import { errorMessage } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
@@ -113,6 +113,19 @@ export function useConversationActions(o: { onDeleted?: (id: string) => void } =
     });
   const unblock = (row: Row) => run(row.id, () => inboxApi.unblock(row.id), t('inbox.toast.unblocked'));
   const restore = (row: Row) => run(row.id, () => inboxApi.restore(row.id), t('inbox.toast.restored'));
+  /** `POST /clients/:id/risk` (MOB-R13 / SAFE "Marquer « risque »"): the client is flagged manually, the AI and the order list show it */
+  const setRisk = (row: Row, riskLevel: 'normal' | 'high') => {
+    const clientId = row.client?.id;
+    if (!clientId) return;
+    return run(
+      row.id,
+      async () => {
+        await api(`/clients/${clientId}/risk`, { method: 'POST', body: { riskLevel } });
+        void qc.invalidateQueries({ queryKey: [ws, 'client', clientId] });
+        void qc.invalidateQueries({ queryKey: [ws, 'clients'] });
+      },
+      t(riskLevel === 'high' ? 'inbox.toast.markedRisk' : 'inbox.toast.markedReliable'));
+  };
 
   const confirmDelete = async () => {
     if (!toDelete) return;
@@ -154,7 +167,11 @@ export function useConversationActions(o: { onDeleted?: (id: string) => void } =
       reopen: { label: t('inbox.menu.reopen'), onSelect: () => void reopen(row), hidden: row.status !== 'resolved' && row.status !== 'archived' },
       archive: { label: t('action.archive'), onSelect: () => void archive(row), hidden: row.status === 'archived' },
       markUnread: { label: t('inbox.menu.markUnread'), onSelect: () => void markUnread(row), hidden: row.unreadCount > 0 },
-      // M5: "Fiche client", "Nouvelle commande", "Commandes de ce client" (clients / orders modules)
+      clientSheet: { label: row.client?.isPlaceholder ? t('inbox.client.complete') : t('inbox.client.sheet'), onSelect: () => router.push(`/clients?sheet=${row.client?.id}`), local: true, separated: true, hidden: !row.client || !can('clients.read') },
+      newOrder: { label: t('inbox.orders.new', { name: (row.client?.name ?? '').trim().split(/\s+/)[0] ?? '' }), onSelect: () => router.push(`/orders/new?clientId=${row.client?.id}&conversationId=${row.id}`), local: true, hidden: !row.client || row.client.isPlaceholder || !can('orders.write') },
+      clientOrders: { label: t('inbox.client.ordersLink'), onSelect: () => router.push(`/orders?clientId=${row.client?.id}`), local: true, hidden: !row.client || row.client.isPlaceholder || !can('orders.read') },
+      markRisk: { label: t('inbox.menu.markRisk'), onSelect: () => void setRisk(row, 'high'), local: true, hidden: !row.client || row.client.isPlaceholder || row.client.riskLevel === 'high' || !can('clients.write') },
+      markReliable: { label: t('inbox.menu.markReliable'), onSelect: () => void setRisk(row, 'normal'), local: true, hidden: !row.client || row.client.riskLevel !== 'high' || !can('clients.write') },
       insights: { label: t('inbox.menu.insights'), onSelect: () => setInsightsOf(row.id), local: true, separated: true, hidden: !row.agent || !can('agents.read') },
       block: { label: t('inbox.menu.block'), onSelect: () => setToBlock(row), destructive: true, separated: true, hidden: row.blocked || hidden('block', can('safety.block')) },
       unblock: { label: t('action.unblock'), onSelect: () => void unblock(row), separated: true, hidden: !row.blocked || hidden('unblock', can('safety.manage')) },

@@ -123,7 +123,7 @@ POST /orders/:id/payment-link (P2, link valid 15 min) · POST /orders/:id/refund
 ### Delivery
 ```
 GET /geo/wilayas · GET /geo/wilayas/:id/communes
-GET /delivery/fees · PUT /delivery/fees/:wilayaId { homeFee, stopdeskFee, freeAbove? } · DELETE /delivery/fees/:wilayaId (back to the default grid; FEE_RULE_NOT_FOUND when no custom row) · POST /delivery/fees/seed { overwrite } · GET /delivery/fees/quote?wilayaId&stopdesk&subtotal
+GET /delivery/fees · PUT /delivery/fees/:wilayaId { homePrice, stopdeskPrice, returnPrice?, freeAbove?, isActive? } · DELETE /delivery/fees/:wilayaId (back to the default grid; FEE_RULE_NOT_FOUND when no custom row) · POST /delivery/fees/seed { overwrite } · GET /delivery/fees/quote?wilayaId&stopdesk&subtotal
 GET /delivery/couriers/providers (P2) · GET|POST /delivery/couriers · PATCH|DELETE /delivery/couriers/:id · POST /delivery/couriers/:id/test (P2)
 POST /orders/:id/shipments { courierAccountId?, wilayaId, communeId|communeText, address, isStopdesk, stopdeskId? (required when isStopdesk and the provider has stop-desks), weight? } (P2)
 POST /shipments/bulk { orderIds[], courierAccountId? } → 202 (P2)

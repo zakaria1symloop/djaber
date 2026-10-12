@@ -1,24 +1,12 @@
 // M1 — members & invitations (FL-13, D30): invite, resend, revoke, preview, accept, role change, removal, plan limit.
-import { Controller, Delete, Param } from '@nestjs/common';
-import { RequirePermission } from '../../src/core/auth/decorators';
 import { TenantResolver } from '../../src/core/tenancy/tenant.resolver';
 import { anonymous, asAdmin, asLoneUser, asOperator, asOwner, createUser } from '../support/actors';
 import { createTestApp, type TestApp } from '../support/app';
 import { api, db, eventually, login, mailsTo, PASSWORD, refreshCookie, register, setPassword, tokenOf, uniqEmail, withToken } from '../support/m1';
 
-/** Stand-in for `DELETE /orders/:id` (M5, permission `orders.money` = Admin+). */
-@Controller('_m1/orders')
-class OrdersHarnessController {
-  @Delete(':id')
-  @RequirePermission('orders.money')
-  remove(@Param('id') id: string) {
-    return { id };
-  }
-}
-
 let app: TestApp;
 beforeAll(async () => {
-  app = await createTestApp({ controllers: [OrdersHarnessController] });
+  app = await createTestApp();
 });
 afterAll(async () => {
   await app.close();
@@ -58,8 +46,10 @@ describe('invitations', () => {
 
     // the operator works in the workspace but cannot delete an order (Admin+) nor manage members
     await op.get('/workspace').expect(200);
-    expect((await op.delete('/_m1/orders/123').expect(403)).body.error.code).toBe('FORBIDDEN');
-    await owner.delete('/_m1/orders/123').expect(200);
+    // the real order delete route (M5; `orders.money` = Admin+): 403 for the operator, the owner reaches it (404: no such order)
+    const missing = '00000000-0000-7000-8000-000000000000';
+    expect((await op.delete(`/orders/${missing}`).expect(403)).body.error.code).toBe('FORBIDDEN');
+    expect((await owner.delete(`/orders/${missing}`).expect(404)).body.error.code).toBe('NOT_FOUND');
     expect((await op.post('/workspace/invitations', { email: uniqEmail(), role: 'operator' }).expect(403)).body.error.code).toBe('FORBIDDEN');
     const members = await op.get('/workspace/members').expect(200);
     expect(members.body.data.map((m: any) => m.role)).toEqual(['owner', 'operator']);

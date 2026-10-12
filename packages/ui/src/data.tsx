@@ -95,13 +95,13 @@ export function Pagination({
             ))}
           </Select>
         ) : null}
-        <Button size="sm" aria-label={labels.previous} disabled={page <= 1} onClick={() => onPageChange(page - 1)} className="!px-2">
+        <Button size="sm" aria-label={labels.previous} title={labels.previous} disabled={page <= 1} onClick={() => onPageChange(page - 1)} className="!px-2">
           <ChevronLeft className="size-4 rtl:-scale-x-100" />
         </Button>
         <span className="whitespace-nowrap ts-label-meta tabular-nums text-text-secondary">
           {page} / {pages}
         </span>
-        <Button size="sm" aria-label={labels.next} disabled={page >= pages} onClick={() => onPageChange(page + 1)} className="!px-2">
+        <Button size="sm" aria-label={labels.next} title={labels.next} disabled={page >= pages} onClick={() => onPageChange(page + 1)} className="!px-2">
           <ChevronRight className="size-4 rtl:-scale-x-100" />
         </Button>
       </div>

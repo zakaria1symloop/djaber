@@ -12,7 +12,9 @@ export type MailTemplateName =
   | 'workspace/invitation'
   | 'workspace/ownership-transferred'
   | 'workspace/deletion-scheduled'
-  | 'workspace/deleted';
+  | 'workspace/deleted'
+  /** 03-events §5.3 generic "notification/<type>" layout: title, body, CTA deep link (the type rides in params.type) */
+  | 'notification';
 
 type L = Record<AppLocale, string>;
 type Copy = { subject: L; title: L; body: L; cta?: L; footer?: L };
@@ -20,6 +22,12 @@ type Copy = { subject: L; title: L; body: L; cta?: L; footer?: L };
 const l = (fr: string, ar: string, en: string): L => ({ fr, ar, en });
 
 const COPY: Record<MailTemplateName, Copy> = {
+  notification: {
+    subject: l('{title}', '{title}', '{title}'),
+    title: l('{title}', '{title}', '{title}'),
+    body: l('{body}', '{body}', '{body}'),
+    cta: l('Ouvrir dans Djaber', 'فتح في جابر', 'Open in Djaber'),
+  },
   'auth/verify': {
     subject: l('Vérifiez votre e-mail', 'تحقق من بريدك الإلكتروني', 'Verify your e-mail'),
     title: l('Bienvenue sur Djaber, {firstName}', 'مرحبًا بك في جابر، {firstName}', 'Welcome to Djaber, {firstName}'),

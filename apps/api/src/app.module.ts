@@ -20,6 +20,10 @@ import { AiCoreModule } from './modules/ai/ai-core.module';
 import { AiModule } from './modules/ai/ai.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
+import { ClientsModule } from './modules/clients/clients.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { DeliveryModule } from './modules/delivery/delivery.module';
+import { OrdersModule } from './modules/orders/orders.module';
 import { ChannelsModule } from './modules/channels/channels.module';
 import { CreditsModule } from './modules/credits/credits.module';
 import { JobsModule } from './modules/jobs/jobs.module';
@@ -32,7 +36,7 @@ import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { PlatformPublicModule } from './modules/platform-public/platform-public.module';
 
 /** Feature modules are appended here milestone after milestone (00-build-order). */
-export const FEATURE_MODULES = [PlatformPublicModule, AccountModule, UploadsModule, WorkspaceModule, AuthModule, NotificationsModule, JobsModule, CreditsModule, AiCoreModule, CatalogModule, MetaModule, ChannelsModule, MessagingModule, AiModule, AgentsModule];
+export const FEATURE_MODULES = [PlatformPublicModule, AccountModule, UploadsModule, WorkspaceModule, AuthModule, NotificationsModule, JobsModule, CreditsModule, AiCoreModule, CatalogModule, MetaModule, ChannelsModule, MessagingModule, DeliveryModule, ClientsModule, OrdersModule, AiModule, AgentsModule, DashboardModule];
 
 @Module({
   imports: [CoreModule, ...FEATURE_MODULES],

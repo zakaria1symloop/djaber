@@ -1,12 +1,14 @@
 'use client';
 // Client panel of the inbox (third pane) — Figma "INB — Inbox — thread with handoff" (CLIENTE · COMMANDES · NOTES
 // INTERNES) + "DLG — Inbox & queue" (panneau client — états: PLACEHOLDER · FUSIONNÉ · AUCUN CLIENT · RISQUE; notes
-// internes with Ctrl+Entrée). Orders are read-only here: the order page and "Nouvelle commande" arrive with M5.
+// internes with Ctrl+Entrée). Since M5: order cards open the order page, "Nouvelle commande pour …" opens the order form
+// prefilled with this client and conversation, "Fiche client" / "Compléter la fiche" open the client sheet.
 import { formatDate, formatMoney, NOTE_MAX_CHARS } from '@djaber/shared';
-import { Button, Card, InternalNote, Ltr, OrderCard, Pill, SectionLabel, Skeleton, StatusPill, Textarea } from '@djaber/ui';
+import { Button, buttonClass, Card, InternalNote, Ltr, OrderCard, Pill, SectionLabel, Skeleton, StatusPill, Textarea } from '@djaber/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import { useState, type RefObject } from 'react';
+import { Link } from '@/i18n/navigation';
 import { errorMessage } from '@/lib/forms';
 import { useT } from '@/lib/i18n';
 import { useSession, useWorkspaceId } from '@/lib/session';
@@ -110,6 +112,7 @@ function ClientCard({ c }: { c: Conversation }) {
         {placeholder ? <p className="mt-3 text-[13px] text-text-secondary">{t('inbox.client.placeholder.description')}</p> : null}
         {c.mergedInto ? <p className="mt-3 text-[13px] text-text-secondary">{t('inbox.client.merged.description', { name: c.mergedInto.name })}</p> : null}
         {base.riskLevel === 'high' && !placeholder ? <p className="mt-3 text-[13px] text-text-secondary">{t('inbox.client.risk.description')}</p> : null}
+        <ClientLinks c={c} clientId={base.id} placeholder={placeholder} />
         {client?.notes ? (
           <p className="mt-3 whitespace-pre-wrap border-t border-line-hairline pt-3 text-[13px] text-text-secondary" dir="auto">
             {client.notes}
@@ -133,7 +136,7 @@ function Orders({ c }: { c: Conversation }) {
         <ul className="flex flex-col gap-2">
           {orders.map((o) => (
             <li key={o.id}>
-              {/* M5: the card links to /orders/:id once the order page exists */}
+              <Link href={`/orders/${o.id}`} aria-label={t('inbox.orders.open', { number: o.number })} className="block rounded-card hover:[&>div]:border-line-lit" data-testid="client-panel-order">
               <OrderCard
                 number={o.number.startsWith('#') ? o.number : `#${o.number}`}
                 total={formatMoney(o.total)}
@@ -143,12 +146,49 @@ function Orders({ c }: { c: Conversation }) {
                   </StatusPill>
                 }
               />
+              </Link>
             </li>
           ))}
         </ul>
       )}
-      {/* M5: "Nouvelle commande pour {name}" (order form prefilled with this client) */}
+      <NewOrderButton c={c} />
     </section>
+  );
+}
+
+/** "Fiche client" / "Compléter la fiche" (placeholder) → client sheet; "Commandes de ce client" → orders filtered by client. */
+function ClientLinks({ c, clientId, placeholder }: { c: Conversation; clientId: string; placeholder: boolean }) {
+  const t = useT();
+  const { can } = useSession();
+  if (!clientId) return null;
+  const link = 'ts-label-meta text-accent-inbound hover:underline';
+  return (
+    <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1" data-testid="client-panel-links">
+      {can('clients.read') ? (
+        <Link href={`/clients?sheet=${clientId}`} className={link} data-testid="client-sheet-link">
+          {placeholder ? t('inbox.client.complete') : t('inbox.client.sheet')}
+        </Link>
+      ) : null}
+      {can('orders.read') && !placeholder && (c.client?.orderCount ?? 0) > 0 ? (
+        <Link href={`/orders?clientId=${clientId}`} className={link} data-testid="client-orders-link">
+          {t('inbox.client.ordersLink')}
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
+/** "Nouvelle commande pour {name}": the order form prefilled with the client and this conversation (`orders.write`). */
+function NewOrderButton({ c }: { c: Conversation }) {
+  const t = useT();
+  const { can, readOnly } = useSession();
+  const client = c.clientPanel?.client ?? c.client;
+  if (!client || !can('orders.write') || readOnly) return null;
+  const first = (client.name ?? '').trim().split(/\s+/)[0] ?? '';
+  return (
+    <Link href={`/orders/new?clientId=${client.id}&conversationId=${c.id}`} className={buttonClass({ variant: 'primary', size: 'sm', className: 'w-full' })} data-testid="client-panel-new-order">
+      {t('inbox.orders.new', { name: first })}
+    </Link>
   );
 }
 

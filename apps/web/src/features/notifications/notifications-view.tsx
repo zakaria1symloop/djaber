@@ -3,7 +3,7 @@
 // (type multi-filter, empty "Vous êtes à jour ✓", skeleton 5 rows). Family chips, "Non lues" toggle and the type
 // selection live in the URL; the unread count is the server count; rows are kept fresh by WS (features/notifications/shell).
 import type { NotificationGroup, NotificationView } from '@djaber/shared';
-import { Button, Card, cn, EmptyState, FilterCheckList, FilterDropdown, NotificationListSkeleton, NotificationRow, StatusPill, toast } from '@djaber/ui';
+import { Button, buttonClass, Card, cn, EmptyState, FilterCheckList, FilterDropdown, NotificationListSkeleton, NotificationRow, StatusPill, toast } from '@djaber/ui';
 import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { CheckCheck } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
@@ -103,7 +103,9 @@ export function NotificationsView() {
       description={<span data-testid="unread-count">{t('notification.unreadServer', { count: unread })}</span>}
       actions={
         <>
-          {/* M5: "Préférences" (→ /settings/notifications, NTF-02) arrives with the notification preferences page */}
+          <Link href="/settings/notifications" className={buttonClass()} data-testid="notification-preferences-link">
+            {t('notifications.preferences')}
+          </Link>
           <FilterDropdown label={t('notifications.filter.types')} count={filter.types.length || undefined} align="end">
             <FilterCheckList
               options={typeOptions}

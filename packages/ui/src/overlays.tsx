@@ -168,7 +168,9 @@ export function ActionsMenu({
         <Dropdown.Content
           align={align}
           sideOffset={4}
-          className="z-50 min-w-48 max-w-80 rounded-card border border-line-edge bg-ink-raised p-1 shadow-xl"
+          collisionPadding={8}
+          // long state menus (orders: up to 18 items) scroll inside the space left on screen instead of overflowing it
+          className="z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-48 max-w-80 overflow-y-auto rounded-card border border-line-edge bg-ink-raised p-1 shadow-xl"
           onClick={(e) => e.stopPropagation()}
         >
           {heading ? <Dropdown.Label className="truncate px-2.5 py-1.5 ts-label-micro text-text-muted">{heading}</Dropdown.Label> : null}

@@ -6,3 +6,7 @@ export * from './catalog';
 export * from './channels';
 export * from './inbox';
 export * from './agents';
+export * from './clients';
+export * from './orders';
+export * from './delivery';
+export * from './dashboard';

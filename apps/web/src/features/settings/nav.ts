@@ -10,7 +10,7 @@ export const SETTINGS_NAV: SettingsNavItem[] = [
   { key: 'nav.settings.stockMode', href: '/settings/stock-mode', permission: 'workspace.settings' },
   { key: 'nav.settings.quickReplies', href: '/settings/quick-replies', permission: 'workspace.settings' },
   { key: 'nav.settings.systemMessages', href: '/settings/system-messages', permission: 'workspace.settings' },
-  // M8: Notifications (/settings/notifications, `notifications.own`)
+  { key: 'nav.settings.notifications', href: '/settings/notifications', permission: 'notifications.own' },
   { key: 'nav.settings.security', href: '/settings/security' },
   // M11: Intégrations (/settings/integrations, `integrations.manage`)
   // M9: Plan & facturation (/settings/billing, `billing.read`)

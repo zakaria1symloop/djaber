@@ -12,9 +12,11 @@ import { PageSessionExpired, PageSuspended, QueryError } from '@/components/glob
 import { useAgentEvents } from '@/features/agents/api';
 import { authApi } from '@/features/auth/api';
 import { useCatalogEvents } from '@/features/catalog/api';
+import { useOrderEvents } from '@/features/orders/api';
 import { useChannelBanners, useChannelEvents } from '@/features/channels/shell';
 import { CreditsPillLink, useCreditsBanners, useCreditsEvents } from '@/features/credits/shell';
 import { useInboxBadge, useInboxEvents } from '@/features/inbox/api';
+import { useMessageSound } from '@/features/inbox/sound';
 import { NotificationBell, useUnreadNotifications } from '@/features/notifications/shell';
 import { useQueueCount } from '@/features/queue/shell';
 import { Link, usePathname, useRouter } from '@/i18n/navigation';
@@ -125,6 +127,8 @@ function LiveShell({ groups, banners, children }: { groups: NavGroup[]; banners:
   useChannelEvents();
   useAgentEvents();
   useCreditsEvents();
+  useOrderEvents();
+  useMessageSound();
   const counters = { queue: useQueueCount(), inbox: useInboxBadge(), notifications: useUnreadNotifications() };
   return (
     <AppShell groups={groups} footer={FOOTER_NAV} topBar={<TopBar />} banners={banners} counters={counters}>

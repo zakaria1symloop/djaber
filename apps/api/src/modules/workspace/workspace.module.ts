@@ -41,6 +41,6 @@ import { WorkspaceService } from './workspace.service';
     LegalService,
     WorkspaceDeletionService,
   ],
-  exports: [ProvisioningService, WorkspaceService, InvitationService, LegalService, WorkspaceDeletionService],
+  exports: [ProvisioningService, WorkspaceService, InvitationService, LegalService, WorkspaceDeletionService, OnboardingService],
 })
 export class WorkspaceModule {}

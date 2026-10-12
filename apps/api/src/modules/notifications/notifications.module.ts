@@ -1,12 +1,33 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Logger, Module } from '@nestjs/common';
+import { ConfigService } from '../../core/config/config.service';
+import { NotificationFanoutService } from './notification-fanout.service';
+import { NotificationPreferencesController } from './notification-preferences.controller';
 import { NotificationProducer } from './notification.producer';
 import { NotificationService } from './notification.service';
 import { NotificationsController } from './notifications.controller';
+import { createPushGateway, PUSH_GATEWAY } from './push/push.gateway';
 
 /**
- * Producer (in-app rows + WS, fan-out channels plug in with `registerChannel`) and the notification centre endpoints.
- * Preferences, e-mail and push channels arrive with M5.
+ * Producer (in-app rows + WS) with its e-mail and push channels (M5: preferences per member and type, 03 §15 matrix),
+ * the notification centre and the preferences endpoints. Push goes through the FCM port (`fake` adapter by default).
  */
 @Global()
-@Module({ controllers: [NotificationsController], providers: [NotificationProducer, NotificationService], exports: [NotificationProducer, NotificationService] })
+@Module({
+  controllers: [NotificationsController, NotificationPreferencesController],
+  providers: [
+    NotificationProducer,
+    NotificationService,
+    NotificationFanoutService,
+    {
+      provide: PUSH_GATEWAY,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const gateway = createPushGateway(config.all);
+        new Logger('NotificationsModule').log(`push adapter: ${gateway.driver}`);
+        return gateway;
+      },
+    },
+  ],
+  exports: [NotificationProducer, NotificationService, NotificationFanoutService, PUSH_GATEWAY],
+})
 export class NotificationsModule {}

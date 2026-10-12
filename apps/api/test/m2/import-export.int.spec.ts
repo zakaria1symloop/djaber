@@ -359,7 +359,7 @@ describe('exports and jobs', () => {
       // later milestones add their own job names to the same queues (M3: channel / history / data-deletion jobs, attachment downloads)
       expect([...registry.handlers.get('jobs')!.keys()]).toEqual(expect.arrayContaining(['export', 'product-import-commit', 'product-import-preview']));
       expect([...registry.handlers.get('media')!.keys()]).toEqual(expect.arrayContaining(['caption-image', 'reencode-image']));
-      expect([...registry.outbox.keys()].sort()).toEqual(['audit', 'job', 'mail', 'notification', 'webhook', 'ws']);
+      expect([...registry.outbox.keys()].sort()).toEqual(['audit', 'job', 'mail', 'notification', 'sheets', 'webhook', 'ws']); // `sheets`: M5 (consumer in M11)
     } finally {
       await worker.close();
     }

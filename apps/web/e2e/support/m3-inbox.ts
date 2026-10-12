@@ -74,9 +74,14 @@ export async function reply(request: APIRequestContext, a: Account, id: string, 
 export async function patchAnswer(page: Page, url: RegExp, fn: (data: any) => unknown, method = 'GET') {
   await page.route(url, async (route) => {
     if (route.request().method() !== method) return route.fallback();
-    const res = await route.fetch();
-    const json = (await res.json()) as { data: unknown };
-    await route.fulfill({ response: res, json: { ...json, data: fn(json.data) } });
+    // a request still in flight when the test ends has its response disposed: nothing to rewrite any more
+    try {
+      const res = await route.fetch();
+      const json = (await res.json()) as { data: unknown };
+      await route.fulfill({ response: res, json: { ...json, data: fn(json.data) } });
+    } catch {
+      await route.abort().catch(() => undefined);
+    }
   });
 }
 

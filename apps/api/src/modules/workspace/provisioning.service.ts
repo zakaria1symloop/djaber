@@ -1,9 +1,10 @@
 // AUTH-01 / D30 / D60 — creates a workspace with its owner membership, the 14-day Pro trial, the 300-credit grant
-// and the workspace defaults (system messages, 4 quick replies in the workspace locale, onboarding step 1).
+// and the workspace defaults (system messages, 4 quick replies in the workspace locale, the 58-row fee grid, onboarding step 1).
 import { Injectable } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { DEFAULT_QUICK_REPLIES, DEFAULT_SYSTEM_MESSAGES, type Tx, type Workspace } from '@djaber/db';
 import type { AppLocale } from '@djaber/shared';
+import { defaultFeeRows } from '../delivery/fee.service';
 
 const DAY = 86_400_000;
 
@@ -90,6 +91,8 @@ export class ProvisioningService {
         sortOrder: i,
       })),
     });
+    // DLV-01: the fee grid starts from the default table (58 rows, `source=default`)
+    await tx.deliveryFeeRule.createMany({ data: await defaultFeeRows(tx, ws.id), skipDuplicates: true });
     return ws;
   }
 }

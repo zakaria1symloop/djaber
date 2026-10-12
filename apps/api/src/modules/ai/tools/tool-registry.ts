@@ -58,6 +58,7 @@ export const TOOL_DEFS: Record<ToolName, AiToolDef> = {
         items: { type: 'array', minItems: 1, maxItems: 20, items: { type: 'object', required: ['productId', 'quantity'], properties: { productId: { type: 'string' }, variantId: { type: 'string' }, quantity: { type: 'integer', minimum: 1 } } } },
         notes: { type: 'string', maxLength: 500 },
         customerConfirmed: { const: true },
+        phoneConfirmed: { type: 'boolean', description: 'true once the customer re-confirmed the phone number when a tool asked for it' },
       },
     },
   },
@@ -107,6 +108,7 @@ const OrderArgs = z.object({
   items: z.array(z.object({ productId: str.min(1), variantId: str.optional(), quantity: z.coerce.number().int().min(1) })).min(1).max(20),
   notes: str.max(500).optional(),
   customerConfirmed: z.unknown().optional(),
+  phoneConfirmed: z.boolean().optional(),
 });
 const EXAMPLES: Record<string, string | number> = { clientName: 'Amine Benali', clientPhone: '0555123456', secondPhone: '0661123456', wilayaId: 16, address: 'Cité 200 logements, Bt 4, Bab Ezzouar', quantity: 1 };
 const normQuestion = (q: string) => fold(q).replace(/\s+/g, ' ').slice(0, 200);
@@ -131,6 +133,8 @@ export class ToolRegistry {
   forcedHandoff(name: string, args: Record<string, unknown>, result: unknown): string | null {
     if (canonicalTool(name) === 'handoff_to_human') return typeof args.reason === 'string' && (HANDOFF_REASONS as readonly string[]).includes(args.reason) ? args.reason : 'other';
     const r = result as { hint?: unknown; error?: { code?: unknown } } | null;
+    // 04 §13 / 04-ai-pipeline §4.2: a blocked customer, or a risky one with RISKY_CLIENT_POLICY=handoff, goes to the team
+    if (r?.hint === 'risky_client' || r?.error?.code === 'CUSTOMER_BLOCKED') return 'risky_client';
     if (r?.hint === 'handoff') return r.error?.code === 'ORDERS_UNAVAILABLE' ? 'orders_unavailable' : 'other';
     return null;
   }
@@ -272,7 +276,7 @@ export class ToolRegistry {
     if (quantity > maxQty || subtotal + deliveryFee > maxAmount) return fail({ ok: false, hint: 'order_limit', maxQty, maxAmount });
     return {
       ok: true,
-      request: { clientName: d.clientName, clientPhone: phone, secondPhone: phone2, wilayaId: d.wilayaId, communeName: d.communeName || null, address: d.address || null, isStopdesk: d.isStopdesk, stopdeskId: d.stopdeskId || null, notes: d.notes || null, items, subtotal, deliveryFee, total: subtotal + deliveryFee },
+      request: { clientName: d.clientName, clientPhone: phone, secondPhone: phone2, wilayaId: d.wilayaId, communeName: d.communeName || null, address: d.address || null, isStopdesk: d.isStopdesk, stopdeskId: d.stopdeskId || null, notes: d.notes || null, items, subtotal, deliveryFee, total: subtotal + deliveryFee, ...(d.phoneConfirmed ? { phoneConfirmed: true } : {}) },
     };
   }
 

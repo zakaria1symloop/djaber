@@ -250,7 +250,7 @@ describe('tools', () => {
     expect(t.runs[0]!.creditsCharged).toBe(1);
   });
 
-  it('AT-AI-04 order capture up to `create_order`: invalid phone re-asked, phone normalised, fee from the grid, limits, 1 credit for the text and 0 for the order (order row: M5)', async () => {
+  it('AT-AI-04 order capture up to `create_order`: invalid phone re-asked, phone normalised, fee from the grid, limits, 1 credit for the text and 0 for the order (the order row itself: test/m5/ai-orders)', async () => {
     const s = await shop({ maxQtyPerOrder: 3 });
     await feeRule(s.owner.workspaceId, 16, 400, 300);
     const port = app.app.get<OrderTools>(ORDER_TOOLS);
@@ -269,15 +269,15 @@ describe('tools', () => {
     expect(r.filter((x) => x.error?.code === 'CONFIRMATION_REQUIRED')).toHaveLength(1);
     expect(r.filter((x) => x.hint === 'order_limit')).toEqual([{ ok: false, hint: 'order_limit', maxQty: 3, maxAmount: 50000 }]);
     expect(r.filter((x) => x.error?.field === 'address')).toHaveLength(1);
-    // the validated request handed to the orders port (M5 swaps its implementation)
+    // the validated request handed to the orders port (bound to the orders module since M5)
     expect(create).toHaveBeenCalledTimes(1);
     expect(create.mock.calls[0]![1]).toMatchObject({ clientPhone: '0555123456', wilayaId: 16, subtotal: 4500, deliveryFee: 400, total: 4900, items: [{ productId: s.robe.id, quantity: 1, unitPrice: 4500, name: 'Robe satin bordeaux' }] });
     expect(create.mock.calls[0]![0]).toMatchObject({ runId: t.runs[0]!.id, conversationId: t.conversationId, agentId: s.agent.id });
-    // M4: no orders module ⇒ a clear tool result and the thread goes to the team (even though the model said OK)
-    expect(r.at(-1)).toMatchObject({ ok: false, error: { code: 'ORDERS_UNAVAILABLE' }, hint: 'handoff' });
-    expect(t.conversation.status).toBe('needs_human');
-    expect(t.runs[0]).toMatchObject({ status: 'handoff', creditsCharged: 1 });
-    expect(await db.order.count({ where: { workspaceId: s.owner.workspaceId } })).toBe(0);
+    // M5: the orders module creates the order; the thread stays with the AI
+    expect(r.at(-1)).toMatchObject({ ok: true, number: 'CMD-1001', total: 4900, duplicateOf: null });
+    expect(t.conversation.status).toBe('active');
+    expect(t.runs[0]).toMatchObject({ status: 'ok', creditsCharged: 1 });
+    expect(await db.order.count({ where: { workspaceId: s.owner.workspaceId } })).toBe(1);
     expect((await debits(s.owner.workspaceId)).map((d) => [d.action, d.credits])).toEqual([['text_reply', -1]]);
     create.mockRestore();
   });
@@ -353,13 +353,14 @@ describe('tools', () => {
     expect(ask.runs.at(-1)!.toolCalls[0]).toMatchObject({ name: 'cancel_order', result: { ok: true, candidates: [{ number: 'CMD-2001', total: 4900, status: 'confirmed' }] } });
     expect(cancel).not.toHaveBeenCalled();
     expect(ask.out.at(-1)!.text).toContain('CMD-2001');
-    // confirmed ⇒ the port is asked to cancel THIS order (M4: unavailable ⇒ handoff; OrderEffects.cancel arrives in M5)
+    // confirmed ⇒ the port cancels THIS order through OrderEffects (M5); the model then hands off as scripted
     fakeAi(app).script('reply', { toolCalls: [{ name: 'cancel_order', args: { orderNumber: 'CMD-2001', customerConfirmed: true, reason: 'changed mind' } }] }, { reply: 'Je transmets à un conseiller.', status: 'HANDOFF', statusDetail: 'customer_request', intent: 'OTHER' });
     const confirm = await turn(s, sender, { text: 'oui annulez la' });
     expect(cancel).toHaveBeenCalledTimes(1);
     expect(cancel.mock.calls[0]![1]).toMatchObject({ id: order.id, number: 'CMD-2001' });
     expect(confirm.conversation.status).toBe('needs_human');
     expect(await db.order.count({ where: { workspaceId: s.owner.workspaceId } })).toBe(1); // cancel_order never creates an order
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('cancelled');
 
     // shipped ⇒ not cancellable ⇒ the model hands off
     const other = newSender();
