@@ -5,11 +5,13 @@ const { resolve } = require('node:path');
 const env = JSON.parse(readFileSync(resolve(__dirname, '../../../../.local/test-env.json'), 'utf8'));
 for (const [k, v] of Object.entries(env)) process.env[k] = v;
 // never let a developer's real keys leak into tests
-for (const k of ['META_APP_SECRET', 'CHARGILY_API_KEY', 'CHARGILY_SECRET', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'RESEND_API_KEY']) {
+for (const k of ['META_APP_SECRET', 'CHARGILY_API_KEY', 'CHARGILY_SECRET', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GOOGLE_AI_API_KEY', 'GROQ_API_KEY', 'RESEND_API_KEY']) {
   process.env[k] = '';
 }
 // M3: tests never see real Meta values; signature tests use these dummies and only the fake adapter may run
 Object.assign(process.env, {
+  AI_DRIVER: 'fake',
+  AI_ALLOW_LIVE: 'false',
   META_DRIVER: 'fake',
   META_ALLOW_LIVE: 'false',
   META_APP_ID: '100000000000001',

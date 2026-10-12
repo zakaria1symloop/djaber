@@ -22,6 +22,7 @@ export const PRODUCTS_LIST: ListSpec = {
     maxCost: 'int',
     minMargin: 'int',
     maxMargin: 'int',
+    agentId: 'list',
     noAgent: 'bool',
     moderationStatus: 'list',
     createdFrom: 'date',
@@ -89,6 +90,8 @@ export type ChipLabels = {
   stockState: Record<string, string>;
   lowStock: string;
   noAgent: string;
+  agent: (names: string) => string;
+  agentName: (id: string) => string;
   moderation: Record<string, string>;
   qty: (range: string) => string;
   price: (range: string) => string;
@@ -128,6 +131,8 @@ export function activeChips(s: ListState, l: ChipLabels): Chip[] {
     const r = range(filterText(s, min), filterText(s, max), fmt);
     if (r) chips.push({ key: min, label: label(r), clear: { [min]: null, [max]: null } });
   }
+  const agents = filterList(s, 'agentId');
+  if (agents.length) chips.push({ key: 'agentId', label: l.agent(agents.map(l.agentName).join(', ')), clear: { agentId: null } });
   if (filterBool(s, 'noAgent')) chips.push({ key: 'noAgent', label: l.noAgent, clear: { noAgent: null } });
   for (const v of filterList(s, 'moderationStatus')) chips.push({ key: `moderationStatus:${v}`, label: l.moderation[v] ?? v, clear: { moderationStatus: null } });
   const dates: [string, string, (r: string) => string][] = [
@@ -144,3 +149,27 @@ export function activeChips(s: ListState, l: ChipLabels): Chip[] {
 
 /** Removing one value of a multi filter keeps the others. */
 export const withoutValue = (s: ListState, name: string, value: string): string[] => filterList(s, name).filter((v) => v !== value);
+
+/* ---------- agent filter (06 §10 "Produits": `agentId[]` · `noAgent`) ---------- */
+export const NO_AGENT = 'none';
+/** "Aucun agent" first, then the agents that can sell (drafts sell nothing yet but may already hold products). */
+export const agentFilterOptions = (agents: { id: string; name: string }[], noAgentLabel: string): { value: string; label: string }[] => [{ value: NO_AGENT, label: noAgentLabel }, ...agents.map((a) => ({ value: a.id, label: a.name }))];
+/**
+ * Chips of the "UTILISÉ PAR UN AGENT" group → filters. "Aucun agent" and agent chips exclude each other: the one
+ * clicked last wins.
+ */
+export const agentFilterPatch = (picked: string[], noAgentWasOn: boolean): { noAgent: boolean | null; agentId: string[] | null } => {
+  const ids = picked.filter((v) => v !== NO_AGENT);
+  const none = picked.includes(NO_AGENT);
+  if (none && (!noAgentWasOn || ids.length === 0)) return { noAgent: true, agentId: null };
+  return { noAgent: null, agentId: ids.length ? ids : null };
+};
+
+/* ---------- "Ajouter à un agent": outcome of `POST /products/bulk/agent` (per-item results) ---------- */
+export type AddToAgentOutcome = { kind: 'done'; count: number } | { kind: 'partial'; ok: number; failed: number } | { kind: 'failed'; code: string; message: string; count: number };
+export const addToAgentOutcome = (r: { ok: number; failed: number; results: { ok: boolean; error?: { code: string; message: string } }[] }): AddToAgentOutcome => {
+  if (r.failed === 0) return { kind: 'done', count: r.ok };
+  const first = r.results.find((x) => !x.ok)?.error;
+  if (r.ok === 0) return { kind: 'failed', code: first?.code ?? 'INTERNAL', message: first?.message ?? '', count: r.failed };
+  return { kind: 'partial', ok: r.ok, failed: r.failed };
+};

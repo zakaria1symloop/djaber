@@ -1,0 +1,15 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "C'est une arnaque, je veux parler à un humain"
+    }
+  ],
+  "expect": {
+    "status": "HANDOFF",
+    "intent": "COMPLAINT",
+    "language": "fr",
+    "toolCalls": [],
+    "noProductOutsideCatalogue": true
+  }
+}

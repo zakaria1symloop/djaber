@@ -2,13 +2,15 @@
 // /queue — Figma "QUEUE — File d'attente — items" + "DLG — Inbox & queue" (File d'attente — vide).
 // Left: conversations waiting for a human (`GET /conversations?status=needs_human`) with "Me l'assigner",
 // "Reprendre l'IA", "Répondre". Right: problems reported by the agents (`GET /agent-insights?status=pending`,
-// served from M4: the column stays empty until then). Failed parcels are not here (12 §4). Live through WS.
+// with "Ajouter aux instructions" / "Ignorer" for `insights.manage`). Failed parcels are not here (12 §4). Live through WS.
 import type { ConversationListItemView } from '@djaber/shared';
 import { Button, buttonClass, Card, CountHeading, EmptyState, InsightCard, QueueCard, StatusPill, toast } from '@djaber/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check } from 'lucide-react';
+import { useState } from 'react';
 import { AppPage } from '@/components/app-page';
 import { ListLoading, QueryError } from '@/components/global-states';
+import { ignoreInsight, isAlreadyResolved, ResolveInsightDialog } from '@/features/agents/insights/resolve-dialog';
 import type { AgentInsight } from '@/features/inbox/contracts';
 import { Link } from '@/i18n/navigation';
 import { ApiError } from '@/lib/api';
@@ -16,7 +18,8 @@ import { errorMessage } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { useSession, useWorkspaceId } from '@/lib/session';
 import { relativeTime } from '@/lib/time';
-import { queueApi, queueKeys } from './api';
+import { queueApi, queueKeys, type InsightsResult } from './api';
+import { previewTypeKey } from '@/features/inbox/logic';
 import { queueReason, shortName } from './logic';
 import { useQueueEvents } from './shell';
 
@@ -49,6 +52,33 @@ export function QueueView() {
       toast({ tone: e instanceof ApiError && e.status === 409 ? 'warning' : 'danger', message: e instanceof ApiError && e.code === 'CONFLICT' ? t('queue.conflict') : errorMessage(e, t) });
     } finally {
       void qc.invalidateQueries({ queryKey: queueKeys.all(ws) });
+    }
+  };
+
+  /* ---------- insights: "Ajouter aux instructions" (dialog) and "Ignorer" (30 days), `insights.manage` ---------- */
+  const manageInsights = s.can('insights.manage');
+  const [resolving, setResolving] = useState<AgentInsight | null>(null);
+  const [ignoring, setIgnoring] = useState<string | null>(null);
+  /** the handled row leaves the column at once; the server list follows */
+  const dropInsight = (id: string) => {
+    qc.setQueryData<InsightsResult>(queueKeys.insights(ws), (old) => (old ? { ...old, rows: old.rows.filter((r) => r.id !== id), total: Math.max(0, old.total - (old.rows.some((r) => r.id === id) ? 1 : 0)) } : old));
+    void qc.invalidateQueries({ queryKey: queueKeys.insights(ws) });
+    void qc.invalidateQueries({ queryKey: [ws, 'insights'] });
+    void qc.invalidateQueries({ queryKey: [ws, 'agents'] });
+  };
+  const ignore = async (insight: AgentInsight) => {
+    setIgnoring(insight.id);
+    try {
+      await ignoreInsight(insight);
+      toast(t('queue.insight.ignored'));
+      dropInsight(insight.id);
+    } catch (e) {
+      if (isAlreadyResolved(e)) {
+        toast({ tone: 'info', message: `${t('error.INSIGHT_ALREADY_RESOLVED')} (INSIGHT_ALREADY_RESOLVED)` });
+        dropInsight(insight.id);
+      } else toast({ tone: 'danger', message: e instanceof ApiError ? `${errorMessage(e, t)} (${e.code})` : errorMessage(e, t) });
+    } finally {
+      setIgnoring(null);
     }
   };
 
@@ -117,7 +147,7 @@ export function QueueView() {
                       <bdi>{shortName(row.client?.name) || t('queue.unknownClient')}</bdi> · <bdi>{row.channel.name}</bdi>
                     </>
                   }
-                  preview={row.lastMessagePreview}
+                  preview={previewTypeKey(row.lastMessagePreview) ? t(previewTypeKey(row.lastMessagePreview)!) : row.lastMessagePreview}
                   meta={row.assignee ? t('queue.assignee', { name: shortName(`${row.assignee.firstName} ${row.assignee.lastName}`) }) : t('queue.unassigned')}
                   actions={
                     <>
@@ -142,19 +172,29 @@ export function QueueView() {
           <section aria-label={t('queue.insights.title')} className="flex flex-col gap-3" data-testid="queue-insights">
             <CountHeading count={problemCount}>{t('queue.insights.title')}</CountHeading>
             {problems.map((i) => (
-              <Insight key={i.id} insight={i} />
+              <Insight key={i.id} insight={i} manage={manageInsights} busy={ignoring === i.id} disabledReason={writeReason} onInstruct={() => setResolving(i)} onIgnore={() => void ignore(i)} />
             ))}
           </section>
         </div>
       )}
+      <ResolveInsightDialog
+        insight={resolving}
+        initialAction="instruction"
+        onClose={() => setResolving(null)}
+        onDone={(insight, outcome) => {
+          setResolving(null);
+          if (!outcome.already) toast(t(outcome.action === 'ignored_30d' ? 'queue.insight.ignored' : 'queue.insight.resolved'));
+          dropInsight(insight.id);
+        }}
+      />
     </AppPage>
   );
 }
 
-function Insight({ insight }: { insight: AgentInsight }) {
+function Insight({ insight, manage, busy, disabledReason, onInstruct, onIgnore }: { insight: AgentInsight; manage: boolean; busy: boolean; disabledReason?: string; onInstruct: () => void; onIgnore: () => void }) {
   const t = useT();
   const locale = useLocaleCode();
-  const who = [shortName(insight.client?.name), insight.agent?.name].filter(Boolean).join(' · ');
+  const who = [insight.agent?.name, insight.channel?.name].filter(Boolean).join(' · ');
   return (
     <InsightCard
       data-insight={insight.id}
@@ -168,10 +208,21 @@ function Insight({ insight }: { insight: AgentInsight }) {
       quote={`« ${insight.customerMessage || '—'} »`}
       detail={insight.detail ?? insight.aiResponse}
       actions={
-        // M4: "Ajouter aux instructions" and "Ignorer" (POST /agent-insights/:id/resolve) come with the agents module
-        <Link href={`/inbox/${insight.conversationId}`} className={buttonClass({ size: 'sm' })}>
-          {t('action.open')}
-        </Link>
+        <>
+          <Link href={`/inbox/${insight.conversationId}`} className={buttonClass({ size: 'sm' })} data-action="open">
+            {t('queue.insight.open')}
+          </Link>
+          {manage ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={onInstruct} disabled={busy} disabledReason={disabledReason} data-action="instruct">
+                {t('queue.insight.addInstruction')}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={onIgnore} loading={busy} disabledReason={disabledReason} data-action="ignore">
+                {t('action.dismiss')}
+              </Button>
+            </>
+          ) : null}
+        </>
       }
     />
   );

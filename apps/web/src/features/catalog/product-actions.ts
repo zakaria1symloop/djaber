@@ -1,8 +1,8 @@
 // The `Actions ⌄` menu of a product (list row, services row, product page) — Figma "CAT-08 — Products — bulk bar +
 // row actions menu". Business actions come from the server descriptors (`open`, `edit`, `duplicate`, `adjust_stock`,
 // `deactivate` / `activate`, `archive`, `restore`, `delete`); navigation items (quick edit, variants, movements,
-// Messenger card) are added by the screen. Items whose target belongs to a later milestone (orders, agents,
-// recommendations of this product) are not offered yet.
+// Messenger card, "Ajouter à un agent") are added by the screen. Items whose target belongs
+// to a later milestone (orders, recommendations of this product) are not offered yet.
 import type { MenuAction } from '@djaber/ui';
 import { toMenuActions, type ActionHandler } from '@/lib/actions';
 import type { TFunction } from '@/lib/i18n';
@@ -17,6 +17,7 @@ export type ProductActionHandlers = {
   movements?: () => void;
   duplicate?: () => void;
   cardPreview?: () => void;
+  addToAgent?: () => void;
   toggleActive?: () => void;
   exportOne?: () => void;
   archive?: () => void;
@@ -41,6 +42,7 @@ export function productMenuActions(
     movements: item(h.movements, { label: t('products.action.movements'), hint: t('products.action.movements.hint'), local: true, separated: true, hidden: !o.advanced || !product.trackStock }),
     duplicate: item(h.duplicate, { label: t('action.duplicate'), hint: t('products.action.duplicate.hint'), separated: true }),
     card_preview: item(h.cardPreview, { label: t('products.action.cardPreview'), hint: t('products.action.cardPreview.hint'), local: true, hidden: !live }),
+    add_to_agent: item(h.addToAgent, { label: t('action.addToAgent'), hint: t('products.action.dialog'), local: true, hidden: !live || !o.canWrite }),
     export: item(h.exportOne, { label: t('action.export'), local: true, hidden: !o.canWrite }),
     deactivate: item(h.toggleActive, { label: t('action.disable') }),
     activate: item(h.toggleActive, { label: t('action.enable') }),

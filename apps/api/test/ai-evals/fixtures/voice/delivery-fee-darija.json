@@ -1,0 +1,22 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "",
+      "audio": "salam, chhal tawsil l wahran ?"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "INFO",
+    "language": "arabizi",
+    "toolCalls": [
+      "quote_delivery"
+    ],
+    "replyContains": [
+      "700"
+    ],
+    "creditsInProd": 3,
+    "noProductOutsideCatalogue": true
+  }
+}

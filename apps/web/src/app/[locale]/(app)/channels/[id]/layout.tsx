@@ -1,4 +1,4 @@
-// ChannelTabs (02-next-route-map §1): Vue d'ensemble · Messages · IA · Historique (Analyse arrives with M4).
+// ChannelTabs (02-next-route-map §1): Vue d'ensemble · Messages · IA · Historique · Analyse.
 import { Suspense, type ReactNode } from 'react';
 import { ChannelShell } from '@/features/channels/channel-page/channel-shell';
 

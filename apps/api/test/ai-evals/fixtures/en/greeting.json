@@ -1,0 +1,15 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "Hello"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "GREETING",
+    "language": "en",
+    "toolCalls": [],
+    "noProductOutsideCatalogue": true
+  }
+}

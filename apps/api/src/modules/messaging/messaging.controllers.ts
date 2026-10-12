@@ -333,14 +333,14 @@ export class DevSimulatorController {
   @Post('inbound')
   @HttpCode(200)
   @RequirePermission('channels.manage')
-  async inbound(@Body() body: { channelId?: string; text?: string; image?: boolean; senderId?: string }) {
+  async inbound(@Body() body: { channelId?: string; text?: string; image?: boolean; audio?: boolean; senderId?: string }) {
     this.assertDev();
     const channel = typeof body?.channelId === 'string' && /^[0-9a-f-]{36}$/i.test(body.channelId) ? await prisma.channel.findFirst({ where: { id: body.channelId } }) : null;
     if (!channel) throw notFound();
     const sender = typeof body.senderId === 'string' && /^\d{6,20}$/.test(body.senderId) ? body.senderId : `7${channel.externalId.replace(/\D/g, '').slice(-9).padStart(9, '0')}001`;
     const mid = `m_sim_${randomUUID().replace(/-/g, '')}`;
-    const text = typeof body.text === 'string' ? body.text.slice(0, 2000) : body.image ? undefined : 'Salam, c\'est combien ?';
-    const message: Record<string, unknown> = { mid, ...(text ? { text } : {}), ...(body.image ? { attachments: [{ type: 'image', payload: { url: `${FAKE_MEDIA_HOST}/sim/${mid}.jpg` } }] } : {}) };
+    const text = typeof body.text === 'string' ? body.text.slice(0, 2000) : body.image || body.audio ? undefined : 'Salam, c\'est combien ?';
+    const message: Record<string, unknown> = { mid, ...(text ? { text } : {}), ...(body.image ? { attachments: [{ type: 'image', payload: { url: `${FAKE_MEDIA_HOST}/sim/${mid}.jpg` } }] } : body.audio ? { attachments: [{ type: 'audio', payload: { url: `${FAKE_MEDIA_HOST}/sim/${mid}.mp3` } }] } : {}) };
     const now = Date.now();
     const payload = { object: channel.platform === 'instagram' ? 'instagram' : 'page', entry: [{ id: channel.externalId, time: now, messaging: [{ sender: { id: sender }, recipient: { id: channel.externalId }, timestamp: now, message }] }] };
     const raw = Buffer.from(JSON.stringify(payload));

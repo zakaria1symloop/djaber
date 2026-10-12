@@ -15,11 +15,12 @@ import { AdjustStockDialog } from '../adjust-stock-dialog';
 import { catalogApi, useCatalogRefresh } from '../api';
 import type { Product, ProductListItem } from '../contracts';
 import { productMenuActions } from '../product-actions';
+import { AddToAgentDialog } from '../products-list/bulk';
 import { ArchiveProductDialog, CardPreviewDialog, DuplicateProductDialog, RestoreProductDialog } from '../product-dialogs';
 
 type Target = ProductListItem | Product;
 type Open =
-  | { kind: 'archive' | 'duplicate' | 'restore' | 'preview' | 'hardDelete'; product: Target }
+  | { kind: 'archive' | 'duplicate' | 'restore' | 'preview' | 'hardDelete' | 'agent'; product: Target }
   | { kind: 'adjust'; product: Target; variantId?: string | null };
 
 export function useProductActions(o: {
@@ -99,6 +100,8 @@ export function useProductActions(o: {
         movements: can('stock.read') ? () => router.push(`/movements?productId=${p.id}`) : undefined,
         duplicate: () => setOpen({ kind: 'duplicate', product: p }),
         cardPreview: () => preview(p),
+        // a service is sold by agents like any product; an archived one is not offered (hidden by the menu)
+        addToAgent: can('agents.read') ? () => setOpen({ kind: 'agent', product: p }) : undefined,
         toggleActive: () => void toggleActive(p),
         exportOne: () => void exportOne(p),
         archive: () => setOpen({ kind: 'archive', product: p }),
@@ -116,6 +119,7 @@ export function useProductActions(o: {
       <DuplicateProductDialog product={of('duplicate')} onClose={close} onDone={o.onDuplicated} />
       <RestoreProductDialog product={of('restore')} onClose={close} />
       <CardPreviewDialog product={of('preview')} onClose={close} />
+      <AddToAgentDialog product={of('agent')} onClose={close} />
       <AdjustStockDialog open={open?.kind === 'adjust'} onClose={close} product={of('adjust')} variantId={open?.kind === 'adjust' ? open.variantId : null} />
       <ConfirmDialog
         open={!!hard}
@@ -134,5 +138,5 @@ export function useProductActions(o: {
     </>
   );
 
-  return { menu, dialogs, adjust, preview, restore };
+  return { menu, dialogs, adjust, preview, restore, addToAgent: (product: Target) => setOpen({ kind: 'agent', product }) };
 }

@@ -1,10 +1,11 @@
 // MSG-05 / 04 §5 "Batching" — the hook the AI pipeline of M4 consumes. Customer messages of one conversation that arrive
 // inside the agent's response window are answered together: one delayed `ai-reply / reply` job per conversation
 // (job id `ai:<conversationId>`), whose delay is pushed back by every new message.
-// Until M4 registers the `ai-reply / reply` processor this service schedules nothing (`enabled = false`): no AI here.
+// A message that arrives while the job of its conversation is already running opens the next batch: it gets a follow-up
+// job (`ai:<conversationId>:next`) so it is never left unanswered. Without an `ai-reply / reply` processor nothing is scheduled.
 import { Injectable } from '@nestjs/common';
 import { ProcessorRegistry } from '../../core/queue/processor.registry';
-import { QueueService } from '../../core/queue/queue.service';
+import { jobId, QueueService } from '../../core/queue/queue.service';
 import { RedisService } from '../../core/redis/redis.provider';
 
 /** D33 abuse guard thresholds. */
@@ -41,12 +42,14 @@ export class BatchingService {
    */
   async schedule(p: { workspaceId: string; conversationId: string; messageId: string; delaySec: number; burst?: boolean }): Promise<boolean> {
     if (!this.enabled) return false;
-    const delaySec = p.burst ? BURST_WINDOW_SEC : Math.min(60, Math.max(0, p.delaySec));
+    const delaySec = p.burst ? Math.max(BURST_WINDOW_SEC, Math.min(60, p.delaySec)) : Math.min(60, Math.max(0, p.delaySec));
     const key = `batch:${p.conversationId}`;
     await this.redis.client.set(key, p.messageId, 'EX', 120, 'NX');
     const batchKey = (await this.redis.client.get(key)) ?? p.messageId;
     const data: AiReplyJob = { workspaceId: p.workspaceId, conversationId: p.conversationId, batchKey, scheduledFor: new Date(Date.now() + delaySec * 1000).toISOString() };
-    await this.queue.replaceDelayed('ai-reply', 'reply', data, `ai:${p.conversationId}`, delaySec * 1000, { attempts: 3, backoff: { type: 'fixed', delay: 10_000 } });
+    const running = await this.queue.queue('ai-reply').getJob(jobId(`ai:${p.conversationId}`));
+    const active = running ? (await running.getState()) === 'active' : false;
+    await this.queue.replaceDelayed('ai-reply', 'reply', data, active ? `ai:${p.conversationId}:next` : `ai:${p.conversationId}`, delaySec * 1000, { attempts: 3, backoff: { type: 'fixed', delay: 10_000 } });
     return true;
   }
 

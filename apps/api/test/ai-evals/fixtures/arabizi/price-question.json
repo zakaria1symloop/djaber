@@ -1,0 +1,20 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "chhal robe satin ?"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "SALE",
+    "language": "arabizi",
+    "toolCalls": [
+      "search_products"
+    ],
+    "cards": [
+      "ROB-001"
+    ],
+    "noProductOutsideCatalogue": true
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "??"
+    }
+  ],
+  "expect": {
+    "status": "UNCLEAR",
+    "intent": "OTHER",
+    "toolCalls": [],
+    "noProductOutsideCatalogue": true
+  }
+}

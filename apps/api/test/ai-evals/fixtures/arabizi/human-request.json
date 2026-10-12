@@ -1,0 +1,15 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "n7eb nahder m3a insan"
+    }
+  ],
+  "expect": {
+    "status": "HANDOFF",
+    "intent": "OTHER",
+    "language": "arabizi",
+    "toolCalls": [],
+    "noProductOutsideCatalogue": true
+  }
+}

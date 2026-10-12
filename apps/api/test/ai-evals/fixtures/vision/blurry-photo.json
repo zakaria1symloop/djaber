@@ -1,0 +1,17 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "",
+      "image": "FAKE-IMAGE:flou|blurry"
+    }
+  ],
+  "expect": {
+    "status": "UNCLEAR",
+    "intent": "INFO",
+    "toolCalls": [],
+    "cards": [],
+    "noPriceInReply": true,
+    "noProductOutsideCatalogue": true
+  }
+}

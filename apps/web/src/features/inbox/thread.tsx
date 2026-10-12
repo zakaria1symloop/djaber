@@ -36,8 +36,9 @@ import {
   TMP_PREFIX,
 } from './logic';
 import { MessageView } from './message-view';
-import { dayLabel, isolate, shortUserName, useLocale, useNow, userName } from './ui';
+import { dayLabel, handoffLabel, isolate, shortUserName, useLocale, useNow, userName } from './ui';
 import type { ConversationActions } from './use-conversation-actions';
+import { uuid } from '@/lib/uuid';
 
 /** Sends refused by a rule keep the text in the composer with the reason inline; other failures keep the bubble with "Réessayer". */
 const INLINE_CODES = ['REPLY_OUTSIDE_WINDOW', 'REPLY_TOO_LONG', 'REPLY_CHANNEL_INACTIVE', 'CUSTOMER_BLOCKED', 'VALIDATION_ERROR', 'IMAGE_TOO_LARGE', 'IMAGE_TYPE_INVALID', 'UPLOAD_TOO_LARGE', 'UPLOAD_TYPE_INVALID', 'READ_ONLY_MEMBER', 'FORBIDDEN'];
@@ -221,7 +222,7 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
 
   const submit = () => {
     if (!check.ok || state.mode !== 'ready') return;
-    const key = crypto.randomUUID();
+    const key = uuid();
     const o: Outgoing = { text: draft, file: fileError ? null : file, previewUrl: fileError ? null : preview };
     outbox.current.set(key, o);
     stick.current = true;
@@ -255,7 +256,7 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
         await deliver(keyOf(m));
       } else {
         // a stored message that failed at Meta: the same content is sent again under a new key
-        const key = crypto.randomUUID();
+        const key = uuid();
         const sent = await inboxApi.send(c.id, { text: m.text ?? undefined }, key);
         if (sent) writeMessages(qc, ws, c.id, (list) => [...list, sent]);
         void refresh({ id: c.id });
@@ -412,7 +413,7 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
       ) : banner === 'needsHuman' ? (
         <ThreadBanner
           kind={banner}
-          title={c.handoffReason ? t('inbox.banner.needsHuman.reason', { reason: isolate(c.handoffReason) }) : t('inbox.banner.needsHuman.title')}
+          title={c.handoffReason ? t('inbox.banner.needsHuman.reason', { reason: isolate(handoffLabel(t, c.handoffReason)) }) : t('inbox.banner.needsHuman.title')}
           description={t('inbox.banner.needsHuman.description')}
           actions={
             readOnly ? null : (
@@ -437,7 +438,19 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
           }
         />
       ) : banner === 'credits' ? (
-        <ThreadBanner kind={banner} tone="danger" title={t('inbox.banner.credits.title')} description={t('inbox.banner.credits.description')} />
+        <ThreadBanner
+          kind={banner}
+          tone="danger"
+          title={t('inbox.banner.credits.title')}
+          description={t('inbox.banner.credits.description')}
+          actions={
+            can('billing.read_credits') ? (
+              <Link href="/settings/credits" className="inline-flex h-8 items-center rounded-card border border-line-edge bg-ink-surface px-3 text-[13px] font-medium hover:border-line-lit hover:bg-ink-raised" data-testid="thread-renew-credits">
+                {t('action.renew')}
+              </Link>
+            ) : null
+          }
+        />
       ) : banner === 'pausedByPlan' ? (
         <ThreadBanner kind={banner} title={t('inbox.banner.pausedByPlan.title')} description={t('inbox.banner.pausedByPlan.description')} />
       ) : banner === 'aiUnavailable' ? (
@@ -514,6 +527,7 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
                   onRetry={readOnly ? undefined : retry}
                   onCancel={cancel}
                   onReport={can('safety.block') ? (m) => actions.askReport({ target: { type: 'ai_message', messageId: m.id, conversationId: c.id }, name: m.agent?.name ?? t('enum.Conversation.author.ai') }) : undefined}
+                  onInspect={can('agents.read') ? (m) => actions.askAiRun({ messageId: m.id, agentName: m.agent?.name ?? null }) : undefined}
                   retrying={retrying === it.message.id}
                 />
               ),
@@ -638,11 +652,11 @@ function TemplateDialog({ open, onClose, conversation: c }: { open: boolean; onC
   const [key, setKey] = useState<TemplateKey>(TEMPLATE_KEYS[0]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [idem, setIdem] = useState(() => crypto.randomUUID());
+  const [idem, setIdem] = useState(() => uuid());
   useEffect(() => {
     if (open) {
       setError(null);
-      setIdem(crypto.randomUUID());
+      setIdem(uuid());
     }
   }, [open]);
   const send = async () => {

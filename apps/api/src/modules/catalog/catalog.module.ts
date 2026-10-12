@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { ConfigService } from '../../core/config/config.service';
 import { UploadsModule } from '../uploads/uploads.module';
 import { AiFillService } from './ai-fill.service';
-import { FakeProductVisionProvider, IMAGE_CAPTION_PROVIDER, PRODUCT_VISION_PROVIDER, StubImageCaptionProvider, UnavailableProductVisionProvider } from './ai.providers';
+import { RoutedImageCaptionProvider, RoutedProductVisionProvider } from '../ai/vision.service';
+import { IMAGE_CAPTION_PROVIDER, PRODUCT_VISION_PROVIDER } from './ai.providers';
 import { BulkService } from './bulk.service';
 import { CategoriesController, ModerationController, StockController, UnitsController } from './catalog.controllers';
 import { CategoryService, UnitService } from './category.service';
@@ -41,14 +41,10 @@ import { VariantService } from './variant.service';
     BulkService,
     ImportService,
     AiFillService,
-    // AI behind interfaces: deterministic implementations until the AI pipeline of M4 binds the real providers
-    { provide: IMAGE_CAPTION_PROVIDER, useClass: StubImageCaptionProvider },
-    {
-      provide: PRODUCT_VISION_PROVIDER,
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => (config.get('AI_DRIVER') === 'fake' ? new FakeProductVisionProvider() : new UnavailableProductVisionProvider()),
-    },
+    // AI behind interfaces, bound to the AI port since M4 (global AiCoreModule: vision route, failover, credits)
+    { provide: IMAGE_CAPTION_PROVIDER, useExisting: RoutedImageCaptionProvider },
+    { provide: PRODUCT_VISION_PROVIDER, useExisting: RoutedProductVisionProvider },
   ],
-  exports: [StockService, ProductService, LowStockEvaluator, ModerationHookService, PlanLimitService, SkuService],
+  exports: [CategoryService, StockService, ProductService, ProductImageService, LowStockEvaluator, ModerationHookService, PlanLimitService, SkuService],
 })
 export class CatalogModule {}

@@ -1,0 +1,23 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "Bonjour, quel est le prix du sac en cuir ?"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "SALE",
+    "language": "fr",
+    "toolCalls": [
+      "search_products"
+    ],
+    "cards": [
+      "SAC-002"
+    ],
+    "replyContains": [
+      "6200"
+    ],
+    "noProductOutsideCatalogue": true
+  }
+}

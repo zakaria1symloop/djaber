@@ -1,0 +1,20 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "salam, kayen robe satin ? شحال"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "SALE",
+    "language": "mixed",
+    "toolCalls": [
+      "search_products"
+    ],
+    "cards": [
+      "ROB-001"
+    ],
+    "noProductOutsideCatalogue": true
+  }
+}

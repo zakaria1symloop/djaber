@@ -26,12 +26,13 @@ export const useChannelPage = (): Ctx => {
   return v;
 };
 
-/** Tabs of M3. M4: "Analyse du catalogue" (`/channels/[id]/analysis`, CHN-08 — page analysis job + import). */
+/** Tabs of the page; "Analyse de la page" = CHN-08 (page analysis job + review + import). */
 export const CHANNEL_TABS = [
   { key: 'overview', path: '' },
   { key: 'messages', path: '/messages' },
   { key: 'ai', path: '/ai' },
   { key: 'history', path: '/history' },
+  { key: 'analysis', path: '/analysis' },
 ] as const;
 
 export function ChannelShell({ id, children }: { id: string; children: ReactNode }) {

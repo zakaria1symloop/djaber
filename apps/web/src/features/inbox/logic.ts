@@ -72,7 +72,10 @@ type BannerInput = WindowInput & Pick<Conversation, 'status' | 'aiPaused' | 'aiP
 export const threadBanner = (c: BannerInput, o: { now?: number; channelPausedByPlan?: boolean } = {}): ThreadBannerKind | null => {
   // paused by a member (manual pause, or a human reply with auto-pause): the handoff pause is the "À TRAITER" banner
   if (c.aiPaused && (c.status !== 'needs_human' || c.aiPausedBy)) return 'aiPaused';
-  if (c.status === 'needs_human') return 'needsHuman';
+  // the API sets `creditsExhausted` / `aiUnavailable` only on a handoff (status needs_human): they are the cause of that
+  // handoff and replace the generic À TRAITER banner (GLOBAL "Credits exhausted — thread state": À TRAITER + IA EN PAUSE
+  // pills with the "IA arrêtée : crédits épuisés" banner)
+  if (c.status === 'needs_human') return c.creditsExhausted ? 'credits' : c.aiUnavailable ? 'aiUnavailable' : 'needsHuman';
   if (c.channel.status === 'needs_reconnect') return 'reconnect';
   if (c.creditsExhausted) return 'credits';
   if (c.channel.status === 'paused' && o.channelPausedByPlan !== false) return 'pausedByPlan';
@@ -215,6 +218,17 @@ export const patchConversation = <T extends ConversationListItem>(row: T, p: Con
 
 /** Preview line of a row after a new message (text, or the type when the message has no text). */
 export const previewOf = (m: Pick<Message, 'text' | 'type'>): string | null => (m.text?.trim() ? m.text.trim().replace(/\s+/g, ' ').slice(0, 140) : null);
+
+const PREVIEW_TYPES = ['image', 'audio', 'video', 'file', 'location', 'sticker', 'postback', 'product_cards', 'system'] as const;
+/**
+ * The API stores `[<type>]` as the preview of a message without text (`[image]`, `[product_cards]`…): the i18n key of
+ * its label, or null when the preview is real text.
+ */
+export const previewTypeKey = (preview: string | null | undefined): `inbox.preview.${(typeof PREVIEW_TYPES)[number]}` | null => {
+  const m = /^\[([a-z_]+)\]$/.exec(preview?.trim() ?? '');
+  const type = m?.[1] as (typeof PREVIEW_TYPES)[number] | undefined;
+  return type && PREVIEW_TYPES.includes(type) ? `inbox.preview.${type}` : null;
+};
 
 /** Newest first; rows without a date go last. */
 export const sortByLastMessage = <T extends Pick<ConversationListItem, 'lastMessageAt' | 'id'>>(rows: readonly T[]): T[] =>

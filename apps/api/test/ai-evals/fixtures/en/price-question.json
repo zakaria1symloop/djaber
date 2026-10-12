@@ -1,0 +1,20 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "How much is the satin dress?"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "SALE",
+    "language": "en",
+    "toolCalls": [
+      "search_products"
+    ],
+    "cards": [
+      "ROB-001"
+    ],
+    "noProductOutsideCatalogue": true
+  }
+}

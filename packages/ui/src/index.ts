@@ -11,3 +11,4 @@ export * from './image-grid';
 export * from './status-pill';
 export * from './notifications';
 export * from './inbox';
+export * from './agents';

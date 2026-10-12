@@ -17,7 +17,7 @@ import { relativeTime } from '@/lib/time';
 import { useConversationCounts, useConversations } from './api';
 import { InboxBulkBar } from './bulk';
 import type { ConversationListItem } from './contracts';
-import { countPanelFilters, DEFAULT_FILTERS, inboxApiQuery, INBOX_SORTS, INBOX_TABS, isFiltered, resetPanelFilters, tabCount, type InboxFilters, type InboxSort, type InboxTab } from './logic';
+import { countPanelFilters, DEFAULT_FILTERS, inboxApiQuery, INBOX_SORTS, INBOX_TABS, isFiltered, previewTypeKey, resetPanelFilters, tabCount, type InboxFilters, type InboxSort, type InboxTab } from './logic';
 import { ChannelBadge, PlatformIcon, shortAge, shortUserName, useLocale, useNow, userName } from './ui';
 import type { ConversationActions } from './use-conversation-actions';
 
@@ -235,7 +235,7 @@ export function ConversationList({
                   name={row.client?.name || t('inbox.client.unknown')}
                   avatarUrl={row.client?.avatarUrl}
                   time={shortAge(row.lastMessageAt, t, locale, now)}
-                  preview={row.lastMessagePreview || t('inbox.preview.media')}
+                  preview={row.lastMessagePreview ? (previewTypeKey(row.lastMessagePreview) ? t(previewTypeKey(row.lastMessagePreview)!) : row.lastMessagePreview) : t('inbox.preview.media')}
                   outbound={row.lastMessageDirection === 'out'}
                   unread={row.unreadCount}
                   unreadLabel={t('inbox.unread', { count: row.unreadCount })}

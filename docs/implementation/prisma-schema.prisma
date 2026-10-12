@@ -2293,6 +2293,12 @@ model AiRun {
   attempt        Int         @default(1)
   startedAt      DateTime    @default(now())
   finishedAt     DateTime?
+  /// 04-ai-pipeline §5: a reply run is idempotent on (conversationId, batchKey); playground runs carry the session id
+  batchKey       String?
+  /// e.g. blocked_word, reaped, outside_window
+  flags          String[]    @default([])
+  /// 04-ai-pipeline §13 run metrics: { language, toolNames[], cardsSent, handoff, costUsd, plannedCost, vision, … }
+  meta           Json?
 
   workspace    Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   agent        Agent?         @relation(fields: [agentId], references: [id])
@@ -2306,6 +2312,7 @@ model AiRun {
   testRuns     AgentTestRun[]
   reports      Report[]
 
+  @@unique([conversationId, batchKey])
   @@index([workspaceId, startedAt])
   @@index([workspaceId, agentId, startedAt])
   @@index([status, startedAt])

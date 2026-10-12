@@ -1,5 +1,7 @@
 // HTTP client for /api/v1 (api-contract §1): envelope { data, meta } / { error }, access token kept in memory,
 // refresh through the httpOnly cookie, X-Workspace-Id, Accept-Language, Idempotency-Key on demand.
+import { uuid } from './uuid';
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4010';
 
 export type ApiErrorBody = {
@@ -103,7 +105,7 @@ export async function apiRaw<T>(path: string, o: RequestOptions = {}): Promise<E
   const headers: Record<string, string> = { 'Accept-Language': session.locale };
   if (session.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
   if (session.workspaceId) headers['X-Workspace-Id'] = session.workspaceId;
-  if (o.idempotent) headers['Idempotency-Key'] = typeof o.idempotent === 'string' ? o.idempotent : crypto.randomUUID();
+  if (o.idempotent) headers['Idempotency-Key'] = typeof o.idempotent === 'string' ? o.idempotent : uuid();
   let body: BodyInit | undefined;
   if (o.formData) body = o.formData;
   else if (o.body !== undefined) {

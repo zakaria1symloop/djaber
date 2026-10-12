@@ -15,6 +15,7 @@ import { errorMessage } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { useSession, useWorkspaceId } from '@/lib/session';
 import { relativeTime } from '@/lib/time';
+import { AiRunDialog, ThreadInsightsDialog } from './ai-run';
 import { inboxApi, inboxKeys, useInboxRefresh, writeConversation } from './api';
 import type { ActionDescriptor, Conversation, ConversationListItem, ConversationPatchBody } from './contracts';
 
@@ -52,6 +53,8 @@ export function useConversationActions(o: { onDeleted?: (id: string) => void } =
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [toBlock, setToBlock] = useState<Row | null>(null);
   const [toReport, setToReport] = useState<{ target: ReportTarget; name: string } | null>(null);
+  const [aiRun, setAiRun] = useState<{ messageId: string; agentName: string | null } | null>(null);
+  const [insightsOf, setInsightsOf] = useState<string | null>(null);
 
   /** Versioned PATCH. The version comes from the freshest copy in the cache (WS keeps it current). */
   const patch = useCallback(
@@ -151,7 +154,8 @@ export function useConversationActions(o: { onDeleted?: (id: string) => void } =
       reopen: { label: t('inbox.menu.reopen'), onSelect: () => void reopen(row), hidden: row.status !== 'resolved' && row.status !== 'archived' },
       archive: { label: t('action.archive'), onSelect: () => void archive(row), hidden: row.status === 'archived' },
       markUnread: { label: t('inbox.menu.markUnread'), onSelect: () => void markUnread(row), hidden: row.unreadCount > 0 },
-      // M5: "Fiche client", "Nouvelle commande", "Commandes de ce client" (clients / orders modules) · M4: "Insights IA de ce fil"
+      // M5: "Fiche client", "Nouvelle commande", "Commandes de ce client" (clients / orders modules)
+      insights: { label: t('inbox.menu.insights'), onSelect: () => setInsightsOf(row.id), local: true, separated: true, hidden: !row.agent || !can('agents.read') },
       block: { label: t('inbox.menu.block'), onSelect: () => setToBlock(row), destructive: true, separated: true, hidden: row.blocked || hidden('block', can('safety.block')) },
       unblock: { label: t('action.unblock'), onSelect: () => void unblock(row), separated: true, hidden: !row.blocked || hidden('unblock', can('safety.manage')) },
       report: { label: t('inbox.menu.report'), onSelect: () => setToReport({ target: { type: 'customer', conversationId: row.id, clientId: row.client?.id }, name }), hidden: hidden('report', can('safety.block')) },
@@ -197,6 +201,8 @@ export function useConversationActions(o: { onDeleted?: (id: string) => void } =
           </p>
         ) : null}
       </ConfirmDialog>
+      <AiRunDialog messageId={aiRun?.messageId ?? null} agentName={aiRun?.agentName} onClose={() => setAiRun(null)} />
+      <ThreadInsightsDialog conversationId={insightsOf} onClose={() => setInsightsOf(null)} />
       <BlockCustomerDialog
         open={!!toBlock}
         onClose={() => setToBlock(null)}
@@ -214,6 +220,6 @@ export function useConversationActions(o: { onDeleted?: (id: string) => void } =
     </>
   );
 
-  return { busy, menu, dialogs, patch, resolve, reopen, archive, pauseAi, resumeAi, assign, markUnread, unblock, restore, askDelete: setToDelete, askBlock: setToBlock, askReport: setToReport };
+  return { busy, menu, dialogs, patch, resolve, reopen, archive, pauseAi, resumeAi, assign, markUnread, unblock, restore, askDelete: setToDelete, askBlock: setToBlock, askReport: setToReport, askAiRun: setAiRun, askInsights: setInsightsOf };
 }
 export type ConversationActions = ReturnType<typeof useConversationActions>;

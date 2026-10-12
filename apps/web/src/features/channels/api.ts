@@ -1,5 +1,6 @@
 // Channels calls (06 §2 "Channels", §8.7) + TanStack Query hooks and cache keys. The web never talks to Meta: the
 // connect / reconnect endpoints return the URL the browser is sent to, and the API callback reports the outcome.
+import type { AnalysisDto, AnalysisImportInput, AnalysisImportResult, SetChannelAgentInput } from '@djaber/shared';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import type { ConversationListItem } from '@/features/inbox/contracts';
@@ -37,6 +38,14 @@ export const channelsApi = {
   summary: (id: string) => api<ChannelSummary>(`/channels/${id}/summary`),
   events: (id: string, q: ApiQuery) => cursorPage<ChannelEvent>(`/channels/${id}/events`, q),
   sync: (id: string, days: SyncDays) => api<JobRef>(`/channels/${id}/sync`, { method: 'POST', body: { days } }),
+  /** `agentId: null` detaches; `move: true` confirms taking the page from another agent (409 AGENT_PAGE_ALREADY_ASSIGNED otherwise) */
+  setAgent: (id: string, b: SetChannelAgentInput) => api<Channel>(`/channels/${id}/agent`, { method: 'PUT', body: b }),
+  /** empty text clears the icebreaker */
+  setIcebreaker: (id: string, text: string) => api<Channel>(`/channels/${id}/icebreaker`, { method: 'PUT', body: { text } }),
+  /** CHN-08: last page analysis (state, progress, review items, runs left today) */
+  analysis: (id: string) => api<AnalysisDto>(`/channels/${id}/analysis`),
+  startAnalysis: (id: string) => api<JobRef>(`/channels/${id}/analysis`, { method: 'POST', body: {} }),
+  importAnalysis: (id: string, b: AnalysisImportInput) => api<AnalysisImportResult>(`/channels/${id}/analysis/import`, { method: 'POST', body: b }),
   /** conversations of one page (the inbox list filtered on the channel) */
   conversations: (id: string, q: ApiQuery = {}) => cursorPage<ConversationListItem>('/conversations', { channelIds: [id], limit: 25, ...q }),
 };
@@ -51,6 +60,7 @@ export const channelKeys = {
   summary: (ws: string, id: string) => [ws, 'channel', id, 'summary'] as const,
   events: (ws: string, id: string, q?: ApiQuery) => (q ? ([ws, 'channel', id, 'events', q] as const) : ([ws, 'channel', id, 'events'] as const)),
   conversations: (ws: string, id: string) => [ws, 'channel', id, 'conversations'] as const,
+  analysis: (ws: string, id: string) => [ws, 'channel', id, 'analysis'] as const,
 };
 
 const NO_FILTER: ApiQuery = {};
@@ -83,6 +93,18 @@ export const useChannelEventsList = (id: string, q: ApiQuery) => {
 export const useChannelConversations = (id: string) => {
   const ws = useWorkspaceId();
   return useQuery({ queryKey: channelKeys.conversations(ws, id), queryFn: () => channelsApi.conversations(id), enabled: !!ws && !!id });
+};
+
+/** `GET /channels/:id/analysis`: polled while a run is in progress (the job WS event refreshes it too). */
+export const useChannelAnalysis = (id: string, enabled = true) => {
+  const ws = useWorkspaceId();
+  return useQuery({
+    queryKey: channelKeys.analysis(ws, id),
+    queryFn: () => channelsApi.analysis(id),
+    enabled: !!ws && !!id && enabled,
+    retry: false,
+    refetchInterval: (q) => (q.state.data?.state === 'running' ? 3_000 : false),
+  });
 };
 
 /** Invalidation after a channel write: the list (cards, counts, plan limit), one page when given, the workspace usage. */

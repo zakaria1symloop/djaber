@@ -65,12 +65,14 @@ describe('sidebar and settings sub-nav', () => {
   });
   it('filters the settings sub-nav per role (§2.2)', () => {
     const hrefs = (role: 'owner' | 'admin' | 'operator') => visibleSettingsNav((k) => roleCan(role, k)).map((i) => i.href);
-    expect(hrefs('operator')).toEqual(['/settings/profile', '/settings/members', '/settings/security']);
+    // Crédits: the balance is visible to every member (billing.read_credits), the ledger to Admin+
+    expect(hrefs('operator')).toEqual(['/settings/profile', '/settings/members', '/settings/security', '/settings/credits']);
     expect(hrefs('admin')).not.toContain('/settings/danger');
     expect(hrefs('admin')).toContain('/settings/workspace');
     expect(hrefs('owner')).toHaveLength(SETTINGS_NAV.length);
     // entries of later milestones are not linked yet
-    for (const later of ['/settings/integrations', '/settings/billing', '/settings/credits']) expect(hrefs('owner')).not.toContain(later);
+    for (const later of ['/settings/integrations', '/settings/billing']) expect(hrefs('owner')).not.toContain(later);
+    expect(hrefs('owner')).toContain('/settings/credits');
   });
 });
 

@@ -134,7 +134,8 @@ export class ConversationService implements OnModuleInit {
       if (c) and.push({ OR: [{ lastMessageAt: { lt: new Date(c[0]) } }, { lastMessageAt: new Date(c[0]), id: { lt: c[1] } }] });
     } else if (q.sort === 'oldestWaiting') {
       // customers waiting the longest for an answer first
-      and.push({ lastCustomerMessageAt: { not: null }, context: { path: ['lastDirection'], equals: 'in' } });
+      // a handed-over thread waits for a human even when the AI's handoff text is the last message (queue page)
+      and.push(q.status === 'needs_human' ? { lastCustomerMessageAt: { not: null } } : { lastCustomerMessageAt: { not: null }, context: { path: ['lastDirection'], equals: 'in' } });
       orderBy = [{ lastCustomerMessageAt: 'asc' }, { id: 'asc' }];
       const c = dec<[string, string]>(q.cursor);
       if (c) and.push({ OR: [{ lastCustomerMessageAt: { gt: new Date(c[0]) } }, { lastCustomerMessageAt: new Date(c[0]), id: { gt: c[1] } }] });
@@ -234,6 +235,9 @@ export class ConversationService implements OnModuleInit {
       deletedAt: c.deletedAt?.toISOString() ?? null,
       notesCount,
       aiPausedBy: pausedBy,
+      // set by the AI pipeline (FL-01 F-4 / F-6), cleared when a member resumes the AI or the AI answers again
+      creditsExhausted: c.status === 'needs_human' && (ctx.aiUnavailable === 'credits' || ctx.aiUnavailable === 'quota'),
+      aiUnavailable: c.status === 'needs_human' && ctx.aiUnavailable === 'error',
       blockedAt: block?.blockedAt.toISOString() ?? null,
       blockedBy,
       blockSource: block?.source ?? null,
@@ -282,7 +286,7 @@ export class ConversationService implements OnModuleInit {
     if (status !== c.status) {
       data.status = status;
       if (status === 'needs_human') Object.assign(ctx, { handoffAt: new Date().toISOString(), handoffReason: ctx.handoffReason ?? 'manual', handoffRemindedAt: null });
-      else Object.assign(ctx, { handoffAt: null, handoffReason: null, handoffRemindedAt: null, handoffMessageSentAt: null });
+      else Object.assign(ctx, { handoffAt: null, handoffReason: null, handoffRemindedAt: null, handoffMessageSentAt: null, aiUnavailable: null });
     }
     if (aiPaused !== c.aiPaused) {
       data.aiPaused = aiPaused;
@@ -523,14 +527,14 @@ export class ConversationService implements OnModuleInit {
    * Hands a conversation to the team: `needs_human`, AI paused, the workspace `handoff` text once per episode, members
    * notified. Called by the abuse guard (D33) now and by the AI pipeline from M4. No-op when already handed off.
    */
-  async handoff(conversationId: string, reason: string, o: { silent?: boolean } = {}): Promise<boolean> {
-    return prisma.$transaction(async (db) => {
-      const tx = db as Tx;
+  async handoff(conversationId: string, reason: string, o: { silent?: boolean; tx?: Tx; context?: Partial<ConversationContext> } = {}): Promise<boolean> {
+    const run = async (tx: Tx) => {
       const c = await tx.conversation.findFirst({ where: { id: conversationId, deletedAt: null }, include: { client: true } });
       if (!c || c.status === 'needs_human') return false;
-      const ctx: ConversationContext = { ...contextOf(c), handoffAt: new Date().toISOString(), handoffReason: reason, handoffRemindedAt: null, aiPausedById: null };
+      const ctx: ConversationContext = { ...contextOf(c), ...(o.context ?? {}), handoffAt: new Date().toISOString(), handoffReason: reason, handoffRemindedAt: null, aiPausedById: null };
       const updated = await tx.conversation.update({ where: { id: c.id }, data: { status: 'needs_human', aiPaused: true, version: { increment: 1 }, context: ctx as Prisma.InputJsonValue } });
-      if (!o.silent) await this.outbound.sendSystemText(c.id, 'handoff', {}, { tx, kind: 'system' });
+      // 04-ai-pipeline §10: one handoff message per episode — never twice in 24 h for the same conversation
+      if (!o.silent) await this.outbound.sendSystemText(c.id, 'handoff', {}, { tx, kind: 'system', oncePer24h: true });
       await this.emitUpdated(tx, updated);
       await this.notifications.emit(tx, {
         type: 'conversation_handoff',
@@ -542,10 +546,29 @@ export class ConversationService implements OnModuleInit {
       // outbound webhook `conversation.escalated` (03-events §6): produced now, delivered by the integrations module (M11)
       await this.outbox.enqueue(tx, { topic: 'webhook', key: `conversation.escalated:${c.id}:${ctx.handoffAt}`, workspaceId: c.workspaceId, payload: { event: 'conversation.escalated', data: { conversationId: c.id, channelId: c.channelId, clientId: c.clientId, reason } } });
       return true;
-    });
+    };
+    return o.tx ? run(o.tx) : prisma.$transaction((db) => run(db as Tx));
   }
 
   /** `sched-handoff-unattended`: nobody answered a handed-off conversation for `handoffReminderMin` ⇒ the Owner is told once. */
+  /**
+   * FL-01 F-4 — credits or the monthly conversation quota ran out: the fixed platform text `unavailable` once per
+   * conversation per 24 h, the thread goes to the queue (`needs_human`, no handoff text) and the Owner is told
+   * (`credits.exhausted` once a day, `quota.100` once per period).
+   */
+  async aiUnavailable(conversationId: string, cause: 'credits' | 'quota', usage: { used: number; limit: number; period?: string }): Promise<void> {
+    await prisma.$transaction(async (db) => {
+      const tx = db as Tx;
+      const c = await tx.conversation.findFirst({ where: { id: conversationId, deletedAt: null }, select: { id: true, workspaceId: true, status: true } });
+      if (!c || c.status === 'needs_human') return;
+      await this.outbound.sendSystemText(c.id, 'unavailable', {}, { tx, oncePer24h: true });
+      await this.handoff(c.id, cause === 'credits' ? 'credits_exhausted' : 'quota_exceeded', { silent: true, tx, context: { aiUnavailable: cause } });
+      const day = new Date(Date.now() + 3600_000).toISOString().slice(0, 10);
+      if (cause === 'credits') await this.notifications.emit(tx, { type: 'credits_exhausted', workspaceId: c.workspaceId, target: { owner: true }, key: `credits_exhausted:${c.workspaceId}:${day}`, data: { used: usage.used, limit: usage.limit } });
+      else await this.notifications.emit(tx, { type: 'quota_100', workspaceId: c.workspaceId, target: { roles: ['owner', 'admin'] }, key: `quota_100:${c.workspaceId}:${usage.period ?? day.slice(0, 7)}`, data: { used: usage.used, limit: usage.limit } });
+    });
+  }
+
   async remindUnattended(now = new Date()): Promise<number> {
     return TenantContext.runSystem(async () => {
       const due = await prisma.$queryRaw<{ id: string; workspaceId: string; handoffAt: string; minutes: number; client: string | null }[]>`

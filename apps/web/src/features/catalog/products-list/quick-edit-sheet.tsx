@@ -17,6 +17,7 @@ import { useSession, useWorkspaceId } from '@/lib/session';
 import { catalogApi, catalogKeys, useCatalogRefresh, useProduct, useProductRelations } from '../api';
 import type { Product } from '../contracts';
 import { MovementTypePill, Num, ProductThumb, StockPill, useMovementReason } from '../ui';
+import { uuid } from '@/lib/uuid';
 
 type Status = { tone: 'ok' | 'error' | 'busy'; text: string } | null;
 type PriceField = 'price' | 'oldPrice' | 'costPrice';
@@ -209,7 +210,7 @@ function StockSection({ product, setStatus }: { product: Product; setStatus: (s:
     const all = timers.current;
     return () => Object.values(all).forEach((id) => window.clearTimeout(id));
   }, []);
-  const adjust = useMutation({ mutationFn: (b: StockAdjustmentInput) => catalogApi.adjust(b, crypto.randomUUID()) });
+  const adjust = useMutation({ mutationFn: (b: StockAdjustmentInput) => catalogApi.adjust(b, uuid()) });
 
   if (!product.trackStock) {
     return (
@@ -375,8 +376,10 @@ function Relations({ productId }: { productId: string }) {
             <ul className={box}>
               {r.agents.last.map((a) => (
                 <li key={a.id} className="flex items-center gap-3 px-3 py-2 text-[14px]">
-                  <span className="min-w-0 flex-1 truncate font-medium">{a.name}</span>
-                  <span className="ts-label-meta uppercase text-text-muted">{a.status}</span>
+                  <Link href={`/agents/${a.id}`} className="min-w-0 flex-1 truncate font-medium hover:underline" data-agent={a.id}>
+                    {a.name}
+                  </Link>
+                  <span className="ts-label-meta uppercase text-text-muted">{t.has(`enum.Agent.status.${a.status}`) ? t(`enum.Agent.status.${a.status}`) : a.status}</span>
                 </li>
               ))}
             </ul>

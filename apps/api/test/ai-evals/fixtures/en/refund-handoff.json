@@ -1,0 +1,15 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "I want a refund"
+    }
+  ],
+  "expect": {
+    "status": "HANDOFF",
+    "intent": "COMPLAINT",
+    "language": "en",
+    "toolCalls": [],
+    "noProductOutsideCatalogue": true
+  }
+}

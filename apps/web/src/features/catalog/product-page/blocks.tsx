@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { QueryError } from '@/components/global-states';
 import { Link } from '@/i18n/navigation';
 import { useLocaleCode, useT } from '@/lib/i18n';
+import { useSession } from '@/lib/session';
 import { useMovements } from '../api';
 import type { Product, ProductImage } from '../contracts';
 import { Money, MovementTypePill, Num, Pct, useMovementReason } from '../ui';
@@ -247,15 +248,45 @@ export function StockBlock({ product, advanced }: { product: Product; advanced: 
 }
 
 /* ---------- Agents & canaux ---------- */
-export function AgentsBlock({ product }: { product: Pick<Product, 'agents' | 'mentions30d' | 'aiState'> }) {
+export function AgentsBlock({ product, onAdd }: { product: Pick<Product, 'agents' | 'mentions30d' | 'aiState'>; /** "Ajouter à un agent" (catalog.write, live product) */ onAdd?: () => void }) {
   const t = useT();
+  const { can } = useSession();
   const agents = product.agents ?? [];
   const m = product.mentions30d;
+  const linked = can('agents.read');
   return (
-    <Block title={t('products.page.agents.title')} testId="block-agents">
+    <Block
+      title={t('products.page.agents.title')}
+      testId="block-agents"
+      action={
+        onAdd ? (
+          <button type="button" onClick={onAdd} className="ts-label-meta uppercase text-accent-inbound hover:underline" data-testid="add-to-agent-open">
+            {t('action.addToAgent')}
+          </button>
+        ) : null
+      }
+    >
       <Rows>
         <Row label={t('products.page.agents.proposedBy')} testId="agents-list">
-          {agents.length ? agents.map((a) => a.name).join(' · ') : <span className="text-text-muted">{t(product.aiState === 'excluded' ? 'products.page.agents.excluded' : 'products.page.agents.none')}</span>}
+          {agents.length ? (
+            // "Agents qui le vendent": each one opens its page
+            <span className="flex flex-wrap gap-x-2 gap-y-1">
+              {agents.map((a, i) => (
+                <span key={a.id}>
+                  {linked ? (
+                    <Link href={`/agents/${a.id}`} className="hover:underline" data-agent={a.id}>
+                      {a.name}
+                    </Link>
+                  ) : (
+                    a.name
+                  )}
+                  {i < agents.length - 1 ? <span aria-hidden> ·</span> : null}
+                </span>
+              ))}
+            </span>
+          ) : (
+            <span className="text-text-muted">{t(product.aiState === 'excluded' ? 'products.page.agents.excluded' : 'products.page.agents.none')}</span>
+          )}
         </Row>
         <Row label={t('products.page.agents.mentions')}>
           {t('products.page.agents.conversations', { count: m?.conversations ?? 0 })} · {t('products.page.agents.orders', { count: m?.orders ?? 0 })}

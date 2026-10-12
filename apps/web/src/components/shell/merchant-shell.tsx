@@ -1,17 +1,19 @@
 'use client';
 // MerchantShell (02-next-route-map §2.1): guard, sidebar (stock mode + permission filtering), top bar, banners,
 // legal re-acceptance interstitial, language dialog. Frames "ANA-01 — Home — default", "AUTH — States catalogue".
-import { formatDate, formatNumber, isMerchantPermission, type AppLocale } from '@djaber/shared';
-import { Avatar, Button, Checkbox, cn, Dialog, FormAlert, Menu, MenuItem, MenuLabel, MenuSeparator, Spinner, toast } from '@djaber/ui';
+import { formatDate, isMerchantPermission, type AppLocale } from '@djaber/shared';
+import { Avatar, Button, Checkbox, Dialog, FormAlert, Menu, MenuItem, MenuLabel, MenuSeparator, Spinner, toast } from '@djaber/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronDown, Zap } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { RESEND_COOLDOWN_S } from '@/components/auth/forgot-form';
 import { PageSessionExpired, PageSuspended, QueryError } from '@/components/global-states';
+import { useAgentEvents } from '@/features/agents/api';
 import { authApi } from '@/features/auth/api';
 import { useCatalogEvents } from '@/features/catalog/api';
 import { useChannelBanners, useChannelEvents } from '@/features/channels/shell';
+import { CreditsPillLink, useCreditsBanners, useCreditsEvents } from '@/features/credits/shell';
 import { useInboxBadge, useInboxEvents } from '@/features/inbox/api';
 import { NotificationBell, useUnreadNotifications } from '@/features/notifications/shell';
 import { useQueueCount } from '@/features/queue/shell';
@@ -121,6 +123,8 @@ function LiveShell({ groups, banners, children }: { groups: NavGroup[]; banners:
   useCatalogEvents();
   useInboxEvents();
   useChannelEvents();
+  useAgentEvents();
+  useCreditsEvents();
   const counters = { queue: useQueueCount(), inbox: useInboxBadge(), notifications: useUnreadNotifications() };
   return (
     <AppShell groups={groups} footer={FOOTER_NAV} topBar={<TopBar />} banners={banners} counters={counters}>
@@ -140,6 +144,8 @@ function useShellBanners(): ShellBanner[] {
   const resend = useMutation({ mutationFn: authApi.resendVerification });
   // `reconnect` (a page lost its Meta token) and `approvalPending` (Instagram waiting for Meta)
   const channelBanners = useChannelBanners();
+  // `credits100` / `credits80` / `negativeCredits` (GET /credits, live through WS `credits.updated`)
+  const creditsBanners = useCreditsBanners();
 
   useEffect(() => {
     const sync = () => setOffline(!navigator.onLine);
@@ -169,7 +175,7 @@ function useShellBanners(): ShellBanner[] {
     }
   };
 
-  const banners: ShellBanner[] = [...channelBanners];
+  const banners: ShellBanner[] = [...channelBanners, ...creditsBanners];
   if (s.workspace?.status === 'suspended') banners.push({ id: 'suspended', tone: 'danger', content: t('banner.suspended') });
   if (s.workspace?.status === 'deletion_scheduled') {
     banners.push({
@@ -196,7 +202,6 @@ function useShellBanners(): ShellBanner[] {
 function TopBar() {
   const t = useT();
   const s = useSession();
-  const plan = s.workspace?.plan;
   const ws = useWsStatus();
   return (
     <>
@@ -211,19 +216,7 @@ function TopBar() {
           {t('state.ws.reconnecting')}
         </span>
       ) : null}
-      {plan && plan.limits.monthlyCredits >= 0 ? (
-        // links to /settings/credits from M9 (the page does not exist yet)
-        <span
-          className={cn(
-            'inline-flex h-5 items-center gap-1.5 rounded-full border px-2 ts-label-meta tabular-nums',
-            plan.usage.creditsUsed >= plan.limits.monthlyCredits ? 'border-accent-alert/40 text-accent-alert' : 'border-line-edge text-text-secondary',
-          )}
-          title={t('common.credits')}
-        >
-          <Zap className="size-3" aria-hidden />
-          <bdi dir="ltr">{t('topbar.credits', { used: formatNumber(plan.usage.creditsUsed), limit: formatNumber(plan.limits.monthlyCredits) })}</bdi>
-        </span>
-      ) : null}
+      <CreditsPillLink />
       <NotificationBell />
       <UserMenu />
     </>

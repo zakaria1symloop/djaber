@@ -178,12 +178,14 @@ export function SegmentedControl<T extends string>({
   onChange,
   label,
   className,
+  disabled,
 }: {
   options: { value: T; label: string; dir?: 'ltr' | 'rtl' }[];
   value: T;
   onChange: (v: T) => void;
   label: string;
   className?: string;
+  disabled?: boolean;
 }) {
   return (
     <div role="radiogroup" aria-label={label} className={cn('inline-flex flex-wrap gap-1.5', className)}>
@@ -194,9 +196,10 @@ export function SegmentedControl<T extends string>({
           role="radio"
           aria-checked={o.value === value}
           dir={o.dir}
+          disabled={disabled}
           onClick={() => onChange(o.value)}
           className={cn(
-            'h-8 rounded-card border px-3 text-[13px] transition-colors',
+            'h-8 rounded-card border px-3 text-[13px] transition-colors disabled:cursor-not-allowed disabled:opacity-50',
             o.value === value ? 'border-white bg-white font-medium text-black' : 'border-line-edge bg-ink-surface text-text-secondary hover:text-text-primary',
           )}
         >

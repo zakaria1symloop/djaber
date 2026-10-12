@@ -5,7 +5,9 @@
 import { BulkPriceSchema, computeBulkPrice, formatNumber, type BulkPriceInput } from '@djaber/shared';
 import { BulkBar, Button, Checkbox, Combobox, Dialog, Field, FormAlert, Ltr, NumberInput, Pill, RadioCards, Select, toast, type BulkAction } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAgents } from '@/features/agents/api';
+import { Link } from '@/i18n/navigation';
 import { ApiError } from '@/lib/api';
 import { errorMessage } from '@/lib/forms';
 import { useT } from '@/lib/i18n';
@@ -13,8 +15,9 @@ import { downloadUrl, trackJob } from '@/lib/jobs';
 import { useSession } from '@/lib/session';
 import { catalogApi, useCatalogRefresh, useCategories } from '../api';
 import { flattenCategories, type BulkResponse, type ProductListItem } from '../contracts';
+import { addToAgentOutcome } from './spec';
 
-export type BulkKind = 'category' | 'minStock' | 'price' | 'archive';
+export type BulkKind = 'category' | 'minStock' | 'price' | 'agent' | 'archive';
 type Outcome = { title: string; response: BulkResponse; retry: (ids: string[]) => Promise<BulkResponse> };
 
 /** Progress toast of a products export job (header "Exporter" and bulk "Exporter"). */
@@ -52,6 +55,9 @@ export function ProductsBulkBar({ rows, selected, total, onSelectAllPage, onClea
   const withVariants = picked.filter((r) => r.hasVariants).length;
   const forbidden = can('catalog.write') ? undefined : t('toast.forbidden');
   const advanced = workspace?.stockMode === 'advanced';
+  // names of every row seen on screen: an archived product leaves the list before the result dialog opens
+  const seenNames = useRef<Record<string, string>>({});
+  for (const r of rows) seenNames.current[r.id] = r.name;
 
   const done = async (title: string, response: BulkResponse, retry: Outcome['retry']) => {
     setDialog(null);
@@ -66,6 +72,7 @@ export function ProductsBulkBar({ rows, selected, total, onSelectAllPage, onClea
     { key: 'category', label: t('products.bulk.category'), onSelect: () => setDialog('category'), disabledReason: forbidden },
     { key: 'minStock', label: t('products.bulk.minStock'), onSelect: () => setDialog('minStock'), disabledReason: forbidden },
     { key: 'price', label: t('products.bulk.price'), onSelect: () => setDialog('price'), disabledReason: forbidden },
+    ...(can('agents.read') ? [{ key: 'agent', label: t('action.addToAgent'), onSelect: () => setDialog('agent'), disabledReason: forbidden }] : []),
     { key: 'export', label: t('action.export'), onSelect: () => void exportProducts(() => catalogApi.bulkExport(ids)), disabledReason: forbidden },
     { key: 'archive', label: t('action.archive'), onSelect: () => setDialog('archive'), destructive: true, disabledReason: forbidden },
   ];
@@ -84,10 +91,11 @@ export function ProductsBulkBar({ rows, selected, total, onSelectAllPage, onClea
       <BulkCategoryDialog open={dialog === 'category'} ids={ids} onClose={() => setDialog(null)} onDone={done} />
       <BulkMinStockDialog open={dialog === 'minStock'} ids={ids} onClose={() => setDialog(null)} onDone={done} />
       <BulkPriceDialog open={dialog === 'price'} ids={ids} rows={picked} advanced={advanced} onClose={() => setDialog(null)} onDone={done} />
+      <BulkAgentDialog open={dialog === 'agent'} ids={ids} onClose={() => setDialog(null)} onDone={done} />
       <BulkArchiveDialog open={dialog === 'archive'} ids={ids} onClose={() => setDialog(null)} onDone={done} />
       <BulkResultDialog
         outcome={outcome}
-        names={Object.fromEntries(rows.map((r) => [r.id, r.name]))}
+        names={seenNames.current}
         onClose={() => {
           setOutcome(null);
           onClear();
@@ -295,6 +303,91 @@ function BulkPriceDialog(p: DialogProps & { rows: ProductListItem[]; advanced: b
         {b.error ? <FormAlert>{b.error}</FormAlert> : null}
       </div>
     </Dialog>
+  );
+}
+
+/* ---------- Ajouter à un agent (bulk bar and row menu) ---------- */
+function BulkAgentDialog(p: DialogProps) {
+  const t = useT();
+  const agents = useAgents(undefined, p.open);
+  const [agentId, setAgentId] = useState<string | null>(null);
+  const [touched, setTouched] = useState(false);
+  useEffect(() => {
+    if (p.open) {
+      setAgentId(null);
+      setTouched(false);
+    }
+  }, [p.open]);
+  const title = t('action.addToAgent');
+  const b = useBulk((ids) => catalogApi.bulkAgent({ ids, agentId: agentId! }), p, title);
+  const rows = agents.data?.rows ?? [];
+  const options = rows.map((a) => ({ value: a.id, label: a.name, hint: t(`enum.Agent.status.${a.status}`) }));
+  const picked = rows.find((a) => a.id === agentId);
+  const none = agents.isSuccess && rows.length === 0;
+  return (
+    <Dialog
+      open={p.open}
+      onOpenChange={(o) => !o && !b.busy && p.onClose()}
+      title={title}
+      description={context(t, p.ids.length)}
+      closeLabel={t('action.close')}
+      size="sm"
+      footer={<Footer onClose={p.onClose} busy={b.busy} disabled={none} label={t('products.bulk.agent.submit', { count: p.ids.length })} submit={() => (agentId ? void b.submit() : setTouched(true))} />}
+    >
+      <div data-testid="add-to-agent" className="flex flex-col gap-3">
+        {none ? (
+          <FormAlert tone="info">
+            {t('products.bulk.agent.none')}{' '}
+            <Link href="/agents/new" className="normal-case text-accent-inbound underline">
+              {t('action.newAgent')}
+            </Link>
+          </FormAlert>
+        ) : (
+          <Field label={t('products.bulk.agent.label')} htmlFor="bulk-agent" error={touched && !agentId ? t('validation.required') : undefined} hint={picked?.sellAllProducts ? t('products.bulk.agent.sellsAll', { name: picked.name }) : t('products.bulk.agent.hint')}>
+            <Combobox
+              id="bulk-agent"
+              value={agentId}
+              onChange={setAgentId}
+              options={options}
+              loading={agents.isPending}
+              placeholder={t('products.bulk.agent.placeholder')}
+              searchPlaceholder={t('products.bulk.agent.search')}
+              emptyLabel={t('products.page.agents.none')}
+              disabled={b.busy}
+              invalid={touched && !agentId}
+            />
+          </Field>
+        )}
+        {agents.isError ? <FormAlert>{errorMessage(agents.error, t)}</FormAlert> : null}
+        {b.error ? <FormAlert>{b.error}</FormAlert> : null}
+      </div>
+    </Dialog>
+  );
+}
+
+/** Row "Actions" menu › "Ajouter à un agent": the same dialog for one product; the outcome is a toast. */
+export function AddToAgentDialog({ product, onClose }: { product: Pick<ProductListItem, 'id' | 'name'> | null; onClose: () => void }) {
+  const t = useT();
+  const refresh = useCatalogRefresh();
+  const [last, setLast] = useState(product);
+  useEffect(() => {
+    if (product) setLast(product);
+  }, [product]);
+  const target = product ?? last;
+  return (
+    <BulkAgentDialog
+      open={!!product}
+      ids={target ? [target.id] : []}
+      onClose={onClose}
+      onDone={async (_title, response) => {
+        onClose();
+        await refresh({ productId: target?.id });
+        const o = addToAgentOutcome(response);
+        if (o.kind === 'done') toast(t('products.toast.addedToAgent', { name: target?.name ?? '' }));
+        else if (o.kind === 'failed') toast({ tone: 'danger', message: `${o.message} (${o.code})` });
+        else toast({ tone: 'warning', message: t('products.bulk.result.summary', { ok: o.ok, failed: o.failed }) });
+      }}
+    />
   );
 }
 

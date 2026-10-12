@@ -1,5 +1,5 @@
 // Queue calls (02-next-route-map `/queue`): needs-human conversations (06 "Conversations") and pending agent insights
-// (06 §8.7 — served from M4; until then `GET /agent-insights` answers 404 and the column stays empty).
+// (06 §8.7; a role or a deployment without the endpoint answers 403 / 404: the column stays empty).
 import type { ConversationCounts, ConversationListItemView, ConversationView, UpdateConversationInput } from '@djaber/shared';
 import { api, ApiError, apiRaw } from '@/lib/api';
 import type { AgentInsight } from '@/features/inbox/contracts';
@@ -17,7 +17,7 @@ export const queueApi = {
       const rows = Array.isArray(r.data) ? r.data : [];
       return { available: true, rows, total: r.meta?.total ?? rows.length };
     } catch (e) {
-      // M4: the insights module is not served yet (404) or not readable by this role (403)
+      // not readable by this role (403) or not served (404): the queue keeps working without the column
       if (e instanceof ApiError && (e.status === 404 || e.status === 403)) return { available: false, rows: [], total: 0 };
       throw e;
     }

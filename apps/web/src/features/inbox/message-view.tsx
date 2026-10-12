@@ -84,10 +84,12 @@ export type MessageViewProps = {
   onRetry?: (m: Message) => void;
   onCancel?: (m: Message) => void;
   onReport?: (m: Message) => void;
+  /** opens the detail of the AI turn (`GET /messages/:id/ai-run`); offered on AI messages that carry `aiRunId` */
+  onInspect?: (m: Message) => void;
   retrying?: boolean;
 };
 
-export const MessageView = memo(function MessageView({ message: m, grouped, unread, onOpenImage, onRetry, onCancel, onReport, retrying }: MessageViewProps) {
+export const MessageView = memo(function MessageView({ message: m, grouped, unread, onOpenImage, onRetry, onCancel, onReport, onInspect, retrying }: MessageViewProps) {
   const t = useT();
   if (m.type === 'system' || m.author === 'system') {
     const s = systemText(m, t);
@@ -109,9 +111,10 @@ export const MessageView = memo(function MessageView({ message: m, grouped, unre
     retry: t('action.retry'),
   };
 
+  const inspect = author === 'ai' && !!onInspect && !!m.aiRunId && !isOptimistic(m);
   const parts: string[] = [];
   if (author === 'customer') parts.push(time, t('inbox.meta.customer'));
-  else if (author === 'ai') parts.push(time, ...(m.agent?.name ? [m.agent.name] : []), t('enum.Conversation.author.ai'));
+  else if (author === 'ai') parts.push(time, ...(m.agent?.name ? [m.agent.name] : []), ...(inspect ? [] : [t('enum.Conversation.author.ai')]));
   else parts.push(shortUserName(m.authorUser) || t('inbox.meta.team'), time);
   if (m.payload?.templateKey) parts.push(t('inbox.meta.template'));
   if (m.payload?.external) parts.push(t('inbox.meta.external'));
@@ -119,6 +122,14 @@ export const MessageView = memo(function MessageView({ message: m, grouped, unre
   const meta: ReactNode = (
     <span className={m.deliveryStatus === 'failed' || m.deliveryStatus === 'skipped_window' ? 'text-accent-alert' : undefined}>
       <span dir="auto">{parts.join(' · ')}</span>
+      {inspect ? (
+        <>
+          {' · '}
+          <button type="button" onClick={() => onInspect!(m)} title={t('inbox.aiRun.open')} aria-label={t('inbox.aiRun.open')} data-testid="ai-run-open" className="uppercase tracking-[inherit] text-signal-live underline decoration-dotted underline-offset-2 hover:decoration-solid">
+            {t('enum.Conversation.author.ai')}
+          </button>
+        </>
+      ) : null}
       {m.direction === 'out' ? (
         <>
           {' '}
@@ -153,10 +164,11 @@ export const MessageView = memo(function MessageView({ message: m, grouped, unre
   const location = m.payload?.location;
   const hasText = !!m.text?.trim();
   const mediaOnly = !hasText && m.type !== 'postback' && (m.attachments.length > 0 || cards.length > 0) && m.type !== 'audio' && m.type !== 'file' && m.type !== 'location';
-  const menu =
-    author === 'ai' && onReport && !isOptimistic(m) ? (
-      <ActionsMenu iconOnly variant="ghost" label={t('inbox.message.menu')} actions={[{ key: 'report', label: t('inbox.message.reportAi'), onSelect: () => onReport(m) }]} />
-    ) : null;
+  const menuItems = [
+    ...(inspect ? [{ key: 'aiRun', label: t('inbox.aiRun.open'), onSelect: () => onInspect!(m) }] : []),
+    ...(author === 'ai' && onReport && !isOptimistic(m) ? [{ key: 'report', label: t('inbox.message.reportAi'), onSelect: () => onReport(m) }] : []),
+  ];
+  const menu = menuItems.length ? <ActionsMenu iconOnly variant="ghost" label={t('inbox.message.menu')} actions={menuItems} /> : null;
 
   return (
     <MessageBubble id={m.id} author={author} grouped={grouped} bare={mediaOnly} pending={pending} flagged={m.containsBlockedWord || m.flags?.includes('blocked_word')} meta={meta} footer={footer} menu={menu}>

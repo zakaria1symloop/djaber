@@ -18,6 +18,8 @@ import { ChannelTokens } from '../channels/channel.util';
 import { MetaError } from '../meta/meta-errors';
 import { META_GATEWAY, type MetaGateway, type MetaProfile } from '../meta/meta.gateway';
 import { NotificationProducer } from '../notifications/notification.producer';
+import { CREDIT_COST } from '@djaber/shared';
+import { CreditService } from '../credits/credit.service';
 import { BatchingService } from './batching.service';
 import { ConversationResolver } from './conversation-resolver';
 import { ConversationService } from './conversation.service';
@@ -31,6 +33,8 @@ type Stored = { conversation: Conversation; messageId: string; duplicate: boolea
 const EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/ogg': 'ogg', 'audio/aac': 'aac', 'video/mp4': 'mp4', 'application/pdf': 'pdf' };
 const MEDIA_ATTEMPTS = 3;
 const TEN_MIN = 600_000;
+/** 04-ai-pipeline §9: the reply job waits at most 30 s for the transcript of a voice note. */
+const VOICE_WAIT_S = 30;
 
 @Injectable()
 export class InboundProcessor implements OnModuleInit {
@@ -50,6 +54,7 @@ export class InboundProcessor implements OnModuleInit {
     private readonly outbound: OutboundSendService,
     private readonly conversations: ConversationService,
     private readonly batching: BatchingService,
+    private readonly credits: CreditService,
     @Inject(META_GATEWAY) private readonly meta: MetaGateway,
   ) {}
 
@@ -211,26 +216,52 @@ export class InboundProcessor implements OnModuleInit {
   }
 
   /**
-   * FL-01 steps 6–9, the part that needs no AI: is this thread one the AI answers? (channel active — checked above —,
-   * an active agent linked, not handed off, not paused, customer not blocked.) Then the abuse guard (D33), the fixed
-   * unsupported-media text (MSG-09) or the batching window whose job the AI pipeline of M4 consumes.
-   * Credits and quota gates belong to M4.
+   * FL-01 steps 6–11: is this thread one the AI answers? (channel active — checked above —, an active agent linked, not
+   * handed off, not paused, customer not blocked.) Then the abuse guard (D33), the attachment gates of the agent
+   * (voice / image toggles, MSG-09), the credit and conversation-quota gates (F-4) and the batching window whose
+   * `ai-reply / reply` job the AI pipeline consumes.
    */
   private async afterInbound(channel: Channel, s: Stored, unsupportedOnly: boolean) {
     const conv = s.conversation;
     if (s.blocked || conv.status === 'needs_human' || conv.aiPaused) return;
-    const link = await prisma.agentChannel.findUnique({ where: { channelId: channel.id }, include: { agent: { select: { id: true, status: true, deletedAt: true, responseDelaySec: true } } } });
+    const link = await prisma.agentChannel.findUnique({ where: { channelId: channel.id }, include: { agent: { select: { id: true, status: true, deletedAt: true, responseDelaySec: true, imageRecognition: true, voiceTranscription: true } } } });
     if (!link || link.agent.status !== 'active' || link.agent.deletedAt) return;
+    const agent = link.agent;
     const guard = await this.batching.count(conv.id);
     if (guard.flood) {
       await this.conversations.handoff(conv.id, 'abuse_guard');
       return;
     }
-    if (unsupportedOnly) {
+    const message = await prisma.message.findFirst({ where: { id: s.messageId }, select: { text: true, attachments: true } });
+    const attachments = message ? attachmentsOf(message) : [];
+    const hasText = !!message?.text?.trim();
+    const hasAudio = attachments.some((a) => a.type === 'audio');
+    const hasImage = attachments.some((a) => a.type === 'image');
+    // step 7 — attachment gates: fixed platform text once per conversation per 24 h, no credits
+    const unsupported = unsupportedOnly || (hasAudio && !agent.voiceTranscription) || (hasImage && !agent.imageRecognition && !hasText && !hasAudio);
+    if (unsupported) {
       await this.outbound.sendSystemText(conv.id, 'unsupportedMedia', {}, { oncePer24h: true });
       return;
     }
-    const scheduled = await this.batching.schedule({ workspaceId: channel.workspaceId, conversationId: conv.id, messageId: s.messageId, delaySec: link.agent.responseDelaySec, burst: guard.burst });
+    // step 8 — credit gate (per-turn cost = the highest of text 1 / voice 3 / image 5) and monthly conversation quota
+    if (this.batching.enabled) {
+      const cost = Math.max(CREDIT_COST.text, hasAudio ? CREDIT_COST.voice : 0, hasImage && agent.imageRecognition ? CREDIT_COST.image : 0);
+      const balance = await this.credits.balance(channel.workspaceId);
+      if (!balance.unlimited && balance.total < cost) {
+        await this.conversations.aiUnavailable(conv.id, 'credits', { used: balance.planUsed, limit: balance.planLimit });
+        return;
+      }
+      const quota = await this.credits.quota(channel.workspaceId);
+      if (quota.exceeded) {
+        await this.conversations.aiUnavailable(conv.id, 'quota', { used: quota.used, limit: quota.limit, period: quota.periodStart.toISOString().slice(0, 10) });
+        return;
+      }
+      if (quota.limit > 0 && quota.used / quota.limit >= 0.8) {
+        await prisma.$transaction((db) => this.notifications.emit(db as Tx, { type: 'quota_80', workspaceId: channel.workspaceId, target: { roles: ['owner', 'admin'] }, key: `quota_80:${channel.workspaceId}:${quota.periodStart.toISOString().slice(0, 10)}`, data: { used: quota.used, limit: quota.limit } }));
+      }
+    }
+    // a voice note is answered once its transcript exists: the reply job is parked (≤ 30 s) and released by `media / transcribe`
+    const scheduled = await this.batching.schedule({ workspaceId: channel.workspaceId, conversationId: conv.id, messageId: s.messageId, delaySec: hasAudio ? VOICE_WAIT_S : agent.responseDelaySec, burst: guard.burst });
     if (scheduled) {
       const auth = this.tokens.auth(channel);
       // typing indicator at the start of the window (best effort)
@@ -363,6 +394,10 @@ export class InboundProcessor implements OnModuleInit {
           deliveryStatus: fresh.deliveryStatus,
           attachments: list.map(({ sourceUrl: _s, storageKey: _k, ...a }) => a),
         }, `message.updated:${m.id}:att${d.index}`);
+        // AI-07: a customer voice note is transcribed once its file is here (a failed download ends in F-5 there)
+        if (fresh.direction === 'in' && list[d.index]!.type === 'audio' && this.batching.enabled) {
+          await this.queue.add(tx, 'media', 'transcribe', { workspaceId: d.workspaceId, messageId: m.id }, `stt:${m.id}`, { attempts: 2, backoff: { type: 'fixed', delay: 5_000 } });
+        }
       });
       return outcome;
     });

@@ -1,0 +1,15 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "نحب نرجع السلعة ونستنى استرجاع الدراهم"
+    }
+  ],
+  "expect": {
+    "status": "HANDOFF",
+    "intent": "COMPLAINT",
+    "language": "ar",
+    "toolCalls": [],
+    "noProductOutsideCatalogue": true
+  }
+}

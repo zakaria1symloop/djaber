@@ -1,13 +1,26 @@
 // Queue card rules (frame "QUEUE — File d'attente — items"): the label line of a needs-human card is derived from
 // `Conversation.handoffReason`. Pure functions.
 
-export type QueueReasonKind = 'transfer' | 'human_request' | 'credits' | 'ai_error' | 'risk' | 'blocked_word' | 'abuse' | 'manual' | 'window';
+export type QueueReasonKind = 'transfer' | 'human_request' | 'refund' | 'complaint' | 'angry' | 'unclear' | 'off_catalogue' | 'order_limits' | 'keyword' | 'credits' | 'ai_error' | 'risk' | 'blocked_word' | 'abuse' | 'manual' | 'window' | 'orders_unavailable';
 export type QueueReason = { kind: QueueReasonKind; /** rule / keyword that triggered the handoff, shown after the label */ detail: string | null };
 
 const KINDS: Record<string, QueueReasonKind> = {
   human_request: 'human_request',
   customer_request: 'human_request',
   asked_human: 'human_request',
+  // HANDOFF_REASONS of the AI pipeline (`@djaber/shared` schemas/agents.ts) and the wizard rule kinds
+  refund: 'refund',
+  complaint: 'complaint',
+  angry: 'angry',
+  anger: 'angry',
+  unclear_streak: 'unclear',
+  '3_unclear': 'unclear',
+  off_catalogue: 'off_catalogue',
+  off_topic: 'off_catalogue',
+  order_limits: 'order_limits',
+  over_limits: 'order_limits',
+  keyword: 'keyword',
+  other: 'transfer',
   credits_exhausted: 'credits',
   credits: 'credits',
   quota_exhausted: 'credits',
@@ -21,6 +34,8 @@ const KINDS: Record<string, QueueReasonKind> = {
   abuse: 'abuse',
   abuse_guard: 'abuse',
   manual: 'manual',
+  // create_order / cancel_order before the orders module (M4: the tools answer ORDERS_UNAVAILABLE and hand over)
+  orders_unavailable: 'orders_unavailable',
   // an AI reply could not leave outside the 24 h window (MSG-06): a human must answer
   outside_window: 'window',
   reply_outside_window: 'window',
@@ -35,6 +50,9 @@ export const queueReason = (handoffReason: string | null | undefined): QueueReas
   if (!raw) return { kind: 'transfer', detail: null };
   const known = KINDS[raw.toLowerCase()];
   if (known) return { kind: known, detail: null };
+  // an AI reply withheld by the safety filter: `blocked_word:<word>`
+  const blocked = /^blocked_word\s*[:=]\s*(.+)$/i.exec(raw);
+  if (blocked) return { kind: 'blocked_word', detail: blocked[1]!.trim() || null };
   const m = /^(rule|keyword|règle|regle|handoff)\s*[:=]\s*(.+)$/i.exec(raw);
   if (m) {
     const detail = m[2]!.trim().replace(/^[«"']\s*|\s*[»"']$/g, '');

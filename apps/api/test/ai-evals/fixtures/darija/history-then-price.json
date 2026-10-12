@@ -1,0 +1,28 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "سلام"
+    },
+    {
+      "role": "assistant",
+      "text": "مرحبا! كيفاش نقدر نعاونك؟"
+    },
+    {
+      "role": "user",
+      "text": "شحال الساك تاع الجلد؟"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "SALE",
+    "language": "ar",
+    "toolCalls": [
+      "search_products"
+    ],
+    "cards": [
+      "SAC-002"
+    ],
+    "noProductOutsideCatalogue": true
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "وين راهي الطلبية تاعي؟"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "TRACKING",
+    "language": "ar",
+    "toolCalls": [
+      "lookup_order"
+    ],
+    "noProductOutsideCatalogue": true
+  }
+}

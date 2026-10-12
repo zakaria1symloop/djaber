@@ -27,6 +27,13 @@ export type ConversationContext = {
   displayName?: string | null;
   avatarUrl?: string | null;
   cart?: { items?: number; recapShownAt?: string | null; orderId?: string | null } | null;
+  // --- AI pipeline (04-ai-pipeline §2) ---
+  /** products the AI last showed (≤ 10, most recent first): retrieval context of the next turn */
+  lastProductIds?: string[];
+  /** 3 unclear turns in a row ⇒ handoff rule */
+  unclearStreak?: number;
+  /** why the AI does not answer this thread (banner "IA indisponible" / "Crédits épuisés"); cleared when it answers again */
+  aiUnavailable?: 'credits' | 'quota' | 'error' | null;
 };
 export const contextOf = (c: Pick<Conversation, 'context'>): ConversationContext => (c.context && typeof c.context === 'object' && !Array.isArray(c.context) ? (c.context as ConversationContext) : {});
 

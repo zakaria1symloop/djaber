@@ -15,6 +15,8 @@ import type {
   MetaInstagramToken,
   MetaPage,
   MetaPageInfo,
+  MetaPost,
+  MetaPostsPage,
   MetaProfile,
   MetaSendInput,
   MetaSendResult,
@@ -35,6 +37,7 @@ export class FakeMetaGateway implements MetaGateway {
   private readonly igBySeed = new Map<string, MetaInstagramAccount>();
   private readonly history = new Map<string, MetaHistoryConversation[]>();
   private readonly profiles = new Map<string, MetaProfile | null>();
+  private readonly postsByPage = new Map<string, MetaPost[]>();
   readonly invalidTokens = new Set<string>();
 
   // --- scripting (tests) ----------------------------------------------------------------------------------------------
@@ -60,6 +63,9 @@ export class FakeMetaGateway implements MetaGateway {
   setProfile(senderId: string, profile: MetaProfile | null) {
     this.profiles.set(senderId, profile);
   }
+  setPosts(externalId: string, posts: MetaPost[]) {
+    this.postsByPage.set(externalId, posts);
+  }
   callsOf(op: string) {
     return this.calls.filter((c) => c.op === op);
   }
@@ -71,6 +77,7 @@ export class FakeMetaGateway implements MetaGateway {
     this.igBySeed.clear();
     this.history.clear();
     this.profiles.clear();
+    this.postsByPage.clear();
     this.invalidTokens.clear();
   }
 
@@ -196,6 +203,23 @@ export class FakeMetaGateway implements MetaGateway {
       { key: 'page_messages_total_messaging_connections', value: 42 },
       { key: 'page_fans', value: 1234 },
     ];
+  }
+
+  /** Scripted posts, else four deterministic posts: three products (one twice) and a greeting; pages of two. */
+  async posts(auth: MetaChannelAuth, opts: { limit: number; after?: string | null }): Promise<MetaPostsPage> {
+    this.record('posts', { externalId: auth.externalId, ...opts });
+    const now = Date.now();
+    const all: MetaPost[] = this.postsByPage.get(auth.externalId) ?? [
+      { id: `${auth.externalId}_p1`, text: 'Robe satin bordeaux - 4500 DA. Tailles S à XL, livraison 58 wilayas', imageUrl: `${FAKE_MEDIA_HOST}/posts/${auth.externalId}_p1.jpg`, createdAt: new Date(now - 86_400_000).toISOString() },
+      { id: `${auth.externalId}_p2`, text: 'Sac à main cuir noir - 6200 DA', imageUrl: `${FAKE_MEDIA_HOST}/posts/${auth.externalId}_p2.jpg`, createdAt: new Date(now - 2 * 86_400_000).toISOString() },
+      { id: `${auth.externalId}_p3`, text: 'Bonne fête à toutes nos clientes !', imageUrl: null, createdAt: new Date(now - 3 * 86_400_000).toISOString() },
+      { id: `${auth.externalId}_p4`, text: 'Robe satin bordeaux - 4500 DA', imageUrl: `${FAKE_MEDIA_HOST}/posts/${auth.externalId}_p4.jpg`, createdAt: new Date(now - 4 * 86_400_000).toISOString() },
+      { id: `${auth.externalId}_p5`, text: 'Ensemble sport gris', imageUrl: `${FAKE_MEDIA_HOST}/posts/${auth.externalId}_p5.jpg`, createdAt: new Date(now - 5 * 86_400_000).toISOString() },
+    ];
+    const start = opts.after ? Number(opts.after) || 0 : 0;
+    const size = Math.min(opts.limit, 2);
+    const posts = all.slice(start, start + size);
+    return { posts, nextCursor: start + size < all.length ? String(start + size) : null };
   }
 
   /** Media "download": a generated picture / tiny payload for fake URLs; any other host is refused (no network here). */
