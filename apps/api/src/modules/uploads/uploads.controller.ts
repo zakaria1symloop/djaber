@@ -11,9 +11,10 @@ import { IMAGE_MAX_BYTES, ImageUploadService, type UploadedFile as Incoming } fr
 export const imageInterceptor = () => FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: IMAGE_MAX_BYTES * 2, files: 1 } });
 
 /** Kinds served by this endpoint so far; the other `UploadKind`s arrive with their milestone. */
-const KINDS = ['avatar', 'logo', 'category_image', 'appeal_attachment', 'reply'] as const;
+const KINDS = ['avatar', 'logo', 'category_image', 'appeal_attachment', 'reply', 'cash_proof'] as const;
 /** Kinds that belong to a workspace and need an Admin+ member of it (M2: category picture, moderation appeal attachment). */
-const WORKSPACE_KINDS: readonly string[] = ['logo', 'category_image', 'appeal_attachment', 'reply'];
+/** `cash_proof` = receipt photo of a manual cash row (CSH-03, Owner + Admin like `gds.write`). */
+const WORKSPACE_KINDS: readonly string[] = ['logo', 'category_image', 'appeal_attachment', 'reply', 'cash_proof'];
 /** Workspace kinds every member may upload: the image of an inbox reply (INB-03, `inbox.read` = every role). */
 const MEMBER_KINDS: readonly string[] = ['reply'];
 type Kind = (typeof KINDS)[number];

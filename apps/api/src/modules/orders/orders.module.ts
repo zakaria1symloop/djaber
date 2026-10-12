@@ -3,7 +3,9 @@ import { CatalogModule } from '../catalog/catalog.module';
 import { ClientsModule } from '../clients/clients.module';
 import { DeliveryModule } from '../delivery/delivery.module';
 import { MessagingModule } from '../messaging/messaging.module';
+import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { OrderEffects } from './order-effects.service';
+import { OrderImportService } from './order-import.service';
 import { OrderPrintService } from './order-print.service';
 import { OrderToolsService } from './order-tools.service';
 import { OrderWorkflowService } from './order-workflow.service';
@@ -17,9 +19,9 @@ import { OrdersController } from './orders.controller';
  * to the AI port `ORDER_TOOLS` by the AI module.
  */
 @Module({
-  imports: [CatalogModule, ClientsModule, DeliveryModule, MessagingModule],
+  imports: [CatalogModule, ClientsModule, DeliveryModule, MessagingModule, RecommendationsModule],
   controllers: [OrdersController],
-  providers: [OrderEffects, OrderService, OrderWorkflowService, OrderPrintService, OrderToolsService],
+  providers: [OrderEffects, OrderService, OrderWorkflowService, OrderPrintService, OrderToolsService, OrderImportService],
   exports: [OrderEffects, OrderService, OrderWorkflowService, OrderToolsService],
 })
 export class OrdersModule {}

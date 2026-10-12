@@ -158,6 +158,7 @@ export class OrderWorkflowService implements OnModuleInit {
       } else await this.effects.customerText(tx, o, plan.customerText, { number: o.number });
     }
     if (to === 'cancelled') await this.effects.threadEvent(tx, o, 'order_cancelled', { orderId: o.id, number: o.number, reason: data.cancelReason });
+    if (to === 'cancelled') await this.effects.recoReverse(tx, o.id);
     // DLV-05 / D9 optional auto-send: a confirmed order goes to the default courier (job `courier.auto-send`, delivery module)
     if (to === 'confirmed' && o.status === 'new') {
       const ws = await tx.workspace.findUnique({ where: { id: o.workspaceId }, select: { autoSendToCourier: true } });

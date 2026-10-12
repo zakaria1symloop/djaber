@@ -1,7 +1,8 @@
 'use client';
 // Blocks of the product page — Figma "CAT-09 — Product page — full (gallery, variants, stock, margins, agents,
 // movements, archived)": Galerie, Mouvements récents, Prix & marge, Stock, Agents & canaux. Read-only: images are
-// managed in the edit form, stock moves only through "Ajuster", expenses arrive with M7.
+// managed in the edit form, stock moves only through "Ajuster", expenses are edited under "Prix & marge" (M7).
+import { ExpensesEditor } from '@/features/gds/product-expenses';
 import { formatDate, formatDateTime, formatNumber, PRODUCT_IMAGE_MAX_BYTES, PRODUCT_IMAGE_MIN_PX, PRODUCT_IMAGES_MAX } from '@djaber/shared';
 import { cn, Dialog, Ltr, Pill, Skeleton } from '@djaber/ui';
 import { ImageOff } from 'lucide-react';
@@ -155,7 +156,7 @@ export function MovementsBlock({ productId }: { productId: string }) {
 }
 
 /* ---------- Prix & marge ---------- */
-export function PricingBlock({ product, advanced }: { product: Pick<Product, 'price' | 'oldPrice' | 'pricing'>; advanced: boolean }) {
+export function PricingBlock({ product, advanced, canEdit = false }: { product: Pick<Product, 'id' | 'price' | 'oldPrice' | 'pricing'>; advanced: boolean; /** expenses editor (catalog.write, live product) */ canEdit?: boolean }) {
   const t = useT();
   const p = product.pricing;
   const units = (n: number) => <Ltr className="tabular-nums">{t('products.page.units', { count: formatNumber(n) })}</Ltr>;
@@ -194,6 +195,7 @@ export function PricingBlock({ product, advanced }: { product: Pick<Product, 'pr
           </>
         ) : null}
       </Rows>
+      {advanced ? <ExpensesEditor productId={product.id} price={product.price} pricing={product.pricing} canEdit={canEdit} /> : null}
     </Block>
   );
 }
@@ -238,7 +240,16 @@ export function StockBlock({ product, advanced }: { product: Product; advanced: 
               {units(d?.availableForAi ?? Math.max(0, s.total - (d?.reserved ?? 0)))}
             </Row>
             {advanced ? (
-              <Row label={t('products.page.stock.lastInventory')}>{d?.lastInventoryAt ? <bdi>{formatDate(d.lastInventoryAt, locale)}</bdi> : <span className="text-text-muted">{t('products.page.stock.noInventory')}</span>}</Row>
+              <Row label={t('products.page.stock.lastInventory')} testId="stock-last-inventory">
+                {d?.lastInventoryAt ? (
+                  <>
+                    <bdi>{formatDate(d.lastInventoryAt, locale)}</bdi>
+                    <LastInventoryGap productId={product.id} />
+                  </>
+                ) : (
+                  <span className="text-text-muted">{t('products.page.stock.noInventory')}</span>
+                )}
+              </Row>
             ) : null}
           </>
         ) : null}
@@ -293,5 +304,23 @@ export function AgentsBlock({ product, onAdd }: { product: Pick<Product, 'agents
         </Row>
       </Rows>
     </Block>
+  );
+}
+
+/** INV-03 "DERNIER INVENTAIRE · date · écart": the INVENTAIRE movements of the last count of this product (variants summed), linked to the count. */
+function LastInventoryGap({ productId }: { productId: string }) {
+  const t = useT();
+  const q = useMovements({ productId, type: ['inventory'], pageSize: 25, page: 1, sort: '-createdAt' });
+  const rows = q.data?.rows ?? [];
+  const last = rows[0]?.reference;
+  if (!last) return null;
+  const gap = rows.filter((m) => m.reference?.id === last.id).reduce((s, m) => s + (m.after - m.before), 0);
+  return (
+    <>
+      {' · '}
+      <Link href={`/inventory/${last.id}`} className={cn('hover:underline', gap < 0 ? 'text-accent-alert' : gap > 0 ? 'text-accent-money' : '')}>
+        <Ltr className="tabular-nums">{t('products.page.stock.inventoryGap', { gap: `${gap > 0 ? '+' : gap < 0 ? '−' : ''}${Math.abs(gap)}` })}</Ltr>
+      </Link>
+    </>
   );
 }

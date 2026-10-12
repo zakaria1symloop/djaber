@@ -8,7 +8,7 @@ import { Boxes } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { AppPage } from '@/components/app-page';
 import { QueryError } from '@/components/global-states';
-import { Link } from '@/i18n/navigation';
+import { Link, useRouter } from '@/i18n/navigation';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { compactAmount } from '@/lib/money';
 import { useSession } from '@/lib/session';
@@ -24,6 +24,7 @@ export function StockDashboard() {
   const t = useT();
   const locale = useLocaleCode() as 'fr' | 'ar' | 'en';
   const { workspace, can } = useSession();
+  const router = useRouter();
   const advanced = workspace?.stockMode === 'advanced';
   const canAdjust = can('stock.adjust');
   const canWrite = can('catalog.write');
@@ -34,8 +35,11 @@ export function StockDashboard() {
   const o = overview.data;
   const empty = !!o && (o.totalProducts ?? o.activeProducts + o.services) === 0;
   const lowRows = low.data ?? [];
+  const canPurchase = advanced && can('gds.write');
   const restock = (r: LowStockItem) =>
-    setAdjust({ product: { id: r.productId, name: r.name, trackStock: true, hasVariants: !!r.variantId, stock: r.variantId ? null : r.stock }, variantId: r.variantId });
+    canPurchase
+      ? router.push(`/purchases/new?productId=${r.productId}${r.variantId ? `&variantId=${r.variantId}` : ''}&quantity=${Math.max(1, r.minStock * 2 - r.stock)}`)
+      : setAdjust({ product: { id: r.productId, name: r.name, trackStock: true, hasVariants: !!r.variantId, stock: r.variantId ? null : r.stock }, variantId: r.variantId });
 
   return (
     <AppPage
@@ -145,7 +149,7 @@ export function StockDashboard() {
                           <div className="ts-label-meta mt-0.5 text-text-muted">{t('stock.dashboard.threshold', { count: r.minStock })}</div>
                         </div>
                         <Num value={r.stock} className={cn('ts-numeral-l', r.stock <= 0 ? 'text-accent-alert' : 'text-accent-starred')} />
-                        <Button variant="ghost" onClick={() => restock(r)} disabledReason={canAdjust ? undefined : t('toast.forbidden')}>
+                        <Button variant="ghost" onClick={() => restock(r)} disabledReason={canPurchase || canAdjust ? undefined : t('toast.forbidden')}>
                           {t(advanced ? 'stock.dashboard.restock' : 'stock.dashboard.adjustRow')}
                         </Button>
                       </Card>
@@ -153,6 +157,7 @@ export function StockDashboard() {
                   ))}
                 </ul>
               )}
+              {advanced && o.purchasing ? <PurchasingBlock p={o.purchasing} /> : null}
             </section>
           </div>
         </>
@@ -221,5 +226,34 @@ function RecentMovement({ movement: m, locale }: { movement: StockMovement; loca
         {when.kind === 'time' ? <Ltr>{when.value}</Ltr> : when.kind === 'yesterday' ? t('common.yesterday') : withoutYear(formatDate(m.createdAt, locale))}
       </span>
     </li>
+  );
+}
+
+/** "ACHATS & FOURNISSEURS" (GDS-01 advanced, M2 carry-over): pending purchases, received this month, active suppliers. */
+function PurchasingBlock({ p }: { p: NonNullable<import('../contracts').StockOverview['purchasing']> }) {
+  const t = useT();
+  const rows: { key: string; label: string; value: ReactNode; href: string }[] = [
+    { key: 'pending', label: t('stock.dashboard.purchasing.pending'), value: <Ltr className="tabular-nums">{`${formatNumber(p.pendingReceipt)} · ${formatNumber(p.dueToSuppliers)} DA`}</Ltr>, href: '/purchases?status=pending,partial' },
+    { key: 'received', label: t('stock.dashboard.purchasing.purchased'), value: <Ltr className="tabular-nums">{`${formatNumber(p.purchased30d)} DA`}</Ltr>, href: '/purchases?period=30d' },
+    { key: 'suppliers', label: t('stock.dashboard.purchasing.suppliers'), value: <Ltr className="tabular-nums">{formatNumber(p.activeSuppliers)}</Ltr>, href: '/suppliers' },
+  ];
+  return (
+    <div className="mt-3 flex flex-col gap-2" data-testid="purchasing-block">
+      <SectionLabel>{t('stock.dashboard.purchasing.title')}</SectionLabel>
+      <Card className="flex flex-col gap-2 px-4 py-3">
+        {rows.map((r) => (
+          <Link key={r.key} href={r.href} className="flex items-center justify-between gap-3 hover:text-text-primary" data-row={r.key}>
+            <span className="ts-label-micro text-text-muted">{r.label}</span>
+            <span className="text-[14px]">{r.value}</span>
+          </Link>
+        ))}
+        {p.late ? <span className="ts-label-meta text-accent-alert">{t('stock.dashboard.purchasing.late', { count: p.late })}</span> : null}
+        {p.restockSuggestions ? (
+          <Link href="/recommendations?type=restock" className="ts-label-meta text-accent-inbound hover:underline">
+            {t('stock.dashboard.purchasing.suggestions', { count: p.restockSuggestions })}
+          </Link>
+        ) : null}
+      </Card>
+    </div>
   );
 }

@@ -1,3 +1,4 @@
+import type { StockPurchasingView } from '@djaber/shared';
 // Wire types of the M2 endpoints (api-contract §3.5, 06 §2 "Catalogue", §8.2, §8.6). The read models written by the
 // API live in `@djaber/shared` (schemas/catalog.ts) and are re-exported here under the names the screens use.
 // Shapes the contract leaves open are listed in docs/implementation/assumptions-log.md (M2 web rows).
@@ -70,6 +71,8 @@ export type StockOverview = {
   valueAtRetail: number;
   potentialMargin: number | null;
   recentMovements: StockMovement[];
+  /** M7: "ACHATS & FOURNISSEURS" block — advanced mode + `gds.read`, else null (shared `StockPurchasingView`) */
+  purchasing?: StockPurchasingView | null;
 };
 
 /** `GET /products/low-stock` — one row per product or variant at or under its threshold, worst first. */

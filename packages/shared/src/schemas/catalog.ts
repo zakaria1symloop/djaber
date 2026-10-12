@@ -254,6 +254,10 @@ const expenseFields = {
 export const CreateProductExpenseSchema = z.object(expenseFields).strict();
 export const UpdateProductExpenseSchema = z.object(expenseFields).partial().strict();
 export type CreateProductExpenseInput = z.infer<typeof CreateProductExpenseSchema>;
+/** `GET|POST /products/:id/expenses`, `PATCH /products/:id/expenses/:eid` (GDS-09, EXP-01). */
+export type ProductExpenseView = { id: string; productId: string; category: (typeof EXPENSE_CATEGORIES)[number]; description: string | null; amount: number; isPerUnit: boolean; date: string; createdAt: string; actions: ActionDescriptor[] };
+/** `GET /products/:id/margins` (EXP-02): true cost = weighted cost + expenses per unit; margin % on the price. */
+export type ProductMarginsView = { weightedCost: number | null; expensesPerUnit: number; trueCost: number | null; marginDzd: number | null; marginPct: number | null; sales30d: { units: number; revenue: number } };
 
 // --- moderation, merchant side (06 §8.2) ----------------------------------------------------------------------------------
 export const ProductAppealSchema = z

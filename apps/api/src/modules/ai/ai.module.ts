@@ -3,6 +3,7 @@ import { ChannelsModule } from '../channels/channels.module';
 import { MessagingModule } from '../messaging/messaging.module';
 import { OrdersModule } from '../orders/orders.module';
 import { OrderToolsService } from '../orders/order-tools.service';
+import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { AiRunService } from './ai-run.service';
 import { AiController, DevAiController } from './ai.controller';
 import { InsightService } from './insight.service';
@@ -19,7 +20,7 @@ import { TurnContextService } from './turn-context.service';
  * vision live in the global `AiCoreModule`. `ORDER_TOOLS` (the M4 seam) is bound to the orders module since M5.
  */
 @Module({
-  imports: [ChannelsModule, MessagingModule, OrdersModule],
+  imports: [ChannelsModule, MessagingModule, OrdersModule, RecommendationsModule],
   controllers: [AiController, DevAiController],
   providers: [{ provide: ORDER_TOOLS, useExisting: OrderToolsService }, ToolRegistry, AiRunService, TurnContextService, InsightService, TranscriptionService, ReplyProcessor, PlaygroundService],
   exports: [ORDER_TOOLS, ToolRegistry, AiRunService, TurnContextService, InsightService, TranscriptionService, ReplyProcessor, PlaygroundService],

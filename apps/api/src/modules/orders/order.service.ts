@@ -183,7 +183,7 @@ export class OrderService implements OnModuleInit {
 
   // --- create (manual / mobile / API) -----------------------------------------------------------------------------------
   /** `POST /orders` (Idempotency-Key required). */
-  async create(input: CreateOrderInput, locale: string, source: 'manual' | 'mobile' | 'api' = 'manual'): Promise<OrderView> {
+  async create(input: CreateOrderInput, locale: string, source: 'manual' | 'mobile' | 'api' | 'import' = 'manual', o: { importJobId?: string } = {}): Promise<OrderView> {
     const t = TenantContext.get();
     const actor = this.actor();
     const orderedAt = input.orderedAt ? new Date(input.orderedAt) : new Date();
@@ -198,7 +198,7 @@ export class OrderService implements OnModuleInit {
       const conversation = input.conversationId ? await tx.conversation.findFirst({ where: { id: input.conversationId, deletedAt: null } }) : null;
       if (input.conversationId && !conversation) throw new AppException('VALIDATION_ERROR', {}, { conversationId: 'validation.invalid' });
       if (input.assigneeId && !(await tx.membership.findFirst({ where: { workspaceId: t.workspaceId, userId: input.assigneeId } }))) throw new AppException('VALIDATION_ERROR', {}, { assigneeId: 'validation.invalid' });
-      const { client, created } = await this.clients.resolveForOrder(tx, input.client, { source: source === 'api' ? 'api' : 'manual', conversationClientId: conversation?.clientId });
+      const { client, created } = await this.clients.resolveForOrder(tx, input.client, { source: source === 'api' ? 'api' : source === 'import' ? 'import' : 'manual', conversationClientId: conversation?.clientId });
       // 04 §13: a blocked customer needs the explicit confirmation of the warning
       const index = await this.safety.index(tx);
       if (!input.confirm && (index.has({ clientId: client.id, channelId: conversation?.channelId ?? '', externalSenderId: conversation?.externalSenderId ?? '' }, client.phone))) {
@@ -229,6 +229,7 @@ export class OrderService implements OnModuleInit {
           conversationId: conversation?.id ?? null,
           channelId: conversation?.channelId ?? null,
           source,
+          importJobId: o.importJobId ?? null,
           createdById: source === 'api' ? null : (t.userId ?? null),
           apiKeyId: t.apiKeyId ?? null,
           assigneeId: input.assigneeId ?? null,
@@ -267,6 +268,7 @@ export class OrderService implements OnModuleInit {
     }
     await tx.orderStatusHistory.create({ data: { orderId: order.id, field: 'status', from: null, to: order.status, actorType: actor.type, actorId: actor.id } });
     await this.effects.recomputeClient(tx, order.clientId);
+    await this.effects.recoConversions(tx, order);
     await this.effects.emitCreated(tx, current);
     await this.effects.webhook(tx, 'order.created', order.id);
     if (current.paymentStatus === 'paid') await this.effects.webhook(tx, 'order.paid', order.id, { amountPaid: current.amountPaid, method: current.paymentMethod }, ':paid');
@@ -470,6 +472,7 @@ export class OrderService implements OnModuleInit {
       // a returned order already settled its stock (restocked or written off as a loss)
       if (o.status !== 'returned') await this.effects.syncStock(tx, o, [], 'order_cancelled', actor.id);
       await this.effects.removeOrderCash(tx, id);
+      await this.effects.recoReverse(tx, id);
       await tx.order.delete({ where: { id } });
       await this.effects.recomputeClient(tx, o.clientId);
       await this.effects.emitDeleted(tx, o);

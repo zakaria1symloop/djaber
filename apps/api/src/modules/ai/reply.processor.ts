@@ -24,6 +24,7 @@ import { containsBlockedWord } from '../messaging/safety.service';
 import { withinWindow } from '../messaging/window-rules';
 import { META_GATEWAY, type MetaGateway } from '../meta/meta.gateway';
 import { NotificationProducer } from '../notifications/notification.producer';
+import { CrossSellService } from '../recommendations/cross-sell.service';
 import { AI_ERROR_ALERT_FAILURES, AI_ERROR_ALERT_WINDOW_S, LAST_PRODUCTS_MAX, plannedCost, RUN_BUDGET_MS, UNCLEAR_STREAK_HANDOFF } from './ai.constants';
 import { AiRunService, intentOf, type RunMeta, type TurnResult } from './ai-run.service';
 import { CatalogueService } from './catalogue.service';
@@ -60,6 +61,7 @@ export class ReplyProcessor implements OnModuleInit {
     private readonly outbound: OutboundSendService,
     private readonly notifications: NotificationProducer,
     @Inject(META_GATEWAY) private readonly meta: MetaGateway,
+    private readonly crossSell: CrossSellService,
   ) {}
 
   onModuleInit() {
@@ -330,6 +332,8 @@ export class ReplyProcessor implements OnModuleInit {
       if (replyText) replyId = (await this.outbound.store(tx, conv.id, { author: 'ai', kind: 'ai', text: replyText, aiRunId: run.id })).message.id;
       // §16: the text first, then ≤ 5 cards as their own message
       if (replyText && cards.length) await this.outbound.sendCards(conv.id, cards, { tx, aiRunId: run.id, author: 'ai', kind: 'ai' });
+      // REC-03: the cross-sell suggestions of a sent reply count as impressions (≤ 3, active rules only)
+      if (replyId && out.recommendations?.length) await this.crossSell.impressions(tx, conv.id, out.recommendations);
 
       const latest = await tx.conversation.findFirstOrThrow({ where: { id: conv.id } });
       const context: ConversationContext = {

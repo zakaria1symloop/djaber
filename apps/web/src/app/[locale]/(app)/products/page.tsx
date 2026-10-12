@@ -16,6 +16,7 @@ import { catalogApi, useCatalogRefresh, useCategories, useModerationSummary, use
 import type { ProductListItem } from '@/features/catalog/contracts';
 import { productMenuActions } from '@/features/catalog/product-actions';
 import { ArchiveProductDialog, CardPreviewDialog, DuplicateProductDialog, RestoreProductDialog } from '@/features/catalog/product-dialogs';
+import { useProductStats } from '@/features/gds/api';
 import { AddToAgentDialog, ProductsBulkBar, useProductsExport } from '@/features/catalog/products-list/bulk';
 import { ProductsActiveFilters, ProductsFilterBar, ProductsFilterPanel, useCategoryOptions } from '@/features/catalog/products-list/filters';
 import { QuickEditSheet } from '@/features/catalog/products-list/quick-edit-sheet';
@@ -43,6 +44,8 @@ export default function ProductsPage() {
   const query = useMemo(() => productsQuery(list.apiQuery(), s.tab), [list, s.tab]);
   const products = useProducts(query);
   const overview = useStockOverview(can('stock.read'));
+  // the summary line follows the filters (M2 carry-over: `GET /products/stats`, same parameters as the list)
+  const stats = useProductStats(productsQuery(list.filterQuery(), s.tab));
   const moderation = useModerationSummary();
   const categories = useCategories();
   const categoryOptions = useCategoryOptions(categories.data);
@@ -144,7 +147,16 @@ export default function ProductsPage() {
 
   const sheetIndex = s.sheet ? rows.findIndex((r) => r.id === s.sheet) : -1;
   const o = overview.data;
-  const summary = list.filtered
+  const st = stats.data;
+  const summary = st
+    ? [
+        list.filtered ? t('products.list.results', { count: total }) : t('products.list.count', { count: st.total }),
+        t('products.list.lowCount', { count: st.lowStock + st.outOfStock }),
+        advanced && st.valueAtCost !== null ? t('products.list.valueAtCost', { amount: st.valueAtCost < 1_000_000 ? formatMoney(st.valueAtCost) : `${compactAmount(st.valueAtCost, locale)} ${t('common.currency')}` }) : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : list.filtered
     ? products.data
       ? t('products.list.results', { count: total })
       : undefined

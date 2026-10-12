@@ -203,7 +203,7 @@ export function ProductPage({ id }: { id: string }) {
           {advanced && product.trackStock && can('stock.read') ? <MovementsBlock productId={product.id} /> : null}
         </div>
         <div className="flex min-w-0 flex-col gap-4">
-          <PricingBlock product={product} advanced={advanced} />
+          <PricingBlock product={product} advanced={advanced} canEdit={live && canWrite} />
           <StockBlock product={product} advanced={advanced} />
           <AgentsBlock product={product} onAdd={live && canWrite && can('agents.read') ? () => actions.addToAgent(product) : undefined} />
           <ValidationBlock product={product} view={view} canWrite={canWrite} onAppeal={() => setAppealOpen(true)} onResubmit={() => void onResubmit()} resubmitting={resubmit.isPending} />

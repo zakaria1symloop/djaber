@@ -39,6 +39,20 @@ export const PILL_TONES = {
   'Client.quality': { placeholder: 'warning', no_phone: 'warning', no_address: 'warning', duplicate: 'danger' },
   'FeeRule.source': { default: 'neutral', custom: 'success' },
   'Home.queue': { parcel: 'danger', stock: 'warning', page: 'danger', insight: 'success', conversation: 'danger', callback: 'info', job: 'success' },
+  // M7 — GDS operations (GDS-06…10, REF — Component sheet)
+  'Purchase.status': { draft: 'neutral', pending: 'info', partial: 'warning', received: 'success', cancelled: 'neutral' },
+  'Gds.paymentStatus': { unpaid: 'warning', partial: 'warning', paid: 'success' },
+  'Sale.status': { draft: 'neutral', completed: 'success', cancelled: 'neutral' },
+  'Supplier.status': { active: 'success', inactive: 'neutral' },
+  'Cash.category': { sale: 'success', order: 'success', purchase: 'warning', rent: 'danger', salary: 'danger', utilities: 'danger', marketing: 'danger', shipping: 'danger', deposit: 'success', withdrawal: 'orange', correction: 'violet', refund: 'orange', other: 'neutral' },
+  'Cash.source': { auto: 'neutral', manual: 'info' },
+  'Cash.day': { open: 'warning', closed: 'success', reopened: 'info' },
+  'Inventory.status': { draft: 'neutral', counting: 'info', validated: 'success', cancelled: 'neutral' },
+  'Recommendation.type': { restock: 'danger', stockout_imminent: 'danger', promote: 'warning', price: 'warning', supplier: 'info', agent: 'info', inventory_variance: 'warning' },
+  'Recommendation.priority': { high: 'danger', medium: 'neutral', low: 'neutral' },
+  'Recommendation.status': { active: 'info', applied: 'success', dismissed: 'neutral', snoozed: 'neutral', expired: 'neutral' },
+  'Recommendation.kind': { cross_sell: 'info', up_sell: 'violet' },
+  'ProductExpense.category': { marketing: 'neutral', shipping: 'neutral', packaging: 'neutral', customs: 'neutral', storage: 'neutral', other: 'neutral' },
 } as const satisfies Record<string, Record<string, Tone>>;
 
 export type PillEnum = keyof typeof PILL_TONES;

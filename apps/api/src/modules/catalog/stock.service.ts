@@ -3,7 +3,8 @@
 // CAT-05 / GDS-02 / GDS-03: manual adjustments, the movement journal, reversal, the stock dashboard and the snapshot.
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { prisma, Prisma, TenantContext, type MovementReason, type MovementRefType, type MovementType, type StockMovement, type Tx } from '@djaber/db';
-import type { StockAdjustmentInput, StockMovementView } from '@djaber/shared';
+import { MovementTypeValues, type MovementStatsView, type StockAdjustmentInput, type StockMovementView, type StockPurchasingView } from '@djaber/shared';
+import { can } from '../../core/rbac/permission-matrix';
 import { AppException, notFound } from '../../core/errors/app.exception';
 import { page, toSkipTake, type Page } from '../../core/http/pagination';
 import { OutboxService } from '../../core/outbox/outbox.service';
@@ -302,6 +303,37 @@ export class StockService implements OnModuleInit {
     return page(await this.views(rows), total, q.limit ? { page: 1, pageSize: q.limit } : q);
   }
 
+  /** `GET /stock/movements/stats` — counts and units per type of the filtered journal (quantities are signed). */
+  async movementStats(q: MovementsQuery): Promise<MovementStatsView> {
+    const where = this.where(q);
+    const rows = await prisma.stockMovement.groupBy({ by: ['type'], where, _count: { _all: true }, _sum: { quantity: true } });
+    const byType = Object.fromEntries(MovementTypeValues.map((t) => [t, { count: 0, units: 0 }])) as MovementStatsView['byType'];
+    let unitsIn = 0;
+    let unitsOut = 0;
+    for (const r of rows) {
+      const units = r._sum.quantity ?? 0;
+      byType[r.type] = { count: r._count._all, units: Math.abs(units) };
+    }
+    // in / out split on the sign of each movement (an inventory or a reversal can go both ways)
+    const signed = await prisma.stockMovement.groupBy({ by: ['type'], where: { AND: [where, { quantity: { gt: 0 } }] }, _sum: { quantity: true } });
+    for (const r of signed) unitsIn += r._sum.quantity ?? 0;
+    const neg = await prisma.stockMovement.groupBy({ by: ['type'], where: { AND: [where, { quantity: { lt: 0 } }] }, _sum: { quantity: true } });
+    for (const r of neg) unitsOut += Math.abs(r._sum.quantity ?? 0);
+    let netValue: number | null = null;
+    if (TenantContext.get().stockMode === 'advanced') {
+      const ws = TenantContext.workspaceId();
+      const ids = (await prisma.stockMovement.findMany({ where, select: { id: true }, take: 100_000 })).map((m) => m.id);
+      if (ids.length) {
+        const [v] = await prisma.$queryRaw<{ v: number }[]>`
+          SELECT COALESCE(sum(m."quantity"::bigint * COALESCE(pv."costPrice", p."costPrice", 0)), 0)::float8 AS v
+          FROM "StockMovement" m JOIN "Product" p ON p."id" = m."productId" LEFT JOIN "ProductVariant" pv ON pv."id" = m."variantId"
+          WHERE m."workspaceId" = ${ws}::uuid AND m."id" = ANY(${ids}::uuid[])`;
+        netValue = Math.round(v?.v ?? 0);
+      } else netValue = 0;
+    }
+    return { count: rows.reduce((n, r) => n + r._count._all, 0), unitsIn, unitsOut, net: unitsIn - unitsOut, byType, netValue };
+  }
+
   async getMovement(id: string): Promise<StockMovementView> {
     const row = await prisma.stockMovement.findFirst({ where: { id }, include: MOVEMENT_INCLUDE });
     if (!row) throw notFound();
@@ -404,6 +436,28 @@ export class StockService implements OnModuleInit {
       valueAtRetail: Math.round(x.retail),
       potentialMargin: advanced ? Math.round(x.retail - x.cost) : null,
       recentMovements: recent.data,
+      purchasing: advanced && can(t.role, 'gds.read') ? await this.purchasing() : null,
+    };
+  }
+
+  /** Block "ACHATS & FOURNISSEURS" of the stock dashboard (M2 carry-over, advanced mode, `gds.read`). */
+  private async purchasing(): Promise<StockPurchasingView> {
+    const now = new Date();
+    const [open, late, due, suppliers, bought, restock] = await Promise.all([
+      prisma.purchase.count({ where: { status: { in: ['pending', 'partial'] } } }),
+      prisma.purchase.count({ where: { status: { in: ['pending', 'partial'] }, expectedAt: { lt: now } } }),
+      prisma.purchase.findMany({ where: { status: { in: ['pending', 'partial', 'received'] } }, select: { total: true, amountPaid: true } }),
+      prisma.supplier.count({ where: { deletedAt: null, isActive: true } }),
+      prisma.purchase.aggregate({ where: { status: { notIn: ['cancelled', 'draft'] }, purchasedAt: { gte: new Date(now.getTime() - 30 * 86_400_000) } }, _sum: { total: true } }),
+      prisma.stockRecommendation.count({ where: { status: 'active', type: { in: ['restock', 'stockout_imminent'] } } }),
+    ]);
+    return {
+      pendingReceipt: open,
+      late,
+      dueToSuppliers: due.reduce((s, p) => s + Math.max(0, p.total - p.amountPaid), 0),
+      activeSuppliers: suppliers,
+      purchased30d: bought._sum.total ?? 0,
+      restockSuggestions: restock,
     };
   }
 

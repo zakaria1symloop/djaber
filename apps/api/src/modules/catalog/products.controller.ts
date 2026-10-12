@@ -42,7 +42,8 @@ import { ExpenseService } from './expense.service';
 import { ImportService } from './import.service';
 import { ModerationHookService } from './moderation-hook.service';
 import { ProductImageService } from './product-image.service';
-import { productOrder } from './product.query';
+import { productOrder, productStats } from './product.query';
+import { TenantContext } from '@djaber/db';
 import { ProductService } from './product.service';
 import { StockService } from './stock.service';
 import { VariantService } from './variant.service';
@@ -83,6 +84,13 @@ export class ProductsController {
   @Audited({ entity: 'Product', action: 'product.create', idFrom: 'result.id' })
   async create(@Body() dto: CreateProductDto, @Req() req: any) {
     return unwrap(req, await this.products.create(dto));
+  }
+
+  /** M2 carry-over: KPIs of `/products` following the list filters. */
+  @Get('stats')
+  @RequirePermission('catalog.read')
+  stats(@Query() q: ProductsQueryDto) {
+    return productStats(q as ProductsQuery, TenantContext.get().stockMode === 'advanced');
   }
 
   /** CAT-09 alert lines: products and variants at or below their threshold. */

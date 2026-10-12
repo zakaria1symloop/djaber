@@ -4,7 +4,7 @@
 // `GET /stock/movements`, `POST /stock/movements/:id/reverse`, `GET /stock/snapshot?date`, `GET /stock/movements/export`.
 import type { ActionDescriptor } from '@djaber/shared';
 import { formatDateTime, formatNumber } from '@djaber/shared';
-import { ActionsMenu, ActiveFilters, Button, buttonClass, Card, cn, DataTable, EmptyState, Ltr, SearchInput, TableViewMenu, toast, type Column } from '@djaber/ui';
+import { ActionsMenu, ActiveFilters, Button, buttonClass, Card, cn, DataTable, EmptyState, KpiTile, Ltr, SearchInput, TableViewMenu, toast, type Column } from '@djaber/ui';
 import { ArrowLeftRight, ArrowUpRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { AppPage } from '@/components/app-page';
@@ -16,6 +16,7 @@ import { useLocaleCode, useT } from '@/lib/i18n';
 import { downloadUrl, trackJob } from '@/lib/jobs';
 import { useSession } from '@/lib/session';
 import { useListState } from '@/lib/use-list-state';
+import { useMovementStats } from '@/features/gds/api';
 import { AdjustStockDialog } from '../adjust-stock-dialog';
 import { catalogApi, useMovements } from '../api';
 import type { StockMovement } from '../contracts';
@@ -66,6 +67,8 @@ function Journal() {
   const canAdjust = can('stock.adjust');
   const list = useListState(MOVEMENTS_SPEC);
   const movements = useMovements(list.apiQuery(), !!workspace);
+  // KPI tiles follow the filters (M2 carry-over: `GET /stock/movements/stats`, same parameters as the list)
+  const stats = useMovementStats(list.filterQuery(), !!workspace);
   const rows = useMemo(() => movements.data?.rows ?? [], [movements.data]);
   const total = movements.data?.total ?? null;
   const reasonLabel = useMovementReason();
@@ -169,6 +172,7 @@ function Journal() {
         </>
       }
     >
+      <MovementKpis stats={stats.data} period={f.periodLabel} />
       <div className="flex flex-wrap items-center gap-2">
         <SearchInput value={list.state.q} onChange={(q) => list.set({ q })} placeholder={t('movements.search.placeholder')} label={t('action.search')} clearLabel={t('movements.search.clear')} className="basis-64" />
         <MovementQuickFilters list={list} f={f} />
@@ -282,5 +286,30 @@ function Reference({ movement: m }: { movement: StockMovement }) {
       {label}
       <ArrowUpRight className="size-3 rtl:-scale-x-100" aria-hidden />
     </Link>
+  );
+}
+
+/** GDS-05 tiles: entrées, sorties, ajustements (inventaires · corrections), net of the selection. */
+function MovementKpis({ stats, period }: { stats: ReturnType<typeof useMovementStats>['data']; period: string | null }) {
+  const t = useT();
+  const when = period ?? t('movements.kpi.allTime');
+  return (
+    <section className="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label={t('movements.kpi.label')} data-testid="movement-kpis">
+      {stats ? (
+        <>
+          <KpiTile value={'+' + formatNumber(stats.unitsIn)} label={t('movements.kpi.in', { period: when })} meta={t('movements.kpi.inMeta')} data-kpi="in" />
+          <KpiTile value={'−' + formatNumber(stats.unitsOut)} label={t('movements.kpi.out', { period: when })} meta={t('movements.kpi.outMeta')} data-kpi="out" />
+          <KpiTile
+            value={formatNumber(stats.byType.adjustment_in.count + stats.byType.adjustment_out.count)}
+            label={t('movements.kpi.adjustments')}
+            meta={t('movements.kpi.adjustmentsMeta', { inventories: stats.byType.inventory.count, returns: stats.byType.return.count })}
+            data-kpi="adjustments"
+          />
+          <KpiTile value={(stats.net > 0 ? '+' : stats.net < 0 ? '−' : '') + formatNumber(Math.abs(stats.net))} label={t('movements.kpi.net')} meta={stats.netValue === null ? t('movements.kpi.count', { count: stats.count }) : t('movements.kpi.netValue', { amount: formatNumber(stats.netValue) })} data-kpi="net" />
+        </>
+      ) : (
+        Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-[66px] animate-pulse rounded-card border border-line-edge bg-ink-surface" />)
+      )}
+    </section>
   );
 }

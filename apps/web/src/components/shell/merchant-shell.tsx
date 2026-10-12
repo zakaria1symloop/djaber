@@ -13,6 +13,7 @@ import { useAgentEvents } from '@/features/agents/api';
 import { authApi } from '@/features/auth/api';
 import { useCatalogEvents } from '@/features/catalog/api';
 import { useShipmentEvents } from '@/features/delivery/api';
+import { useGdsEvents } from '@/features/gds/api';
 import { useOrderEvents } from '@/features/orders/api';
 import { useChannelBanners, useChannelEvents } from '@/features/channels/shell';
 import { CreditsPillLink, useCreditsBanners, useCreditsEvents } from '@/features/credits/shell';
@@ -130,6 +131,7 @@ function LiveShell({ groups, banners, children }: { groups: NavGroup[]; banners:
   useCreditsEvents();
   useOrderEvents();
   useShipmentEvents();
+  useGdsEvents();
   useMessageSound();
   const counters = { queue: useQueueCount(), inbox: useInboxBadge(), notifications: useUnreadNotifications() };
   return (

@@ -18,3 +18,4 @@ export * from './clients';
 export * from './delivery';
 export * from './order-form';
 export * from './shipments';
+export * from './gds';

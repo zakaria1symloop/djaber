@@ -16,13 +16,13 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-4">
-      <div className="min-w-0">
+    <header className="flex flex-wrap items-end justify-between gap-4 md:flex-nowrap md:items-start">
+      <div className="min-w-0 md:flex-1">
         {eyebrow ? <div className="ts-label-meta mb-2 uppercase text-text-muted">{eyebrow}</div> : null}
         <h1 className="ts-display-m truncate">{title}</h1>
         {description ? <p className="ts-body mt-2 text-text-secondary">{description}</p> : null}
       </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+      {actions ? <div className="flex flex-wrap items-center gap-2 md:shrink-0 md:flex-nowrap">{actions}</div> : null}
     </header>
   );
 }

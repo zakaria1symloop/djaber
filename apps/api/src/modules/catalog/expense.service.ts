@@ -1,12 +1,12 @@
 // GDS-09 / EXP-01 — product expenses (marketing, shipping, packaging, customs, storage, other), per unit sold or fixed.
 import { Injectable } from '@nestjs/common';
 import { prisma, TenantContext, type Prisma, type ProductExpense } from '@djaber/db';
-import type { CreateProductExpenseInput } from '@djaber/shared';
+import type { CreateProductExpenseInput, ProductExpenseView } from '@djaber/shared';
 import { notFound, validationError } from '../../core/errors/app.exception';
 import { algiersDayStart } from '../../core/time/algiers';
 import { action } from './catalog.util';
 
-const view = (e: ProductExpense) => ({
+const view = (e: ProductExpense): ProductExpenseView => ({
   id: e.id,
   productId: e.productId,
   category: e.category,

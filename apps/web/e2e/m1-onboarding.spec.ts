@@ -83,10 +83,11 @@ test('AT-ONB-02 simple stock mode hides the advanced sidebar entries', async ({ 
   await page.goto('/fr/settings/stock-mode');
   await page.getByRole('radio', { name: /Simple/ }).click();
   await expect(page.getByRole('radio', { name: /Simple/ })).toBeChecked();
-  for (const hidden of ['Mouvements', 'Fournisseurs', 'Achats', 'Ventes', 'Caisse', 'Recommandations', 'Rapports']) {
+  for (const hidden of ['Mouvements', 'Fournisseurs', 'Achats', 'Ventes', 'Caisse', 'Inventaires', 'Rapports']) {
     await expect(sidebar.getByRole('link', { name: hidden, exact: true })).toHaveCount(0);
   }
-  for (const kept of ['Produits', 'Catégories', 'Commandes', 'Clients', 'Livraison & suivi', 'Boîte de réception', 'Agents IA']) {
+  // GDS-10 "MODE SIMPLE": Recommandations stays with its simple subset (03 LST-05, M7 contradictions-log)
+  for (const kept of ['Produits', 'Catégories', 'Recommandations', 'Commandes', 'Clients', 'Livraison & suivi', 'Boîte de réception', 'Agents IA']) {
     await expect(sidebar.getByRole('link', { name: kept, exact: true })).toBeVisible();
   }
   // persisted on the workspace (not in the browser): still simple after a reload

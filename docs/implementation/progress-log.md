@@ -137,3 +137,24 @@ One entry per finished stage: what was built, checks passing, what is still simu
 - Customer messages about parcels, push and AI stay on their fake senders (Meta, push and AI guards are off).
 
 **Deferred** (tracked in `carry-overs.md`): Analytics › Livraison and the CSV export of `/delivery` (M8); courier metrics in the admin (M10); captcha on the public report and the public header links (M11); "Un PDF par commande" print option (M11 polish).
+
+## M7 — Suppliers, purchases, counter sales, cash register, inventory, recommendations (2026-10-12)
+
+**Built**
+- Suppliers: list, detail sheet, create / edit, payments spread over the oldest purchases first, delete refused while purchases exist (→ deactivate).
+- Purchases: draft → ordered → partly received → received, new / edit form, detail page, receive dialog (over-receipt warning, extra line, payment on receipt; average cost recomputed), cancel (received units and payments kept), pay the balance, duplicate, print, delete.
+- Counter sales: list, "Nouvelle vente" sheet (client found or created by phone, partial payment only with a client, change given), detail, collect the rest, cancel within 7 days with restock and refund, link a client, receipt PDF.
+- Cash register: automatic rows (sales, delivered COD orders, purchases paid) written only by the effects services and locked; manual entries editable for 24 h with a receipt photo; the period drives table, totals and running balance together; day close with counted cash, gap and required note (correction row, `CASH_DAY_CLOSED`); reopen (Admin+, audited, reversed by a new row); export.
+- Inventory counts: start (all / one category / alerts only, with sizes), counting page saved line by line, validate (Admin+, note required above 10 % gap, one `inventory` movement per changed line), cancel, count sheet.
+- Recommendations: stock cards from six rules, generation job (once per 10 min + nightly; cards that stop firing expire), apply / dismiss / snooze / mute, history, stats; cross-sell rules (manual rules + analysis job that drops stale generated pairs, impressions from AI replies, conversions within 7 days).
+- Left open by earlier stages and now closed: movement references link to the order / sale / purchase / count, KPI tiles on `/movements`, `/products` summary follows the filters, stock dashboard "ACHATS & FOURNISSEURS" + "Réapprovisionner" → prefilled purchase, product expenses and margin editor, order import from a CSV file (upload → preview → columns → commit).
+- Lines of orders, sales and purchases now always come back in the order they were entered (database id generator made monotonic).
+- Page headers: actions sit on the title row on wide screens, as in the Figma frames.
+- Team testing: `tools/demo-stock.mjs` adds suppliers, purchases, sales and cash rows to the demo shop.
+
+**Checks** — lint ✔ · typecheck ✔ · unit ✔ (shared 38, api 591, web 482) · integration ✔ (581 in 39 files) · AI pipeline scenarios ✔ (29) · translations ✔ (5 415 texts × 3 languages) · Storybook build ✔ · browser ✔ (365 in one complete run, 26 of them M7; AT-ERR-07 and AT-CSH-02 serve an 8-day-old sale / 25-hour-old cash row through a `// mock:` because those ages cannot be produced on demand; the header layout change came after that run and was checked by lint, typecheck and screenshots) · production build ✔, served on the local network.
+
+**Simulated / not verifiable here**
+- Nothing new is external in M7. Couriers, Meta, push and AI stay on their fake drivers; e-mails go to `.local/mail`.
+
+**Deferred** (tracked in `carry-overs.md`): the GDS reports and purchases / sales export (M8); recommendations section in the AI prompt, filter products by supplier, saved views on GDS lists (M11); "Créer la promo" only records the choice (no promotion entity in the specs).
