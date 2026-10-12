@@ -17,6 +17,8 @@ export type WorkspacePatch = Partial<{
   autoPauseOnManualReply: boolean;
   handoffReminderMin: number;
   freeDeliveryThreshold: number | null;
+  /** D9 / DLV-05: confirmed orders sent to the default courier (M6) */
+  autoSendToCourier: boolean;
   logoUploadId: string | null;
 }>;
 

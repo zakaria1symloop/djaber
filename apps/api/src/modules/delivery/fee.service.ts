@@ -61,7 +61,7 @@ export class FeeService {
     return r.count;
   }
 
-  private view(w: { id: number; code: string; nameFr: string; nameAr: string }, r: DeliveryFeeRule | undefined): FeeRuleView {
+  private view(w: { id: number; code: string; nameFr: string; nameAr: string }, r: DeliveryFeeRule | undefined, courierCost: number | null = null): FeeRuleView {
     const d = defaultFeeFor(w.id);
     return {
       wilayaId: w.id,
@@ -75,7 +75,7 @@ export class FeeService {
       // a wilaya without a row is not served (the AI and the order form say so) until "Compléter les manquantes"
       isActive: r ? r.isActive : false,
       source: r?.source ?? 'default',
-      courierCost: null,
+      courierCost,
       actions: [action('edit', 'delivery.manage'), action('reset', 'delivery.manage', { reasonCode: r?.source === 'custom' ? undefined : 'FEE_RULE_NOT_FOUND' })],
     };
   }
@@ -85,10 +85,13 @@ export class FeeService {
     const [wilayas, rules, ws] = await Promise.all([
       prisma.wilaya.findMany({ orderBy: { id: 'asc' } }),
       prisma.deliveryFeeRule.findMany(),
-      prisma.workspace.findUniqueOrThrow({ where: { id: TenantContext.workspaceId() }, select: { freeDeliveryThreshold: true } }),
+      prisma.workspace.findUniqueOrThrow({ where: { id: TenantContext.workspaceId() }, select: { freeDeliveryThreshold: true, defaultCourierAccountId: true } }),
     ]);
     const by = new Map(rules.map((r) => [r.wilayaId, r]));
-    const data = wilayas.map((w) => this.view(w, by.get(w.id)));
+    // M6: the cached home rate of the default courier (informational, D15)
+    const rates = ws.defaultCourierAccountId ? await prisma.courierRateCache.findMany({ where: { courierAccountId: ws.defaultCourierAccountId } }) : [];
+    const cost = new Map(rates.map((x) => [x.wilayaId, x.homePrice]));
+    const data = wilayas.map((w) => this.view(w, by.get(w.id), cost.get(w.id) ?? null));
     return { data, meta: { freeDeliveryThreshold: ws.freeDeliveryThreshold, custom: rules.filter((r) => r.source === 'custom').length, inactive: data.filter((r) => !r.isActive).length, missing: WILAYA_COUNT - rules.length } };
   }
 

@@ -1,7 +1,7 @@
 'use client';
 // /delivery/fees body — Figma "DLV-01/03 — Delivery — fee grid + couriers settings" (grid half) and
 // "DLG — Orders, delivery & clients II — dialogs catalogue" (Grille des frais — actions). The client always pays this
-// grid (D15); courier rates only feed cost and margin (M6). 58 rows, inline edit saved on blur, ↺ back to the default
+// grid (D15); courier rates feed cost and margin and can be copied into the grid (DLV-07, M6). 58 rows, inline edit saved on blur, ↺ back to the default
 // row, "Compléter les manquants", "Tout réinitialiser" (confirm), free-delivery rule (`Workspace.freeDeliveryThreshold`).
 import { formatMoney, formatNumber } from '@djaber/shared';
 import { Banner, Button, Card, ConfirmDialog, FeeCell, FreeDeliveryBar, IconButton, Ltr, RowSaveState, SearchInput, Skeleton, StatusPill, Switch, Td, Th, Table, Tooltip, toast, type CellState } from '@djaber/ui';
@@ -17,7 +17,8 @@ import { errorMessage } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { useSession, useWorkspaceId } from '@/lib/session';
 import { FEE_ACTIONS } from '@/features/clients/action-keys';
-import { deliveryApi, deliveryKeys, useFees, type FeeGrid } from './api';
+import { deliveryApi, deliveryKeys, useCouriers, useFees, type FeeGrid } from './api';
+import { CopyRatesDialog } from './copy-rates-dialog';
 import type { FeeRule } from './contracts';
 import { canReset, filterRows, freeRule, isChange, rowBody, seedCount, thresholdOnToggle, type FeeField } from './fee-logic';
 
@@ -38,6 +39,9 @@ export function FeeGridView() {
   const patch = usePatchWorkspace();
   const writeWorkspace = useWorkspaceCache();
   const [ruleError, setRuleError] = useState<string | null>(null);
+  const [copying, setCopying] = useState(false);
+  const couriers = useCouriers(editable);
+  const rateCouriers = (couriers.data ?? []).filter((c) => c.isActive && c.capabilities.rates);
 
   const rows = useMemo(() => filterRows(fees.data?.rows ?? [], q), [fees.data, q]);
   const meta = fees.data?.meta;
@@ -125,9 +129,9 @@ export function FeeGridView() {
         <Button onClick={() => void seed(false)} loading={seeding === 'fill'} disabledReason={readOnlyReason} disabled={!!seeding} data-testid="fees-fill">
           {t('fees.fillMissing')}
         </Button>
-        {/* P2 / M6: courier rates (`POST /delivery/fees/copy-from-courier`) need a connected courier */}
-        <Button variant="ghost" disabledReason={t('fees.copyCourier.unavailable')}>
-          {t('fees.copyCourier')}
+        {/* DLV-07: courier rates copied into the grid (`POST /delivery/fees/copy-from-courier`, diff preview) */}
+        <Button variant="ghost" onClick={() => setCopying(true)} disabledReason={readOnlyReason ?? (rateCouriers.length ? undefined : t('fees.copyCourier.unavailable'))} data-testid="fees-copy">
+          {rateCouriers.length === 1 ? t('fees.copyCourierNamed', { courier: rateCouriers[0]!.displayName }) : t('fees.copyCourier')}
         </Button>
         <Button onClick={() => setConfirmReset(true)} disabledReason={readOnlyReason} disabled={!!seeding} className="!border-accent-alert/60 !text-accent-alert hover:!border-accent-alert" data-testid="fees-reset-all">
           {t('fees.resetAll')}
@@ -252,6 +256,7 @@ export function FeeGridView() {
         )}
       </Card>
 
+      <CopyRatesDialog open={copying} couriers={couriers.data ?? []} onClose={() => setCopying(false)} />
       <ConfirmDialog
         open={confirmReset}
         onOpenChange={(o) => !o && !seeding && setConfirmReset(false)}

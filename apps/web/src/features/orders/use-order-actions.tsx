@@ -16,7 +16,9 @@ import { ORDER_STATUSES, type Order, type OrderListItem, type OrderStatus } from
 import { AddressDialog } from './dialogs/address-dialog';
 import { refusal } from './dialogs/common';
 import { ConfirmOrderDialog } from './dialogs/confirm-dialog';
-import { AssignDialog, CallbackDialog, CancelOrderDialog, ChangeStatusDialog, DeleteOrderDialog, DeliverDialog, PaymentDialog, ReturnDialog, SendToCourierDialog, ShipManualDialog } from './dialogs/order-dialogs';
+import { AssignDialog, CallbackDialog, CancelOrderDialog, ChangeStatusDialog, DeleteOrderDialog, DeliverDialog, PaymentDialog, ReturnDialog, ShipManualDialog } from './dialogs/order-dialogs';
+import { SendToCourierDialog } from '@/features/delivery/send-dialog';
+import type { ShipmentErrorView } from '@djaber/shared';
 
 export type OrderDialogKind = 'confirm' | 'log_call' | 'callback' | 'cancel' | 'status' | 'deliver' | 'return' | 'delete' | 'payment' | 'assign' | 'address' | 'ship' | 'send';
 type OrderLike = Pick<OrderListItem, 'id' | 'number' | 'status' | 'version' | 'actions' | 'conversationId' | 'client' | 'assignee'>;
@@ -63,7 +65,7 @@ export function useOrderActions(o: { onDeleted?: () => void } = {}) {
   const router = useRouter();
   const { can } = useSession();
   const refresh = useOrdersRefresh();
-  const [state, setState] = useState<{ kind: OrderDialogKind; id: string; after?: OrderDialogKind } | null>(null);
+  const [state, setState] = useState<{ kind: OrderDialogKind; id: string; after?: OrderDialogKind; error?: ShipmentErrorView | null } | null>(null);
   const [assignIds, setAssignIds] = useState<string[] | null>(null);
   const q = useOrder(state?.id);
   const order = q.data && state && q.data.id === state.id ? q.data : null;
@@ -83,14 +85,16 @@ export function useOrderActions(o: { onDeleted?: () => void } = {}) {
   );
 
   const run = useCallback(
-    (kind: OrderDialogKind | 'confirmDirect' | 'prepare', row: OrderLike) => {
+    (kind: OrderDialogKind | 'confirmDirect' | 'prepare', row: OrderLike, extra?: { error?: ShipmentErrorView | null }) => {
       if (kind === 'confirmDirect') return void quickStatus(row, 'confirmed');
       if (kind === 'prepare') return void quickStatus(row, 'preparing');
       if (kind === 'assign') return setAssignIds([row.id]);
-      setState({ kind, id: row.id });
+      setState({ kind, id: row.id, error: extra?.error ?? null });
     },
     [quickStatus],
   );
+  /** Dialogs opened from another screen (delivery overview, tracking panel) on an order id only. */
+  const openOn = useCallback((kind: OrderDialogKind, orderId: string, extra?: { error?: ShipmentErrorView | null }) => setState({ kind, id: orderId, error: extra?.error ?? null }), []);
   const menu = useCallback((row: OrderLike, opt: OrderMenuOptions = {}) => orderMenuActions(row, run, (href) => router.push(href), t, { ...opt, canWrite: can('orders.write') }), [run, router, t, can]);
 
   const close = () => setState((s) => (s?.after ? { kind: s.after, id: s.id } : null));
@@ -129,7 +133,7 @@ export function useOrderActions(o: { onDeleted?: () => void } = {}) {
           <PaymentDialog {...base} open={is('payment')} />
           <AddressDialog {...base} open={is('address')} />
           <ShipManualDialog {...base} open={is('ship')} />
-          <SendToCourierDialog {...base} open={is('send')} />
+          <SendToCourierDialog {...base} open={is('send')} initialError={state?.error} />
         </>
       ) : null}
       <AssignDialog
@@ -142,5 +146,5 @@ export function useOrderActions(o: { onDeleted?: () => void } = {}) {
       />
     </>
   );
-  return { run, menu, element, loading: !!state && q.isPending, openAssign: setAssignIds };
+  return { run, openOn, menu, element, loading: !!state && q.isPending, openAssign: setAssignIds };
 }

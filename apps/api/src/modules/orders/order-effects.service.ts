@@ -16,7 +16,7 @@ import { NotificationProducer } from '../notifications/notification.producer';
 import { orderPublic, orderSummary } from './order.presenter';
 import { stockDeltas, stockKey, type StockLine } from './order-rules';
 
-export type Actor = { type: 'user' | 'ai' | 'system' | 'api'; id: string | null; name?: string };
+export type Actor = { type: 'user' | 'ai' | 'system' | 'api' | 'courier'; id: string | null; name?: string };
 const CASH_METHOD: Record<PaymentMethod, CashMethod> = { cash: 'cash', card: 'card', transfer: 'transfer', ccp: 'ccp', other: 'other' };
 
 @Injectable()

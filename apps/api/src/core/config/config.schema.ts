@@ -67,6 +67,11 @@ export const ConfigSchema = z.object({
 
   // Couriers / Google / push / stores
   COURIER_DRIVER: z.enum(['fake', 'live']).default('fake'),
+  // safety guard: the live courier drivers refuse to start in development / test unless this is true (never create real parcels from dev)
+  COURIER_ALLOW_LIVE: bool.default(false),
+  // per courier account limiter (03-events §3 `courier` queue): parcel creation 5 / s, tracking batches 2 / s
+  COURIER_SEND_RPS: z.coerce.number().int().min(1).default(5),
+  COURIER_TRACK_RPS: z.coerce.number().int().min(1).default(2),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   SHEETS_DRIVER: z.enum(['fake', 'google']).default('fake'),

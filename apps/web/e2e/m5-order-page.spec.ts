@@ -196,9 +196,11 @@ test('AT-ORD-01 (UI) — "Changer le statut" lists only the allowed targets of t
   const o = await seedOrder(request, owner, { productId: product.id, status: 'confirmed' });
   await setStatus(request, owner, o.id, 'shipped');
   await page$(page, o.id);
-  await page.getByRole('button', { name: 'Actions' }).click();
+  // the page header menu (the delivery block has its own parcel menu since M6)
+  await page.getByRole('button', { name: 'Actions' }).first().click();
   await page.getByRole('menuitem', { name: 'Changer le statut' }).click();
-  const radios = page.getByTestId('status-dialog').getByRole('radio');
+  // order targets of 04 §1.2; since M6 the parcel's "Échec de livraison" (mark_failed) may be offered next to them
+  const radios = page.getByTestId('status-dialog').locator('[role="radio"]:not([data-value="delivery_failed"])');
   await expect(radios).toHaveCount(3);
   await expect(page.getByTestId('status-dialog')).toContainText('Confirmée (retour arrière)');
 });

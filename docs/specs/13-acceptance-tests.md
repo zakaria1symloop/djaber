@@ -120,7 +120,7 @@ One scenario per rule; IDs `AT-<area>-nn`. Columns: scenario (Given / When / The
 | AT-DLV-03 | Courier 503 ⇒ shipment pending, retries per schedule, notification after final failure, manual retry | FL-08 F-3 | I |
 | AT-DLV-04 | Status mapping tables (ZR, EcoTrack, Yalidine): every known raw status → mapped; unknown ⇒ unchanged + event | DLV-04 | U/C |
 | AT-DLV-05 | Polling cadence: new shipment polled every 2 h for 3 d, then 12 h, stale at 30 d; batch endpoint used when available; per-account limiter respected | DLV-04 | I |
-| AT-DLV-06 | Courier reports delivered ⇒ order delivered + COD rule; reports returned after delivered ⇒ order returned | 04 §1.5 | I |
+| AT-DLV-06 | Courier reports delivered ⇒ order delivered + COD rule; reports returned after delivered ⇒ parcel returned ("retour en cours"), order returned once the merchant confirms reception ("Marquer retournée") | 04 §1.5 | I |
 | AT-DLV-07 | Second shipment after a cancelled one ⇒ allowed; two active ⇒ `DELIVERY_ORDER_ALREADY_SENT` | DLV-10 | I |
 | AT-DLV-08 | ZR label ⇒ `LABEL_UNAVAILABLE` + Djaber fallback PDF; merged labels for 10 orders | DLV-06 | I |
 

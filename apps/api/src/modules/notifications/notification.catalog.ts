@@ -1,7 +1,7 @@
 // 03-events-and-jobs §5.1 / 03 §15 — per `NotificationType`: its family (filter chips of NTF-01) and its web deep link
 // (the mobile link is `djaber://` + the same path). Titles and bodies are i18n keys rendered in the reader's locale.
 import { Logger } from '@nestjs/common';
-import { getMessages, type AppLocale, type NotificationGroup } from '@djaber/shared';
+import { ERROR_MESSAGES, getMessages, type AppLocale, type NotificationGroup } from '@djaber/shared';
 import type { NotificationType } from '@djaber/db';
 
 /** `stock_low` → `stock.low`, `conversation_needs_human_message` → `conversation.needs_human_message` (00-build-order §0). */
@@ -194,8 +194,20 @@ export const missingNotificationParams = (type: NotificationType, data: Data): s
 const log = new Logger('NotificationCatalog');
 /** Role values are shown with their label, not the enum value. */
 const ROLE_PARAMS = new Set(['role', 'from', 'to']);
-const display = (type: string, key: string, value: string | number, messages: Record<string, string>) =>
-  type.startsWith('member_') && ROLE_PARAMS.has(key) ? (messages[`enum.Membership.role.${value}`] ?? String(value)) : String(value);
+/** M6: `shipment.failed` carries the reason code (`FailureReason` or `courier_unavailable`, 03-events §5.1): shown localized. */
+const FAILURE_FALLBACK: Record<string, string> = { courier_unavailable: 'COURIER_UNAVAILABLE' };
+const failureLabel = (value: string | number, messages: Record<string, string>, locale: AppLocale) => {
+  const v = String(value);
+  const code = FAILURE_FALLBACK[v];
+  const label = messages[`enum.Shipment.failureReason.${v}`] ?? (code ? (ERROR_MESSAGES[locale]?.[code] ?? ERROR_MESSAGES.fr[code] ?? v).replace(/[.。]$/, '') : v);
+  return label === label.toUpperCase() ? label.charAt(0) + label.slice(1).toLowerCase() : label;
+};
+const display = (type: string, key: string, value: string | number, messages: Record<string, string>, locale: AppLocale) =>
+  type.startsWith('member_') && ROLE_PARAMS.has(key)
+    ? (messages[`enum.Membership.role.${value}`] ?? String(value))
+    : type === 'shipment_failed' && key === 'reason'
+      ? failureLabel(value, messages, locale)
+      : String(value);
 
 /**
  * Title / body in the reader's locale. A type without a body key renders an empty body. A placeholder never reaches the
@@ -215,7 +227,7 @@ export const renderNotification = (type: string, data: Data, locale: AppLocale, 
           onMissing(type, key);
           return '';
         }
-        return display(type, key, v, messages);
+        return display(type, key, v, messages, locale);
       })
       .replace(/\s{2,}/g, ' ')
       .trim();

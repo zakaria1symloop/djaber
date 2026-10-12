@@ -116,3 +116,24 @@ One entry per finished stage: what was built, checks passing, what is still simu
 - AI answers and AI orders still come from the scripted stand-in (no AI key in the old project).
 
 **Deferred** (tracked in `carry-overs.md`): courier sending, tracking and labels (M6); order import from a file and PDF export of orders; payment link and refund (M9); Google Sheets and webhook senders (M11); saved views; inbox filter by agent.
+
+## M6 — Delivery, couriers, tracking, labels (2026-10-12)
+
+**Built**
+- Couriers (`/delivery/couriers`): ZR Express, EcoTrack and Yalidine accounts with each provider's own fields, stored encrypted; connection test (OK with latency / refused / unreachable), default courier, activate / deactivate, delete blocked while parcels are in flight, sender details, webhook address, "Livraison propre" (own drivers, no account), automatic sending of confirmed orders to the default courier (switch).
+- Sending: "Envoyer au transporteur" from the order page (prefilled from the order, cost and delay per courier, errors shown on the field with "rien n'a été créé"), bulk sending from the orders list, from `/delivery` and with "Envoyer les confirmées (n)", per-order results with "Réessayer les échecs"; a courier that is down queues the parcel and retries.
+- Tracking: automatic refresh (every 2 h for 3 days, then every 12 h; "stale" after 30 days without movement), courier webhooks with signature check, "Actualiser" limited to once per 5 minutes, live updates on every screen; failed delivery with attempts n/3 → "proposer le retour", retry, change of courier, cancel, mark failed / delivered / returned by hand (a returned parcel makes the order "returned" only when the merchant confirms it).
+- `/delivery` overview: six tiles, tabs Échecs / Sans mouvement / À envoyer / En transit / Retours / Toutes, filters, search, sort and page in the address, row `Actions ⌄` with greyed reasons, selection bar, tracking side panel with the timeline.
+- Labels: single label (courier PDF, or the Djaber A6 label with barcode and QR code when the courier has none), merged PDF of many labels as a background job (progress, partial, retry), product label sheet from `/products` (left open since M2).
+- Fee grid: "Copier les tarifs du transporteur" with a preview of the differences.
+- Public tracking page `/s/[code]` (no login): steps, timeline without the customer's phone, delivered / failed / returned / cancelled summaries, "Signaler ce vendeur".
+- Order page delivery block (left open since M5): not sent, sending, queued, sent with timeline, failed, returned, delivered.
+- Team testing: `tools/demo-delivery.mjs` adds a ZR Express and a Yalidine account (simulated) and sends the confirmed demo orders.
+
+**Checks** — lint ✔ · typecheck ✔ · unit ✔ (shared 38, api 565, web 462) · integration ✔ (552 in 33 files, incl. the 10 000-parcel sync test) · AI pipeline scenarios ✔ (29) · translations ✔ (4 769 texts × 3 languages) · Storybook build ✔ · browser ✔ (339 in one complete run, 19 of them M6; AT-DLV-03 "courier down" serves the queued state through a `// mock:` because the simulated courier can only be switched off inside the API) · production build ✔, served on the local network.
+
+**Simulated / not verifiable here**
+- Every courier runs on the simulated driver (`COURIER_DRIVER=fake`); the real ZR Express, EcoTrack and Yalidine connections are written but refused unless `COURIER_ALLOW_LIVE=true`. They must be checked once with test courier accounts before going live (EcoTrack instance URLs especially). No real parcel was created.
+- Customer messages about parcels, push and AI stay on their fake senders (Meta, push and AI guards are off).
+
+**Deferred** (tracked in `carry-overs.md`): Analytics › Livraison and the CSV export of `/delivery` (M8); courier metrics in the admin (M10); captcha on the public report and the public header links (M11); "Un PDF par commande" print option (M11 polish).

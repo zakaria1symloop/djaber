@@ -17,3 +17,4 @@ export * from './home';
 export * from './clients';
 export * from './delivery';
 export * from './order-form';
+export * from './shipments';

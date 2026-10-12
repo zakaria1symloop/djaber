@@ -290,7 +290,7 @@ Sections 12–24 implement decisions D36–D71 (README Decisions, all DECIDED, c
 | Cancel parcel: allowed while `Shipment.status ∈ {pending, sent}` and the adapter supports `cancelParcel` ⇒ `Shipment.status=cancelled`, `cancelledAt`, order back to `confirmed` (option) or cancelled (option); from `picked_up` onwards or unsupported ⇒ `409 COURIER_CANCEL_NOT_ALLOWED` ⇒ use return at reception. |
 | Change courier on a failed/unsent order: recomputes the courier cost (informational), never the customer fee (D15). |
 | Self-delivery courier type `self` (DLV-10 provider `manual`): no credentials, label = Djaber label, status updates manual only. |
-| Labels: thermal 100 × 150 and A6 merged PDF; orders without a created shipment are ignored with `SHIPMENT_NOT_CREATED`; "Marquer bordereau imprimé" sets `Shipment.labelPrintedAt`. Public tracking page `djaber.ai/s/:code` (QR on labels) shows the mapped status timeline only. |
+| Labels: thermal 100 × 150 and A6 merged PDF; orders without a created shipment are ignored with `SHIPMENT_NOT_CREATED`; "Marquer bordereau imprimé" sets `Order.labelPrintedAt`. Public tracking page `djaber.ai/s/:code` (QR on labels) shows the mapped status timeline only. |
 
 ## 23. Messaging window per platform & COD (reconfirmed) `[FIG DLG Inbox, ORD-06]`
 

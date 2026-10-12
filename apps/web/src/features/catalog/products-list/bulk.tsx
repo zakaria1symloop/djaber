@@ -16,8 +16,9 @@ import { useSession } from '@/lib/session';
 import { catalogApi, useCatalogRefresh, useCategories } from '../api';
 import { flattenCategories, type BulkResponse, type ProductListItem } from '../contracts';
 import { addToAgentOutcome } from './spec';
+import { ProductLabelsDialog } from '../product-labels-dialog';
 
-export type BulkKind = 'category' | 'minStock' | 'price' | 'agent' | 'archive';
+export type BulkKind = 'category' | 'minStock' | 'price' | 'agent' | 'archive' | 'labels';
 type Outcome = { title: string; response: BulkResponse; retry: (ids: string[]) => Promise<BulkResponse> };
 
 /** Progress toast of a products export job (header "Exporter" and bulk "Exporter"). */
@@ -74,6 +75,7 @@ export function ProductsBulkBar({ rows, selected, total, onSelectAllPage, onClea
     { key: 'price', label: t('products.bulk.price'), onSelect: () => setDialog('price'), disabledReason: forbidden },
     ...(can('agents.read') ? [{ key: 'agent', label: t('action.addToAgent'), onSelect: () => setDialog('agent'), disabledReason: forbidden }] : []),
     { key: 'export', label: t('action.export'), onSelect: () => void exportProducts(() => catalogApi.bulkExport(ids)), disabledReason: forbidden },
+    { key: 'labels', label: t('products.bulk.labels'), onSelect: () => setDialog('labels'), disabledReason: forbidden },
     { key: 'archive', label: t('action.archive'), onSelect: () => setDialog('archive'), destructive: true, disabledReason: forbidden },
   ];
   const allOnPage = rows.length > 0 && rows.every((r) => selected.has(r.id));
@@ -93,6 +95,7 @@ export function ProductsBulkBar({ rows, selected, total, onSelectAllPage, onClea
       <BulkPriceDialog open={dialog === 'price'} ids={ids} rows={picked} advanced={advanced} onClose={() => setDialog(null)} onDone={done} />
       <BulkAgentDialog open={dialog === 'agent'} ids={ids} onClose={() => setDialog(null)} onDone={done} />
       <BulkArchiveDialog open={dialog === 'archive'} ids={ids} onClose={() => setDialog(null)} onDone={done} />
+      <ProductLabelsDialog open={dialog === 'labels'} ids={ids} onClose={() => setDialog(null)} />
       <BulkResultDialog
         outcome={outcome}
         names={seenNames.current}

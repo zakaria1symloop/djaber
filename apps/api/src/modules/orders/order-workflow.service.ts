@@ -10,10 +10,12 @@ import { AppException } from '../../core/errors/app.exception';
 import { runBulk, type BulkCtx } from '../../core/http/bulk';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { ProcessorRegistry } from '../../core/queue/processor.registry';
+import { QueueOutbox } from '../../core/queue/queue.outbox';
 import type { CancellableOrder, OrderToolContext, ToolResult } from '../ai/tools/order-tools';
 import { withinWindow } from '../messaging/window-rules';
 import { codPlan, callPlan, checkEffectiveAt, checkTransition, isTerminal, transitionPlan } from './order-rules';
 import type { Actor } from './order-effects.service';
+export type LockedOrder = Locked;
 import { hasDeliveryAddress, stateOf } from './order.presenter';
 import { OrderService, refuse, StaleVersion } from './order.service';
 
@@ -31,6 +33,8 @@ export type TransitionOptions = {
   system?: boolean;
   /** notification `shipment.*` of a manual action (03-events §5.1 producers) */
   shipmentNotice?: boolean;
+  /** the caller (delivery module) already wrote the parcel side: no manual parcel created / updated here */
+  shipmentHandled?: boolean;
 };
 type Locked = Awaited<ReturnType<OrderService['lock']>>;
 const DAY = 86_400_000;
@@ -41,6 +45,7 @@ export class OrderWorkflowService implements OnModuleInit {
     private readonly orders: OrderService,
     private readonly i18n: I18nService,
     private readonly registry: ProcessorRegistry,
+    private readonly queueOutbox: QueueOutbox,
   ) {}
 
   private get effects() {
@@ -80,7 +85,9 @@ export class OrderWorkflowService implements OnModuleInit {
     const lines = await this.orders.itemLines(tx, o.id);
 
     // shipment (D14 self-delivery: a manual parcel, `sent`)
-    if (plan.shipment === 'create_manual') {
+    if (opt.shipmentHandled) {
+      // courier parcels: ShipmentService / TrackingService own the Shipment rows and their events
+    } else if (plan.shipment === 'create_manual') {
       await tx.shipment.create({ data: { workspaceId: o.workspaceId, orderId: o.id, provider: 'manual', status: 'sent', trackingNumber: opt.trackingNumber ?? null, publicTrackingToken: randomBytes(12).toString('base64url'), codAmount: Math.max(0, o.total - o.amountPaid) } });
     } else if (active && plan.shipment === 'mark_delivered') {
       await tx.shipment.update({ where: { id: active.id }, data: { status: 'delivered' } });
@@ -130,7 +137,7 @@ export class OrderWorkflowService implements OnModuleInit {
     const changed = ['status', ...(paid ? ['paymentStatus', 'amountPaid'] : []), ...(plan.deliveryStatus ? ['deliveryStatus'] : [])];
     await this.effects.emitUpdated(tx, updated, changed);
     await this.effects.webhook(tx, 'order.status_changed', o.id, { from: o.status, to, actorType: opt.actor.type, reason: opt.reason ?? null });
-    for (const event of plan.webhooks) await this.effects.webhook(tx, event, o.id, event === 'order.delivered' ? { deliveredAt: at.toISOString() } : event === 'order.shipped' ? { shipment: { provider: active?.provider ?? 'manual', trackingNumber: opt.trackingNumber ?? null } } : {});
+    for (const event of plan.webhooks) await this.effects.webhook(tx, event, o.id, event === 'order.delivered' ? { deliveredAt: at.toISOString() } : event === 'order.shipped' ? { shipment: { id: active?.id ?? null, provider: active?.provider ?? 'manual', trackingNumber: opt.trackingNumber ?? null } } : {});
     if (paid?.paymentStatus === 'paid' && o.paymentStatus !== 'paid') await this.effects.webhook(tx, 'order.paid', o.id, { amountPaid: paid.amountPaid, method: 'cash' }, ':paid');
     await this.effects.sheets(tx, updated);
     // 03-events §5.1 `order.status_changed`: to the assignee when someone else (member, AI, courier, API) moved it
@@ -151,6 +158,11 @@ export class OrderWorkflowService implements OnModuleInit {
       } else await this.effects.customerText(tx, o, plan.customerText, { number: o.number });
     }
     if (to === 'cancelled') await this.effects.threadEvent(tx, o, 'order_cancelled', { orderId: o.id, number: o.number, reason: data.cancelReason });
+    // DLV-05 / D9 optional auto-send: a confirmed order goes to the default courier (job `courier.auto-send`, delivery module)
+    if (to === 'confirmed' && o.status === 'new') {
+      const ws = await tx.workspace.findUnique({ where: { id: o.workspaceId }, select: { autoSendToCourier: true } });
+      if (ws?.autoSendToCourier) await this.queueOutbox.add(tx, 'courier', 'auto-send', { orderId: o.id, workspaceId: o.workspaceId, userId: actorUserId }, `autosend:${o.id}:${updated.version}`, { attempts: 1 });
+    }
     return updated;
   }
 
@@ -284,7 +296,16 @@ export class OrderWorkflowService implements OnModuleInit {
   /** `POST /orders/:id/address` — locked once a courier parcel exists; fee recomputed unless it was an Admin override. */
   async setAddress(id: string, input: OrderAddressInput, locale: string) {
     const actor = this.orders.actor();
-    return this.run(id, undefined, locale, async (tx, o) => {
+    return this.run(id, undefined, locale, (tx, o) => this.applyAddress(tx, o, input, actor));
+  }
+
+  /**
+   * The address change itself on a row-locked order (also used by the courier send dialog when the address was edited
+   * there, DLV-05): commune checked against the wilaya, fee recomputed unless it was an Admin override.
+   */
+  async applyAddress(tx: Tx, o: Locked, input: Omit<OrderAddressInput, 'phone2'> & { phone2?: string | null }, actor: Actor) {
+    const id = o.id;
+    {
       if (isTerminal(o.status)) throw new AppException('ORDER_TERMINAL');
       const active = this.orders.activeShipment(o);
       if (active && active.provider !== 'manual') throw new AppException('COURIER_ADDRESS_LOCKED');
@@ -314,7 +335,8 @@ export class OrderWorkflowService implements OnModuleInit {
         const conv = await tx.conversation.findFirst({ where: { id: o.conversationId, deletedAt: null }, select: { status: true, lastCustomerMessageAt: true } });
         if (conv && conv.status !== 'archived' && withinWindow(conv.lastCustomerMessageAt, new Date())) await this.effects.threadEvent(tx, o, 'order_address_updated', { orderId: id, number: o.number, wilayaId: input.wilayaId, deliveryFee, total });
       }
-    });
+      return updated;
+    }
   }
 
   // --- assignment ---------------------------------------------------------------------------------------------------------

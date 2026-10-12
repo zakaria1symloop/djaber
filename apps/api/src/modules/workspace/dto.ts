@@ -30,6 +30,8 @@ export const UpdateWorkspaceSchema = z
     autoPauseOnManualReply: z.boolean().optional(),
     handoffReminderMin: z.number().int('validation.range').min(0, 'validation.range').max(1440, 'validation.range').optional(),
     targetMarginPct: z.number().int('validation.range').min(0, 'validation.range').max(100, 'validation.range').optional(),
+    /** DLV-05 / D9: a confirmed order is sent to the default courier automatically */
+    autoSendToCourier: z.boolean().optional(),
     /** id returned by `POST /uploads { kind: 'logo' }`; null removes the logo */
     logoUploadId: z.string().uuid('validation.id').nullable().optional(),
     /** optimistic concurrency (api-contract §1.8): stale ⇒ 409 CONFLICT { current } */

@@ -88,7 +88,7 @@ export const orderStats = async (q: OrderFilters, now: Date = new Date()): Promi
     prisma.order.count({ where: scoped({ status: { in: ['confirmed', 'preparing'] }, deliveryStatus: 'not_sent' }) }),
     prisma.order.count({ where: scoped({ status: 'shipped', deliveryStatus: { in: ['sent', 'pending', 'in_transit', 'out_for_delivery'] } }) }),
     prisma.order.count({
-      where: scoped({ status: 'shipped', shipments: { some: { status: { in: ['sent', 'picked_up', 'in_transit'] }, createdAt: { lt: staleBefore }, events: { none: { at: { gte: staleBefore } } } } } }),
+      where: scoped({ status: 'shipped', shipments: { some: { status: { in: ['sent', 'picked_up', 'in_transit'] }, OR: [{ lastEventAt: { lt: staleBefore } }, { lastEventAt: null, createdAt: { lt: staleBefore } }] } } }),
     }),
     prisma.order.count({ where: scoped({ status: 'delivered', deliveredAt: { gte: d30.gte, lt: d30.lt } }) }),
     prisma.order.count({ where: scoped({ orderedAt: { gte: d30.gte, lt: d30.lt } }) }),

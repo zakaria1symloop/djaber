@@ -1,9 +1,10 @@
 // api-contract §2, §3.7 — read models of an order (list row, detail, WS summary) and the `Actions ⌄` descriptors
 // (D42: current-state items, first = primary, forbidden ones greyed with their code; LST-01 shortcuts).
-import { ORDER_READ_ONLY_STATUSES, SHIPMENT_STALE_AFTER_DAYS, type ActionDescriptor, type AddressView, type ClientRefView, type OrderListItemView, type OrderStatusName, type OrderSummary, type OrderUserRef, type OrderView, type ShipmentView, type SourceBadge } from '@djaber/shared';
+import { ORDER_READ_ONLY_STATUSES, SHIPMENT_STALE_AFTER_DAYS, type ActionDescriptor, type AddressView, type ClientRefView, type OrderListItemView, type OrderStatusName, type OrderSummary, type OrderUserRef, type OrderView, type SourceBadge } from '@djaber/shared';
 import { TenantContext, type Order, type Prisma } from '@djaber/db';
 import { can, type MerchantPermission } from '../../core/rbac/permission-matrix';
 import { thumbUrlOf } from '../catalog/product-image.util';
+import { presentShipment, type ShipmentRow } from '../delivery/shipment.presenter';
 import { channelRef } from '../channels/channel.service';
 import { allowedTargets, checkTransition, isTerminal, type OrderState } from './order-rules';
 
@@ -25,7 +26,7 @@ export const ORDER_LIST_INCLUDE = {
     where: { status: { in: [...ACTIVE_SHIPMENT] } },
     orderBy: { createdAt: 'desc' },
     take: 1,
-    select: { id: true, provider: true, trackingNumber: true, status: true, createdAt: true, events: { orderBy: { at: 'desc' }, take: 1, select: { at: true } } },
+    select: { id: true, provider: true, trackingNumber: true, status: true, createdAt: true, lastEventAt: true, events: { orderBy: { at: 'desc' }, take: 1, select: { at: true } } },
   },
 } satisfies Prisma.OrderInclude;
 export type OrderListRow = Prisma.OrderGetPayload<{ include: typeof ORDER_LIST_INCLUDE }>;
@@ -59,6 +60,8 @@ export type PresentCtx = {
   /** a courier account exists (enables "Envoyer au transporteur") */
   hasCourier?: boolean;
   publicWebUrl?: string;
+  /** "Actualiser" cool-down per shipment id (manual sync 1 / 5 min) */
+  syncAvailableAt?: (shipmentId: string) => string | null;
 };
 
 const wilayaName = (w: { nameFr: string; nameAr: string } | null | undefined, locale: string) => (w ? (locale === 'ar' ? w.nameAr : w.nameFr) : '');
@@ -115,11 +118,14 @@ export const orderActions = (o: Pick<Order, 'status' | 'deliveryStatus' | 'payme
   const terminal = isTerminal(o.status);
   const readOnly = (ORDER_READ_ONLY_STATUSES as readonly string[]).includes(o.status);
   const t = (to: OrderStatusName) => checkTransition(state, to, { role })?.code ?? null;
-  const primaryKey = PRIMARY[o.status];
+  // with an active courier account the primary of a confirmed / preparing order is "Envoyer au transporteur"
+  const courierPrimary = (o.status === 'confirmed' || o.status === 'preparing') && !activeShipment && !!ctx.hasCourier;
+  const primaryKey = courierPrimary ? 'send_courier' : PRIMARY[o.status];
   const list: ActionDescriptor[] = [
     act('confirm', 'orders.write', { reasonCode: o.status === 'new' ? t('confirmed') === 'ORDER_ADDRESS_REQUIRED' ? null : t('confirmed') : 'ORDER_INVALID_TRANSITION', primary: primaryKey === 'confirm', shortcut: 'Enter' }),
     act('prepare', 'orders.write', { reasonCode: t('preparing'), primary: primaryKey === 'prepare', shortcut: primaryKey === 'prepare' ? 'Enter' : undefined }),
-    act('send_courier', 'delivery.send', { reasonCode: o.status === 'new' ? 'DELIVERY_ORDER_NOT_CONFIRMED' : !['confirmed', 'preparing'].includes(o.status) ? 'ORDER_INVALID_TRANSITION' : ctx.hasCourier ? null : 'DELIVERY_NO_COURIER' }),
+    // M6: enabled from confirmed / preparing once an active courier account exists (DELIVERY_NO_COURIER otherwise)
+    act('send_courier', 'delivery.send', { reasonCode: activeShipment && activeShipment.status !== 'delivered' ? 'DELIVERY_ORDER_ALREADY_SENT' : o.status === 'new' ? 'DELIVERY_ORDER_NOT_CONFIRMED' : !['confirmed', 'preparing'].includes(o.status) ? 'ORDER_INVALID_TRANSITION' : ctx.hasCourier ? null : 'DELIVERY_NO_COURIER', primary: primaryKey === 'send_courier' }),
     act('ship_manual', 'orders.write', { reasonCode: t('shipped'), primary: primaryKey === 'ship_manual', shortcut: primaryKey === 'ship_manual' ? 'Enter' : undefined }),
     act('deliver', 'orders.write', { reasonCode: t('delivered'), primary: primaryKey === 'deliver', shortcut: primaryKey === 'deliver' ? 'Enter' : undefined }),
     act('return', o.status === 'delivered' ? 'orders.money' : 'orders.write', { reasonCode: t('returned') }),
@@ -140,7 +146,7 @@ export const orderActions = (o: Pick<Order, 'status' | 'deliveryStatus' | 'payme
 
 const shipmentHead = (s: OrderListRow['shipments'][number] | undefined, now: number) => {
   if (!s) return null;
-  const last = (s.events[0]?.at ?? s.createdAt).getTime();
+  const last = (s.lastEventAt ?? s.events[0]?.at ?? s.createdAt).getTime();
   const stale = ['sent', 'picked_up', 'in_transit'].includes(s.status) && now - last > SHIPMENT_STALE_AFTER_DAYS * DAY;
   return { provider: s.provider, trackingNumber: s.trackingNumber, status: s.status, stale };
 };
@@ -193,33 +199,6 @@ export const addressOf = (o: Pick<Order, 'wilayaId' | 'communeId' | 'communeText
     : null;
 
 const ACTOR_NAMES: Record<string, string> = { ai: 'IA', system: 'Système', courier: 'Transporteur', api: 'API', api_key: 'API' };
-
-export const presentShipment = (s: OrderDetailRow['shipments'][number], o: OrderDetailRow, client: ClientRefView, ctx: PresentCtx): ShipmentView => ({
-  id: s.id,
-  orderId: o.id,
-  orderNumber: o.number,
-  client,
-  provider: s.provider,
-  courierAccount: s.courierAccount,
-  status: s.status,
-  trackingNumber: s.trackingNumber,
-  labelUrl: s.labelUrl,
-  publicTrackingUrl: `${(ctx.publicWebUrl ?? '').replace(/\/$/, '')}/s/${s.publicTrackingToken}`,
-  codAmount: s.codAmount,
-  weightKg: s.weightKg === null ? null : Number(s.weightKg),
-  contentSummary: s.contentSummary,
-  address: addressOf(o, ctx.locale) ?? { wilayaId: 0, wilayaName: '', communeId: null, communeText: null, address: null, isStopdesk: false, stopdeskId: null },
-  courierCost: s.courierCost,
-  failureReason: s.failureReason,
-  deliveryAttempts: s.deliveryAttempts,
-  lastError: s.lastError,
-  lastSyncedAt: s.lastSyncedAt?.toISOString() ?? null,
-  syncAvailableAt: null,
-  portalUrl: null,
-  events: s.events.map((e) => ({ at: e.at.toISOString(), rawStatus: e.rawStatus, mappedStatus: e.mappedStatus, description: e.description, location: e.location, source: e.source, actor: e.actor })),
-  createdAt: s.createdAt.toISOString(),
-  actions: [],
-});
 
 export type DetailExtras = {
   payments: { id: string; amount: number; method: OrderView['paymentMethod']; reference: string | null; note: string | null; paidAt: Date; createdBy: OrderUserRef | null }[];
@@ -281,7 +260,7 @@ export const presentOrder = (o: OrderDetailRow, extras: DetailExtras, ctx: Prese
       to: h.to,
       reason: h.reason,
     })),
-    shipments: o.shipments.map((s) => presentShipment(s, o, base.client, ctx)),
+    shipments: o.shipments.map((s) => presentShipment(s as unknown as ShipmentRow, o, base.client, addressOf(o, ctx.locale), { publicWebUrl: ctx.publicWebUrl, syncAvailableAt: ctx.syncAvailableAt?.(s.id) ?? null })),
     orderNotes: o.orderNotes.map((n) => ({ id: n.id, author: n.author, body: n.body, createdAt: n.createdAt.toISOString() })),
     sheetsSynced: !!o.sheetsRow,
     agent: o.agent,

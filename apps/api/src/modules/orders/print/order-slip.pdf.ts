@@ -621,6 +621,69 @@ class SlipWriter {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Bidi text helpers shared with the parcel labels (delivery/labels): same fonts and run ordering as the slips.
+// ---------------------------------------------------------------------------
+
+export type BidiStyle = { size: number; bold?: boolean; align?: 'left' | 'right' | 'center' };
+
+/** Registers the Arabic fonts on a document (call once per document). */
+export function registerSlipFonts(doc: PDFKit.PDFDocument): void {
+  doc.registerFont(PDF_FONT.ar, slipFontPath('regular'));
+  doc.registerFont(PDF_FONT.arB, slipFontPath('bold'));
+}
+
+function bidiSegWidth(doc: PDFKit.PDFDocument, s: Seg, size: number): number {
+  doc.font(PDF_FONT[s.font]).fontSize(size);
+  return doc.widthOfString(s.text, isArabicFont(s.font) ? { features: [] } : {});
+}
+
+/** Width of a line of mixed Arabic / Latin text. */
+export function measureBidi(doc: PDFKit.PDFDocument, text: string, size: number, bold = false): number {
+  return visualSegments(clean(text), bold).reduce((w, s) => w + bidiSegWidth(doc, s, size), 0);
+}
+
+/** One line (no wrapping) inside [x, x + w]; `top` = top of the line box. */
+export function drawBidiLine(doc: PDFKit.PDFDocument, text: string, x: number, top: number, w: number, style: BidiStyle): void {
+  const segs = visualSegments(clean(text), !!style.bold);
+  const widths = segs.map((s) => bidiSegWidth(doc, s, style.size));
+  const total = widths.reduce((a, b) => a + b, 0);
+  const align = style.align ?? 'left';
+  let cx = align === 'right' ? x + w - total : align === 'center' ? x + (w - total) / 2 : x;
+  const baseline = top + style.size * ASCENT;
+  segs.forEach((s, i) => {
+    doc
+      .font(PDF_FONT[s.font])
+      .fontSize(style.size)
+      .text(s.text, cx, baseline, { lineBreak: false, baseline: 'alphabetic', ...(isArabicFont(s.font) ? { features: [] } : {}) });
+    cx += widths[i] ?? 0;
+  });
+}
+
+/** Greedy word wrap (logical order), at most `maxLines` lines (the last one is cut with "…"). */
+export function wrapBidi(doc: PDFKit.PDFDocument, text: string, w: number, size: number, bold = false, maxLines = 99): string[] {
+  const lines: string[] = [];
+  let cur = '';
+  for (const word of clean(text).split(' ').filter(Boolean)) {
+    const candidate = cur ? `${cur} ${word}` : word;
+    if (!cur || measureBidi(doc, candidate, size, bold) <= w) cur = candidate;
+    else {
+      lines.push(cur);
+      cur = word;
+    }
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > maxLines) {
+    const kept = lines.slice(0, maxLines);
+    kept[maxLines - 1] = `${kept[maxLines - 1]} …`;
+    return kept;
+  }
+  return lines.length ? lines : [''];
+}
+
+/** Line height used by the helpers above. */
+export const BIDI_LINE = LINE;
+
 /** One slip per order. A5 portrait per slip; `twoPerPage` = two A5 slips stacked on an A4 portrait page (cut line between). */
 export async function renderOrderSlips(slips: OrderSlipData[], opts: OrderSlipOptions): Promise<Buffer> {
   return new Promise<Buffer>((resolvePdf, reject) => {

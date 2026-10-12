@@ -31,6 +31,8 @@ export const PILL_TONES = {
   'Order.source': { ai: 'success', manual: 'violet', mobile: 'info', api: 'warning', import: 'neutral' },
   'Order.deliveryStatus': { not_sent: 'neutral', pending: 'warning', sent: 'info', in_transit: 'info', out_for_delivery: 'info', delivered: 'success', failed: 'danger', returned: 'danger' },
   'Order.callResult': { picked_up: 'success', no_answer: 'warning', busy: 'warning', voicemail: 'warning', rejected: 'danger', wrong_number: 'danger', callback: 'info' },
+  'Shipment.failureReason': { unreachable: 'warning', address: 'orange', refused: 'danger', damaged: 'danger', other: 'neutral' },
+  'Courier.state': { connected: 'success', not_configured: 'neutral', inactive: 'neutral', invalid: 'danger', untested: 'warning' },
   'Shipment.status': { pending: 'warning', sent: 'info', picked_up: 'info', in_transit: 'info', out_for_delivery: 'info', delivered: 'success', failed: 'danger', returned: 'danger', cancelled: 'neutral', stale: 'warning' },
   'Client.source': { ai: 'success', manual: 'neutral', import: 'neutral', api: 'warning' },
   'Client.pill': { reliable: 'success', unknown: 'neutral', risk: 'danger', blocked: 'danger', placeholder: 'warning' },
