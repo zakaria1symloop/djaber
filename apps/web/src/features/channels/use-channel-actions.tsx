@@ -15,6 +15,7 @@ import { useSession } from '@/lib/session';
 import { channelsApi, useAppReviewStatus, useChannels, useChannelsRefresh } from './api';
 import type { ConnectFlow } from './connect';
 import type { Channel } from './contracts';
+import { useLinkAgent } from './link-agent';
 import { cardState, limitReached, swapCandidates } from './logic';
 
 type Open = { kind: 'disconnect' | 'swap' | 'approval'; channel: Channel };
@@ -31,6 +32,8 @@ export function useChannelActions(o: { connect: ConnectFlow; /** the page alread
   const [busy, setBusy] = useState<string | null>(null);
   const close = () => setOpen(null);
   const manage = can('channels.manage');
+  // "Changer d'agent" / "Rattacher un agent": picker + move confirmation (AGT-05)
+  const linkAgent = useLinkAgent();
 
   const call = async (c: Channel, key: string, fn: () => Promise<unknown>, done: string) => {
     setBusy(`${key}:${c.id}`);
@@ -78,9 +81,11 @@ export function useChannelActions(o: { connect: ConnectFlow; /** the page alread
       c.actions?.map((a) => (a.key === 'resume' && manage && needsSwap(c) ? { ...a, enabled: true } : a)),
       {
         open: { label: t('channels.action.open'), onSelect: () => router.push(`/channels/${c.id}`), local: true, hidden: o.hideOpen },
-        // M4: "Changer d'agent" (needs GET /agents) and "Extraire le catalogue de la page" (CHN-08 analysis)
+        // the API sends no descriptor for these two: shown to members who manage pages, the API checks the write
+        changeAgent: { label: t(c.agent ? 'channels.action.changeAgent' : 'channels.action.linkAgent'), onSelect: () => linkAgent.pick(c), local: true, hidden: !manage || c.status === 'disconnected' },
         reconnect: { label: t('channels.action.reconnect'), onSelect: () => void o.connect.reconnect(c) },
         syncInfo: { label: t('channels.action.syncInfo'), onSelect: () => void syncInfo(c) },
+        analysis: { label: t('channels.action.analysis'), onSelect: () => router.push(`/channels/${c.id}/analysis`), local: true, hidden: !manage || c.status === 'disconnected' },
         // state-aware items: pause on an active page, resume / re-enable on a paused or disabled one
         pause: { label: t('action.pause'), onSelect: () => void pause(c), hidden: c.status !== 'active' },
         resume: { label: c.status === 'disabled' ? t('action.enable') : t('action.resume'), onSelect: () => void resume(c), hidden: c.status !== 'paused' && c.status !== 'disabled' },
@@ -131,6 +136,7 @@ export function useChannelActions(o: { connect: ConnectFlow; /** the page alread
         }}
       />
       <ApprovalDialog channel={open?.kind === 'approval' ? open.channel : null} onClose={close} />
+      {linkAgent.dialogs}
     </>
   );
 
@@ -140,6 +146,8 @@ export function useChannelActions(o: { connect: ConnectFlow; /** the page alread
     dialogs,
     manage,
     busy,
+    /** agent linking of a page: `link.pick(channel)` opens the picker, `link.link(channel, agentId | null)` writes */
+    link: linkAgent,
     resume,
     pause,
     syncInfo,

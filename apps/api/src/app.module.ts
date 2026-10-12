@@ -15,9 +15,13 @@ import { TenantGuard } from './core/tenancy/tenant.guard';
 import { RateLimitGuard } from './core/throttle/rate-limit.guard';
 import { WsGateway } from './core/ws/ws.gateway';
 import { AccountModule } from './modules/account/account.module';
+import { AgentsModule } from './modules/agents/agents.module';
+import { AiCoreModule } from './modules/ai/ai-core.module';
+import { AiModule } from './modules/ai/ai.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { ChannelsModule } from './modules/channels/channels.module';
+import { CreditsModule } from './modules/credits/credits.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
 import { MetaModule } from './modules/meta/meta.module';
@@ -28,7 +32,7 @@ import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { PlatformPublicModule } from './modules/platform-public/platform-public.module';
 
 /** Feature modules are appended here milestone after milestone (00-build-order). */
-export const FEATURE_MODULES = [PlatformPublicModule, AccountModule, UploadsModule, WorkspaceModule, AuthModule, NotificationsModule, JobsModule, CatalogModule, MetaModule, ChannelsModule, MessagingModule];
+export const FEATURE_MODULES = [PlatformPublicModule, AccountModule, UploadsModule, WorkspaceModule, AuthModule, NotificationsModule, JobsModule, CreditsModule, AiCoreModule, CatalogModule, MetaModule, ChannelsModule, MessagingModule, AiModule, AgentsModule];
 
 @Module({
   imports: [CoreModule, ...FEATURE_MODULES],

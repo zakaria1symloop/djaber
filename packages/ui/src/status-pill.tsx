@@ -23,6 +23,7 @@ export const PILL_TONES = {
   'Channel.permission': { granted: 'success', pending: 'warning', missing: 'danger' },
   'Conversation.status': { active: 'success', needs_human: 'warning', resolved: 'neutral', archived: 'neutral' },
   'Client.riskLevel': { normal: 'success', high: 'danger' },
+  'Credit.action': { text_reply: 'info', image_recognition: 'warning', voice_transcription: 'violet', reserve: 'neutral', release: 'neutral', renewal: 'neutral', pack_purchase: 'success', grant: 'success', store_refund: 'danger', adjustment: 'orange' },
   'Order.status': { new: 'info', confirmed: 'info', preparing: 'info', shipped: 'orange', delivered: 'success', returned: 'danger', cancelled: 'neutral' },
 } as const satisfies Record<string, Record<string, Tone>>;
 

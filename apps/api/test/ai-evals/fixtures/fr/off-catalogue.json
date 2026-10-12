@@ -1,0 +1,18 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "Est-ce que vous vendez des voitures neuves ?"
+    }
+  ],
+  "expect": {
+    "status": "UNKNOWN",
+    "intent": "INFO",
+    "language": "fr",
+    "toolCalls": [
+      "search_products"
+    ],
+    "cards": [],
+    "noProductOutsideCatalogue": true
+  }
+}

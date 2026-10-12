@@ -311,6 +311,8 @@ describe('products list', () => {
       stockState: { out: 'Rupture' },
       lowStock: 'Stock faible',
       noAgent: 'Aucun agent',
+      agent: (n) => `Agent : ${n}`,
+      agentName: (id) => ({ a1: 'Vendeur Pro' })[id] ?? '…',
       moderation: { pending: 'En attente' },
       qty: (r) => `Quantité ${r}`,
       price: (r) => `Prix ${r}`,

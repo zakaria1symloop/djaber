@@ -193,7 +193,7 @@ export class ProductImageService implements OnModuleInit {
     });
   }
 
-  /** `media.caption-image` — stores what the provider returns (null until M4). */
+  /** `media.caption-image` — stores the caption of the AI port (CAT-02; null when no vision model answered). Safe to run twice. */
   async caption(data: MediaJob): Promise<void> {
     const tenant = await this.tenants.forWorker(data.workspaceId);
     await TenantContext.run(tenant, async () => {

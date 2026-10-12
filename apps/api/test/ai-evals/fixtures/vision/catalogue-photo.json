@@ -1,0 +1,19 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "",
+      "image": "FAKE-IMAGE:robe satin bordeaux"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "SALE",
+    "toolCalls": [],
+    "cards": [
+      "ROB-001"
+    ],
+    "creditsInProd": 5,
+    "noProductOutsideCatalogue": true
+  }
+}

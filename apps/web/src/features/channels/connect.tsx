@@ -3,11 +3,12 @@
 // Meta — issues, Rapport de connexion). The web never calls Meta: it asks our API for a URL, opens it in a pop-up and
 // waits for the callback page to `postMessage` the report. Pop-up blocked ⇒ "Ouvrir dans cet onglet" (the callback
 // then lands on `/channels/connect/return`, which comes back here with `?connectReport=` / `?connectError=`).
-import { Button, buttonClass, Dialog, FormAlert, Ltr, Pill, SegmentedControl, Spinner, toast } from '@djaber/ui';
+import { Button, buttonClass, Dialog, FormAlert, Ltr, Pill, SegmentedControl, Select, Spinner, toast } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { RESEND_COOLDOWN_S } from '@/components/auth/forgot-form';
+import { useAgents, useAgentsRefresh } from '@/features/agents/api';
 import { authApi } from '@/features/auth/api';
 import { Link } from '@/i18n/navigation';
 import { API_URL, ApiError } from '@/lib/api';
@@ -427,12 +428,57 @@ const rowNote = (t: TFunction, p: ConnectReportPage, limit: PlanLimit): ReactNod
 /** "Rapport de connexion": one row per page found on the Meta account, with its outcome and code. */
 function ReportDialog({ report, onClose }: { report: ConnectReport | null; onClose: () => void }) {
   const t = useT();
+  const { can } = useSession();
+  const refreshChannels = useChannelsRefresh();
+  const refreshAgents = useAgentsRefresh();
+  // pages of the report that now exist as channels: the agent chosen below is attached to each of them
+  const linkable = (report?.pages ?? []).filter((p) => !!p.channelId && ['connected', 'pending', 'warning'].includes(reportRowKind(p)));
+  const canLink = can('channels.manage') && linkable.length > 0;
+  const agents = useAgents(undefined, report !== null && canLink);
+  const [agentId, setAgentId] = useState<string | null>(null);
+  const [linking, setLinking] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const agentRows = agents.data?.rows ?? [];
+  const chosen = agentRows.find((a) => a.id === agentId) ?? null;
+  const finish = () => {
+    setAgentId(null);
+    setLinkError(null);
+    onClose();
+  };
+  /**
+   * "Rattacher et terminer": `PUT /channels/:id/agent` for each connected page. A page that already answers with
+   * another agent (reconnection) keeps it — moving a page is always an explicit confirmation (AGT-05), done from the page.
+   */
+  const attach = async () => {
+    if (!chosen) return finish();
+    setLinking(true);
+    setLinkError(null);
+    try {
+      let linked = 0;
+      for (const p of linkable) {
+        try {
+          await channelsApi.setAgent(p.channelId!, { agentId: chosen.id });
+          linked++;
+        } catch (e) {
+          if (!(e instanceof ApiError && e.code === 'AGENT_PAGE_ALREADY_ASSIGNED')) throw e;
+        }
+      }
+      await Promise.all([refreshChannels(), refreshAgents(chosen.id)]);
+      toast(linked < linkable.length ? { tone: 'warning', message: t('channels.report.agent.linkedSome', { count: linked, kept: linkable.length - linked, agent: chosen.name }) } : t('channels.report.agent.linked', { count: linked, agent: chosen.name }));
+      finish();
+    } catch (e) {
+      setLinkError(errorMessage(e, t));
+      void refreshChannels();
+    } finally {
+      setLinking(false);
+    }
+  };
   const counts = report ? reportCounts(report) : { found: 0, connected: 0 };
   const hasLimit = !!report?.pages.some((p) => reportRowKind(p) === 'limit');
   return (
     <Dialog
       open={report !== null}
-      onOpenChange={(o) => !o && onClose()}
+      onOpenChange={(o) => !o && !linking && finish()}
       title={t('channels.report.title')}
       description={t('channels.report.found', { count: counts.found })}
       closeLabel={t('action.close')}
@@ -443,10 +489,20 @@ function ReportDialog({ report, onClose }: { report: ConnectReport | null; onClo
               {t('action.comparePlans')}
             </Link>
           ) : null}
-          {/* M4: "AGENT POUR LES PAGES CONNECTÉES" selector + "Rattacher et terminer" (needs GET /agents) */}
-          <Button variant="primary" onClick={onClose}>
-            {t('action.close')}
-          </Button>
+          {canLink && agentRows.length ? (
+            <>
+              <Button variant="ghost" onClick={finish} disabled={linking} data-testid="report-later">
+                {t('action.later')}
+              </Button>
+              <Button variant="primary" onClick={attach} loading={linking} disabledReason={chosen ? undefined : t('channels.link.picker.choose')} data-testid="report-attach">
+                {t('channels.report.agent.submit')}
+              </Button>
+            </>
+          ) : (
+            <Button variant="primary" onClick={finish}>
+              {t('action.close')}
+            </Button>
+          )}
         </>
       }
     >
@@ -467,6 +523,23 @@ function ReportDialog({ report, onClose }: { report: ConnectReport | null; onClo
           );
         })}
       </ul>
+      {canLink && agentRows.length ? (
+        <div className="mt-5 flex flex-col gap-1.5" data-testid="report-agent">
+          <label htmlFor="report-agent-select" className="ts-label-meta uppercase text-text-secondary">
+            {t('channels.report.agent.label')}
+          </label>
+          <Select id="report-agent-select" value={agentId ?? ''} disabled={linking} onChange={(e) => setAgentId(e.target.value || null)}>
+            <option value="">{t('channels.report.agent.none')}</option>
+            {agentRows.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </Select>
+          <p className="ts-label-meta text-text-muted">{t('channels.report.agent.hint')}</p>
+        </div>
+      ) : null}
+      {linkError ? <FormAlert className="mt-3">{linkError}</FormAlert> : null}
     </Dialog>
   );
 }

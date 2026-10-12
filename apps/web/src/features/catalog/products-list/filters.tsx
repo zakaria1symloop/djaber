@@ -19,11 +19,12 @@ import {
 } from '@djaber/ui';
 import { LayoutGrid, List, SlidersHorizontal, TriangleAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useAgents } from '@/features/agents/api';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { filterBool, filterList, filterText, formatSort, parseSort } from '@/lib/list-state';
 import type { ListController } from '@/lib/use-list-state';
 import { flattenCategories, type Category } from '../contracts';
-import { activeChips, DATE_PRESETS, matchPreset, presetRange, withoutValue, type DatePreset } from './spec';
+import { activeChips, agentFilterOptions, agentFilterPatch, DATE_PRESETS, NO_AGENT, matchPreset, presetRange, withoutValue, type DatePreset } from './spec';
 
 const STATUSES = ['active', 'inactive', 'archived'] as const;
 const TYPES = ['stock', 'service', 'variants', 'no_variants'] as const;
@@ -65,6 +66,7 @@ export function ProductsFilterBar({ list, categories, lowStockCount, onOpenPanel
 export function ProductsActiveFilters({ list, categories }: { list: ListController; categories: FilterOption[] }) {
   const t = useT();
   const locale = useLocaleCode() as AppLocale;
+  const agents = useAgents(undefined, filterList(list.state, 'agentId').length > 0);
   const chips = activeChips(list.state, {
     search: (q) => t('products.chip.search', { q }),
     category: (names) => t('products.chip.category', { names }),
@@ -74,6 +76,8 @@ export function ProductsActiveFilters({ list, categories }: { list: ListControll
     stockState: Object.fromEntries(STOCK_STATES.map((v) => [v, t(`products.filter.stock.${v}`)])),
     lowStock: t('products.filter.stock.low'),
     noAgent: t('products.filter.noAgent'),
+    agent: (names) => t('products.chip.agent', { names }),
+    agentName: (id) => agents.data?.rows.find((a) => a.id === id)?.name ?? '…',
     moderation: Object.fromEntries(['not_required', 'pending', 'approved', 'rejected', 'appealed'].map((v) => [v, t(`products.filter.moderation.${v}`)])),
     qty: (range) => t('products.chip.qty', { range }),
     price: (range) => t('products.chip.price', { range }),
@@ -122,6 +126,7 @@ export function ProductsFilterPanel({ open, onClose, list, categories, total, ad
   const opts = (values: readonly string[], prefix: string): FilterOption[] => values.map((v) => ({ value: v, label: t(`${prefix}.${v}`) }));
   const sort = parseSort(s.sort);
   const preset = matchPreset(from, to);
+  const agents = useAgents(undefined, open);
   return (
     <FilterPanel
       open={open}
@@ -162,7 +167,15 @@ export function ProductsFilterPanel({ open, onClose, list, categories, total, ad
         </>
       ) : null}
       <FilterGroup label={t('products.filter.agent')} source="AgentProduct">
-        <FilterChips label={t('products.filter.agent')} allLabel={t('common.allM')} options={[{ value: 'none', label: t('products.filter.noAgent') }]} value={filterBool(s, 'noAgent') ? ['none'] : []} onChange={(v) => list.setFilter('noAgent', v.length > 0)} />
+        {/* "Aucun agent" and the agents exclude each other: a product sold by nobody is sold by no one of them */}
+        <FilterChips
+          label={t('products.filter.agent')}
+          multiple
+          allLabel={t('common.allM')}
+          options={agentFilterOptions(agents.data?.rows ?? [], t('products.filter.noAgent'))}
+          value={filterBool(s, 'noAgent') ? [NO_AGENT] : filterList(s, 'agentId')}
+          onChange={(v) => list.setFilters(agentFilterPatch(v, filterBool(s, 'noAgent')))}
+        />
       </FilterGroup>
       <FilterGroup label={t('products.filter.moderation')} source="Product.moderationStatus">
         <FilterChips label={t('products.filter.moderation')} multiple options={opts(['pending', 'approved', 'rejected', 'appealed'], 'products.filter.moderation')} value={filterList(s, 'moderationStatus')} onChange={(v) => list.setFilter('moderationStatus', v)} />

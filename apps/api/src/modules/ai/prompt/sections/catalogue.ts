@@ -1,0 +1,27 @@
+// §3.5 Catalogue (D34) — the only source of product names, prices and stock the model may use.
+import type { CatalogueProduct } from '../../catalogue.service';
+import { systemLocale } from '../../language';
+import type { PromptContext } from '../prompt.types';
+
+export const productBlock = (p: CatalogueProduct, n: number, descriptionMax: number): string => {
+  const lines = [`#${n} ${p.name} [ID:${p.id}] SKU:${p.sku} PRICE:${p.price} DA${p.oldPrice ? ` (was ${p.oldPrice} DA)` : ''} STOCK:${p.stock === null ? 'service' : p.stock}`];
+  const description = (p.description ?? '').replace(/\s+/g, ' ').trim().slice(0, descriptionMax);
+  if (description) lines.push(description);
+  if (p.variants.length) lines.push(`VARIANTS: ${p.variants.map((v) => `${v.name} [VID:${v.id}] ${v.price} DA stock ${v.stock}`).join('; ')}`);
+  for (const a of p.also) lines.push(`ALSO: ${a.name} [ID:${a.id}] ${a.price} DA — ${a.reason?.trim() || 'often bought together'}`);
+  return lines.join('\n');
+};
+
+export const catalogueSection = (c: PromptContext): string => {
+  const { catalogue } = c;
+  const head = catalogue.full
+    ? `CATALOGUE (${catalogue.count} products — the complete list; never mention a product, a price or a stock that is not below)`
+    : `CATALOGUE: ${catalogue.count} products. Use search_products before naming any product.`;
+  const blocks = catalogue.products.map((p, i) => productBlock(p, i + 1, c.descriptionMax));
+  const sentence = c.workspace.systemMessages.out_of_stock?.[systemLocale(c.lang, c.locale)] ?? c.workspace.systemMessages.out_of_stock?.fr ?? '';
+  const rules: string[] = [];
+  if (sentence) rules.push(`OUT_OF_STOCK_SENTENCE: "${sentence}"`);
+  rules.push(c.agent.outOfStockBehavior === 'suggest_alternative' ? 'OUT_OF_STOCK: say OUT_OF_STOCK_SENTENCE, then suggest an alternative from the same category' : 'OUT_OF_STOCK: say OUT_OF_STOCK_SENTENCE only');
+  if (c.agent.showMissingVariants) rules.push('MISSING_VARIANT: say which sizes remain');
+  return [head, ...(catalogue.count === 0 ? ['(no product available: do not invent any)'] : blocks), ...rules].join('\n');
+};

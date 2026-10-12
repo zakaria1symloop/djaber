@@ -13,6 +13,7 @@ import { useT } from '@/lib/i18n';
 import { useCan, useWorkspaceId } from '@/lib/session';
 import { catalogApi, useCatalogRefresh, useProduct } from './api';
 import type { ProductListItem, Variant } from './contracts';
+import { uuid } from '@/lib/uuid';
 
 export type AdjustTarget = Pick<ProductListItem, 'id' | 'name' | 'trackStock' | 'hasVariants' | 'stock'> & { variants?: Variant[] };
 type Kind = StockAdjustmentInput['type'];
@@ -63,7 +64,7 @@ export function AdjustStockDialog({
     setForce(false);
     setError(null);
     setTouched(false);
-    setKey(crypto.randomUUID());
+    setKey(uuid());
   }, [open, variantId, product?.id]);
 
   const target = product ?? picked;
@@ -108,7 +109,7 @@ export function AdjustStockDialog({
       onClose();
     } catch (e) {
       // the same key replays the stored answer; a refused request needs a new key for the corrected attempt
-      setKey(crypto.randomUUID());
+      setKey(uuid());
       setError({ message: errorMessage(e, t), code: e instanceof ApiError ? e.code : null });
       if (e instanceof ApiError && e.code === 'STOCK_INSUFFICIENT') void detail.refetch();
     }

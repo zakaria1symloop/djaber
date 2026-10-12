@@ -1,0 +1,22 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "",
+      "audio": "Bonjour, combien la robe satin ?"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "SALE",
+    "language": "fr",
+    "toolCalls": [
+      "search_products"
+    ],
+    "cards": [
+      "ROB-001"
+    ],
+    "creditsInProd": 3,
+    "noProductOutsideCatalogue": true
+  }
+}

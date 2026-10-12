@@ -2,7 +2,8 @@
 // "Créer depuis une photo" — Figma "DLG — GDS (stock) II" (CAT-07, AT-CAT-10): 1–5 photos, states ANALYSE… (spinner,
 // "lecture de la photo", cancellable, ≤ 15 s), REMPLI (only the empty fields, never the price), ÉCHEC
 // (IMAGE_ANALYSIS_FAILED, credits not debited), INDISPONIBLE (IMAGE_ANALYSIS_UNAVAILABLE: the entry button is then
-// disabled for the session), INSUFFICIENT_CREDITS inline with a link to the credits page.
+// disabled for the session), INSUFFICIENT_CREDITS inline with a link to the credits page, LIMITE (ANALYSIS_RATE_LIMITED:
+// 3 analyses per day) and FOURNISSEUR IA (AI_PROVIDER_ERROR: retry later). Every refusal keeps the photos and the form.
 import { AI_FILL_MAX_PHOTOS } from '@djaber/shared';
 import { Button, Dialog, FormAlert, Pill, Spinner, cn } from '@djaber/ui';
 import { Plus, X } from 'lucide-react';
@@ -23,7 +24,7 @@ export const AI_FILL_CREDITS = 5;
 let unavailable = false;
 export const aiFillUnavailable = () => unavailable;
 
-type Phase = { kind: 'idle' } | { kind: 'analysing' } | { kind: 'filled'; filled: AiFillField[]; hints: string[] } | { kind: 'failed' } | { kind: 'unavailable' } | { kind: 'credits' } | { kind: 'error'; message: string };
+type Phase = { kind: 'idle' } | { kind: 'analysing' } | { kind: 'filled'; filled: AiFillField[]; hints: string[] } | { kind: 'failed' } | { kind: 'unavailable' } | { kind: 'credits' } | { kind: 'limited' } | { kind: 'provider' } | { kind: 'error'; message: string };
 type Photo = { key: string; file: File; url: string; error: string | null };
 
 export function FromPhotoDialog({
@@ -110,6 +111,8 @@ export function FromPhotoDialog({
       }
       if (e.code === 'IMAGE_ANALYSIS_FAILED') return setPhase({ kind: 'failed' });
       if (e.code === 'INSUFFICIENT_CREDITS') return setPhase({ kind: 'credits' });
+      if (e.code === 'ANALYSIS_RATE_LIMITED') return setPhase({ kind: 'limited' });
+      if (e.code === 'AI_PROVIDER_ERROR' || e.code === 'PROVIDER_UNAVAILABLE') return setPhase({ kind: 'provider' });
       setPhase({ kind: 'error', message: `${errorMessage(e, t)} (${e.code})` });
     } finally {
       window.clearTimeout(timer);
@@ -149,7 +152,13 @@ export function FromPhotoDialog({
               onClick={analyse}
               loading={analysing}
               disabled={!valid.length || photos.some((p) => p.error)}
-              disabledReason={phase.kind === 'unavailable' ? `${t('error.IMAGE_ANALYSIS_UNAVAILABLE')} (IMAGE_ANALYSIS_UNAVAILABLE)` : undefined}
+              disabledReason={
+                phase.kind === 'unavailable'
+                  ? `${t('error.IMAGE_ANALYSIS_UNAVAILABLE')} (IMAGE_ANALYSIS_UNAVAILABLE)`
+                  : phase.kind === 'limited'
+                    ? `${t('error.ANALYSIS_RATE_LIMITED')} (ANALYSIS_RATE_LIMITED)`
+                    : undefined
+              }
               data-testid="photo-analyse"
             >
               {analysing ? t('common.analyzing') : t('products.form.photo.analyse', { credits: AI_FILL_CREDITS })}
@@ -260,6 +269,22 @@ export function FromPhotoDialog({
               {t('action.buyCredits')}
             </Link>
           </FormAlert>
+        ) : null}
+        {phase.kind === 'limited' ? (
+          <div className="flex flex-col gap-2">
+            <Pill tone="warning" className="w-fit rounded-[4px]">
+              {t('products.form.photo.state.limited')}
+            </Pill>
+            <FormAlert tone="warning">{`${t('error.ANALYSIS_RATE_LIMITED')} (ANALYSIS_RATE_LIMITED) · ${t('products.form.photo.fillManually')}`}</FormAlert>
+          </div>
+        ) : null}
+        {phase.kind === 'provider' ? (
+          <div className="flex flex-col gap-2">
+            <Pill tone="danger" className="w-fit rounded-[4px]">
+              {t('products.form.photo.state.provider')}
+            </Pill>
+            <FormAlert>{`${t('products.form.photo.provider')} (AI_PROVIDER_ERROR) · ${t('products.form.photo.notCharged')}`}</FormAlert>
+          </div>
         ) : null}
         {phase.kind === 'error' ? <FormAlert>{phase.message}</FormAlert> : null}
       </div>

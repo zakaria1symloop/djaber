@@ -1,6 +1,7 @@
 // Idempotent reference seeds (07-non-functional §7). Run: `pnpm --filter @djaber/db seed`.
 // Milestone-specific seeds (ai-providers, cms, demo) are added by their milestone in ./extra/*.ts.
 import { existsSync, readFileSync } from 'node:fs';
+import { seedAi, seedPresets } from './ai';
 import { resolve } from 'node:path';
 import * as argon2 from 'argon2';
 import { rawPrisma as db } from '../src/client';
@@ -140,74 +141,6 @@ async function plans() {
     });
   }
   return { plans: rows.length, packs: packs.length };
-}
-
-async function presets() {
-  const rows = [
-    {
-      key: 'vendeur-pro',
-      badge: 'recommended' as const,
-      name: { fr: 'Vendeur Pro', ar: 'البائع المحترف', en: 'Pro Seller' },
-      tagline: { fr: 'Chaleureux, il conclut la vente', ar: 'ودود ويتمّ البيع', en: 'Warm and closes the sale' },
-      config: { tone: 'friendly', temperature: 0.6, maxTokens: 1200, imageRecognition: true, voiceNotes: true, replyDelaySec: 3 },
-      prompt: 'You are a warm, persuasive sales assistant. Guide the customer to the right product and collect the order details.',
-    },
-    {
-      key: 'service-client',
-      badge: null,
-      name: { fr: 'Service client', ar: 'خدمة العملاء', en: 'Customer service' },
-      tagline: { fr: 'Précis et rassurant', ar: 'دقيق ومطمئن', en: 'Precise and reassuring' },
-      config: { tone: 'professional', temperature: 0.4, maxTokens: 1000, imageRecognition: true, voiceNotes: true, replyDelaySec: 2 },
-      prompt: 'You are a professional customer-service assistant. Answer precisely, reassure, and escalate to a human when unsure.',
-    },
-    {
-      key: 'conseiller-produit',
-      badge: null,
-      name: { fr: 'Conseiller produit', ar: 'مستشار المنتجات', en: 'Product advisor' },
-      tagline: { fr: 'Explique et compare', ar: 'يشرح ويقارن', en: 'Explains and compares' },
-      config: { tone: 'technical', temperature: 0.5, maxTokens: 1400, imageRecognition: true, voiceNotes: true, replyDelaySec: 3 },
-      prompt: 'You are a product advisor. Explain features, compare options from the catalogue and recommend the best fit.',
-    },
-    {
-      key: 'reponse-express',
-      badge: 'popular' as const,
-      name: { fr: 'Réponse express', ar: 'الرد السريع', en: 'Express reply' },
-      tagline: { fr: 'Court et direct', ar: 'مختصر ومباشر', en: 'Short and direct' },
-      config: { tone: 'casual', temperature: 0.6, maxTokens: 700, imageRecognition: false, voiceNotes: true, replyDelaySec: 1 },
-      prompt: 'You are a fast, casual assistant. Reply in one or two short sentences and get to the order quickly.',
-    },
-  ];
-  let i = 0;
-  for (const p of rows) {
-    const existing = await db.agentPreset.findUnique({ where: { key: p.key } });
-    if (!existing) {
-      await db.agentPreset.create({
-        data: {
-          key: p.key,
-          name: p.name,
-          tagline: p.tagline,
-          description: p.tagline,
-          badge: p.badge,
-          status: 'published',
-          currentVersion: 1,
-          sortOrder: i,
-          versions: {
-            create: {
-              version: 1,
-              status: 'published',
-              publishedAt: new Date(),
-              config: p.config,
-              locales: Object.fromEntries(
-                (['fr', 'ar', 'en'] as const).map((l) => [l, { name: p.name[l], tagline: p.tagline[l], systemPrompt: p.prompt }]),
-              ),
-            },
-          },
-        },
-      });
-    }
-    i++;
-  }
-  return rows.length;
 }
 
 async function admin() {
@@ -351,12 +284,13 @@ async function main() {
   const g = await geo();
   const u = await units();
   const p = await plans();
-  const pr = await presets();
+  const pr = await seedPresets(db);
   const a = await admin();
+  const ai = await seedAi(db, a.id);
   await platform(a.id);
   const lg = await legal(a.id);
    
-  console.log(`seeded: ${g.wilayas} wilayas, ${g.communes} communes, ${u} units, ${p.plans} plans, ${p.packs} packs, ${pr} presets, ${lg} legal documents, admin + app versions + settings`);
+  console.log(`seeded: ${g.wilayas} wilayas, ${g.communes} communes, ${u} units, ${p.plans} plans, ${p.packs} packs, ${pr} presets, ${ai.models} AI models, ${ai.routes} AI routes, ${lg} legal documents, admin + app versions + settings`);
 }
 
 main()

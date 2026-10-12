@@ -1,0 +1,20 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "بشحال الروب ساتان؟"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "SALE",
+    "language": "ar",
+    "toolCalls": [
+      "search_products"
+    ],
+    "cards": [
+      "ROB-001"
+    ],
+    "noProductOutsideCatalogue": true
+  }
+}

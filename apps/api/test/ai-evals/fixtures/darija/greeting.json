@@ -1,0 +1,15 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "سلام"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "GREETING",
+    "language": "ar",
+    "toolCalls": [],
+    "noProductOutsideCatalogue": true
+  }
+}

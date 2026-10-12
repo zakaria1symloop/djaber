@@ -16,7 +16,7 @@ import { catalogApi, useCatalogRefresh, useCategories, useModerationSummary, use
 import type { ProductListItem } from '@/features/catalog/contracts';
 import { productMenuActions } from '@/features/catalog/product-actions';
 import { ArchiveProductDialog, CardPreviewDialog, DuplicateProductDialog, RestoreProductDialog } from '@/features/catalog/product-dialogs';
-import { ProductsBulkBar, useProductsExport } from '@/features/catalog/products-list/bulk';
+import { AddToAgentDialog, ProductsBulkBar, useProductsExport } from '@/features/catalog/products-list/bulk';
 import { ProductsActiveFilters, ProductsFilterBar, ProductsFilterPanel, useCategoryOptions } from '@/features/catalog/products-list/filters';
 import { QuickEditSheet } from '@/features/catalog/products-list/quick-edit-sheet';
 import { PRODUCTS_LIST, productsQuery } from '@/features/catalog/products-list/spec';
@@ -29,7 +29,7 @@ import { compactAmount } from '@/lib/money';
 import { useSession } from '@/lib/session';
 import { useListState } from '@/lib/use-list-state';
 
-type RowDialog = { kind: 'archive' | 'duplicate' | 'restore' | 'card' | 'adjust'; product: ProductListItem } | null;
+type RowDialog = { kind: 'archive' | 'duplicate' | 'restore' | 'card' | 'adjust' | 'agent'; product: ProductListItem } | null;
 
 export default function ProductsPage() {
   const t = useT();
@@ -87,6 +87,7 @@ export default function ProductsPage() {
         movements: () => router.push(`/movements?productId=${row.id}`),
         duplicate: () => setDialog({ kind: 'duplicate', product: row }),
         cardPreview: () => setDialog({ kind: 'card', product: row }),
+        addToAgent: can('agents.read') ? () => setDialog({ kind: 'agent', product: row }) : undefined,
         toggleActive: () => void toggleActive(row),
         archive: () => setDialog({ kind: 'archive', product: row }),
         restore: () => setDialog({ kind: 'restore', product: row }),
@@ -352,6 +353,7 @@ export default function ProductsPage() {
       <DuplicateProductDialog product={dialog?.kind === 'duplicate' ? dialog.product : null} onClose={() => setDialog(null)} onDone={(copy) => router.push(`/products/${copy.id}/edit`)} />
       <RestoreProductDialog product={dialog?.kind === 'restore' ? dialog.product : null} onClose={() => setDialog(null)} />
       <CardPreviewDialog product={dialog?.kind === 'card' ? dialog.product : null} onClose={() => setDialog(null)} />
+      <AddToAgentDialog product={dialog?.kind === 'agent' ? dialog.product : null} onClose={() => setDialog(null)} />
     </AppPage>
   );
 }

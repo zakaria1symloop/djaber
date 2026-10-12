@@ -205,13 +205,11 @@ describe('MSG-05 batching hook and MSG-09 unsupported media', () => {
     const { owner, channel } = await withAgent();
     const sender = newSender();
 
-    // M3 alone: no AI processor is registered ⇒ nothing is scheduled at all
-    expect(registry.handlers.get('ai-reply')?.has('reply') ?? false).toBe(false);
+    // the reply processor of M4 is registered: one delayed job per conversation, pushed back by each message
+    expect(registry.handlers.get('ai-reply')?.has('reply') ?? false).toBe(true);
     const first = await receive(app, channel, sender, { text: 'Salam' });
-    expect(await queue.getJob(jobId(`ai:${first.conversation.id}`))).toBeUndefined();
+    expect(await queue.getJob(jobId(`ai:${first.conversation.id}`))).toBeDefined();
 
-    // with a reply processor (what M4 registers): one delayed job per conversation, pushed back by each message
-    registry.register('ai-reply', 'reply', async () => undefined);
     try {
       const typing = meta.callsOf('senderAction').length;
       const a = await receive(app, channel, sender, { text: 'vous avez le modèle rouge ?' });
@@ -220,7 +218,8 @@ describe('MSG-05 batching hook and MSG-09 unsupported media', () => {
       const job = await queue.getJob(jobId(`ai:${first.conversation.id}`));
       expect(job).toBeDefined();
       expect(await job!.getState()).toBe('delayed');
-      expect(job!.data).toMatchObject({ workspaceId: owner.workspaceId, conversationId: first.conversation.id, batchKey: a.message!.id });
+      expect(job!.data).toMatchObject({ workspaceId: owner.workspaceId, conversationId: first.conversation.id, batchKey: first.message!.id });
+      expect(a.message!.id).not.toBe(first.message!.id);
       const mine = (await queue.getJobs(['delayed', 'waiting', 'active'])).filter((j) => j.data.conversationId === first.conversation.id);
       expect(mine).toHaveLength(1);
       expect(job!.opts.delay).toBe(3000); // agent.responseDelaySec default
@@ -237,7 +236,6 @@ describe('MSG-05 batching hook and MSG-09 unsupported media', () => {
       const lone = await receive(app, bare, newSender(), { text: 'Salam' });
       expect(await queue.getJob(jobId(`ai:${lone.conversation.id}`))).toBeUndefined();
     } finally {
-      registry.handlers.get('ai-reply')?.delete('reply');
       for (const j of await queue.getJobs(['delayed', 'waiting'])) await j.remove().catch(() => undefined);
     }
   });

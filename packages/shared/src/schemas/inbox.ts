@@ -297,6 +297,10 @@ export type ConversationView = ConversationListItemView & {
   notesCount: number;
   /** member who paused the AI (banner "IA en pause — mise en pause par …"); null when paused by the system or not paused */
   aiPausedBy: InboxUserRef | null;
+  /** FL-01 F-4: the AI stopped on this thread because the credits / the conversation quota ran out (GLOBAL — Credits exhausted — thread state) */
+  creditsExhausted?: boolean;
+  /** FL-01 F-6: the AI could not answer (provider error); banner "IA indisponible" */
+  aiUnavailable?: boolean;
   blockedAt: string | null;
   blockedBy: InboxUserRef | null;
   /** `platform` blocks cannot be lifted by the merchant (CUSTOMER_BLOCKED_BY_PLATFORM) */

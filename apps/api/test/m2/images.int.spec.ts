@@ -27,7 +27,7 @@ describe('product images', () => {
     const owner = await asOwner(app);
     const p = await createProduct(owner);
     const captions = app.app.get<ImageCaptionProvider>(IMAGE_CAPTION_PROVIDER);
-    const spy = jest.spyOn(captions, 'caption').mockImplementation(async ({ productName }) => `Photo de ${productName}`);
+    const spy =jest.spyOn(captions, 'caption').mockImplementation(async ({ productName }) => `Photo de ${productName}`);
 
     const first = await upload(owner, app, `/products/${p.id}/images`, 'file', [await jpeg(1200, 900)]).expect(201);
     expect(first.body.data).toMatchObject({ width: 1200, height: 900, isPrimary: true, processed: false, aiCaption: null, altText: null, moderationFlag: null });
@@ -71,16 +71,18 @@ describe('product images', () => {
     await upload(owner, app, `/products/${p.id}/images`, 'file', [await jpeg()]).expect(201); // a slot is free again
   });
 
-  it('caption hook: the stub provider stores aiCaption = null until M4; a provider failure is retried by the queue', async () => {
+  it('caption hook: the AI port captions the image (fake adapter in tests); a provider failure is retried by the queue', async () => {
     const owner = await asOwner(app);
     const p = await createProduct(owner);
     const img = (await upload(owner, app, `/products/${p.id}/images`, 'file', [await jpeg()]).expect(201)).body.data;
     expect(await drain(app, owner.workspaceId)).toEqual(expect.arrayContaining(['reencode-image', 'caption-image']));
-    expect((await db.productImage.findUniqueOrThrow({ where: { id: img.id } })).aiCaption).toBeNull();
+    expect((await db.productImage.findUniqueOrThrow({ where: { id: img.id } })).aiCaption).toBe(`Photo du produit ${p.name}`);
     const queued = await db.outbox.findMany({ where: { workspaceId: owner.workspaceId, topic: 'job' } });
     expect(queued.map((r) => r.key).sort()).toEqual([`cap:${img.id}`, `img:${img.id}`]); // deterministic job ids (03 §3)
     expect((queued.find((r) => r.key === `img:${img.id}`)!.payload as any).opts).toMatchObject({ attempts: 3 });
 
+    // an image that has its caption is left alone (the job is safe to run twice); without one the provider is called again
+    await db.productImage.update({ where: { id: img.id }, data: { aiCaption: null } });
     const captions = app.app.get<ImageCaptionProvider>(IMAGE_CAPTION_PROVIDER);
     jest.spyOn(captions, 'caption').mockRejectedValueOnce(new Error('provider down'));
     const registry = app.app.get(ProcessorRegistry);

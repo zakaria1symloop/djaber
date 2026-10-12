@@ -1,0 +1,20 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "Vous livrez à Alger ? combien la livraison"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "INFO",
+    "language": "fr",
+    "toolCalls": [
+      "quote_delivery"
+    ],
+    "replyContains": [
+      "400"
+    ],
+    "noProductOutsideCatalogue": true
+  }
+}

@@ -5,3 +5,4 @@ export * from './quick-reply';
 export * from './catalog';
 export * from './channels';
 export * from './inbox';
+export * from './agents';

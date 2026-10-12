@@ -1,0 +1,15 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "bonjour نحب نشري robe satin من فضلك"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "SALE",
+    "language": "mixed",
+    "toolCalls": [],
+    "noProductOutsideCatalogue": true
+  }
+}

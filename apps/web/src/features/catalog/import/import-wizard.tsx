@@ -22,6 +22,7 @@ import { Num } from '../ui';
 import { buildErrorsCsv, checkImportFile, IMPORT_ACCEPT, IMPORT_TABS, importableCount, importPhase, invalidRows, stepOfPhase, type ImportTab } from './logic';
 import { MappingDialog } from './mapping-dialog';
 import { describeRowError, FileCard, PreviewRows, PreviewTiles } from './preview';
+import { uuid } from '@/lib/uuid';
 
 type Job = JobDto<ImportPreviewResult>;
 const sizeKey = (jobId: string) => `djaber.import.size.${jobId}`;
@@ -103,7 +104,7 @@ export function ImportWizard() {
   const attempt = useRef<{ jobId: string; key: string } | null>(null);
   const commit = useMutation({
     mutationFn: (id: string) => {
-      if (attempt.current?.jobId !== id) attempt.current = { jobId: id, key: crypto.randomUUID() };
+      if (attempt.current?.jobId !== id) attempt.current = { jobId: id, key: uuid() };
       return catalogApi.importCommit(id, attempt.current.key);
     },
   });

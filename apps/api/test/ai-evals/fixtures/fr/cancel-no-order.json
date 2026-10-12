@@ -1,0 +1,17 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "je veux annuler ma commande"
+    }
+  ],
+  "expect": {
+    "status": "HANDOFF",
+    "language": "fr",
+    "toolCalls": [
+      "cancel_order"
+    ],
+    "orderCreated": false,
+    "noProductOutsideCatalogue": true
+  }
+}

@@ -5,6 +5,7 @@ import { Card, Pill, StatusPill } from '@djaber/ui';
 import type { AppLocale } from '@djaber/shared';
 import { ChevronRight, MessagesSquare } from 'lucide-react';
 import { ListEmpty, ListLoading, QueryError } from '@/components/global-states';
+import { previewTypeKey } from '@/features/inbox/logic';
 import { Link } from '@/i18n/navigation';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { relativeTime } from '@/lib/time';
@@ -45,7 +46,7 @@ export function ChannelMessages() {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[13px] font-medium">{r.client?.name ?? t('channels.messages.noClient')}</span>
                   <span className="block truncate ts-label-meta text-text-muted" dir="auto">
-                    {r.lastMessagePreview ?? '—'}
+                    {previewTypeKey(r.lastMessagePreview) ? t(previewTypeKey(r.lastMessagePreview)!) : (r.lastMessagePreview ?? '—')}
                   </span>
                 </span>
                 <span className="ts-label-meta shrink-0 text-text-muted">{r.lastMessageAt ? relativeTime(r.lastMessageAt, locale) : '—'}</span>

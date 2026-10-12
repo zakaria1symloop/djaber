@@ -205,7 +205,7 @@ export function ProductPage({ id }: { id: string }) {
         <div className="flex min-w-0 flex-col gap-4">
           <PricingBlock product={product} advanced={advanced} />
           <StockBlock product={product} advanced={advanced} />
-          <AgentsBlock product={product} />
+          <AgentsBlock product={product} onAdd={live && canWrite && can('agents.read') ? () => actions.addToAgent(product) : undefined} />
           <ValidationBlock product={product} view={view} canWrite={canWrite} onAppeal={() => setAppealOpen(true)} onResubmit={() => void onResubmit()} resubmitting={resubmit.isPending} />
         </div>
       </div>

@@ -26,6 +26,7 @@ import {
   parseInboxParams,
   patchConversation,
   reconcileSent,
+  previewTypeKey,
   slashQuery,
   sortByLastMessage,
   threadBanner,
@@ -165,7 +166,10 @@ describe('conversation banner priority', () => {
   });
   it('AI paused by a member › needs human › reconnect › credits › paused by plan › AI unavailable › blocked › outside window', () => {
     expect(threadBanner(all, { now: NOW })).toBe('aiPaused');
-    expect(threadBanner({ ...all, aiPausedBy: null }, { now: NOW })).toBe('needsHuman');
+    // a handoff caused by the credits / by the provider shows its cause instead of the generic À TRAITER banner
+    expect(threadBanner({ ...all, aiPausedBy: null }, { now: NOW })).toBe('credits');
+    expect(threadBanner({ ...all, aiPausedBy: null, creditsExhausted: false }, { now: NOW })).toBe('aiUnavailable');
+    expect(threadBanner({ ...all, aiPausedBy: null, creditsExhausted: false, aiUnavailable: false }, { now: NOW })).toBe('needsHuman');
     expect(threadBanner({ ...all, aiPaused: false, status: 'active' }, { now: NOW })).toBe('reconnect');
     const active = { ...all, aiPaused: false, status: 'active' as const, channel: { ...all.channel, status: 'active' as const } };
     expect(threadBanner(active, { now: NOW })).toBe('credits');
@@ -333,5 +337,15 @@ describe('quick replies', () => {
   it('fills the first-name variable, or removes it', () => {
     expect(fillQuickReply(replies[1]!.body, { firstName: 'Amina' })).toBe('Merci Amina ! Nous vous appelons pour confirmer la livraison.');
     expect(fillQuickReply('Merci {prénom} !', { firstName: null })).toBe('Merci !');
+  });
+});
+
+describe('preview of a message without text', () => {
+  it('maps the `[type]` previews of the API to their label key, keeps real text', () => {
+    expect(previewTypeKey('[product_cards]')).toBe('inbox.preview.product_cards');
+    expect(previewTypeKey(' [image] ')).toBe('inbox.preview.image');
+    expect(previewTypeKey('[unknown_kind]')).toBeNull();
+    expect(previewTypeKey('Bonjour [image]')).toBeNull();
+    expect(previewTypeKey(null)).toBeNull();
   });
 });

@@ -1,0 +1,20 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "chhal tawsil l wahran ?"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "INFO",
+    "language": "arabizi",
+    "toolCalls": [
+      "quote_delivery"
+    ],
+    "replyContains": [
+      "700"
+    ],
+    "noProductOutsideCatalogue": true
+  }
+}

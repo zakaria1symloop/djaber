@@ -41,6 +41,9 @@ export type MetaPageInfo = { name: string | null; avatarUrl: string | null; foll
 export type MetaInsight = { key: string; value: number | null };
 export type MetaTokenDebug = { isValid: boolean; expiresAt: Date | null; scopes: string[] };
 export type MetaDownload = { body: Buffer; mime: string };
+/** A page post / Instagram media read by the page analysis (CHN-08, FL-15). */
+export type MetaPost = { id: string; text: string | null; imageUrl: string | null; createdAt: string };
+export type MetaPostsPage = { posts: MetaPost[]; nextCursor: string | null };
 
 export interface MetaGateway {
   readonly driver: 'fake' | 'graph';
@@ -74,6 +77,8 @@ export interface MetaGateway {
   conversations(auth: MetaChannelAuth, opts: { conversations: number; messages: number }): Promise<MetaHistoryConversation[]>;
   pageInfo(auth: MetaChannelAuth): Promise<MetaPageInfo>;
   insights(auth: MetaChannelAuth): Promise<MetaInsight[]>;
+  /** Posts of the page (`/<pageId>/posts`) or media of the Instagram account, newest first; needs `pages_read_user_content`. */
+  posts(auth: MetaChannelAuth, opts: { limit: number; after?: string | null }): Promise<MetaPostsPage>;
 
   /** Downloads an inbound attachment from Meta's CDN (only called by the `media` job). */
   download(url: string): Promise<MetaDownload>;

@@ -22,6 +22,7 @@ export function AppPage({
   badges,
   children,
   wide,
+  bare,
 }: {
   eyebrow?: string;
   title: string;
@@ -37,6 +38,8 @@ export function AppPage({
   children: ReactNode;
   /** no max width (lists); forms and details are capped */
   wide?: boolean;
+  /** the page draws its own heading (wizard frame): only the document title, the gate and the trail are kept */
+  bare?: boolean;
 }) {
   const t = useT();
   const locale = useLocaleCode();
@@ -53,7 +56,7 @@ export function AppPage({
         </Link>
       ) : null}
       {breadcrumb}
-      {badges ? (
+      {bare ? null : badges ? (
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
             {eyebrow ? <div className="ts-label-meta mb-2 uppercase text-text-muted">{eyebrow}</div> : null}
@@ -68,7 +71,7 @@ export function AppPage({
       ) : (
         <PageHeader eyebrow={eyebrow} title={title} description={typeof description === 'string' ? description : undefined} actions={actions} />
       )}
-      {!badges && description && typeof description !== 'string' ? <div className="ts-body -mt-3 text-text-secondary">{description}</div> : null}
+      {!bare && !badges && description && typeof description !== 'string' ? <div className="ts-body -mt-3 text-text-secondary">{description}</div> : null}
       {children}
     </div>
   );

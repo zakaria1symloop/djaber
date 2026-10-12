@@ -8,6 +8,7 @@ import type { UserRef } from '@/lib/contracts';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import type { TFunction } from '@/lib/i18n';
 import type { ChannelRef, ClientRef, Platform } from './contracts';
+import { handoffReason } from './ai-run-logic';
 import { dayKey, dayLabelKind } from './logic';
 
 /** `now`, refreshed every 30 s: ages and the 24 h window follow the clock without a refetch. */
@@ -45,6 +46,18 @@ export const sameDay = (a: string, b: number) => dayKey(a) === dayKey(b);
 
 /** Wraps an interpolated value (a name, a French reason inside an Arabic sentence) in bidi isolates: the sentence keeps its order. */
 export const isolate = (value: string): string => (value ? `\u2068${value}\u2069` : value);
+
+/**
+ * Reason of a needs-human conversation in words: a known code of the AI pipeline (`refund`, `unclear_streak`,
+ * `keyword:avocat`…) gets its label, anything else is shown as the server wrote it.
+ */
+export const handoffLabel = (t: TFunction, raw: string | null | undefined): string => {
+  const r = handoffReason(raw);
+  if (!r) return '';
+  if (r.kind === 'transfer') return r.detail ?? t('inbox.handoff.reason.transfer');
+  const label = t(`inbox.handoff.reason.${r.kind}`);
+  return r.detail ? `${label} · ${r.detail}` : label;
+};
 
 export const userName = (u: Pick<UserRef, 'firstName' | 'lastName'> | null | undefined): string => (u ? `${u.firstName} ${u.lastName}`.trim() : '');
 /** "Nadia F." */

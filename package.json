@@ -15,6 +15,7 @@
     "test": "turbo run test",
     "test:int": "turbo run test:int",
     "test:e2e": "turbo run test:e2e",
+    "test:evals": "pnpm --filter @djaber/api test:evals",
     "i18n:check": "node tools/i18n-check.mjs",
     "format": "prettier --write ."
   },

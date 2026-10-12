@@ -2,6 +2,7 @@
 // and the web) under the names used by this feature. Only what the shared package does not describe is declared here.
 import type {
   ActionDescriptor,
+  AgentInsightDto,
   AiIntent,
   BlockReason,
   ChannelRefView,
@@ -38,8 +39,8 @@ export type ClientRef = InboxClientRef;
 export type ChannelRef = ChannelRefView;
 export type AgentRef = InboxAgentRef;
 export type ConversationListItem = ConversationListItemView;
-/** `GET /conversations/:id`. `creditsExhausted` / `aiUnavailable` arrive with billing (M9) and the AI pipeline (M4). */
-export type Conversation = ConversationView & { creditsExhausted?: boolean; aiUnavailable?: boolean };
+/** `GET /conversations/:id` — carries `creditsExhausted` / `aiUnavailable` set by the AI pipeline (thread banners). */
+export type Conversation = ConversationView;
 export type ClientPanel = ConversationClientPanel;
 export type OrderRef = ConversationOrderRef;
 export type Attachment = MessageAttachmentView;
@@ -68,16 +69,6 @@ export type WsMessageUpdated = {
 export type WsConversationUpdated = { conversation: ConversationPatch };
 export type WsConversationDeleted = { id: string };
 
-/* ---------- queue (GET /agent-insights?status=pending — M4 serves it; the page degrades when it is absent) ---------- */
-export type InsightType = 'unclear' | 'unknown_topic' | 'handoff' | 'error';
-export type AgentInsight = {
-  id: string;
-  type: InsightType;
-  agent: AgentRef | null;
-  conversationId: string;
-  client: Pick<ClientRef, 'id' | 'name'> | null;
-  customerMessage: string;
-  aiResponse: string | null;
-  detail: string | null;
-  createdAt: string;
-};
+/* ---------- queue (GET /agent-insights?status=pending — served by the agents module since M4) ---------- */
+export type AgentInsight = AgentInsightDto;
+export type InsightType = AgentInsightDto['type'];

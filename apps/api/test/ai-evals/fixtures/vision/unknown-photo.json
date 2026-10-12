@@ -1,0 +1,17 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "",
+      "image": "FAKE-IMAGE:voiture rouge"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "INFO",
+    "toolCalls": [],
+    "cards": [],
+    "noPriceInReply": true,
+    "noProductOutsideCatalogue": true
+  }
+}

@@ -149,6 +149,8 @@ export function ChannelsList() {
 function ChannelCard({ channel: c, parent, actions }: { channel: Channel; parent: Channel | null; actions: ChannelActions }) {
   const t = useT();
   const locale = useLocaleCode() as AppLocale;
+  const { can } = useSession();
+  const canAgents = can('agents.manage');
   const state = cardState(c);
   const dim = isDimmed(c);
   const origin = c.parentChannelId ? t('channels.card.linkedTo', { name: parent?.name ?? '—' }) : t('channels.card.connectedOn', { date: formatDate(c.connectedAt, locale) });
@@ -174,7 +176,34 @@ function ChannelCard({ channel: c, parent, actions }: { channel: Channel; parent
           <CardStat value={formatNumber(c.counts.unread)} label={t('channels.card.unread')} sub={t('channels.card.toAnswer')} />
           <CardStat value={formatNumber(c.counts.productsInScope)} label={t('channels.card.products')} sub={c.agent ? c.agent.name : t('channels.agent.none')} />
         </div>
-        {/* M4: "Agent IA prêt · Régénérer" (generate the agent from the page, POST /agents/generate) */}
+        {c.status !== 'disconnected' ? (
+          <div data-testid="card-agent" className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]', dim && 'opacity-55')}>
+            {c.agent ? (
+              <>
+                <span className="min-w-0 flex-1 truncate text-text-secondary">
+                  {t('channels.card.agent')}{' '}
+                  <Link href={`/agents/${c.agent.id}`} className="text-text-primary hover:underline">
+                    {c.agent.name}
+                  </Link>
+                </span>
+                {actions.manage && canAgents ? (
+                  <Link href={`/agents/generate?channel=${c.id}`} className="ts-label-meta uppercase text-accent-inbound hover:underline" data-testid="card-generate">
+                    {t('channels.card.generate')}
+                  </Link>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <span className="min-w-0 flex-1 text-text-muted">{t('channels.card.noAgent')}</span>
+                {actions.manage ? (
+                  <button type="button" onClick={() => actions.link.pick(c)} className="ts-label-meta uppercase text-accent-inbound hover:underline" data-testid="card-link-agent">
+                    {t('channels.action.linkAgent')}
+                  </button>
+                ) : null}
+              </>
+            )}
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2">
           <div className="grid min-w-[240px] flex-1 grid-cols-3 gap-2">
             <Link href={`/inbox?channel=${c.id}`} className={quick}>

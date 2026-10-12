@@ -75,3 +75,24 @@ One entry per finished stage: what was built, checks passing, what is still simu
 
 **Deferred** (tracked in `carry-overs.md`)
 - Page analysis and agent linking on the channel page (M4, needs the AI). E-mail and push delivery of notifications and preferences (M5). Order and customer links from the inbox (M5). Admin release of a page held by another workspace, approval polling (M10). Credits-exhausted banner and plan links (M9).
+
+## M4 — AI agents (2026-10-12)
+
+**Built**
+- Web: agents list, 5-step creation wizard with saved drafts, agent page (overview with versions and restore, configuration, insights queue, playground), public 24-hour test page, AI parts of the channel page (agent linking, ice-breaker, page analysis import, generate an agent from a page) and of the inbox (AI run inspector, handoff reasons, AI unavailable / credits exhausted states), credits pill, banners and read-only credits page.
+- Fixed on the way: database forced to UTC (day boundaries were one hour off), the queue now lists conversations handed over by the AI, page import creates new categories and shows readable errors, ids generated in a way that also works when the app is opened by network address (team testing).
+
+**Checks** — lint ✔ · typecheck ✔ · unit ✔ (818: shared 38, web 358, api 422) · integration ✔ (458) · AI pipeline scenarios ✔ (29, simulated provider) · browser ✔ (252 in one run, all on the real API except a few error states the simulator cannot produce) · translations ✔ (3 528 texts × 3 languages) · production build ✔.
+
+**Simulated / not verifiable here**
+- No AI provider key exists in the old project: every AI answer comes from a scripted stand-in. The real providers (OpenAI, Anthropic, Google, Groq) are written and tested against recorded answers but have never run; the server refuses them in development unless `AI_ALLOW_LIVE=true`. The quality of real AI answers is not measured yet.
+- The AI stops at "create the order" and hands over to a human: real order creation by the AI is completed in M5 with the orders module, as the build order plans.
+
+**Server details**
+- AI port (`modules/ai/provider`): `fake` adapter (default; scriptable, deterministic keyword brain) and `live` adapter (Vercel AI SDK v4: OpenAI, Anthropic, Google, Groq) refused in development / test unless `AI_ALLOW_LIVE=true`; routing per capability with fallback and a Redis circuit breaker; seeded providers / models / routes / pricing.
+- Reply pipeline (FL-01 steps 6–15): inbound gates (voice / image toggles, credits, conversation quota, abuse guard), batching with a follow-up job, idempotent `AiRun` + `AiToolCall` replay, 14 prompt sections with snapshots, structured output with one repair, tools (`search_products`, `get_product`, `quote_delivery`, `lookup_order`, `cancel_order` candidates, `handoff_to_human`, `add_faq_candidate`; `create_order` validated then handed to the `ORDER_TOOLS` port), 2-pass vision, transcription with fallback, welcome / out-of-hours / handoff / unavailable / voice-failed texts, blocked words, handoff + insights, reaper.
+- Credits: ledger with reservation → debit / release, monthly period, 80 % and exhausted notifications, WS `credits.updated`, `GET /credits`, ledger, calculator.
+- Agents: presets (real instructions, version 2), 5-step wizard on a draft, versions with diff and restore, activation with the plan limit, pause / resume, duplicate, delete, bulk, readiness, metrics, FAQ, insights queue, channel ↔ agent, generate from page, FAQ extraction, page analysis + import, playground with dry-run tools, 8 scenarios, shared test link, eval runner (`pnpm test:evals`).
+
+**Deferred** (tracked in `carry-overs.md`)
+- Real order creation / cancellation by the AI (M5 binds `ORDER_TOOLS`). Packs and purchases (M9). Admin AI screens and provider keys (M10). PDF / DOCX FAQ import, ice-breaker push to Meta (M11). Live evals (need provider keys).

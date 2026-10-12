@@ -58,6 +58,8 @@ export const ConfigSchema = z.object({
 
   // AI providers (platform keys live in DB `AiProvider`; env only bootstraps them)
   AI_DRIVER: z.enum(['fake', 'live']).default('fake'),
+  // safety guard: the live adapter refuses to start in development / test unless this is true
+  AI_ALLOW_LIVE: bool.default(false),
   OPENAI_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   GOOGLE_AI_API_KEY: z.string().optional(),

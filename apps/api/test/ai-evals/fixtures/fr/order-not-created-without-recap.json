@@ -1,0 +1,16 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "text": "Je veux commander la robe satin"
+    }
+  ],
+  "expect": {
+    "status": "OK",
+    "intent": "SALE",
+    "language": "fr",
+    "toolCalls": [],
+    "orderCreated": false,
+    "noProductOutsideCatalogue": true
+  }
+}

@@ -14,7 +14,7 @@ export const SETTINGS_NAV: SettingsNavItem[] = [
   { key: 'nav.settings.security', href: '/settings/security' },
   // M11: Intégrations (/settings/integrations, `integrations.manage`)
   // M9: Plan & facturation (/settings/billing, `billing.read`)
-  // M9: Crédits (/settings/credits, `billing.read_credits`)
+  { key: 'nav.settings.credits', href: '/settings/credits', permission: 'billing.read_credits' },
   { key: 'nav.settings.danger', href: '/settings/danger', permission: 'workspace.delete' },
 ];
 

@@ -14,6 +14,7 @@ import {
   type MetaOutgoing,
   type MetaPage,
   type MetaPageInfo,
+  type MetaPostsPage,
   type MetaProfile,
   type MetaSendInput,
   type MetaSendResult,
@@ -288,6 +289,24 @@ export class GraphMetaGateway implements MetaGateway {
         })),
       };
     });
+  }
+  /** CHN-08: `/<pageId>/posts` (Facebook) or `/<igId>/media` (Instagram), one page per call (cursor = `paging.cursors.after`). */
+  async posts(auth: MetaChannelAuth, opts: { limit: number; after?: string | null }): Promise<MetaPostsPage> {
+    const limit = String(Math.min(100, Math.max(1, opts.limit)));
+    const after: Record<string, string> = opts.after ? { after: opts.after } : {};
+    if (auth.platform === 'instagram') {
+      const params = { fields: 'id,caption,media_url,media_type,thumbnail_url,timestamp', limit, ...after };
+      const b = this.usesInstagramHost(auth) ? await this.get(this.ig('/me/media'), params, auth.token) : await this.get(this.fb(`/${auth.externalId}/media`), { ...params, access_token: auth.token });
+      return {
+        posts: ((b.data ?? []) as Json[]).map((m) => ({ id: String(m.id), text: typeof m.caption === 'string' && m.caption ? m.caption : null, imageUrl: (m.media_type === 'VIDEO' ? m.thumbnail_url : m.media_url) ?? null, createdAt: String(m.timestamp ?? '') })),
+        nextCursor: b.paging?.next ? (b.paging?.cursors?.after ?? null) : null,
+      };
+    }
+    const b = await this.get(this.fb(`/${auth.externalId}/posts`), { fields: 'id,message,full_picture,created_time', limit, ...after, access_token: auth.token });
+    return {
+      posts: ((b.data ?? []) as Json[]).map((p) => ({ id: String(p.id), text: typeof p.message === 'string' && p.message ? p.message : null, imageUrl: p.full_picture ?? null, createdAt: String(p.created_time ?? '') })),
+      nextCursor: b.paging?.next ? (b.paging?.cursors?.after ?? null) : null,
+    };
   }
   async pageInfo(auth: MetaChannelAuth): Promise<MetaPageInfo> {
     if (auth.platform === 'instagram') {

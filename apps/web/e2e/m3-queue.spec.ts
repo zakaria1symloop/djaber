@@ -59,7 +59,7 @@ test('QUEUE items: cards by reason with assignee, insight cards, "Répondre" ope
   await expect(right.locator('article')).toHaveCount(1);
   await expect(right.locator('article')).toContainText('SUJET INCONNU');
   await expect(right.locator('article')).toContainText('« Vous faites aussi les retouches ? »');
-  await expect(right.locator('article')).toContainText('Nadia F. · Vendeur Pro');
+  await expect(right.locator('article')).toContainText('Vendeur Pro'); // M4: the row carries its agent (AgentInsightDto), no client reference
   await expectNoA11yViolations(page);
 
   await expect(first.locator('[data-action=reply]')).toHaveAttribute('href', `/fr/inbox/${amina.id}`);

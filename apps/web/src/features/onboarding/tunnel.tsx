@@ -1,8 +1,8 @@
 'use client';
 // ONB-01 — Onboarding tunnel, steps 1–6 (Figma "ONB-01 — Onboarding — step 1…6"). Progress = Workspace.onboardingStep:
 // leaving step n writes n + 1, "Passer la configuration" writes 99, so the next login resumes at the saved step.
-// Step 3 creates the first product (`POST /products`, M2). Step 5 starts the page connect flow (M3). Step 4 creates an
-// entity of a later milestone (agents M4): it is drawn as designed and both of its buttons follow the "plus tard" path.
+// Step 3 creates the first product (`POST /products`, M2). Step 4 creates the draft agent from a preset or from
+// scratch (`GET /agents/presets`, `POST /agents`, M4). Step 5 starts the page connect flow (M3).
 import { CreateProductSchema } from '@djaber/shared';
 import { Button, buttonClass, Card, ChecklistRow, cn, Field, FormAlert, Input, MoneyInput, NumberInput, OptionCard, Select, Skeleton, Steps, toast, type StepItem } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
@@ -10,6 +10,7 @@ import { ArrowLeft, ArrowRight, Bot, Box, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { RESEND_COOLDOWN_S } from '@/components/auth/forgot-form';
 import { QueryError } from '@/components/global-states';
+import { agentsApi, useAgentsRefresh, usePresets } from '@/features/agents/api';
 import { authApi } from '@/features/auth/api';
 import { catalogApi, useCategories } from '@/features/catalog/api';
 import { useConnectFlow } from '@/features/channels/connect';
@@ -17,6 +18,7 @@ import { reportCounts } from '@/features/channels/logic';
 import { flattenCategories } from '@/features/catalog/contracts';
 import { checkImageFile, IMAGE_ACCEPT } from '@/features/catalog/product-form/images';
 import { useOnboarding, useOnboardingStep, usePatchWorkspace } from '@/features/workspace/api';
+import { presetCards, type PresetCard } from './presets';
 import { Link, useRouter } from '@/i18n/navigation';
 import { checklistOf } from '@/lib/contracts';
 import { formatClock, retryAfterSeconds, useCooldown } from '@/lib/countdown';
@@ -328,42 +330,68 @@ function FirstProduct() {
   );
 }
 
-/* ---------- 4. Agent preset (agent endpoints arrive with M4) ---------- */
-const PRESETS = ['vendeurPro', 'serviceClient', 'conseillerProduit', 'reponseExpress'] as const;
+/* ---------- 4. Agent preset: the main button creates the draft agent (`POST /agents`), then the tunnel advances ---------- */
 function AgentPreset() {
   const t = useT();
+  const { can } = useSession();
   const { go, saving } = useAdvance('agent');
-  const [preset, setPreset] = useState<(typeof PRESETS)[number]>('vendeurPro');
+  const refreshAgents = useAgentsRefresh();
+  // the published presets; the four of the frame stay as the fallback while loading or when the list fails
+  const presets = usePresets(can('agents.manage'));
+  const cards = presetCards(presets.data);
+  const [picked, setPicked] = useState<string | null>(null);
+  const selected = cards.find((c) => c.key === picked) ?? cards.find((c) => c.recommended) ?? cards[0]!;
+  const [error, setError] = useState<string | null>(null);
+  const create = useMutation({ mutationFn: agentsApi.create });
+  const nameOf = (c: PresetCard) => c.name ?? (c.staticKey ? t(`onboarding.agent.preset.${c.staticKey}.name`) : c.key);
+  const busy = saving || create.isPending;
+
+  /** creates the draft (drafts never count toward the plan limit), then moves on; a refusal stays on the step */
+  const start = async (body: { presetKey: string; name: string } | { fromScratch: true; name: string }) => {
+    setError(null);
+    try {
+      await create.mutateAsync(body);
+      void refreshAgents();
+      await go();
+    } catch (e) {
+      setError(e instanceof ApiError ? `${errorMessage(e, t)} (${e.code})` : errorMessage(e, t));
+    }
+  };
+
   return (
     <Shell slug="agent" title={t('onboarding.agent.title')} description={t('onboarding.agent.description')}>
-      <div role="radiogroup" aria-label={t('onboarding.agent.title')} className="grid gap-3 sm:grid-cols-2">
-        {PRESETS.map((p, i) => {
-          const selected = preset === p;
+      <div role="radiogroup" aria-label={t('onboarding.agent.title')} className="grid gap-3 sm:grid-cols-2" data-testid="onboarding-presets" data-source={cards[0]?.live ? 'server' : 'static'}>
+        {cards.map((c) => {
+          const on = selected.key === c.key;
           return (
             <button
-              key={p}
+              key={c.key}
               type="button"
               role="radio"
-              aria-checked={selected}
-              onClick={() => setPreset(p)}
-              className={cn('flex flex-col rounded-card border bg-ink-surface p-4 text-start', selected ? 'border-accent-money' : 'border-line-hairline hover:border-line-edge')}
+              aria-checked={on}
+              data-preset={c.key}
+              disabled={busy}
+              onClick={() => setPicked(c.key)}
+              className={cn('flex flex-col rounded-card border bg-ink-surface p-4 text-start disabled:cursor-not-allowed', on ? 'border-accent-money' : 'border-line-hairline hover:border-line-edge')}
             >
               <span className="flex w-full items-start justify-between">
                 <span className="flex size-10 items-center justify-center rounded-card bg-ink-raised text-accent-money">
                   <Bot className="size-5" aria-hidden />
                 </span>
-                {i === 0 ? <span className="ts-label-micro text-text-muted">{t('onboarding.agent.recommended')}</span> : null}
+                {c.recommended ? <span className="ts-label-micro text-text-muted">{t('onboarding.agent.recommended')}</span> : null}
               </span>
-              <span className="ts-display-s mt-3">{t(`onboarding.agent.preset.${p}.name`)}</span>
-              <span className="mt-1 text-[13px] text-text-muted">{t(`onboarding.agent.preset.${p}.tagline`)}</span>
-              <ul className="mt-3 flex flex-col gap-1.5 text-[13px] text-text-secondary">
-                {[1, 2, 3].map((n) => (
-                  <li key={n} className="flex items-center gap-2">
-                    <span className="size-1 rounded-full bg-text-muted" aria-hidden />
-                    {t(`onboarding.agent.preset.${p}.point${n}`)}
-                  </li>
-                ))}
-              </ul>
+              <span className="ts-display-s mt-3">{nameOf(c)}</span>
+              <span className="mt-1 text-[13px] text-text-muted">{c.tagline ?? (c.staticKey ? t(`onboarding.agent.preset.${c.staticKey}.tagline`) : '')}</span>
+              {c.staticKey ? (
+                <ul className="mt-3 flex flex-col gap-1.5 text-[13px] text-text-secondary">
+                  {[1, 2, 3].map((n) => (
+                    <li key={n} className="flex items-center gap-2">
+                      <span className="size-1 rounded-full bg-text-muted" aria-hidden />
+                      {t(`onboarding.agent.preset.${c.staticKey}.point${n}`)}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <span className="mt-3 inline-flex items-center gap-1.5 text-[14px] font-medium">
                 {t('onboarding.agent.use')}
                 <ArrowRight className="size-4 rtl:-scale-x-100" aria-hidden />
@@ -372,17 +400,22 @@ function AgentPreset() {
           );
         })}
       </div>
-      <Button variant="ghost" className="mt-4 !h-auto min-h-10 !whitespace-normal py-2 text-start" onClick={go} disabled={saving}>
+      <Button variant="ghost" className="mt-4 !h-auto min-h-10 !whitespace-normal py-2 text-start" onClick={() => void start({ fromScratch: true, name: t('onboarding.agent.scratchName') })} disabled={busy} data-testid="onboarding-agent-scratch">
         {t('onboarding.agent.scratch')}
       </Button>
+      {error ? (
+        <FormAlert className="mt-3">
+          {error} · {t('onboarding.agent.errorHint')}
+        </FormAlert>
+      ) : null}
       <Nav
         back="first-product"
         backLabel={t('onboarding.step.product')}
         onLater={go}
-        saving={saving}
+        saving={busy}
         primary={
-          <Button variant="primary" onClick={go} loading={saving}>
-            {saving ? t('onboarding.continuing') : t('onboarding.agent.create', { name: t(`onboarding.agent.preset.${preset}.name`) })}
+          <Button variant="primary" onClick={() => void start({ presetKey: selected.key, name: nameOf(selected) })} loading={busy} data-testid="onboarding-agent-create">
+            {busy ? t('onboarding.continuing') : t('onboarding.agent.create', { name: nameOf(selected) })}
           </Button>
         }
       />

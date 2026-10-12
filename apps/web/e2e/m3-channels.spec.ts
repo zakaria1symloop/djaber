@@ -188,7 +188,7 @@ test.describe('fixtures — statuses, report rows, dialogs', () => {
     await expectNoA11yViolations(page);
 
     const tabs = page.getByRole('navigation', { name: 'Sections de la page' });
-    await expect(tabs.getByRole('link')).toHaveCount(4);
+    await expect(tabs.getByRole('link')).toHaveCount(5); // + Analyse de la page (M4)
     await tabs.getByRole('link', { name: 'IA & agent' }).click();
     await expectUrl(page, `**/fr/channels/${IDS.amel}/ai`);
     await expect(page.getByTestId('channel-ai')).toContainText('Vendeur Pro');

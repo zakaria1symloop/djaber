@@ -38,7 +38,7 @@ export function BannerStack({ banners, dismissLabel }: { banners: ShellBanner[];
   const b = pickBanner(banners);
   if (!b) return null;
   return (
-    <div className="px-4 pt-3 md:px-8">
+    <div className="px-4 pt-3 md:px-8" data-shell-banner={b.id}>
       <Banner tone={b.tone} action={b.action} onDismiss={b.onDismiss} dismissLabel={dismissLabel}>
         {b.content}
       </Banner>

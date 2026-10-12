@@ -1,56 +1,102 @@
 'use client';
-// /channels/[id]/ai — Figma "CHN-07b — … IA & agent": the agent that answers on this page (or none), and the welcome
-// message sent before the first AI reply (workspace system message `welcome`, edited in Settings › Messages système).
-// M4: "Changer ⌄" / "Détacher" / "Rattacher un agent" / "Créer un agent" (`PUT /channels/:id/agent`, `GET /agents`).
-import { buttonClass, Card, FormAlert, Ltr, StatusPill } from '@djaber/ui';
+// /channels/[id]/ai — Figma "CHN-07b — … IA & agent": the agent that answers on this page with "Changer ⌄" /
+// "Détacher" (or none: "Rattacher un agent" / "Créer un agent"), the icebreaker of the page, and the welcome message
+// sent before the first AI reply (workspace system message `welcome`, edited in Settings › Messages système).
+// `PUT /channels/:id/agent` (move confirmation in `link-agent.tsx`), `PUT /channels/:id/icebreaker`.
+import { Button, buttonClass, Card, FormAlert, Ltr, StatusPill, Textarea, toast } from '@djaber/ui';
 import type { AppLocale } from '@djaber/shared';
-import { Bot } from 'lucide-react';
+import { Bot, ChevronDown } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Link } from '@/i18n/navigation';
+import { errorMessage } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
+import { channelsApi, useChannelsRefresh } from '../api';
 import { useChannelPage } from './channel-shell';
+
+export const ICEBREAKER_MAX = 300;
 
 export function ChannelAi() {
   const t = useT();
   const locale = useLocaleCode() as AppLocale;
-  const { channel: c } = useChannelPage();
+  const { channel: c, actions } = useChannelPage();
   const { workspace, can } = useSession();
+  const manage = actions.manage;
+  const link = actions.link;
+  const busy = link.busy === c.id;
   // `{shop}` is the workspace name in the message the customer receives
   const welcome = (workspace?.systemMessages?.welcome?.[locale]?.trim() || workspace?.systemMessages?.welcome?.fr?.trim() || '').replaceAll('{shop}', workspace?.name ?? '');
   const live = c.status === 'active' && c.agent?.status === 'active';
+  const gone = c.status === 'disconnected';
+  const lockedReason = gone ? t('channels.ai.disconnected') : undefined;
   return (
     <div className="grid items-start gap-5 lg:grid-cols-2">
-      <Card className="flex flex-col gap-4 p-4" data-testid="channel-ai">
-        <h2 className="ts-title">{t('channels.page.tab.ai')}</h2>
-        <div className="flex items-center gap-3 rounded-card border border-line-edge bg-ink-raised px-3.5 py-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-card border border-line-edge bg-ink-surface text-text-secondary">
-            <Bot className="size-4" aria-hidden />
-          </span>
-          {c.agent ? (
-            <>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[14px] font-medium">{c.agent.name}</div>
-                <div className="ts-label-meta mt-0.5 text-text-muted">
-                  <Ltr>{t('channels.overview.agentProducts', { count: c.counts.productsInScope })}</Ltr>
+      <div className="flex min-w-0 flex-col gap-5">
+        <Card className="flex flex-col gap-4 p-4" data-testid="channel-ai">
+          <h2 className="ts-title">{t('channels.page.tab.ai')}</h2>
+          <div className="flex flex-wrap items-center gap-3 rounded-card border border-line-edge bg-ink-raised px-3.5 py-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-card border border-line-edge bg-ink-surface text-text-secondary">
+              <Bot className="size-4" aria-hidden />
+            </span>
+            {c.agent ? (
+              <>
+                <div className="min-w-0 flex-1" data-testid="channel-ai-agent" data-agent={c.agent.id}>
+                  <Link href={`/agents/${c.agent.id}`} className="block truncate text-[14px] font-medium hover:underline">
+                    {c.agent.name}
+                  </Link>
+                  <div className="ts-label-meta mt-0.5 text-text-muted">
+                    <Ltr>{t('channels.overview.agentProducts', { count: c.counts.productsInScope })}</Ltr>
+                  </div>
                 </div>
-              </div>
-              <StatusPill enumKey="Agent.status" value={c.agent.status} className="!rounded-[4px]">
-                {t(`enum.Agent.status.${c.agent.status}`)}
-              </StatusPill>
-            </>
+                <StatusPill enumKey="Agent.status" value={c.agent.status} className="!rounded-[4px]">
+                  {t(`enum.Agent.status.${c.agent.status}`)}
+                </StatusPill>
+              </>
+            ) : (
+              <p className="min-w-0 flex-1 text-[13px] text-text-secondary" data-testid="channel-ai-none">
+                {t('channels.ai.noneDescription')}
+              </p>
+            )}
+          </div>
+          {manage ? (
+            <div className="flex flex-wrap items-center gap-2" data-testid="channel-ai-actions">
+              {c.agent ? (
+                <>
+                  <Button size="sm" onClick={() => link.pick(c)} disabled={busy} disabledReason={lockedReason} data-testid="agent-change">
+                    {t('channels.ai.change')}
+                    <ChevronDown className="size-3.5" aria-hidden />
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => void link.link(c, null)} loading={busy} data-testid="agent-detach">
+                    {t('channels.ai.detach')}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button size="sm" variant="primary" onClick={() => link.pick(c)} disabled={busy} disabledReason={lockedReason} data-testid="agent-attach">
+                    {t('channels.ai.attach')}
+                  </Button>
+                  {can('agents.manage') ? (
+                    <Link href="/agents/new" className={buttonClass({ size: 'sm' })} data-testid="agent-create">
+                      {t('channels.ai.createAgent')}
+                    </Link>
+                  ) : null}
+                </>
+              )}
+            </div>
           ) : (
-            <p className="min-w-0 flex-1 text-[13px] text-text-secondary" data-testid="channel-ai-none">
-              {t('channels.ai.noneDescription')}
+            <p className="ts-label-meta text-text-muted" data-testid="channel-ai-readonly">
+              {t('channels.ai.readOnly')}
             </p>
           )}
-        </div>
-        <p className="text-[13px]" data-testid="channel-ai-live">
-          <span className={live ? 'text-signal-live' : 'text-text-muted'}>{t(live ? 'channels.ai.liveOn' : 'channels.ai.liveOff')}</span>
-        </p>
-        <FormAlert tone="info">
-          {t('error.AGENT_CHANNEL_SWITCH_NEXT_THREAD')} <Ltr>(AGENT_CHANNEL_SWITCH_NEXT_THREAD)</Ltr>
-        </FormAlert>
-      </Card>
+          <p className="text-[13px]" data-testid="channel-ai-live">
+            <span className={live ? 'text-signal-live' : 'text-text-muted'}>{t(live ? 'channels.ai.liveOn' : 'channels.ai.liveOff')}</span>
+          </p>
+          <FormAlert tone="info">
+            {t('error.AGENT_CHANNEL_SWITCH_NEXT_THREAD')} <Ltr>(AGENT_CHANNEL_SWITCH_NEXT_THREAD)</Ltr>
+          </FormAlert>
+        </Card>
+        <IcebreakerCard key={c.id} channelId={c.id} value={c.icebreaker ?? ''} manage={manage} lockedReason={lockedReason} />
+      </div>
 
       <Card className="flex flex-col gap-3 p-4" data-testid="channel-welcome">
         <h2 className="ts-title">{t('channels.ai.welcome.title')}</h2>
@@ -69,5 +115,82 @@ export function ChannelAi() {
         ) : null}
       </Card>
     </div>
+  );
+}
+
+/** Icebreaker of the page: the opening line Messenger / Instagram shows before the first message (≤ 300, empty = none). */
+function IcebreakerCard({ channelId, value, manage, lockedReason }: { channelId: string; value: string; manage: boolean; lockedReason?: string }) {
+  const t = useT();
+  const refresh = useChannelsRefresh();
+  const [text, setText] = useState(value);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => setText(value), [value]);
+  const dirty = text.trim() !== value.trim();
+  const tooLong = text.trim().length > ICEBREAKER_MAX;
+  const save = async (next: string) => {
+    setPending(true);
+    setError(null);
+    try {
+      await channelsApi.setIcebreaker(channelId, next.trim());
+      await refresh(channelId);
+      toast(next.trim() ? t('channels.icebreaker.saved') : t('channels.icebreaker.cleared'));
+    } catch (e) {
+      setError(errorMessage(e, t));
+    } finally {
+      setPending(false);
+    }
+  };
+  return (
+    <Card className="flex flex-col gap-3 p-4" data-testid="channel-icebreaker">
+      <h2 className="ts-title">{t('channels.icebreaker.title')}</h2>
+      <p className="text-[13px] text-text-secondary">{t('channels.icebreaker.description')}</p>
+      {manage ? (
+        <>
+          <Textarea
+            dir="auto"
+            aria-label={t('channels.icebreaker.title')}
+            aria-invalid={tooLong || undefined}
+            value={text}
+            disabled={pending || !!lockedReason}
+            title={lockedReason}
+            placeholder={t('channels.icebreaker.placeholder')}
+            onChange={(e) => setText(e.target.value)}
+            className="min-h-20"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`ts-label-meta tabular-nums ${tooLong ? 'text-accent-alert' : 'text-text-muted'}`} data-testid="icebreaker-count">
+              <Ltr>
+                {text.trim().length} / {ICEBREAKER_MAX}
+              </Ltr>
+            </span>
+            <span className="flex-1" />
+            {value ? (
+              <Button size="sm" variant="ghost" onClick={() => void save('')} disabled={pending} data-testid="icebreaker-clear">
+                {t('channels.icebreaker.clear')}
+              </Button>
+            ) : null}
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => void save(text)}
+              loading={pending}
+              disabled={!dirty}
+              disabledReason={lockedReason ?? (tooLong ? t('validation.length', { max: ICEBREAKER_MAX }) : undefined)}
+              data-testid="icebreaker-save"
+            >
+              {t('action.save')}
+            </Button>
+          </div>
+          {error ? <FormAlert>{error}</FormAlert> : null}
+        </>
+      ) : value ? (
+        <blockquote dir="auto" className="rounded-card border border-line-edge bg-ink-raised px-3.5 py-3 text-[13px]">
+          {value}
+        </blockquote>
+      ) : (
+        <p className="text-[13px] text-text-muted">{t('channels.icebreaker.empty')}</p>
+      )}
+    </Card>
   );
 }

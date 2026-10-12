@@ -59,7 +59,7 @@ Sections in this exact order; each section is a function in `prompt/sections/*.t
    ```
    else ⇒ `CATALOGUE: {count} products. Use search_products before naming any product.` + the last-mentioned products (`context.lastProductIds`, full blocks) + products matched by trigram on the current batch text (top 30 via `ProductSearch.search(workspaceId, agentScope, text, 30)`).
    Scope = `AgentProduct` rows when `sellAllProducts=false`, else `Agent.catalogScope='categories'` ⇒ products in `scopeCategoryIds`, else all; always filtered `isActive && deletedAt IS NULL && moderationStatus IN ('approved','not_required')` (AI-14, D36). Out-of-stock handling: the workspace system message `out_of_stock[lang]` is injected verbatim as `OUT_OF_STOCK_SENTENCE: "{systemMessages.out_of_stock[lang]}"` (the `{product}` placeholder is kept; the model fills it with the product name) and `Agent.outOfStockBehavior` adds `suggest_alternative` ⇒ `OUT_OF_STOCK: say OUT_OF_STOCK_SENTENCE, then suggest an alternative from the same category`; `say_unavailable` ⇒ `OUT_OF_STOCK: say OUT_OF_STOCK_SENTENCE only`; `Agent.showMissingVariants` ⇒ `MISSING_VARIANT: say which sizes remain`.
-6. **Delivery** — `DELIVERY FEES: use get_shipping_fee. Free delivery from {freeDeliveryThreshold} DA.` + sender wilaya.
+6. **Delivery** — `DELIVERY FEES: use quote_delivery. Free delivery from {freeDeliveryThreshold} DA.` + sender wilaya.
 7. **Order-taking rules** (agent behaviour step 3, fields from `Agent.orderFields` JSON): required fields in order `product+variant → quantity → name → phone (10 digits, 05/06/07) → wilaya → commune → address or stop-desk`; optional `secondPhone`, `note`; `MAX_QTY_PER_ORDER={agent.maxQtyPerOrder ?? 10}`, `MAX_AMOUNT={agent.maxAmountPerOrder ?? 50000} DA` ⇒ above ⇒ handoff; `RISKY_CLIENT_POLICY={agent.riskyClientBehavior ?? 'take_and_flag'}`; `RECAP={agent.recapMode ?? 'always'}`; "ask one field at a time; never invent; re-ask invalid values with an example (0555123456)"; duplicate rule; cancel rule (`cancel_order` only, never create).
 8. **Image rule** (when `imageRecognition`): `IMAGE RESULT: {vision pass-2 result}` injected as a system note per image: `{productId, confidence}` or `unsure` or `multiple` or `blurry` + the behaviour: `< 0.7 ⇒ ask the customer for confirmation; never state a price for an unconfirmed match`.
 9. **Cross-sell** — `Suggest at most 1 complementary product per conversation, only from ALSO lines, only after the customer chose a product.`
@@ -180,7 +180,7 @@ Tool availability per run: `search_products`, `get_product`, `quote_delivery`, `
 ## 5. Idempotent run (`AiRunService`, 04 §5)
 
 ```
-start(batchKey):  AiRun upsert on (conversationId, batchKey) → if exists && status='running' reuse (replay) else create { status:'running', attempt }
+start(batchKey):  AiRun upsert on (conversationId, batchKey) [columns `AiRun.batchKey`, unique with `conversationId`; `AiRun.flags[]`, `AiRun.meta` = §13 metrics] → if exists && status='running' reuse (replay) else create { status:'running', attempt }
 loop:             for each model tool call with callId:
                     AiToolCall find (aiRunId, callId) → if result exists → return stored result (no execution)
                     else insert { callId, name, args, executedAt:null } → execute → update { result, executedAt }
@@ -188,7 +188,7 @@ welcome:          first AI reply of a conversation created in this run's batch (
 send:             Message(author:'ai', aiRunId) created BEFORE enqueueing meta-send; outbox key send:<messageId>; cards as separate messages payload.cards
 finish:           AiRun { status: ok|unclear|unknown|handoff, inputTokens, outputTokens, latencyMs, confidence, modelId, finishedAt }
 ```
-`callId` = the provider's tool-call id when stable, else `sha256(name + canonicalJson(args))` + ordinal. Because the provider is re-prompted on retry, replays match by `(name, args)` hash when the provider id differs (second lookup). A replayed `create_order` therefore returns the already-created order (AT-AI-05). Runs older than 5 min in `running` are reaped (`sched-ai-run-reaper`) with credits released; a reaped run is not resumed (the next customer message starts a new batch).
+`callId` = `sha256(name + canonicalJson(args))` + its ordinal among identical calls of the run (provider tool-call ids change when the model is re-prompted on a retry, so they are never the persisted key). A replayed `create_order` therefore returns the already-created order (AT-AI-05). Runs older than 5 min in `running` are reaped (`sched-ai-run-reaper`) with credits released; a reaped run is not resumed (the next customer message starts a new batch).
 
 ---
 
@@ -215,7 +215,7 @@ finish:           AiRun { status: ok|unclear|unknown|handoff, inputTokens, outpu
 | `test` (playground) | 0 | — | rate limit 60/h/workspace |
 | `page_analysis`, `agent_generation`, `faq_extract` | 0 credits; rate-limited 3 per day per workspace (`ANALYSIS_RATE_LIMITED`) | — | — |
 | `caption` | 0 | — | — |
-| `vision` for "create from photo" | 0 (D17) | — | 3/day via `analysis` throttler |
+| `vision` for "create from photo" (`POST /products/ai-fill`) | 5 (06 §8.6; `AiRun.kind = vision`) | request start | debit when the model answered; released on any failure; also 3/day via `analysis` throttler |
 
 Ledger rows (`CreditLedger`, append-only, `balanceAfter` stored on every row): reserve ⇒ `action='reserve', kind='reserved', credits=-cost, idempotencyKey='run:<id>:reserve'`; settle ⇒ `action ∈ text_reply|image_recognition|voice_transcription, kind='debit', credits=-cost, idempotencyKey='run:<id>:debit'` plus a compensating `action='release', kind='release', credits=+cost, idempotencyKey='run:<id>:unreserve'` so that Σ rows = the debit; release ⇒ `action='release', kind='release', credits=+cost, idempotencyKey='run:<id>:release'`. `bucket='plan'` while plan balance ≥ cost, else `bucket='pack'` (consumed after plan credits, D40). Balance(plan) = Σ `bucket='plan'` rows in the current period (the `renewal` credit row + grants − debits − open reservations); balance(pack) = Σ `bucket='pack'` rows (never expires). 80 % ⇒ `credits.80` once per period; 0 ⇒ F-4; negative (store refund) ⇒ `credits.negative`, AI blocked until ≥ 0.
 
