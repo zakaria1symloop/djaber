@@ -129,3 +129,6 @@ Applied on 2026-10-11 by script to the Figma file: **95 / 95 rows** (Web V2: 86 
 | Web V2 | SAFE — Trust & safety (merchant) | `Les faux signalements répétés peuvent être sanctionnés.` | `Les signalements abusifs sont examinés par Djaber.` |
 | Web V2 | QUEUE — File d'attente — items | `INCOMPRIS` / `HORS SUJET` | `INCOMPRÉHENSION` / `SUJET INCONNU` |
 | Web V2 | DLG — Agents & channels — dialogs, connect flow & generate-from-page | `Tâche en arrière-plan · ~2 min / 1 000 conversations` | `Tâche en arrière-plan · 25 conversations × 25 messages au plus` (CHN-09) |
+| Web V2 | DLG — GDS (stock) — dialogs catalogue | `Crée une ligne de caisse « Achat #ACH-0021 » (verrouillée) et met à jour Purchase.paidAmount.` | `Crée une ligne de caisse « Achat #ACH-0021 » (verrouillée) et met à jour le montant payé de l'achat.` |
+| Web V2 | GDS-06 — Suppliers — list + detail sheet | `Voir les produits (14)` | `Voir les achats (18)` |
+| Web V2 | GDS-07 — Purchases — list + receive dialog | `met à jour le coût unitaire moyen (Product.costPrice).` | `met à jour le coût unitaire moyen.` |

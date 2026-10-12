@@ -72,9 +72,13 @@ describe('period presets', () => {
 
 describe('references and actors', () => {
   const product = { id: 'p1' } as never;
-  it('links only what exists in M2', () => {
+  it('links the product, the order, the sale, the purchase and the count (M7 carry-over)', () => {
     expect(referenceHref({ reference: { type: 'variant', id: 'v1', label: 'Noir · M' }, product })).toBe('/products/p1');
-    expect(referenceHref({ reference: { type: 'order', id: 'o1', label: 'CMD-1042' }, product })).toBeNull();
+    expect(referenceHref({ reference: { type: 'order', id: 'o1', label: 'CMD-1042' }, product })).toBe('/orders/o1');
+    expect(referenceHref({ reference: { type: 'sale', id: 's1', label: 'VNT-1001' }, product })).toBe('/sales/s1');
+    expect(referenceHref({ reference: { type: 'purchase', id: 'a1', label: 'ACH-1001' }, product })).toBe('/purchases/a1');
+    expect(referenceHref({ reference: { type: 'inventory', id: 'i1', label: 'INV-1' }, product })).toBe('/inventory/i1');
+    expect(referenceHref({ reference: { type: 'manual', id: 'm', label: '' }, product })).toBeNull();
     expect(referenceHref({ reference: null, product })).toBeNull();
   });
   it('classifies reference labels', () => {

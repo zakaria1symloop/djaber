@@ -3,7 +3,12 @@
 // bulk status / assign / print, A5 print, delete. Permissions per 01-nest-module-map §3.2: read `orders.read`, actions
 // `orders.write` (every member), money / delete / export `orders.money` (Admin+). API-key scopes per 06 §5.
 // Literal sub-paths (`stats`, `export`, `bulk/*`) are declared before `:id`.
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { IMPORT_MAX_BYTES, OrderImportMappingSchema } from '@djaber/shared';
+import type { UploadedFile as Incoming } from '../uploads/image-upload.service';
+import { OrderImportService } from './order-import.service';
 import { createZodDto } from 'nestjs-zod';
 import {
   BulkOrderAssignSchema,
@@ -32,7 +37,7 @@ import {
   type OrdersQuery,
 } from '@djaber/shared';
 import { TenantContext } from '@djaber/db';
-import { ApiScope, Idempotent, RequirePermission } from '../../core/auth/decorators';
+import { ApiScope, Audited, Idempotent, RequirePermission } from '../../core/auth/decorators';
 import { addWarning } from '../../core/http/envelope.interceptor';
 import { bulkCtx } from '../../core/http/bulk';
 import { ExportService } from '../jobs/export.service';
@@ -42,6 +47,7 @@ import { OrderService } from './order.service';
 import { orderOrderBy } from './order.query';
 
 class OrdersQueryDto extends createZodDto(OrdersQuerySchema) {}
+class OrderImportMappingDto extends createZodDto(OrderImportMappingSchema) {}
 class OrderStatsQueryDto extends createZodDto(OrderStatsQuerySchema) {}
 class OrdersExportQueryDto extends createZodDto(OrdersExportQuerySchema) {}
 class CreateOrderDto extends createZodDto(CreateOrderSchema) {}
@@ -73,7 +79,33 @@ export class OrdersController {
     private readonly workflow: OrderWorkflowService,
     private readonly print: OrderPrintService,
     private readonly exports: ExportService,
+    private readonly imports: OrderImportService,
   ) {}
+
+  // --- import (03 §37 ORD, D69, `orders.import`) --------------------------------------------------------------------------
+  @Post('import')
+  @RequirePermission('orders.import')
+  @HttpCode(202)
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: IMPORT_MAX_BYTES * 2, files: 1 } }))
+  startImport(@UploadedFile() file: Incoming | undefined) {
+    return this.imports.start(file);
+  }
+
+  @Post('import/mapping')
+  @RequirePermission('orders.import')
+  @HttpCode(202)
+  mapImport(@Body() dto: OrderImportMappingDto) {
+    return this.imports.mapping(dto);
+  }
+
+  @Post('import/:jobId/commit')
+  @RequirePermission('orders.import')
+  @Idempotent({ required: true })
+  @HttpCode(202)
+  @Audited({ entity: 'Job', action: 'order.import_commit', idFrom: 'params.id' })
+  commitImport(@Param('jobId', ParseUUIDPipe) jobId: string) {
+    return this.imports.commit(jobId);
+  }
 
   // --- collection -------------------------------------------------------------------------------------------------------
   @Get()

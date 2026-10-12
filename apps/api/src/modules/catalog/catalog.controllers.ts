@@ -116,6 +116,13 @@ export class StockController {
     return this.stock.listMovements(q as MovementsQuery);
   }
 
+  /** M2 carry-over: KPI tiles of `/movements`, same filters as the list. */
+  @Get('movements/stats')
+  @RequirePermission('stock.read')
+  movementStats(@Query() q: MovementsQueryDto) {
+    return this.stock.movementStats(q as MovementsQuery);
+  }
+
   @Get('movements/export')
   @RequirePermission('stock.read')
   @HttpCode(202)

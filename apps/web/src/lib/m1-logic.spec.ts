@@ -52,7 +52,9 @@ describe('sidebar and settings sub-nav', () => {
     const simple = filterNav(all, { stockMode: 'simple', can: can('owner') }).map((i) => i.key);
     expect(simple).toContain('nav.products');
     expect(simple).toContain('nav.categories');
-    for (const k of ['nav.movements', 'nav.suppliers', 'nav.purchases', 'nav.sales', 'nav.cash', 'nav.recommendations', 'nav.reports']) expect(simple).not.toContain(k);
+    for (const k of ['nav.movements', 'nav.suppliers', 'nav.purchases', 'nav.sales', 'nav.cash', 'nav.inventory', 'nav.reports']) expect(simple).not.toContain(k);
+    // GDS-10 "MODE SIMPLE": recommendations stay (restock / stock-out / agent subset), 03 LST-05
+    expect(simple).toContain('nav.recommendations');
     const advanced = filterNav(all, { stockMode: 'advanced', can: can('owner') }).map((i) => i.key);
     expect(advanced).toContain('nav.purchases');
     expect(advanced).toContain('nav.reports');

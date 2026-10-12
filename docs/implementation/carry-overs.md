@@ -13,9 +13,6 @@ Each line: where it came from → the stage that must close it. Remove the line 
 | M2 | Moderation: pre-screen job `moderation-prescreen`, human queue, decisions, trust levels, `product.*` notifications (M2 auto-approves every item) | M10 |
 | M2 | Outbound webhooks `stock.low`, `stock.out`, `product.updated`: outbox rows are produced, delivery is not | M11 |
 | M2 | Appeal attachment as PDF (M2 accepts images only through `POST /uploads { kind: appeal_attachment }`) | M10 |
-| M2 | Products: movement references to sales / purchases as links ("Commandes de ce produit" = `GET /orders?productId=` + `GET /products/:id/relations`, API since M5) | M7 (GDS operations) |
-| M2 | KPI tiles of `/movements` and filter-following KPIs of `/products` (need `/stock/movements/stats`, `/products/stats`) | M7 / M8 |
-| M2 | Stock dashboard block "ACHATS & FOURNISSEURS", "Réapprovisionner" → purchase, product expenses editor | M7 |
 | M2 | Saved views ("Enregistrer cette vue") on products, movements, orders and clients (`view=` is accepted and ignored by the lists until then) | milestone that adds the saved-view endpoints (06 §8.1) |
 | M2 | Appeal attachment field and category image field in the web (API upload kinds `appeal_attachment`, `category_image` exist) | M10 (appeals) / M11 polish |
 | M2 | Conflict detection on the product form treats any change arriving within 5 s of this tab's own write as its own (a foreign edit inside that window is rebased silently) | M11 polish: tag WS events with the originating session id |
@@ -40,13 +37,11 @@ Each line: where it came from → the stage that must close it. Remove the line 
 | M4 | Per-workspace concurrency cap of `ai-reply`, Prometheus metrics `ai_run_latency_seconds` / `ai_run_errors_total` / `credits_debited_total` | M10 (jobs & health) |
 | M4 | FAQ import of PDF / DOCX; ice-breaker pushed to the Messenger profile API; server texts of agents (`agentText`) moved to i18n keys | M11 polish |
 | M4 | Evals with `EVAL_DRIVER=live` (real models, real photos and recordings next to the vision / voice fixtures), nightly | when provider keys exist on staging (M10 / M12) |
-| M5 | Order import CSV (`POST /orders/import`, `/orders/import/:jobId/commit`, P2 D69, `orders.import`): not built | M7 (P2, reuse of the CAT-06 import wizard) |
 | M5 | Order export `format=pdf` (06 §7): only `csv` / `xlsx`; the A5 slips are the PDF output | M8 (reports & exports) |
 | M5 | Payment link (`POST /orders/:id/payment-link`), refunds (`POST /orders/:id/refunds`), `paymentStatus=pending_link` | M9 (online payment, P2) |
 | M5 | Consumers of the `sheets` outbox rows (`sheets:<orderId>:<version>`) and of the order / customer webhook rows (acknowledged without delivery) | M11 (integrations) |
 | M5 | Order address change inside 24 h: a thread event only, no automated customer text (no `customer.*` key for it) | M11 polish (copy deck key + send) |
 | M5 | Home "À traiter" handled cards greyed 24 h with "fait par …" (no storage: handled items disappear) | M8 (analytics) or M11 polish |
-| M5 | `/orders/import` wizard (CSV upload, mapping, preview, commit job) — the "Importer" link of /orders is shown to Admin+, the page is not built | M11 polish |
 | M5 | "Lien de paiement" and "Rembourser" dialogs of the order page (P2, Chargily) | M9 |
 | M5 | Inbox `?agentId=` filter (agent page "Conversations" link tab lands on the unfiltered inbox) | M11 polish |
 | M5 | Client tag suggestions: no endpoint lists the workspace tags (filters and the Tags dialog offer the tags of the loaded rows) | M11 polish |
@@ -58,3 +53,9 @@ Each line: where it came from → the stage that must close it. Remove the line 
 | M6 | Public header marketing links of `/s/[code]` (Fonctionnalités · Tarifs · Aide · Statut, PublicLayout 02 §1): the header shows logo · FR/AR/EN · Se connecter · Essai gratuit until those pages exist | M11 (public pages) |
 | M6 | DLG "Imprimer les bordereaux" options "Un PDF par commande" and "Inclure le récapitulatif interne" (not in `LabelsJobSchema`: merged A6 / thermal / A5 only) | M11 polish (labels job options) |
 | M6 | `/delivery` bulk "Exporter CSV" (MECH "Autres actions groupées"): no shipments export endpoint | M8 (reports & exports) |
+| M7 | Reports of GDS-10 (23, incl. "Écarts d'inventaire", "Journal de caisse", P&L through `modules/gds/money-figures.ts`), report export / schedules | M8 |
+| M7 | Cross-sell suggestions in the AI prompt: the catalogue context lists up to 2 active rules per product (since M4); the REC-01 "max 3 per turn" is enforced on the impressions only | M11 polish (prompt section dedicated to recommendations) |
+| M7 | Promotion entity for the PROMOUVOIR card ("Créer la promo"): no promotion model; applying records `appliedRefType=promo` and the web opens the price form | when a promotions feature is specified |
+| M7 (web) | "Exporter" of /purchases and /sales (Figma GDS-07 / GDS-08): no purchases / sales export endpoint; the reports "Achats" / "Ventes" cover it | M8 (reports & exports) |
+| M7 (web) | Supplier sheet "Voir les produits (n)": `/products` has no supplier filter (the sheet links to the supplier's purchases meanwhile) | M11 polish (products `supplierId` filter) |
+| M7 (web) | Saved views ("Enregistrer la vue", GDS-05 movements panel) on the GDS lists | M11 polish (saved views, as for orders) |

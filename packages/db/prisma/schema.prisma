@@ -2597,6 +2597,7 @@ model RecommendationEvent {
   order          Order?         @relation(fields: [orderId], references: [id])
 
   @@index([recommendationId, at])
+  @@index([conversationId, kind, at])
 }
 
 model StockMovement {
@@ -2712,6 +2713,7 @@ model StockRecommendation {
   dismissedBy User?           @relation("StockRecoDismissedBy", fields: [dismissedById], references: [id])
 
   @@index([workspaceId, status, priority])
+  @@index([workspaceId, ruleKey])
 }
 
 model StockRecommendationMute {
@@ -3263,6 +3265,7 @@ model Purchase {
 
   @@unique([workspaceId, number])
   @@index([workspaceId, status, expectedAt])
+  @@index([workspaceId, supplierId])
 }
 
 model PurchaseItem {
@@ -3317,6 +3320,7 @@ model Sale {
 
   @@unique([workspaceId, number])
   @@index([workspaceId, soldAt])
+  @@index([workspaceId, clientId])
 }
 
 model SaleItem {
@@ -3328,6 +3332,8 @@ model SaleItem {
   variantName String?
   quantity    Int
   unitPrice   Int
+  /// catalogue price when the line was sold (04 §20: an edited price is snapshotted with the catalogue price — margin report)
+  catalogPrice Int?
   costPrice   Int?
   discount    Int     @default(0)
   total       Int

@@ -356,6 +356,43 @@ export const OrdersExportQuerySchema = z
   .strict();
 export type OrdersExportQuery = z.infer<typeof OrdersExportQuerySchema>;
 
+// --- order import (03 §37 ORD "Import orders", D69, `orders.import`) ----------------------------------------------------
+/** CSV columns of 06 "Orders" `POST /orders/import`; `items` = "SKU×qty;SKU×qty" (also `x`, `*`). */
+export const ORDER_IMPORT_FIELDS = ['clientName', 'phone', 'wilaya', 'commune', 'address', 'items', 'note'] as const;
+export type OrderImportField = (typeof ORDER_IMPORT_FIELDS)[number];
+export const ORDER_IMPORT_REQUIRED_FIELDS: readonly OrderImportField[] = ['clientName', 'phone', 'wilaya', 'address', 'items'];
+export const ORDER_IMPORT_MAX_ROWS = 1000;
+/** `POST /orders/import/mapping { jobId, mapping }` → 202 (the preview is computed again with this column mapping). */
+export const OrderImportMappingSchema = z
+  .object({
+    jobId: id,
+    mapping: z.record(z.enum(ORDER_IMPORT_FIELDS), z.string().trim().max(120).nullable()),
+  })
+  .strict();
+export type OrderImportMappingInput = z.infer<typeof OrderImportMappingSchema>;
+export type OrderImportRowError = { field: OrderImportField | null; code: string; params?: Record<string, string | number> };
+export type OrderImportPreviewRow = {
+  row: number;
+  ok: boolean;
+  values: { clientName: string | null; phone: string | null; wilayaId: number | null; wilaya: string | null; commune: string | null; communeId: number | null; address: string | null; note: string | null; items: { sku: string; quantity: number; productId: string | null; variantId: string | null; name: string | null; unitPrice: number | null }[] };
+  /** subtotal of the lines at catalogue prices + the grid fee (informative) */
+  total: number | null;
+  /** an existing client with this phone (found) or a new one (created) */
+  client: 'existing' | 'new' | null;
+  errors: OrderImportRowError[];
+};
+export type OrderImportPreviewResult = {
+  stage: 'mapping' | 'preview' | 'committed';
+  fileName: string;
+  headers: string[];
+  mapping: Partial<Record<OrderImportField, string | null>>;
+  missingColumns: OrderImportField[];
+  totals: { rows: number; valid: number; invalid: number; newClients: number; units: number };
+  rows: OrderImportPreviewRow[];
+  /** commit: one order per valid row (`source=import`, `status=new`); a row refused at commit (stock moved meanwhile) is listed */
+  report?: { created: number; skipped: number; failed: { row: number; code: string; params?: Record<string, string | number> }[]; orderIds: string[] };
+};
+
 // --- read models (api-contract §2, §3.7) --------------------------------------------------------------------------------
 export type OrderUserRef = { id: string; firstName: string; lastName: string; avatarUrl: string | null };
 export type OrderAgentRef = { id: string; name: string; status: 'draft' | 'active' | 'paused' };

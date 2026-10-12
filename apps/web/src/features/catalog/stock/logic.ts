@@ -60,9 +60,16 @@ export function activePeriod(from: string, to: string, today: string = algiersDa
 }
 
 /* ---------- reference ---------- */
-/** Route of a movement reference. Only the product page exists in M2 (orders, sales, purchases, inventories come later). */
+/** Route of a movement reference: the order, the counter sale, the purchase, the inventory count (M7) or the product. */
 export function referenceHref(m: Pick<StockMovement, 'reference' | 'product'>): string | null {
-  return m.reference?.type === 'variant' ? `/products/${m.product.id}` : null;
+  const r = m.reference;
+  if (!r) return null;
+  if (r.type === 'variant') return `/products/${m.product.id}`;
+  if (r.type === 'order') return `/orders/${r.id}`;
+  if (r.type === 'sale') return `/sales/${r.id}`;
+  if (r.type === 'purchase') return `/purchases/${r.id}`;
+  if (r.type === 'inventory') return `/inventory/${r.id}`;
+  return null;
 }
 /** How a reference reads: document numbers get a `#`, a variant its name, manual / import only their type label. */
 export function referenceKind(type: string | undefined): 'number' | 'name' | 'type' {

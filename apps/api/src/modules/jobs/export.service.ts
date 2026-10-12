@@ -11,7 +11,7 @@ import { writeTable, type TableColumn, type TableFormat } from './table-file';
 export type ExportTable<T = any> = { sheetName: string; fileName: string; columns: TableColumn<T>[]; rows: T[] };
 /** Runs in the tenant scope of the job's workspace, as the user who asked for the export. */
 export type ExportSource = (filters: Record<string, unknown>, ctx: { locale: 'fr' | 'ar' | 'en'; jobId: string }) => Promise<ExportTable>;
-export type ExportKind = 'products' | 'movements' | 'orders' | 'clients' | 'report' | 'audit' | 'ledger' | 'conversation-eval';
+export type ExportKind = 'products' | 'movements' | 'orders' | 'clients' | 'cash' | 'report' | 'audit' | 'ledger' | 'conversation-eval';
 
 const EXPORT_TTL_MS = 7 * 24 * 3600 * 1000;
 

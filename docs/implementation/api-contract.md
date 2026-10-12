@@ -381,6 +381,17 @@ type CashClosingDto = { day: string; openingBalance: Money; income: Money; expen
 type CloseCashDto = { day: string; countedBalance: Money; note?: string };   // POST /cash/close (Idempotency-Key required); note required when difference ≠ 0
 ```
 
+**M7 additions** (zod schemas and view types in `packages/shared/src/schemas/gds.ts` and `recommendations.ts`; names there are the wire names):
+
+- Suppliers: `SupplierListItemView` (`purchaseCount`, `purchases12m { count, total }`, `totalSpent` (cancelled and drafts excluded), `balance`, `lastPurchaseAt`, `actions`) / `SupplierView` (+ `terms`, `paymentTermsDays`, `avgLeadDays`, `leadDaysMeasured`, `productCount`, `recentPurchases`). `POST /suppliers/:id/payments` → `{ supplier, allocations[{ purchaseId, number, amount }] }`.
+- Purchases: `PurchaseDto` above + `units { ordered, received }`, `remaining`, `items[].remainingQty`, `cancelReason`, `cancelledAt`. `ReceivePurchaseDto` adds `newItems[{ productId, variantId?, receivedQty, unitCost }]` (lines added in the receive dialog); `items[].receivedQty` = units received now. `PATCH` edits lines only while `draft|pending` (else `409 CONFLICT details.reason=PURCHASE_LOCKED`). `GET /purchases/stats` → `PurchaseStatsView`.
+- Sales: `SaleDto` above + `customerName`, `customerPhone`, `items[].catalogPrice` (the catalogue price when the line price was edited — `SaleItem.catalogPrice` column, M7), `items[].costPrice`, `cancelledBy`, `stockRestored`, `cancellableUntil`. `CreateSaleDto` accepts `client { name, phone }` (found by phone or created) instead of `clientId`, and `soldAt`. `GET /sales/stats` → `SaleStatsView`.
+- Cash: `CashTransactionDto` above + `correctsTransactionId`, `createdAt`, `actions`; `reference.type ∈ order|sale|purchase|closing|cash`. `GET /cash` takes `day` (default today) or `period|from|to`; `meta` adds `openingBalance`, `from`, `to`; `GET /cash/stats` (same filters) → `CashStatsView { openingBalance, income, expense, net, currentBalance, counts, unclosedDays, day }`; `GET /cash/days` → `CashDayView` (= `CashClosingDto` + `theoreticalCash`, `actions`); `GET /cash/:id`.
+- Inventories: `InventoryCountDto` above + `summary.counted`, `categoryName`, `validatedBy`, `lines[].currentExpectedQty` (expected + movements since the start), `lines[].noteRequired`, `actions`; `GET /inventories/scope-preview?scope&categoryId` → `{ products, variants, lines }`.
+- KPIs: `GET /stock/movements/stats` (filters of `GET /stock/movements`) → `MovementStatsView`; `GET /products/stats` (filters of `GET /products`) → `ProductStatsView`; `GET /stock/overview` adds `purchasing: StockPurchasingView | null` (advanced mode + `gds.read`).
+- Recommendations: `StockRecommendationDto` above + `ruleLabel`, `suggestedAction.label`, `appliedAt`, `applied`, `dismissedAt`, `actions`; `GET /stock-recommendations/stats` → `StockRecoStatsView`; `DELETE /stock-recommendations/mute?productId&type` (unmute). Cross-sell: `RecommendationView`, `GET /recommendations/stats` → `RecommendationStatsView`; job result `RecommendationsJobResult`.
+- Order import: `POST /orders/import/mapping { jobId, mapping }` → 202; preview / commit results `OrderImportPreviewResult` in `Job.result`.
+
 ### 3.10 Billing & credits
 
 ```ts

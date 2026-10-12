@@ -56,15 +56,12 @@ test('GDS-01 advanced dashboard: tiles, recent movements, low stock with restock
   await expect(page.getByTestId('recent-movements').getByText(SIMPLE)).toBeVisible();
   await expectNoA11yViolations(page);
 
-  // "Réapprovisionner" opens the adjust dialog on that variant, type Entrée
+  // "Réapprovisionner" (advanced mode, M7) opens a new purchase prefilled with that variant (M2 carry-over closed)
   const row = page.getByTestId('low-stock').locator(`[data-variant="${variantId}"]`);
   await expect(row).toContainText(`${VARIANT_PRODUCT} · ${VARIANT}`);
   await expect(row).toContainText('seuil 2');
   await row.getByRole('button', { name: 'Réapprovisionner' }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog.locator('#adj-variant')).toHaveValue(variantId);
-  await expect(dialog.getByRole('radio', { name: /Entrée/ })).toHaveAttribute('aria-checked', 'true');
-  await dialog.getByRole('button', { name: 'Annuler' }).click();
+  await expect(page).toHaveURL(new RegExp(`/fr/purchases/new\\?productId=.*variantId=${variantId}`), { timeout: 30_000 });
 });
 
 test('AT-CAT-02 service product: no stock adjustment offered, PRODUCT_NOT_STOCK_TRACKED from the API', async ({ page, request }) => {

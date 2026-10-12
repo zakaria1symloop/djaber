@@ -10,3 +10,5 @@ export * from './clients';
 export * from './orders';
 export * from './delivery';
 export * from './dashboard';
+export * from './gds';
+export * from './recommendations';

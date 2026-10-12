@@ -12,6 +12,7 @@ import { algiersDay } from '../../core/time/algiers';
 import { StockService } from '../catalog/stock.service';
 import { ClientAggregatesService } from '../clients/client-aggregates.service';
 import { OutboundSendService } from '../messaging/outbound-send.service';
+import { CrossSellService } from '../recommendations/cross-sell.service';
 import { NotificationProducer } from '../notifications/notification.producer';
 import { orderPublic, orderSummary } from './order.presenter';
 import { stockDeltas, stockKey, type StockLine } from './order-rules';
@@ -29,6 +30,7 @@ export class OrderEffects implements OnModuleInit {
     private readonly notifications: NotificationProducer,
     private readonly outbound: OutboundSendService,
     private readonly registry: ProcessorRegistry,
+    private readonly crossSell: CrossSellService,
   ) {}
 
   onModuleInit() {
@@ -135,6 +137,16 @@ export class OrderEffects implements OnModuleInit {
     const sum = await tx.paymentEntry.aggregate({ where: { sourceType: 'order', sourceId: order.id }, _sum: { amount: true } });
     const amountPaid = Math.max(0, Math.min(sum._sum.amount ?? 0, order.total));
     return { amountPaid, paymentStatus: derivePaymentStatus(amountPaid, order.total) };
+  }
+
+  // --- cross-sell attribution (REC-03) ----------------------------------------------------------------------------------
+  /** An order of a conversation converts the cross-sell suggestions the AI showed there in the last 7 days. */
+  recoConversions(tx: Tx, order: Pick<Order, 'id' | 'conversationId' | 'orderedAt'>) {
+    return this.crossSell.conversions(tx, order);
+  }
+  /** REC-03 fix: cancelled / deleted orders no longer count as conversions. */
+  recoReverse(tx: Tx, orderId: string) {
+    return this.crossSell.reverseConversions(tx, orderId);
   }
 
   // --- aggregates ---------------------------------------------------------------------------------------------------------

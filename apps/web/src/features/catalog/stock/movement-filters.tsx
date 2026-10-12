@@ -17,7 +17,7 @@ import { activePeriod, PERIOD_PRESETS, periodRange, withoutYear, type PeriodPres
 
 /** `GET /stock/movements` parameters (06 §10). */
 export const MOVEMENTS_SPEC: ListSpec = {
-  filters: { type: 'list', reason: 'list', refType: 'list', productId: 'text', variantId: 'text', createdById: 'text', from: 'date', to: 'date', minQty: 'int', maxQty: 'int', categoryId: 'text' },
+  filters: { type: 'list', reason: 'list', refType: 'list', refId: 'text', productId: 'text', variantId: 'text', createdById: 'text', from: 'date', to: 'date', minQty: 'int', maxQty: 'int', categoryId: 'text' },
   sorts: ['createdAt'],
   defaultSort: '-createdAt',
 };
@@ -79,7 +79,8 @@ export function useMovementFilters(list: ListController, fallbackProductName?: s
   if (productId) chip('productId', t('movements.filter.product'), productName, { productId: null, variantId: null });
   if (variantId) chip('variantId', t('movements.filter.variant'), variantName, { variantId: null });
   if (reasons.length) chip('reason', t('movements.filter.reason'), labels(reasons, reasonOptions), { reason: null });
-  if (refTypes.length) chip('refType', t('movements.filter.reference'), labels(refTypes, refTypeOptions), { refType: null });
+  if (refTypes.length) chip('refType', t('movements.filter.reference'), labels(refTypes, refTypeOptions), { refType: null, refId: null });
+  if (filterText(s, 'refId')) chip('refId', t('movements.filter.reference'), t('movements.filter.oneDocument'), { refId: null });
   if (periodLabel) chip('period', t('movements.filter.period'), periodLabel, { from: null, to: null });
   if (createdById) chip('createdById', t('movements.filter.by'), labels([createdById], memberOptions), { createdById: null });
   if (minQty || maxQty) chip('qty', t('movements.filter.quantity'), `${minQty ? formatNumber(Number(minQty)) : '…'} – ${maxQty ? formatNumber(Number(maxQty)) : '…'}`, { minQty: null, maxQty: null });

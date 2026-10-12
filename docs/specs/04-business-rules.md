@@ -69,7 +69,7 @@ Create: ≥ 1 item, client name, phone (validated). Confirm: + wilaya, commune, 
 | Sale created / payment changed / deleted (unpaid only) | − (`out`, reason `sale`; conditional `quantity ≥ qty`, else `422 SALE_INSUFFICIENT_STOCK`) / — / + (`return`, reason `sale_cancelled`) | + income `sale` for paid; replaced; removed | recompute | — |
 | Purchase created / paid changed | — | + expense `purchase` for paid; replaced | — | — |
 | Purchase received (partial/full) | + receivedQty per line (variant or product), movement `in` reason `purchase`; **weighted-average cost recomputed at every receipt** (04 §20, R-M): `costPrice = round_half_up((stock × costPrice + recvQty × unitCost) / (stock + recvQty))`, integer DA | — | — | — |
-| Purchase cancelled | − received qty, movement `adjustment_out` reason `purchase_cancelled` (conditional, else `422 STOCK_INSUFFICIENT`) | auto rows removed, `amountPaid=0` | — | — |
+| Purchase cancelled (04 §20) | nothing received ⇒ —; partially received ⇒ the received units stay (no movement; corrections go through stock adjustments) | nothing received ⇒ auto rows removed, `amountPaid=0`; partially received ⇒ payments kept, the unpaid rest is no longer due | — | — |
 | Manual adjustment | ± with reason: movement `adjustment_in` (positive) or `adjustment_out` (negative) | — | — | `stock.low/out` if crossed |
 
 One effects service per source (`OrderEffects`, `SaleEffects`, `PurchaseEffects`); controllers never touch stock or cash (**fix**: V1 duplicated rollback paths). Untracked products (`trackStock=false`) never change stock. Variant products: stock changes at variant level only; product stock = Σ active variants.

@@ -1,6 +1,7 @@
 // Sidebar items, order exactly as Figma `ANA-01 — Home — default` (02-next-route-map §2.1).
 import {
   BarChart3,
+  ClipboardList,
   Bell,
   Bot,
   Boxes,
@@ -61,7 +62,8 @@ export const MAIN_NAV: NavGroup[] = [
       { key: 'nav.purchases', href: '/purchases', icon: ShoppingCart, advancedOnly: true, permission: 'gds.read' },
       { key: 'nav.sales', href: '/sales', icon: Receipt, advancedOnly: true, permission: 'gds.read' },
       { key: 'nav.cash', href: '/cash', icon: Wallet, advancedOnly: true, permission: 'gds.read' },
-      { key: 'nav.recommendations', href: '/recommendations', icon: Lightbulb, advancedOnly: true },
+      { key: 'nav.inventory', href: '/inventory', icon: ClipboardList, advancedOnly: true, permission: 'stock.count' },
+      { key: 'nav.recommendations', href: '/recommendations', icon: Lightbulb, permission: 'catalog.read' },
     ],
   },
   {
