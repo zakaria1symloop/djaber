@@ -32,6 +32,8 @@ export type MoveInput = {
   requireChange?: boolean;
   /** bulk writers (import) emit their own events */
   silent?: boolean;
+  /** the refusal of a decrement below zero (order lines: ORDER_INSUFFICIENT_STOCK, 11 §6 usage rule) */
+  insufficient?: (available: number, product: { name: string }) => AppException;
 };
 export type MoveResult = { movement: StockMovement | null; before: number; after: number; productStock: number };
 
@@ -88,7 +90,7 @@ export class StockService implements OnModuleInit {
       if (input.requireChange) throw new AppException('STOCK_QUANTITY_ZERO', {}, { quantity: 'validation.quantity' });
       return { movement: null, before, after, productStock: product.stock ?? 0 };
     }
-    if (after < 0 && !input.allowNegative) throw new AppException('STOCK_INSUFFICIENT', { available: before }, { quantity: 'validation.quantity' });
+    if (after < 0 && !input.allowNegative) throw input.insufficient?.(before, { name: variant ? `${product.name} · ${variant.name}` : product.name }) ?? new AppException('STOCK_INSUFFICIENT', { available: before }, { quantity: 'validation.quantity' });
 
     let productStock = after;
     if (variant) {
@@ -119,6 +121,33 @@ export class StockService implements OnModuleInit {
       await this.emitProductUpdated(tx, product.id);
     }
     return { movement, before, after, productStock };
+  }
+
+  /**
+   * A journal line that does not change the quantity (04 §21: a return without restock leaves a `loss` trail of the
+   * units that will not come back). quantity = 0, before = after = the current quantity.
+   */
+  async trail(tx: Tx, input: { productId: string; variantId?: string | null; type: MovementType; reason: MovementReason; note: string; refType: MovementRefType; refId: string; actorId?: string | null }) {
+    const product = await tx.product.findFirst({ where: { id: input.productId }, select: { id: true, stock: true, trackStock: true } });
+    if (!product || !product.trackStock) return null;
+    const variant = input.variantId ? await tx.productVariant.findFirst({ where: { id: input.variantId }, select: { stock: true } }) : null;
+    const current = variant ? variant.stock : (product.stock ?? 0);
+    return tx.stockMovement.create({
+      data: {
+        productId: product.id,
+        variantId: input.variantId ?? null,
+        type: input.type,
+        quantity: 0,
+        quantityBefore: current,
+        quantityAfter: current,
+        reason: input.reason,
+        note: input.note,
+        refType: input.refType,
+        refId: input.refId,
+        actorId: input.actorId === undefined ? (TenantContext.get().userId ?? null) : input.actorId,
+        createdAt: new Date(),
+      } as Prisma.StockMovementUncheckedCreateInput,
+    });
   }
 
   /**

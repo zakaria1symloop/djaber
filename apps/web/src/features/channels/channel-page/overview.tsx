@@ -6,6 +6,9 @@ import { Button, buttonClass, Card, Ltr, SectionLabel, Skeleton, StatTile, Statu
 import { formatDateTime, formatNumber, type AppLocale } from '@djaber/shared';
 import { Bot } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import { useSession, useWorkspaceId } from '@/lib/session';
 import { Link } from '@/i18n/navigation';
 import { actionState } from '@/lib/actions';
 import { errorMessage } from '@/lib/forms';
@@ -17,6 +20,24 @@ import { ChannelStatusPill, PlatformMark } from '../ui';
 import { useChannelPage } from './channel-shell';
 
 const RECENT = { limit: 4 };
+
+/**
+ * "COMMANDES IA (30 J)" (carry-over M3 → M5): AI orders of this page over 30 days, from `GET /orders/stats` with the
+ * list filters (the same figure as the orders list opened by the tile). Hidden for a role without `orders.read`.
+ */
+function AiOrdersTile({ channelId }: { channelId: string }) {
+  const t = useT();
+  const ws = useWorkspaceId();
+  const { can } = useSession();
+  const query = { channelId, source: 'ai', period: '30d' };
+  const q = useQuery({ queryKey: [ws, 'orders', 'stats', query], queryFn: () => api<{ total: number }>('/orders/stats', { query }), enabled: !!ws && can('orders.read'), staleTime: 60_000 });
+  if (!can('orders.read')) return null;
+  return (
+    <Link href={`/orders?channelId=${channelId}&source=ai&period=30d`} className="block rounded-card" data-testid="channel-ai-orders">
+      <StatTile label={t('channels.overview.aiOrders')} value={q.data ? <Ltr>{formatNumber(q.data.total)}</Ltr> : q.isError ? '—' : <Skeleton className="h-6 w-10" />} hint={t('channels.overview.aiOrdersHint')} />
+    </Link>
+  );
+}
 /** tiles drawn even when Meta returns nothing (the frame shows three) */
 const DEFAULT_METRICS = ['page_fans', 'page_impressions', 'page_post_engagements'];
 
@@ -42,7 +63,8 @@ export function ChannelOverview() {
         <StatTile label={t('channels.overview.messages7d')} value={<Ltr>{formatNumber(counts.messages7d)}</Ltr>} hint={t('channels.overview.messagesHint', { inbound: counts.inbound7d, outbound: Math.max(0, counts.messages7d - counts.inbound7d) })} />
         <StatTile label={t('channels.overview.unread')} value={<Ltr>{formatNumber(counts.unread)}</Ltr>} />
         <StatTile label={t('channels.overview.products')} value={<Ltr>{formatNumber(counts.productsInScope)}</Ltr>} hint={agent ? agent.name : t('channels.agent.none')} />
-        {/* M5 / M8: "COMMANDES IA (30 J)" and "RÉSOLUTION IA" tiles need the orders and analytics modules */}
+        <AiOrdersTile channelId={c.id} />
+        {/* M8: "RÉSOLUTION IA" tile needs the analytics module */}
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">

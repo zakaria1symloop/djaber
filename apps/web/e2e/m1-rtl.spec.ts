@@ -42,7 +42,8 @@ test('AT-UX-02 merchant shell in Arabic: sidebar on the right, translated nav, n
 
   // greeting and checklist are translated; the counter keeps its left-to-right order
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Amel');
-  await expect(page.getByText('ربط صفحة', { exact: true })).toBeVisible();
+  // (the M5 home also has a quick action with the same words: the checklist row is the one checked)
+  await expect(page.locator('[data-step="channel"]').getByText('ربط صفحة', { exact: true })).toBeVisible();
   await expect(page.getByTestId('checklist-count')).toHaveText('0 / 4');
   await expect(page.getByTestId('checklist-count')).toHaveAttribute('dir', 'ltr');
 

@@ -98,6 +98,7 @@ export function useProductActions(o: {
         // a service has no stock: no stock item at all (CAT-11)
         adjustStock: p.trackStock ? () => adjust(p) : undefined,
         movements: can('stock.read') ? () => router.push(`/movements?productId=${p.id}`) : undefined,
+        orders: can('orders.read') ? () => router.push(`/orders?productId=${p.id}`) : undefined,
         duplicate: () => setOpen({ kind: 'duplicate', product: p }),
         cardPreview: () => preview(p),
         // a service is sold by agents like any product; an archived one is not offered (hidden by the menu)

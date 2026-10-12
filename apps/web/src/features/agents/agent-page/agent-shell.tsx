@@ -6,6 +6,7 @@
 import { ActionsMenu, AgentAvatar, Banner, buttonClass, cn, Ltr, MonoChip, Skeleton, Switch } from '@djaber/ui';
 import { formatNumber } from '@djaber/shared';
 import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import { ArrowUpRight } from 'lucide-react';
 import { AppPage } from '@/components/app-page';
 import { QueryError } from '@/components/global-states';
 import { Link, usePathname, useRouter } from '@/i18n/navigation';
@@ -149,6 +150,19 @@ export function AgentShell({ id, children }: { id: string; children: ReactNode }
               </Link>
             );
           })}
+          {/* AGT-03 tabs Conversations / Commandes: views of the inbox and of the orders list filtered by this agent */}
+          {can('inbox.read') ? (
+            <Link href={`/inbox?agentId=${a.id}`} data-testid="agent-tab-conversations" className="flex h-8 items-center gap-1 rounded-card border border-line-edge bg-ink-surface px-3 text-[13px] text-text-secondary transition-colors hover:text-text-primary">
+              {t('agents.page.tab.conversations')}
+              <ArrowUpRight className="size-3.5 rtl:-scale-x-100" aria-hidden />
+            </Link>
+          ) : null}
+          {can('orders.read') ? (
+            <Link href={`/orders?source=ai&agentId=${a.id}`} data-testid="agent-tab-orders" className="flex h-8 items-center gap-1 rounded-card border border-line-edge bg-ink-surface px-3 text-[13px] text-text-secondary transition-colors hover:text-text-primary">
+              {t('agents.page.tab.orders')}
+              <ArrowUpRight className="size-3.5 rtl:-scale-x-100" aria-hidden />
+            </Link>
+          ) : null}
         </nav>
         {children}
         {actions.dialogs}

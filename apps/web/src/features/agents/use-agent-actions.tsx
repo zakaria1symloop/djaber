@@ -114,7 +114,7 @@ export function useAgentActions(o: { planLimit?: PlanLimit | null; /** the page 
         resume: { label: t('action.resume'), onSelect: () => void resume(a), hidden: !manage || a.status !== 'paused' },
         duplicate: { label: t('action.duplicate'), onSelect: () => void duplicate(a), hidden: !manage },
         conversations: { label: t('agents.action.conversations'), onSelect: () => router.push(`/inbox?agentId=${a.id}`), local: true, hidden: a.status === 'draft' || !can('inbox.read') },
-        // M5: "Voir les commandes générées" (/orders?source=ai&agentId=…)
+        orders: { label: t('agents.action.orders'), onSelect: () => router.push(`/orders?source=ai&agentId=${a.id}`), local: true, hidden: a.status === 'draft' || !can('orders.read') },
         insights: { label: t('agents.action.insights', { count: a.pendingInsights }), onSelect: () => router.push(`/agents/${a.id}/insights`), local: true, hidden: a.status === 'draft' || !can('insights.manage') },
         // no server descriptor for these two: always possible for a member who manages agents (the API checks the key)
         export: { label: t('agents.action.export'), onSelect: () => void exportConfig(a), hidden: !manage, local: true },

@@ -4,16 +4,18 @@
 import { Button, cn, Ltr, Pill, StatusPill, type Tone } from '@djaber/ui';
 import { formatDate, type AppLocale } from '@djaber/shared';
 import { Facebook, Instagram } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useLocaleCode, useT, type TFunction } from '@/lib/i18n';
 import type { Channel, Platform } from './contracts';
 import { cardState, type CardState } from './logic';
 
+/** Page picture, or the platform icon when there is none or it fails to load (expired Meta CDN link). */
 export function PlatformMark({ platform, size = 40, src, name }: { platform: Platform; size?: number; src?: string | null; name?: string }) {
   const Icon = platform === 'instagram' ? Instagram : Facebook;
+  const [failed, setFailed] = useState<string | null>(null);
   return (
     <span style={{ width: size, height: size }} className="relative flex shrink-0 items-center justify-center overflow-hidden rounded-card border border-line-edge bg-ink-raised text-text-secondary">
-      {src ? <img src={src} alt={name ?? ''} className="size-full object-cover" /> : <Icon style={{ width: size * 0.45, height: size * 0.45 }} aria-hidden />}
+      {src && failed !== src ? <img src={src} alt={name ?? ''} className="size-full object-cover" onError={() => setFailed(src)} /> : <Icon style={{ width: size * 0.45, height: size * 0.45 }} aria-hidden />}
     </span>
   );
 }

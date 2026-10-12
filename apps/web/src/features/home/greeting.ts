@@ -13,3 +13,7 @@ export const greetingKey = (d: Date): 'home.greeting.morning' | 'home.greeting.e
 /** "mardi 7 octobre" — weekday + day + month, Latin digits in every locale. */
 export const longDate = (d: Date, locale: string): string =>
   new Intl.DateTimeFormat(locale === 'ar' ? 'ar-DZ-u-nu-latn' : locale === 'en' ? 'en-GB' : 'fr-FR', { timeZone: TIMEZONE, weekday: 'long', day: 'numeric', month: 'long' }).format(d);
+
+/** "12 août" — page card "connectée le …" (Figma ANA-01 page card meta). */
+export const dayMonth = (d: Date, locale: string): string =>
+  new Intl.DateTimeFormat(locale === 'ar' ? 'ar-DZ-u-nu-latn' : locale === 'en' ? 'en-GB' : 'fr-FR', { timeZone: TIMEZONE, day: 'numeric', month: 'long' }).format(d);

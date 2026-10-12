@@ -5,6 +5,7 @@ import { seedAi, seedPresets } from './ai';
 import { resolve } from 'node:path';
 import * as argon2 from 'argon2';
 import { rawPrisma as db } from '../src/client';
+import { defaultFeeFor } from '../src/defaults';
 
 const loadEnv = () => {
   const file = resolve(__dirname, '../../../.env');
@@ -279,6 +280,20 @@ export async function legal(adminId: string) {
   return Object.keys(docs).length;
 }
 
+/** DLV-01: every workspace has its 58 fee rows (new workspaces get them at creation; older ones are backfilled here, custom rows kept). */
+async function feeGrids() {
+  const [wilayas, workspaces] = await Promise.all([db.wilaya.findMany({ select: { id: true } }), db.workspace.findMany({ select: { id: true } })]);
+  let written = 0;
+  for (const ws of workspaces) {
+    const data = wilayas.map((w) => {
+      const f = defaultFeeFor(w.id);
+      return { workspaceId: ws.id, wilayaId: w.id, homePrice: f.home, stopdeskPrice: f.stopdesk, returnPrice: f.return, isActive: true, source: 'default' as const };
+    });
+    written += (await db.deliveryFeeRule.createMany({ data, skipDuplicates: true })).count;
+  }
+  return written;
+}
+
 async function main() {
   loadEnv();
   const g = await geo();
@@ -289,8 +304,9 @@ async function main() {
   const ai = await seedAi(db, a.id);
   await platform(a.id);
   const lg = await legal(a.id);
+  const fees = await feeGrids();
    
-  console.log(`seeded: ${g.wilayas} wilayas, ${g.communes} communes, ${u} units, ${p.plans} plans, ${p.packs} packs, ${pr} presets, ${ai.models} AI models, ${ai.routes} AI routes, ${lg} legal documents, admin + app versions + settings`);
+  console.log(`seeded: ${g.wilayas} wilayas, ${g.communes} communes, ${u} units, ${p.plans} plans, ${p.packs} packs, ${pr} presets, ${ai.models} AI models, ${ai.routes} AI routes, ${lg} legal documents, ${fees} fee rows, admin + app versions + settings`);
 }
 
 main()

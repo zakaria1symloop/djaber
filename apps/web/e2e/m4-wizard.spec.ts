@@ -722,8 +722,8 @@ test.describe('step 5 — test & activation', () => {
       await expect(check(page, c.key)).toContainText(c.label);
     }
     for (const key of ['catalog', 'policies', 'channels', 'emailVerified', 'credits']) await expect(check(page, key)).toHaveAttribute('data-state', 'ok');
-    // the shop has no delivery fee grid and its products have no photo: warnings, not blocking
-    await expect(check(page, 'feeGrid')).toHaveAttribute('data-state', 'warning');
+    // since M5 every new workspace gets its 58-row fee grid at creation (DLV-01): ok; products without photo: warning, not blocking
+    await expect(check(page, 'feeGrid')).toHaveAttribute('data-state', 'ok');
     await expect(check(page, 'productsWithoutPhoto')).toHaveAttribute('data-state', 'warning');
     await expect(check(page, 'catalog').getByRole('link', { name: 'Voir' })).toHaveAttribute('href', '/fr/products');
     await expect(page.getByTestId('activation-error')).toHaveCount(0);

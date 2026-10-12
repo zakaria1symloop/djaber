@@ -191,9 +191,10 @@ export class ChannelService {
 
   async summary(id: string): Promise<ChannelSummaryView> {
     const view = await this.get(id);
-    const [children, lastJob] = await Promise.all([
+    const [children, lastJob, aiOrders30d] = await Promise.all([
       prisma.channel.findMany({ where: { parentChannelId: id }, orderBy: { createdAt: 'asc' } }),
       prisma.job.findFirst({ where: { workspaceId: TenantContext.workspaceId(), kind: 'sync_history', payload: { path: ['channelId'], equals: id } }, orderBy: { createdAt: 'desc' }, select: { id: true } }),
+      prisma.order.count({ where: { channelId: id, source: 'ai', orderedAt: { gte: new Date(Date.now() - 30 * 86_400_000) } } }),
     ]);
     return {
       counts: view.counts,
@@ -201,6 +202,7 @@ export class ChannelService {
       health: view.health,
       children: children.map(channelRef),
       lastHistorySyncJobId: lastJob?.id ?? null,
+      aiOrders30d,
     };
   }
 

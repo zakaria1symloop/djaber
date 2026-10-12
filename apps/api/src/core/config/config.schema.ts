@@ -72,6 +72,8 @@ export const ConfigSchema = z.object({
   SHEETS_DRIVER: z.enum(['fake', 'google']).default('fake'),
   PUSH_DRIVER: z.enum(['fake', 'fcm']).default('fake'),
   FCM_SERVICE_ACCOUNT: z.string().optional(),
+  // safety guard: the FCM adapter refuses to start in development / test unless this is true (03-events §5.2)
+  PUSH_ALLOW_LIVE: bool.default(false),
   IAP_DRIVER: z.enum(['fake', 'stores']).default('fake'),
   GOOGLE_PLAY_SERVICE_ACCOUNT: z.string().optional(),
   APP_STORE_SHARED_SECRET: z.string().optional(),

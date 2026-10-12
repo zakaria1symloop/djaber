@@ -25,6 +25,18 @@ export const PILL_TONES = {
   'Client.riskLevel': { normal: 'success', high: 'danger' },
   'Credit.action': { text_reply: 'info', image_recognition: 'warning', voice_transcription: 'violet', reserve: 'neutral', release: 'neutral', renewal: 'neutral', pack_purchase: 'success', grant: 'success', store_refund: 'danger', adjustment: 'orange' },
   'Order.status': { new: 'info', confirmed: 'info', preparing: 'info', shipped: 'orange', delivered: 'success', returned: 'danger', cancelled: 'neutral' },
+  'Order.confirmationStatus': { pending: 'warning', no_answer: 'warning', confirmed: 'success', rejected: 'danger', wrong_number: 'danger', callback: 'info' },
+  'Order.paymentStatus': { unpaid: 'warning', partial: 'warning', paid: 'success', pending_link: 'info', refunded: 'neutral' },
+  'Order.paymentMethod': { cash: 'neutral', card: 'neutral', transfer: 'neutral', ccp: 'neutral', other: 'neutral' },
+  'Order.source': { ai: 'success', manual: 'violet', mobile: 'info', api: 'warning', import: 'neutral' },
+  'Order.deliveryStatus': { not_sent: 'neutral', pending: 'warning', sent: 'info', in_transit: 'info', out_for_delivery: 'info', delivered: 'success', failed: 'danger', returned: 'danger' },
+  'Order.callResult': { picked_up: 'success', no_answer: 'warning', busy: 'warning', voicemail: 'warning', rejected: 'danger', wrong_number: 'danger', callback: 'info' },
+  'Shipment.status': { pending: 'warning', sent: 'info', picked_up: 'info', in_transit: 'info', out_for_delivery: 'info', delivered: 'success', failed: 'danger', returned: 'danger', cancelled: 'neutral', stale: 'warning' },
+  'Client.source': { ai: 'success', manual: 'neutral', import: 'neutral', api: 'warning' },
+  'Client.pill': { reliable: 'success', unknown: 'neutral', risk: 'danger', blocked: 'danger', placeholder: 'warning' },
+  'Client.quality': { placeholder: 'warning', no_phone: 'warning', no_address: 'warning', duplicate: 'danger' },
+  'FeeRule.source': { default: 'neutral', custom: 'success' },
+  'Home.queue': { parcel: 'danger', stock: 'warning', page: 'danger', insight: 'success', conversation: 'danger', callback: 'info', job: 'success' },
 } as const satisfies Record<string, Record<string, Tone>>;
 
 export type PillEnum = keyof typeof PILL_TONES;

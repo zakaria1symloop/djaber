@@ -164,7 +164,7 @@ One row per value of the Postgres enum `NotificationType` (56 values, schema ord
 
 | Enum value · slug | Producer (service or job) | In-app | E-mail | Push | Customer msg | Throttle | Web target | `data` |
 |---|---|---|---|---|---|---|---|---|
-| `order_ai_created` · `order.ai_created` | `OrderService.createFromAi` (tool `create_order` inside `AiRunService`), via `OrderEffects` outbox | ● | pref | ● | recap + order number (`customer.orderRecap`) | — | `/orders/:id` | `{ orderId, number, total }` |
+| `order_ai_created` · `order.ai_created` | `OrderService.createFromAi` (tool `create_order` inside `AiRunService`), via `OrderEffects` outbox | ● | pref | ● | — (the AI reply itself carries the recap and the order number, FL-02 step 8) | — | `/orders/:id` | `{ orderId, number, total }` |
 | `conversation_handoff` · `conversation.handoff` | `AiRunService` FL-03 handoff (status `HANDOFF`/`UNKNOWN`, keyword, risky client) | ● | pref | ● | workspace system message `handoff` | — | `/inbox/:conversationId` | `{ conversationId, reason }` |
 | `conversation_needs_human_message` · `conversation.needs_human_message` | `InboundProcessor` when a customer message arrives on a `needs_human` conversation | ● | — | ● | — | 10 min per conversation | `/inbox/:conversationId` | `{ conversationId }` |
 | `conversation_handoff_unattended` · `conversation.handoff_unattended` | `sched-handoff-unattended` | ● (Owner) | — | ● | — | once per handoff (`Conversation.handoffRemindedAt`) | `/inbox/:conversationId` | `{ conversationId, handoffAt }` |

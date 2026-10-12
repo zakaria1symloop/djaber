@@ -21,6 +21,8 @@ export type CreateOrderRequest = {
   subtotal: number;
   deliveryFee: number;
   total: number;
+  /** 04 §21: the customer confirmed the phone number again (required after a "faux numéro" on that phone) */
+  phoneConfirmed?: boolean;
 };
 export type CancellableOrder = { id: string; number: string; total: number; status: string; orderedAt: string };
 export type ToolResult = Record<string, unknown>;

@@ -85,6 +85,7 @@ export default function ProductsPage() {
         adjustStock: () => setDialog({ kind: 'adjust', product: row }),
         variants: () => router.push(`/products/${row.id}/edit#variants`),
         movements: () => router.push(`/movements?productId=${row.id}`),
+        orders: can('orders.read') ? () => router.push(`/orders?productId=${row.id}`) : undefined,
         duplicate: () => setDialog({ kind: 'duplicate', product: row }),
         cardPreview: () => setDialog({ kind: 'card', product: row }),
         addToAgent: can('agents.read') ? () => setDialog({ kind: 'agent', product: row }) : undefined,

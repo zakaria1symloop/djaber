@@ -293,7 +293,7 @@ function StockSection({ product, setStatus }: { product: Product; setStatus: (s:
 function Relations({ productId }: { productId: string }) {
   const t = useT();
   const locale = useLocaleCode() as AppLocale;
-  const { workspace } = useSession();
+  const { workspace, can } = useSession();
   const advanced = workspace?.stockMode === 'advanced';
   const q = useProductRelations(productId);
   const reasonLabel = useMovementReason();
@@ -326,7 +326,9 @@ function Relations({ productId }: { productId: string }) {
                 <li key={`${o.id}-${i}`} className="flex items-center gap-3 px-3 py-2">
                   <div className="min-w-0 flex-1">
                     <div className="text-[14px] font-medium">
-                      <Ltr>{`#${o.number}`}</Ltr>
+                      <Link href={`/orders/${o.id}`} className="hover:underline">
+                        <Ltr>{`#${o.number}`}</Ltr>
+                      </Link>
                     </div>
                     <div className="ts-label-meta uppercase text-text-muted">
                       {o.variantName ? `${o.variantName} ` : ''}
@@ -342,6 +344,11 @@ function Relations({ productId }: { productId: string }) {
           ) : (
             empty
           )}
+          {(r.orders?.count ?? 0) > 0 && can('orders.read') ? (
+            <Link href={`/orders?productId=${productId}`} className="mt-2 inline-block text-[13px] text-accent-inbound hover:underline" data-testid="product-orders-link">
+              {t('products.quick.related.allOrders', { count: r.orders?.count ?? 0 })}
+            </Link>
+          ) : null}
         </TabsContent>
         <TabsContent value="movements" className="mt-3">
           {r.movements?.last?.length ? (

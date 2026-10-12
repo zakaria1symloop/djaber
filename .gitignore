@@ -5,6 +5,7 @@ node_modules/
 !.env.example
 dist/
 .next/
+.next-dev/
 .turbo/
 coverage/
 *.log

@@ -56,7 +56,7 @@ One entry per finished stage: what was built, checks passing, what is still simu
 **Simulated / deferred** (tracked in `carry-overs.md`)
 - Image captions and "create from photo" use a stand-in until the AI stage (M4). Moderation auto-approves until the admin queue (M10).
 - Product labels (PDF) arrive with delivery labels (M6); links to orders / agents / purchases arrive with those modules (M4, M5, M7).
-- Two acceptance checks that need orders (stock never decremented by an unconfirmed order line, variant required on an order line) are verified in M5.
+- Two acceptance checks that need orders (a service product line never moves stock, variant required on an order line) are verified in M5.
 
 ## M3 — Connected pages, Meta message intake, inbox (2026-10-11)
 
@@ -96,3 +96,23 @@ One entry per finished stage: what was built, checks passing, what is still simu
 
 **Deferred** (tracked in `carry-overs.md`)
 - Real order creation / cancellation by the AI (M5 binds `ORDER_TOOLS`). Packs and purchases (M9). Admin AI screens and provider keys (M10). PDF / DOCX FAQ import, ice-breaker push to Meta (M11). Live evals (need provider keys).
+
+## M5 — Clients, orders, cash on delivery, fee grid, home (2026-10-12)
+
+**Built**
+- Orders: list with KPI tiles that follow the filters, status tabs with counts, search, quick filters and the full filter panel (all in the address), sort, density, columns, selection with grouped actions and a per-order result dialog ("Réessayer les erreurs"), export and print jobs, row `Actions ⌄` from the server with greyed reasons, live arrival of new orders. Order page: client, delivery address (wilaya / commune / stop-desk with the recomputed fee), items, totals, delivery and payment blocks, history, calls, notes, read-only closed orders, conflict dialog. Dialogs: confirm (check → call outcome → result), call result, reminder, cancel, change status, mark delivered, mark returned, delete (typed number), record payment, assign, mark shipped. A5 slip (print preview + server PDF with Arabic text).
+- New order form: client found by phone or created inline, products and variants with stock hints, delivery with the fee quote (grid / free / not served / Admin override), payment, status, notes, draft kept, opened from the inbox, a client sheet or "Dupliquer".
+- The AI now creates real orders from a Messenger conversation (the step left open in M4 is closed).
+- Clients: list with filters, side sheet (figures, addresses, orders, conversations, merged / placeholder / risk notices), new / edit / complete, merge, tags, risk, delete or archive, export.
+- Delivery fee grid of the 58 wilayas (saved on leaving a cell, reset a row, fill missing, reset all, free-delivery threshold), seeded for every shop.
+- Home: "À traiter" cards, overview tiles, quick actions, page cards with conversations / messages of 7 days / unread / stock and the connection date, Get Started. Notification preferences (Settings › Notifications) with the sound toggle; inbox sound; links left open by earlier stages (inbox client panel and menu, products, agents, connected pages).
+- Team testing: `tools/demo-orders.mjs` adds clients and orders in several states to the demo shop.
+
+**Checks** — lint ✔ · typecheck ✔ · unit ✔ (shared 38, api 532, web 443) · integration ✔ (515 in 28 files) · AI pipeline scenarios ✔ (29, simulated provider) · translations ✔ (4 395 texts × 3 languages) · Storybook build ✔ · browser ✔ (320 in one complete run, 68 of them M5, including customer → AI order → live list → confirm → A5 slip on the real API; 10 tests still serve a state the API cannot produce on demand, each marked `// mock:`) · production build ✔, served on the local network.
+
+**Simulated / not verifiable here**
+- Couriers: "Envoyer au transporteur" stays greyed (`DELIVERY_NO_COURIER`) until M6; parcels are marked shipped by hand.
+- Push notifications go to a fake sender (`PUSH_ALLOW_LIVE` is off); e-mails go to `.local/mail`.
+- AI answers and AI orders still come from the scripted stand-in (no AI key in the old project).
+
+**Deferred** (tracked in `carry-overs.md`): courier sending, tracking and labels (M6); order import from a file and PDF export of orders; payment link and refund (M9); Google Sheets and webhook senders (M11); saved views; inbox filter by agent.

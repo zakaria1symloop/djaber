@@ -89,7 +89,7 @@ One scenario per rule; IDs `AT-<area>-nn`. Columns: scenario (Given / When / The
 |---|---|---|---|
 | AT-CLI-01 | AI collects phone of an existing client while conversation is linked to a placeholder ⇒ placeholder merged, identity re-pointed, orders/conversation on the owner, aggregates recomputed | CLI-02 | I |
 | AT-CLI-02 | Create client with "+213 555 12 34 56" when "0555123456" exists ⇒ `CLIENT_PHONE_EXISTS` with "use existing" | CLI-01, 04 §2 | I/E |
-| AT-CLI-03 | Delete client with orders ⇒ soft; orders still show the name; list hides it | CLI-05 | I |
+| AT-CLI-03 | Delete client with orders ⇒ `CUSTOMER_HAS_ORDERS`, archive ⇒ soft; orders still show the name; list hides it | CLI-05 | I |
 
 ## Orders & money
 

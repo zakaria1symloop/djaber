@@ -156,7 +156,9 @@ test.describe('AGT-03 overview', () => {
     await expect(page.getByTestId('agent-paused-banner')).toHaveCount(0);
 
     const nav = tabs(page);
-    await expect(nav.getByRole('link')).toHaveText(["Vue d'ensemble", 'Configuration', `Insights${a.pendingInsights}`, 'Bac à essai']);
+    // + the M5 link tabs of AGT-03 (views of the inbox and of the orders list filtered by this agent)
+    await expect(nav.getByRole('link')).toHaveText(["Vue d'ensemble", 'Configuration', `Insights${a.pendingInsights}`, 'Bac à essai', 'Conversations', 'Commandes']);
+    await expect(nav.getByTestId('agent-tab-orders')).toHaveAttribute('href', `/fr/orders?source=ai&agentId=${ids.a}`);
     await expect(nav.getByRole('link', { name: "Vue d'ensemble" })).toHaveAttribute('aria-current', 'page');
     await expect(nav.getByRole('link', { name: 'Configuration' })).toHaveAttribute('href', `/fr${AGENT_A()}/configuration`);
     await expect(nav.getByRole('link', { name: /^Insights/ })).toHaveAttribute('href', `/fr${AGENT_A()}/insights`);

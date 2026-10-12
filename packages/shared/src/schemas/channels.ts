@@ -146,6 +146,8 @@ export type ChannelSummaryView = {
   health: ChannelHealth;
   children: ChannelRefView[];
   lastHistorySyncJobId: string | null;
+  /** CHN-07 tile "Commandes IA (30 j)": orders created by the AI on this channel over the last 30 days (M5) */
+  aiOrders30d: number;
 };
 export type ChannelEventView = {
   id: string;
