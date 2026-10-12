@@ -20,4 +20,9 @@ Object.assign(process.env, {
   INSTAGRAM_APP_ID: '200000000000002',
   INSTAGRAM_APP_SECRET: 'test-instagram-app-secret',
   META_GRAPH_VERSION: 'v21.0',
+  // M6: fake couriers only; generous per-account limiter (the load test sets its own budget)
+  COURIER_DRIVER: 'fake',
+  COURIER_ALLOW_LIVE: 'false',
+  COURIER_SEND_RPS: '1000',
+  COURIER_TRACK_RPS: '1000',
 });

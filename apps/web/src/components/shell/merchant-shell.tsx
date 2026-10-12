@@ -12,6 +12,7 @@ import { PageSessionExpired, PageSuspended, QueryError } from '@/components/glob
 import { useAgentEvents } from '@/features/agents/api';
 import { authApi } from '@/features/auth/api';
 import { useCatalogEvents } from '@/features/catalog/api';
+import { useShipmentEvents } from '@/features/delivery/api';
 import { useOrderEvents } from '@/features/orders/api';
 import { useChannelBanners, useChannelEvents } from '@/features/channels/shell';
 import { CreditsPillLink, useCreditsBanners, useCreditsEvents } from '@/features/credits/shell';
@@ -128,6 +129,7 @@ function LiveShell({ groups, banners, children }: { groups: NavGroup[]; banners:
   useAgentEvents();
   useCreditsEvents();
   useOrderEvents();
+  useShipmentEvents();
   useMessageSound();
   const counters = { queue: useQueueCount(), inbox: useInboxBadge(), notifications: useUnreadNotifications() };
   return (

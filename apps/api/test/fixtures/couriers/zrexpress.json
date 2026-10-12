@@ -1,0 +1,44 @@
+{
+  "provider": "zrexpress",
+  "source": "Recorded from the Procolis API v1 contract (05-integrations §2.2, V1 delivery.service.ts). Values anonymised.",
+  "credentials": { "token": "zr-token-123456", "key": "zr-key-abcdef" },
+  "interactions": {
+    "test_ok": { "request": { "method": "GET", "url": "https://procolis.com/api_v1/token" }, "response": { "status": 200, "json": { "Statut": "Accès activé" } } },
+    "test_refused": { "request": { "method": "GET", "url": "https://procolis.com/api_v1/token" }, "response": { "status": 200, "json": { "Statut": "Accès refusé" } } },
+    "test_401": { "request": { "method": "GET", "url": "https://procolis.com/api_v1/token" }, "response": { "status": 401, "json": { "message": "Unauthorized" } } },
+    "create_ok": {
+      "request": {
+        "method": "POST",
+        "url": "https://procolis.com/api_v1/add_colis",
+        "body": { "Colis": [{ "Tracking": "", "TypeLivraison": 0, "TypeColis": 0, "Confrimee": 1, "Client": "Amine Benali", "MobileA": "0555123456", "MobileB": "", "Adresse": "Cité 200 logements, Bt 4", "IDWilaya": "16", "Commune": "Bab Ezzouar", "Total": "4900", "Note": "", "TProduit": "Robe kabyle ×1", "id_Externe": "CMD-1042", "Source": "" }] }
+      },
+      "response": { "status": 200, "json": { "Colis": [{ "Tracking": "ZR-16-778899", "MessageRetour": "Good", "IDWilaya": "16" }] } }
+    },
+    "create_bad_commune": {
+      "request": { "method": "POST", "url": "https://procolis.com/api_v1/add_colis" },
+      "response": { "status": 200, "json": { "Colis": [{ "Tracking": "", "MessageRetour": "Commune introuvable pour cette wilaya" }] } }
+    },
+    "create_bad_phone": {
+      "request": { "method": "POST", "url": "https://procolis.com/api_v1/add_colis" },
+      "response": { "status": 200, "json": { "Colis": [{ "Tracking": "", "MessageRetour": "Numéro Mobile invalide" }] } }
+    },
+    "create_503": { "request": { "method": "POST", "url": "https://procolis.com/api_v1/add_colis" }, "response": { "status": 503, "json": null } },
+    "track_many": {
+      "request": { "method": "POST", "url": "https://procolis.com/api_v1/lire", "body": { "Colis": [{ "Tracking": "ZR-16-778899" }, { "Tracking": "ZR-16-778900" }, { "Tracking": "ZR-16-778901" }] } },
+      "response": {
+        "status": 200,
+        "json": {
+          "Colis": [
+            { "Tracking": "ZR-16-778899", "Situation": "Sorti en livraison", "DateH_Situation": "2026-10-12 09:30:00", "Wilaya": "Alger" },
+            { "Tracking": "ZR-16-778900", "Situation": "Client injoignable", "DateH_Situation": "2026-10-12 11:05:00", "Wilaya": "Alger" },
+            { "Tracking": "ZR-16-778901", "Situation": "Statut inconnu du transporteur", "DateH_Situation": "2026-10-12 12:00:00" }
+          ]
+        }
+      }
+    },
+    "rates": {
+      "request": { "method": "POST", "url": "https://procolis.com/api_v1/tarification", "body": {} },
+      "response": { "status": 200, "json": [{ "IDWilaya": "16", "Domicile": "400", "Stopdesk": "300" }, { "IDWilaya": 31, "TarifLivraison": 650, "TarifStopdesk": 450 }, { "IDWilaya": "99", "Domicile": "1" }] }
+    }
+  }
+}

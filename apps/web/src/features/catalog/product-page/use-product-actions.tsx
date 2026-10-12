@@ -14,13 +14,14 @@ import { useSession } from '@/lib/session';
 import { AdjustStockDialog } from '../adjust-stock-dialog';
 import { catalogApi, useCatalogRefresh } from '../api';
 import type { Product, ProductListItem } from '../contracts';
+import { ProductLabelsDialog } from '../product-labels-dialog';
 import { productMenuActions } from '../product-actions';
 import { AddToAgentDialog } from '../products-list/bulk';
 import { ArchiveProductDialog, CardPreviewDialog, DuplicateProductDialog, RestoreProductDialog } from '../product-dialogs';
 
 type Target = ProductListItem | Product;
 type Open =
-  | { kind: 'archive' | 'duplicate' | 'restore' | 'preview' | 'hardDelete' | 'agent'; product: Target }
+  | { kind: 'archive' | 'duplicate' | 'restore' | 'preview' | 'hardDelete' | 'agent' | 'labels'; product: Target }
   | { kind: 'adjust'; product: Target; variantId?: string | null };
 
 export function useProductActions(o: {
@@ -105,6 +106,7 @@ export function useProductActions(o: {
         addToAgent: can('agents.read') ? () => setOpen({ kind: 'agent', product: p }) : undefined,
         toggleActive: () => void toggleActive(p),
         exportOne: () => void exportOne(p),
+        labels: can('catalog.write') ? () => setOpen({ kind: 'labels', product: p }) : undefined,
         archive: () => setOpen({ kind: 'archive', product: p }),
         restore: () => restore(p),
         // an archived product can only be deleted for good; a live one chooses in the archive / delete dialog
@@ -121,6 +123,7 @@ export function useProductActions(o: {
       <RestoreProductDialog product={of('restore')} onClose={close} />
       <CardPreviewDialog product={of('preview')} onClose={close} />
       <AddToAgentDialog product={of('agent')} onClose={close} />
+      <ProductLabelsDialog open={!!of('labels')} ids={of('labels') ? [of('labels')!.id] : []} onClose={close} />
       <AdjustStockDialog open={open?.kind === 'adjust'} onClose={close} product={of('adjust')} variantId={open?.kind === 'adjust' ? open.variantId : null} />
       <ConfirmDialog
         open={!!hard}

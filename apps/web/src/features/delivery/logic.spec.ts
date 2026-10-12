@@ -1,0 +1,139 @@
+import { describe, expect, it } from 'vitest';
+import { parseListState } from '@/lib/list-state';
+import { bulkRowState, courierErrorField, credentialErrors, daysLabel, daysSince, isHttpsUrl, parcelSteps, parseWeight, shipmentTone, syncWait, waitLabel } from './logic';
+import { currentTab, DELIVERY_LIST, deliveryChips, panelFilterCount, shipmentsQuery, TAB_PRESETS } from './overview-spec';
+
+const params = (q: string) => new URLSearchParams(q);
+
+describe('public parcel steps', () => {
+  it('in transit: the first two are done, the third is current', () => {
+    expect(parcelSteps('in_transit').map((s) => s.state)).toEqual(['done', 'done', 'current', 'upcoming', 'upcoming']);
+  });
+  it('pending: nothing done yet', () => {
+    expect(parcelSteps('pending').every((s) => s.state === 'upcoming')).toBe(true);
+  });
+  it('delivered: every step done', () => {
+    expect(parcelSteps('delivered').every((s) => s.state === 'done')).toBe(true);
+  });
+  it('failed / returned / cancelled end the bar with a failed step', () => {
+    for (const st of ['failed', 'returned', 'cancelled'] as const) {
+      const steps = parcelSteps(st);
+      expect(steps.at(-1)).toEqual({ key: st, state: 'failed' });
+      expect(steps).toHaveLength(5);
+    }
+  });
+  it('tones follow the status', () => {
+    expect(shipmentTone('delivered')).toBe('success');
+    expect(shipmentTone('failed')).toBe('danger');
+    expect(shipmentTone('in_transit')).toBe('info');
+    expect(shipmentTone(null)).toBeUndefined();
+  });
+});
+
+describe('tracking sync (1 / 5 min)', () => {
+  const now = Date.parse('2026-10-12T10:00:00Z');
+  it('seconds left until the next manual sync', () => {
+    expect(syncWait(null, now)).toBe(0);
+    expect(syncWait('2026-10-12T10:04:00Z', now)).toBe(240);
+    expect(syncWait('2026-10-12T09:00:00Z', now)).toBe(0);
+  });
+  it('wait label', () => {
+    expect(waitLabel(240)).toBe('4 min');
+    expect(waitLabel(61)).toBe('2 min');
+    expect(waitLabel(45)).toBe('45 s');
+  });
+  it('days since the last event', () => {
+    expect(daysSince('2026-10-05T09:00:00Z', now)).toBe(7);
+    expect(daysSince(null, now)).toBeNull();
+  });
+});
+
+describe('courier form', () => {
+  const zr = [
+    { name: 'token', secret: true },
+    { name: 'key', secret: true },
+  ];
+  const eco = [
+    { name: 'baseUrl', secret: false, url: true },
+    { name: 'token', secret: true },
+  ];
+  it('every field is required on creation', () => {
+    expect(credentialErrors(zr, {}, false)).toEqual({ token: 'validation.required', key: 'validation.required' });
+    expect(credentialErrors(zr, { token: 'a', key: 'b' }, false)).toEqual({});
+  });
+  it('on edit, empty fields keep the stored credentials; a partial set is refused', () => {
+    expect(credentialErrors(zr, {}, true)).toEqual({});
+    expect(credentialErrors(zr, { token: 'new' }, true)).toEqual({ key: 'validation.required' });
+  });
+  it('EcoTrack instance must be an https URL', () => {
+    expect(credentialErrors(eco, { baseUrl: 'http://x.ecotrack.dz', token: 't' }, false)).toEqual({ baseUrl: 'validation.url' });
+    expect(credentialErrors(eco, { baseUrl: 'https://maystro.ecotrack.dz', token: 't' }, false)).toEqual({});
+    expect(isHttpsUrl('nope')).toBe(false);
+  });
+});
+
+describe('send dialog helpers', () => {
+  it('maps courier / validation fields onto the dialog fields', () => {
+    expect(courierErrorField('commune')).toBe('commune');
+    expect(courierErrorField('communeId')).toBe('commune');
+    expect(courierErrorField('stopdeskId')).toBe('stopdesk');
+    expect(courierErrorField('weightKg')).toBe('weight');
+    expect(courierErrorField('other')).toBeNull();
+    expect(courierErrorField(undefined)).toBeNull();
+  });
+  it('weight accepts a comma or a dot', () => {
+    expect(parseWeight('0,8')).toBe(0.8);
+    expect(parseWeight('1.25')).toBe(1.25);
+    expect(parseWeight('')).toBeUndefined();
+    expect(Number.isNaN(parseWeight('abc') as number)).toBe(true);
+  });
+  it('average delay label', () => {
+    expect(daysLabel(3.84, 'j', 'fr')).toBe('3,8 j');
+    expect(daysLabel(4.9, 'd', 'en')).toBe('4.9 d');
+    expect(daysLabel(null, 'j', 'fr')).toBeNull();
+  });
+  it('bulk send result rows', () => {
+    expect(bulkRowState({ ok: true, data: { shipmentId: 's', status: 'sent', trackingNumber: 'ZR-1' } })).toBe('ok');
+    expect(bulkRowState({ ok: true, data: { shipmentId: 's', status: 'pending', trackingNumber: null } })).toBe('queued');
+    expect(bulkRowState({ ok: false, error: { code: 'DELIVERY_ORDER_ALREADY_SENT', message: '' } })).toBe('ignored');
+    expect(bulkRowState({ ok: false, error: { code: 'COURIER_UNAVAILABLE', message: '' } })).toBe('queued');
+    expect(bulkRowState({ ok: false, error: { code: 'COURIER_VALIDATION', message: '' } })).toBe('failed');
+  });
+});
+
+describe('/delivery URL state', () => {
+  it('no tab = Échecs; unknown tab = Échecs', () => {
+    expect(currentTab(parseListState(DELIVERY_LIST, params('')))).toBe('failed');
+    expect(currentTab(parseListState(DELIVERY_LIST, params('tab=to_send')))).toBe('to_send');
+    expect(currentTab(parseListState(DELIVERY_LIST, params('tab=nope')))).toBe('failed');
+  });
+  it('the tab preset is merged into the panel filters (same keys of the shared DELIVERY_TABS)', () => {
+    expect(shipmentsQuery({ q: 'amina', provider: ['zrexpress'] }, 'no_movement')).toEqual({ q: 'amina', provider: ['zrexpress'], lastEvent: 'gt5d_stale' });
+    expect(shipmentsQuery({ shipmentStatus: ['delivered'] }, 'failed')).toEqual({ shipmentStatus: ['failed'] });
+    expect(shipmentsQuery({ shipmentStatus: ['delivered'] }, 'all')).toEqual({ shipmentStatus: ['delivered'] });
+    expect(TAB_PRESETS.to_send).toEqual({ shipmentStatus: ['not_sent'] });
+  });
+  it('drops malformed enum filters', () => {
+    expect(shipmentsQuery({ deliveryType: 'boat', lastEvent: 'soon' }, 'all')).toEqual({});
+  });
+  it('chips: one per value, the tab is never a chip', () => {
+    const s = parseListState(DELIVERY_LIST, params('tab=in_transit&q=0555&provider=zrexpress,ecotrack&failureReason=address&deliveryType=stopdesk&from=2026-10-01'));
+    const chips = deliveryChips(s, {
+      search: (q) => `« ${q} »`,
+      status: {},
+      provider: { zrexpress: 'ZR', ecotrack: 'ECO' },
+      courier: () => '',
+      deliveryType: { home: 'Domicile', stopdesk: 'Stop-desk' },
+      wilaya: (n) => n,
+      wilayaName: (id) => id,
+      orderStatus: {},
+      lastEvent: {},
+      failureReason: { address: 'ADRESSE' },
+      lastError: (c) => c,
+      range: (f, t) => `${f}→${t}`,
+      ids: (n) => `${n}`,
+    });
+    expect(chips.map((c) => c.label)).toEqual(['« 0555 »', 'ZR', 'ECO', 'Stop-desk', 'ADRESSE', '2026-10-01→']);
+    expect(panelFilterCount(s)).toBe(5);
+  });
+});

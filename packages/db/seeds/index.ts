@@ -294,6 +294,21 @@ async function feeGrids() {
   return written;
 }
 
+/**
+ * DLV-09 / M6: `CourierCommuneMap` per provider — the commune name each courier API expects (`Commune` / `commune` /
+ * `to_commune_name`, 05-integrations §2.2–§2.4 all take the French commune name of the official list). Stop-desk ids
+ * are filled at runtime from `listStopdesks` (`CourierStopdesk`). Idempotent (unique `[provider, communeId]`).
+ */
+async function courierCommuneMaps() {
+  const communes = await db.commune.findMany({ select: { id: true, nameFr: true } });
+  let written = 0;
+  for (const provider of ['zrexpress', 'ecotrack', 'yalidine'] as const) {
+    const data = communes.map((c) => ({ provider, communeId: c.id, externalCode: c.nameFr }));
+    for (let i = 0; i < data.length; i += 1000) written += (await db.courierCommuneMap.createMany({ data: data.slice(i, i + 1000), skipDuplicates: true })).count;
+  }
+  return written;
+}
+
 async function main() {
   loadEnv();
   const g = await geo();
@@ -305,8 +320,9 @@ async function main() {
   await platform(a.id);
   const lg = await legal(a.id);
   const fees = await feeGrids();
+  const maps = await courierCommuneMaps();
    
-  console.log(`seeded: ${g.wilayas} wilayas, ${g.communes} communes, ${u} units, ${p.plans} plans, ${p.packs} packs, ${pr} presets, ${ai.models} AI models, ${ai.routes} AI routes, ${lg} legal documents, ${fees} fee rows, admin + app versions + settings`);
+  console.log(`seeded: ${g.wilayas} wilayas, ${g.communes} communes, ${u} units, ${p.plans} plans, ${p.packs} packs, ${pr} presets, ${ai.models} AI models, ${ai.routes} AI routes, ${lg} legal documents, ${fees} fee rows, ${maps} courier commune maps, admin + app versions + settings`);
 }
 
 main()

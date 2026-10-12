@@ -22,7 +22,9 @@ import { refusal } from '../dialogs/common';
 import { algiersTime, isReadOnly, shortName, unansweredCalls } from '../logic';
 import { OrderStatusPill } from '../ui';
 import { useOrderActions } from '../use-order-actions';
-import { CallsBlock, ClientBlock, contactOf, DeliveryBlock, HistoryBlock, ItemsBlock, itemsOf, NotesBlock, PaymentBlock, type ContactDraft, type ItemsDraft } from './blocks';
+import { OrderDeliveryBlock } from '@/features/delivery/order-block';
+import { useParcelActions } from '@/features/delivery/use-parcel-actions';
+import { CallsBlock, ClientBlock, contactOf, HistoryBlock, ItemsBlock, itemsOf, NotesBlock, PaymentBlock, type ContactDraft, type ItemsDraft } from './blocks';
 
 function PageSkeleton() {
   const t = useT();
@@ -48,6 +50,7 @@ export function OrderPage({ id }: { id: string }) {
   const q = useOrder(id);
   const refresh = useOrdersRefresh();
   const actions = useOrderActions({ onDeleted: () => router.push('/orders') });
+  const parcels = useParcelActions();
   const [contact, setContact] = useState<ContactDraft | null>(null);
   const [items, setItems] = useState<ItemsDraft | null>(null);
   const [saving, setSaving] = useState<'contact' | 'items' | null>(null);
@@ -185,7 +188,7 @@ export function OrderPage({ id }: { id: string }) {
             error={error?.part === 'items' ? error.message : null}
           />
           <div className="grid gap-5 md:grid-cols-2">
-            <DeliveryBlock order={order} onSend={() => actions.run('send', order)} onShip={() => actions.run('ship', order)} />
+            <OrderDeliveryBlock order={order} onSend={() => actions.run('send', order)} onShip={() => actions.run('ship', order)} parcels={parcels} />
             <PaymentBlock order={order} onRecord={() => actions.run('payment', order)} onLink={() => toast({ tone: 'info', message: t('orders.paymentLink.p2') })} />
           </div>
         </div>
@@ -211,6 +214,7 @@ export function OrderPage({ id }: { id: string }) {
       </div>
 
       {actions.element}
+      {parcels.element}
       {guard}
       <ConflictDialog
         open={!!conflict}

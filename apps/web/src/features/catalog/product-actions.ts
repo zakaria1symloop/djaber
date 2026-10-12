@@ -1,7 +1,7 @@
 // The `Actions ⌄` menu of a product (list row, services row, product page) — Figma "CAT-08 — Products — bulk bar +
 // row actions menu". Business actions come from the server descriptors (`open`, `edit`, `duplicate`, `adjust_stock`,
 // `deactivate` / `activate`, `archive`, `restore`, `delete`); navigation items (quick edit, variants, movements,
-// Messenger card, "Ajouter à un agent", "Commandes de ce produit" since M5) are added by the screen. Recommendations
+// Messenger card, "Ajouter à un agent", "Commandes de ce produit" since M5, "Étiquettes" since M6) are added by the screen. Recommendations
 // of this product belong to M7 and are not offered yet.
 import type { MenuAction } from '@djaber/ui';
 import { toMenuActions, type ActionHandler } from '@/lib/actions';
@@ -21,6 +21,7 @@ export type ProductActionHandlers = {
   addToAgent?: () => void;
   toggleActive?: () => void;
   exportOne?: () => void;
+  labels?: () => void;
   archive?: () => void;
   restore?: () => void;
   remove?: () => void;
@@ -46,6 +47,7 @@ export function productMenuActions(
     card_preview: item(h.cardPreview, { label: t('products.action.cardPreview'), hint: t('products.action.cardPreview.hint'), local: true, hidden: !live }),
     add_to_agent: item(h.addToAgent, { label: t('action.addToAgent'), hint: t('products.action.dialog'), local: true, hidden: !live || !o.canWrite }),
     export: item(h.exportOne, { label: t('action.export'), local: true, hidden: !o.canWrite }),
+    labels: item(h.labels, { label: t('products.action.labels'), hint: t('products.action.labels.hint'), local: true, hidden: !live }),
     deactivate: item(h.toggleActive, { label: t('action.disable') }),
     activate: item(h.toggleActive, { label: t('action.enable') }),
     archive: item(h.archive, { label: t('action.archive'), hint: t('products.action.confirm'), destructive: true, separated: true }),

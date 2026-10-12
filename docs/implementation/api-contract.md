@@ -116,7 +116,7 @@ Status codes: 400 malformed · 401 unauthenticated · 402 `INSUFFICIENT_CREDITS`
 | Playground | 60 turns / h / workspace | `PLAYGROUND_RATE_LIMITED` |
 | Page analysis / agent generation | 3 / day / workspace (generation 1 / page / 24 h) | `ANALYSIS_RATE_LIMITED` |
 | Channel info sync | 1 / 10 min / channel | `RATE_LIMITED` |
-| Shipment sync | 1 / 5 min / shipment | `RATE_LIMITED` |
+| Shipment sync | 1 / 5 min / shipment | `TRACKING_SYNC_RATE_LIMITED {retryAfter}` |
 | Stock recommendations regenerate | 1 / 10 min / workspace | `RECO_RATE_LIMITED` |
 | Invitation resend | 60 s cooldown | `RATE_LIMITED` |
 
@@ -358,6 +358,17 @@ type FeeRuleDto = { wilayaId: number; code: string; nameFr: string; nameAr: stri
 type FeeQuoteDto = { fee: Money; base: Money; free: boolean; reason: string; courierCost: Money | null; wilayaServed: boolean };
 ```
 
+**M6 additions** (zod schemas and view types in `packages/shared/src/schemas/delivery.ts`; names there are the wire names):
+
+- `ShipmentDto` also carries `error: { code, field, message } | null` (courier validation field), `lastEventAt`, `noMovement` ("Sans mouvement"), `returnPending` (courier return not yet confirmed), `labelSource: 'courier'|'djaber'`; `labelUrl` is always null (labels through `GET /shipments/:id/label`); `actions` = `sync, label, retry, retry_delivery, change_courier, cancel, mark_failed, mark_delivered, mark_returned, open_order, call_client`.
+- `CourierAccountDto` also carries `credentialHints` (masked `••••3f9a`, EcoTrack `baseUrl` in clear), `webhookUrl`, `webhookSecretSet`, `createdAt`, `updatedAt`, `actions`; `capabilities` adds `webhook`, `batchTrack`. `GET /delivery/couriers/providers` → `CourierProviderView[]` (per-provider fields, `labelSource`; `manual` = "Livraison propre", `account: false`). Create body = discriminated union on `provider` (`credentials` = `{ token, key }` | `{ baseUrl, token }` | `{ apiId, apiToken }`, + `displayName?`, `isDefault?`, `isActive?`, `sender?`, `webhookSecret?`); `POST /delivery/couriers/:id/test` → `CourierTestResultView` (200 also when the test fails: `ok:false`, `error: COURIER_CREDENTIALS_INVALID|COURIER_UNAVAILABLE`).
+- `POST /orders/:id/shipments` → **202** `{ data: ShipmentDto }` (`pending`); body adds `note?`. `POST /shipments/bulk { orderIds, courierAccountId?, weightKg? }` → 202 `{ data: { jobId } }`, `Job.result = { results: BulkSendRowResult[], ok, failed, queued }`. `POST /shipments/bulk/sync { ids }` → 202 job; `POST /shipments/bulk/ship-manual { ids }` (order ids) → bulk results.
+- `POST /shipments/:id/cancel { then: confirmed|cancelled, reason?, note? }` → 200 (not created yet / manual) or 202 (courier asked by the worker); `retry`, `retry-delivery`, `change-courier`, `sync` → 202 `{ data: ShipmentDto }`; `mark-failed { reason, note? }`, `mark-delivered { amountCollected?, reason?, deliveredAt?, notifyCustomer? }`, `mark-returned { reason?, restoreStock, returnFee?, note? }` → 200.
+- `GET /shipments/:id/label?format=a6|thermal|a5&source=auto|djaber` → `{ url, fileName, size, source, format, expiresAt }` (+ `meta.warnings: LABEL_UNAVAILABLE` for couriers without labels); `POST /shipments/labels { orderIds?|shipmentIds?, format, markPrinted }` → 202 job (`LabelsJobResult`: `count, pages, skipped[{ id, code: SHIPMENT_NOT_CREATED|NOT_FOUND }], courierLabels, djaberLabels`); `POST /products/bulk/labels { ids, copies?, withPrice?, includeVariants? }` → 202 job.
+- `GET /shipments` (`ShipmentsQuery` + `courierAccountId`, `ids`; sort `lastSyncedAt|createdAt|orderNumber`) → `DeliveryRowView[]` (one row per order with its latest parcel); tabs = `DELIVERY_TABS` presets. `GET /delivery/overview` → `{ kpis: DeliveryOverviewDto, tabs, failures[], stale[], couriers: { active, defaultId } }`.
+- `GET /delivery/rates?courierAccountId&wilayaId?&stopdesk?` → `{ courierAccountId, provider, rates[{ wilayaId, homePrice, stopdeskPrice, price, fetchedAt }], fetchedAt, stale, refreshing, supported }`; `POST /delivery/fees/copy-from-courier { courierAccountId, wilayaIds?, dryRun? }` → `{ rows[{ wilayaId, nameFr, before, after, changed }], missing, written, dryRun, refreshing }`.
+- `PATCH /workspace` accepts `autoSendToCourier` (D9). WS `courier.updated { id, reason }` (account created / updated / deleted / rates).
+
 ### 3.9 GDS (suppliers, purchases, sales, cash)
 
 ```ts
@@ -430,7 +441,7 @@ type AppVersionCheckDto = { minVersion: string; recommendedVersion: string; late
 type StatusPageDto = { overall: 'operational'|'degraded'|'incident'; components: { key: string; name: string; status: 'operational'|'degraded'|'incident'; uptime90d: number }[]; incidents: { id: string; title: string; status: string; severity: string; startedAt: string; resolvedAt: string | null; updates: { at: string; status: string; body: string }[] }[]; banner: string | null; updatedAt: string };
 type CmsEntryDto = { key: string; type: CmsType; locale: Locale; requestedLocale: Locale; fallback: boolean; title: string; body: string; version: number; publishedAt: string; versions: { version: number; publishedAt: string }[] };   // GET /cms/:key?lang= · GET /legal/:key · GET /help/articles/:key (public, published locales only)
 type DataDeletionStatusDto = { code: string; status: 'pending'|'done'|'not_found'; requestedAt: string | null; completedAt: string | null };
-type TrackingPublicDto = { orderNumber: string; shopName: string; status: ShipmentStatus; events: { at: string; label: string; location: string | null }[]; courier: string; trackingNumber: string | null; reportUrl: string };
+type TrackingPublicDto = { orderNumber: string; shopName: string; status: ShipmentStatus; statusLabel: string; events: { at: string; status: ShipmentStatus; label: string; location: string | null }[]; courier: string; trackingNumber: string | null; wilayaName: string | null; isStopdesk: boolean; updatedAt: string; reportUrl: string };   // GET /track/:publicToken · POST /track/:publicToken/report { reason, details?, email? } (3 / h / IP)
 ```
 
 ---

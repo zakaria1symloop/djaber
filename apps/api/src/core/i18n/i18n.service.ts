@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ERROR_MESSAGES, formatMessage, isAppLocale, type AppLocale } from '@djaber/shared';
+import { ERROR_MESSAGES, formatMessage, getMessages, isAppLocale, type AppLocale } from '@djaber/shared';
 
 /** Server-side messages: error catalogue (11) + a few server-rendered strings. UI copy lives in the web app. */
 @Injectable()
@@ -12,7 +12,9 @@ export class I18nService {
       const template = ERROR_MESSAGES[l][code] ?? ERROR_MESSAGES.fr[code] ?? code;
       return formatMessage(template, params);
     }
-    return formatMessage(key, params);
+    // copy-deck keys (`enum.Shipment.status.sent`, …) resolve from the shared messages; anything else is a literal template
+    const deck = getMessages(l)[key] ?? getMessages('fr')[key];
+    return formatMessage(deck ?? key, params);
   }
 
   /** Picks the value of a localized JSON column `{ fr, ar, en }`. */

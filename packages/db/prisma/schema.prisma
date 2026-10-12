@@ -3091,6 +3091,7 @@ model CourierAccount {
   lastTestedAt       DateTime?
   lastTestOk         Boolean?
   lastTestLatencyMs  Int?
+  lastTestError      String?         // COURIER_CREDENTIALS_INVALID | COURIER_UNAVAILABLE of the last failed test
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
@@ -3137,6 +3138,7 @@ model Shipment {
   failureReason       FailureReason?
   deliveryAttempts    Int              @default(0)
   rawStatus           String?
+  lastEventAt         DateTime?        // last courier / manual event (creation until then) — "Sans mouvement", stale at 30 d
   lastSyncedAt        DateTime?
   nextSyncAt          DateTime?
   attempts            Int              @default(0)
@@ -3153,6 +3155,7 @@ model Shipment {
   // PARTIAL UNIQUE: (orderId) WHERE status NOT IN ('cancelled','failed','returned','stale')
   @@index([workspaceId, status, lastSyncedAt])
   @@index([nextSyncAt])
+  @@index([workspaceId, lastEventAt])
   @@index([trackingNumber])
 }
 

@@ -17,7 +17,9 @@ test.beforeAll(async ({ request }) => {
 
 test('AT-DLV-09 · 58 rows, inline edit saved on blur, fill missing keeps custom, reset all after confirm', async ({ page, request }) => {
   await loginHome(page, owner);
+  // since M6 `/delivery` is the overview (DLV-08); the grid is its "Grille des frais" tab
   await page.goto('/fr/delivery');
+  await page.locator('nav [data-tab="fees"]').click();
   await expectUrl(page, '**/fr/delivery/fees');
   await expect(page.getByRole('heading', { name: 'Tarifs & transporteurs', level: 1 })).toBeVisible();
   const grid = page.getByTestId('fee-grid');
@@ -104,13 +106,15 @@ test('AT-UX-03 · Operator: grid read-only with the reason, API refuses', async 
   expect(res.status()).toBe(403);
 });
 
-test('DeliveryTabs: overview and couriers are not open yet (disabled with a reason)', async ({ page }) => {
+test('DeliveryTabs: overview · fee grid · couriers (open since M6)', async ({ page }) => {
   await loginHome(page, owner);
   await page.goto('/fr/delivery/fees');
   const tabs = page.getByRole('navigation', { name: 'Livraison' });
   await expect(tabs.getByRole('link', { name: 'Grille des frais' })).toHaveAttribute('aria-current', 'page');
-  await expect(tabs.getByRole('button', { name: "Vue d'ensemble" })).toHaveAttribute('aria-disabled', 'true');
-  await expect(tabs.getByRole('button', { name: 'Transporteurs' })).toHaveAttribute('aria-disabled', 'true');
+  await tabs.getByRole('link', { name: 'Transporteurs' }).click();
+  await expectUrl(page, '**/fr/delivery/couriers');
+  await tabs.getByRole('link', { name: "Vue d'ensemble" }).click();
+  await expectUrl(page, '**/fr/delivery');
 });
 
 test('a11y · /delivery/fees default state', async ({ page }) => {

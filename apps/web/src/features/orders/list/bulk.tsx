@@ -14,6 +14,10 @@ import { ordersApi, useOrdersRefresh } from '../api';
 import { CANCEL_REASONS, type BulkResponse, type CancelReason, type OrderListItem, type OrderStatus } from '../contracts';
 import { refusal, RadioList, useOnOpen } from '../dialogs/common';
 import { AssignDialog } from '../dialogs/order-dialogs';
+import { BulkSendDialog } from '@/features/delivery/bulk-send';
+import { PrintLabelsDialog } from '@/features/delivery/labels';
+import { actionState } from '@/lib/actions';
+import { ORDER_ACTION } from '../action-keys';
 import { mergeRetry } from '../logic';
 
 type Outcome = { title: string; response: BulkResponse; retry?: (ids: string[]) => Promise<BulkResponse> };
@@ -249,7 +253,7 @@ export function OrdersBulkBar({
   const t = useT();
   const { can } = useSession();
   const refresh = useOrdersRefresh();
-  const [dialog, setDialog] = useState<'assign' | 'print' | 'cancel' | null>(null);
+  const [dialog, setDialog] = useState<'assign' | 'print' | 'cancel' | 'send' | 'labels' | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const ids = useMemo(() => [...selected], [selected]);
@@ -279,11 +283,19 @@ export function OrdersBulkBar({
       setBusy(null);
     }
   };
+  const chosen = rows.filter((r) => selected.has(r.id));
+  const sendTargets = chosen.map((r) => {
+    const a = actionState(r.actions, ORDER_ACTION.sendToCourier, t);
+    return { id: r.id, number: r.number, label: `#${r.number} · ${r.client.name}`, blocked: a.present && a.enabled ? null : (a.reason ?? `${t('error.DELIVERY_ORDER_NOT_CONFIRMED')} (DELIVERY_ORDER_NOT_CONFIRMED)`) };
+  });
+  const sendForbidden = !can('delivery.send') ? t('toast.forbidden') : offline ? t('banner.offline') : undefined;
   const actions: BulkAction[] = [
     { key: 'confirm', label: busy === 'confirmed' ? t('common.saving') : t('action.confirm'), onSelect: () => void status('confirmed', t('orders.bulk.title', { action: t('action.confirm'), count: ids.length })), disabledReason: forbidden ?? (busy ? t('common.saving') : undefined) },
     { key: 'prepare', label: t('action.prepare'), onSelect: () => void status('preparing', t('orders.bulk.title', { action: t('action.prepare'), count: ids.length })), disabledReason: forbidden ?? (busy ? t('common.saving') : undefined) },
     { key: 'ship', label: t('orders.bulk.ship'), onSelect: () => void status('shipped', t('orders.bulk.title', { action: t('orders.bulk.ship'), count: ids.length })), disabledReason: forbidden ?? (busy ? t('common.saving') : undefined) },
     { key: 'assign', label: t('action.assign'), onSelect: () => setDialog('assign'), disabledReason: forbidden },
+    { key: 'send', label: t('action.sendToCourier'), onSelect: () => setDialog('send'), disabledReason: sendForbidden ?? (sendTargets.length && sendTargets.every((x) => x.blocked) ? t('delivery.bulk.noneSendable') : undefined) },
+    { key: 'labels', label: t('action.labels'), onSelect: () => setDialog('labels'), disabledReason: sendForbidden },
     { key: 'print', label: t('action.print'), onSelect: () => setDialog('print'), disabledReason: forbidden },
     ...(can('orders.money') ? [{ key: 'export', label: t('action.export'), onSelect: onExport, disabledReason: offline ? t('banner.offline') : undefined }] : []),
     { key: 'cancel', label: t('action.cancel'), onSelect: () => setDialog('cancel'), destructive: true, disabledReason: forbidden },
@@ -310,6 +322,12 @@ export function OrdersBulkBar({
         }}
       />
       <PrintOrdersDialog open={dialog === 'print'} ids={ids} onClose={() => setDialog(null)} />
+      <BulkSendDialog open={dialog === 'send'} orders={sendTargets} onClose={() => setDialog(null)} onFinished={() => (onClear(), void refresh())} />
+      <PrintLabelsDialog
+        open={dialog === 'labels'}
+        orders={chosen.map((r) => ({ id: r.id, label: `#${r.number} · ${r.client.name}`, sent: !!r.shipment?.trackingNumber && r.shipment.status !== 'cancelled' }))}
+        onClose={() => setDialog(null)}
+      />
       <BulkCancelDialog
         open={dialog === 'cancel'}
         count={ids.length}

@@ -1,10 +1,10 @@
 'use client';
 // Order dialogs of the catalogues "DLG — Orders & delivery" and "DLG — Orders, delivery & clients II":
 // Programmer un rappel · Annuler la commande · Changer le statut · Marquer livrée manuellement · Marquer retournée ·
-// Supprimer la commande (typed number) · Enregistrer un paiement · Assigner (one or many) · Marquer expédiée (manuel) ·
-// Envoyer au transporteur. Server errors render inline in the open dialog; the content is preserved.
-import { formatMoney, formatPhoneDz } from '@djaber/shared';
-import { Checkbox, Dialog, Field, FormAlert, Input, Ltr, MoneyInput, Pill, Select, Textarea, toast } from '@djaber/ui';
+// Supprimer la commande (typed number) · Enregistrer un paiement · Assigner (one or many) · Marquer expédiée (manuel).
+// "Envoyer au transporteur" (DLV-05) lives in `features/delivery/send-dialog.tsx`. Server errors render inline in the open dialog; the content is preserved.
+import { formatMoney } from '@djaber/shared';
+import { Checkbox, Dialog, Field, FormAlert, Input, MoneyInput, Pill, Select, Textarea, toast } from '@djaber/ui';
 import { useState } from 'react';
 import { ConflictDialog } from '@/components/global-states';
 import { useMembers } from '@/features/workspace/api';
@@ -12,8 +12,9 @@ import { digitsToInt, moneyDigits } from '@/lib/money';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { relativeTime } from '@/lib/time';
 import { useSession } from '@/lib/session';
+import { deliveryApi } from '@/features/delivery/api';
 import { ordersApi } from '../api';
-import { CANCEL_REASONS, FAILURE_REASONS, ORDER_BACKDATE_MAX_DAYS, PAYMENT_METHODS, type BulkResponse, type CancelReason, type FailureReason, type OrderStatus, type PaymentMethod } from '../contracts';
+import { CANCEL_REASONS, FAILURE_REASONS, ORDER_BACKDATE_MAX_DAYS, PAYMENT_METHODS, type BulkResponse, type CancelReason, type FailureReason, type Order, type OrderStatus, type PaymentMethod } from '../contracts';
 import { effectiveDateError, isoToLocalInput, localInputToIso, paymentError } from '../logic';
 import { DialogFooter, orderContext, RadioList, useDialogSubmit, useOnOpen, type DialogBaseProps } from './common';
 import { CallbackPicker } from './outcome';
@@ -166,20 +167,26 @@ export function CancelOrderDialog({ order, open, onClose, onDone }: Props) {
   );
 }
 
-/* ---------- Changer le statut (targets of 04 §1.2, effective date ≤ 7 d) ---------- */
+/* ---------- Changer le statut (targets of 04 §1.2, effective date ≤ 7 d) + "Échec de livraison" (parcel, 12 §20) ---------- */
+type StatusTarget = OrderStatus | 'delivery_failed';
 export function ChangeStatusDialog({ order, open, onClose, onDone, targets, onReload }: Props & { targets: OrderStatus[]; onReload: () => void }) {
   const t = useT();
-  const [to, setTo] = useState<OrderStatus | null>(null);
+  // "Échec de livraison": `POST /shipments/:id/mark-failed` on the active parcel when its descriptor allows it
+  const parcel = order.shipments.find((x) => x.actions.some((a) => a.key === 'mark_failed' && a.enabled)) ?? null;
+  const all: StatusTarget[] = parcel ? [...targets, 'delivery_failed'] : targets;
+  const [to, setTo] = useState<StatusTarget | null>(null);
   const [when, setWhen] = useState('');
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
+  const [failure, setFailure] = useState<FailureReason | null>(null);
   const [restock, setRestock] = useState(true);
   const [touched, setTouched] = useState(false);
   useOnOpen(open, () => {
-    setTo(targets[0] ?? null);
+    setTo(all[0] ?? null);
     setWhen('');
     setAmount(moneyDigits(order.total));
     setReason('');
+    setFailure(null);
     setRestock(true);
     setTouched(false);
   });
@@ -187,27 +194,34 @@ export function ChangeStatusDialog({ order, open, onClose, onDone, targets, onRe
   const dateErr = effectiveDateError(effectiveAt, new Date(), ORDER_BACKDATE_MAX_DAYS);
   const collected = digitsToInt(amount);
   const needsReason = to === 'delivered' && collected !== null && collected !== order.total;
-  const s = useDialogSubmit((key) =>
-    ordersApi.status(
-      order.id,
-      {
-        to: to!,
-        effectiveAt: effectiveAt ?? undefined,
-        amountCollected: to === 'delivered' ? (collected ?? order.total) : undefined,
-        note: needsReason || (to === 'returned' && reason.trim()) ? reason.trim() : undefined,
-        restoreStock: to === 'returned' ? restock : undefined,
-        version: order.version,
-      },
-      key,
-    ),
+  const s = useDialogSubmit<unknown>((key) =>
+    to === 'delivery_failed'
+      ? deliveryApi.markFailed(parcel!.id, { reason: failure!, note: reason.trim() || null })
+      : ordersApi.status(
+          order.id,
+          {
+            to: to as OrderStatus,
+            effectiveAt: effectiveAt ?? undefined,
+            amountCollected: to === 'delivered' ? (collected ?? order.total) : undefined,
+            note: needsReason || (to === 'returned' && reason.trim()) ? reason.trim() : undefined,
+            restoreStock: to === 'returned' ? restock : undefined,
+            version: order.version,
+          },
+          key,
+        ),
   );
   const submit = async () => {
     setTouched(true);
-    if (!to || dateErr || (needsReason && !reason.trim())) return;
+    if (!to || dateErr || (needsReason && !reason.trim()) || (to === 'delivery_failed' && !failure)) return;
     const r = await s.submit();
     if (r === undefined) return;
-    toast(t('orders.status.done', { number: order.number, status: t(`enum.Order.status.${to}`) }));
-    await onDone(r);
+    if (to === 'delivery_failed') {
+      toast(t('parcel.failed.done', { number: order.number }));
+      await onDone();
+    } else {
+      toast(t('orders.status.done', { number: order.number, status: t(`enum.Order.status.${to}`) }));
+      await onDone(r as Order);
+    }
     onClose();
   };
   const describe = (s: OrderStatus): string => (t.has(`orders.status.target.${order.status}.${s}`) ? t(`orders.status.target.${order.status}.${s}`) : t(`orders.status.target.${s}`));
@@ -219,19 +233,28 @@ export function ChangeStatusDialog({ order, open, onClose, onDone, targets, onRe
       description={`#${order.number} · ${t(`enum.Order.status.${order.status}`)} → ?`}
       closeLabel={t('action.close')}
       size="md"
-      footer={<DialogFooter onClose={onClose} busy={s.busy} onSubmit={() => void submit()} label={t('action.apply')} disabled={!targets.length} note={t('orders.status.rule')} />}
+      footer={<DialogFooter onClose={onClose} busy={s.busy} onSubmit={() => void submit()} label={t('action.apply')} disabled={!all.length} note={t('orders.status.rule')} />}
     >
       <div className="flex flex-col gap-4" data-testid="status-dialog">
-        {targets.length ? (
-          <RadioList<OrderStatus>
+        {all.length ? (
+          <RadioList<StatusTarget>
             label={t('dialog.changeStatus.title')}
             value={to}
             onChange={setTo}
-            options={targets.map((v) => ({ value: v, label: order.status === 'shipped' && v === 'confirmed' ? t('orders.status.backToConfirmed') : t(`orders.status.label.${v}`), description: describe(v) }))}
+            options={all.map((v) =>
+              v === 'delivery_failed'
+                ? { value: v, label: t('parcel.failed.title'), description: t('parcel.failed.note') }
+                : { value: v, label: order.status === 'shipped' && v === 'confirmed' ? t('orders.status.backToConfirmed') : t(`orders.status.label.${v}`), description: describe(v) },
+            )}
           />
         ) : (
           <FormAlert tone="info">{t('orders.status.none')}</FormAlert>
         )}
+        {to === 'delivery_failed' ? (
+          <Field label={t('orders.return.reason')} error={touched && !failure ? t('validation.required') : s.fieldError('reason')}>
+            <RadioList<FailureReason> label={t('orders.return.reason')} value={failure} onChange={setFailure} options={FAILURE_REASONS.map((r) => ({ value: r, label: t(`orders.return.reason.${r}`) }))} />
+          </Field>
+        ) : null}
         {to === 'delivered' ? (
           <Field label={t('orders.deliver.amount')} htmlFor="st-amount" hint={t('orders.deliver.amountHint')}>
             <MoneyInput id="st-amount" value={amount} onValueChange={setAmount} />
@@ -243,17 +266,19 @@ export function ChangeStatusDialog({ order, open, onClose, onDone, targets, onRe
             {t('orders.return.restock', { count: order.itemCount })}
           </label>
         ) : null}
-        {needsReason || to === 'returned' ? (
+        {needsReason || to === 'returned' || to === 'delivery_failed' ? (
           <Field label={needsReason ? t('orders.deliver.reason') : t('common.noteOptional')} htmlFor="st-reason" error={touched && needsReason && !reason.trim() ? t('validation.required') : s.fieldError('note')}>
             <Input id="st-reason" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} />
           </Field>
         ) : null}
-        <Field label={t('orders.status.effectiveAt')} htmlFor="st-when" hint={t('orders.status.effectiveHint', { days: ORDER_BACKDATE_MAX_DAYS })} error={touched && dateErr ? t('orders.status.effectiveError', { days: ORDER_BACKDATE_MAX_DAYS }) : s.fieldError('effectiveAt')}>
-          <Input id="st-when" type="datetime-local" value={when} max={isoToLocalInput(new Date())} onChange={(e) => setWhen(e.target.value)} className="[color-scheme:dark]" placeholder={t('common.today')} />
-        </Field>
+        {to === 'delivery_failed' ? null : (
+          <Field label={t('orders.status.effectiveAt')} htmlFor="st-when" hint={t('orders.status.effectiveHint', { days: ORDER_BACKDATE_MAX_DAYS })} error={touched && dateErr ? t('orders.status.effectiveError', { days: ORDER_BACKDATE_MAX_DAYS }) : s.fieldError('effectiveAt')}>
+            <Input id="st-when" type="datetime-local" value={when} max={isoToLocalInput(new Date())} onChange={(e) => setWhen(e.target.value)} className="[color-scheme:dark]" placeholder={t('common.today')} />
+          </Field>
+        )}
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}
       </div>
-      <VersionConflict s={s as ReturnType<typeof useDialogSubmit<unknown>>} onReload={onReload} />
+      <VersionConflict s={s} onReload={onReload} />
     </Dialog>
   );
 }
@@ -564,46 +589,6 @@ export function ShipManualDialog({ order, open, onClose, onDone }: Props) {
         <Field label={t('orders.ship.tracking')} htmlFor="ship-tracking" hint={t('orders.ship.hint')}>
           <Input id="ship-tracking" value={tracking} maxLength={80} onChange={(e) => setTracking(e.target.value)} dir="ltr" />
         </Field>
-        {s.error ? <FormAlert>{s.error}</FormAlert> : null}
-      </div>
-    </Dialog>
-  );
-}
-
-/* ---------- Envoyer au transporteur (from the order address; couriers arrive with M6) ---------- */
-export function SendToCourierDialog({ order, open, onClose, onDone }: Props) {
-  const t = useT();
-  const s = useDialogSubmit((key) => {
-    const a = order.address!;
-    return ordersApi.createShipment(order.id, { wilayaId: a.wilayaId, communeId: a.communeId, communeText: a.communeText, address: a.address, isStopdesk: a.isStopdesk, stopdeskId: a.stopdeskId }, key);
-  });
-  const submit = async () => {
-    if (!order.address) return;
-    const r = await s.submit();
-    if (r === undefined) return;
-    toast(t('orders.send.done', { number: order.number }));
-    await onDone();
-    onClose();
-  };
-  const a = order.address;
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => !o && !s.busy && onClose()}
-      title={t('action.sendToCourier')}
-      description={orderContext(t, order)}
-      closeLabel={t('action.close')}
-      size="md"
-      footer={<DialogFooter onClose={onClose} busy={s.busy} onSubmit={() => void submit()} label={t('action.send')} disabled={!a} />}
-    >
-      <div className="flex flex-col gap-2 text-[13px]" data-testid="send-dialog">
-        <div>
-          {order.clientName} · <Ltr>{formatPhoneDz(order.clientPhone)}</Ltr>
-        </div>
-        <div className="text-text-secondary">{a ? [a.wilayaName, a.communeText, a.isStopdesk ? (a.stopdeskName ?? t('common.stopdesk')) : a.address].filter(Boolean).join(' · ') : t('orders.confirm.noAddress')}</div>
-        <div>
-          {t('orders.send.cod')} <Ltr className="font-medium">{formatMoney(order.remaining)}</Ltr>
-        </div>
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}
       </div>
     </Dialog>

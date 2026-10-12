@@ -59,10 +59,10 @@ export function CommuneCombobox({ id, wilayaId, value, onChange, invalid, disabl
   );
 }
 
-/** Stop-desk agencies of the commune (courier `CourierStopdesk`); empty list until a courier is connected (M6). */
-export function StopdeskCombobox({ id, communeId, value, onChange, invalid, disabled }: { id?: string; communeId: number | null; value: string | null; onChange: (id: string | null, name: string | null) => void; invalid?: boolean; disabled?: boolean }) {
+/** Stop-desk agencies of the commune (courier `CourierStopdesk`), of one provider when given (send dialog). */
+export function StopdeskCombobox({ id, communeId, provider, value, onChange, invalid, disabled }: { id?: string; communeId: number | null; provider?: string; value: string | null; onChange: (id: string | null, name: string | null) => void; invalid?: boolean; disabled?: boolean }) {
   const t = useT();
-  const q = useStopdesks(communeId);
+  const q = useStopdesks(communeId, provider === 'manual' ? undefined : provider);
   const list = q.data ?? [];
   return (
     <Combobox

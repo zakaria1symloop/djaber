@@ -536,6 +536,6 @@ GET /status (public JSON: components[{key, status, uptime90d}], incidents[], ban
 POST /account-deletion/request { email } → always 200 ("si un compte existe…"), 3/h/IP · GET /account-deletion/confirm/:token · POST /account-deletion/confirm/:token { exportData? } → { scheduledAt } · POST /account-deletion/cancel/:token
 GET /data-deletion/:code → { status: pending|done|not_found, requestedAt, completedAt? } (DataDeletionRequest; the Meta data-deletion status URL returned by POST /webhooks/meta/data-deletion, MSG-08)
 GET /track/:publicToken (public, no auth) → parcel status page { orderNumber, status, events[], courierName, workspaceName } (web route `/s/[code]`)   `[FIG DLV-06 QR]`
-POST /safety/reports (public variant for "Signaler ce vendeur" on the tracking page: { publicToken, reason: ReportReason, details?, captchaToken } → Report { reporterKind=end_customer, type=merchant }; ABUSE_REPORT_RATE_LIMITED 3/h/IP)
+POST /track/:publicToken/report (public "Signaler ce vendeur" on the tracking page: { reason: ReportReason, details?, email? } → Report { reporterKind=end_customer, type=merchant, targetWorkspaceId }; ABUSE_REPORT_RATE_LIMITED 3/h/IP; `POST /safety/reports` stays the authenticated merchant route of §8.3)
 GET /agent-test/:token (shared playground; AGENT_TEST_LINK_EXPIRED after 24 h) → { agentName, avatarUrl, expiresAt } + POST /agent-test/:token/messages { text } → { reply, cards[] } (web route `/agent-test/[token]`, rate limit 60/h per token)
 ```

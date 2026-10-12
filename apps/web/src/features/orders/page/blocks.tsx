@@ -1,6 +1,6 @@
 'use client';
 // Blocks of the order page (Figma "ORD-06 — Order page — new"): CLIENTE (inline contact edit), ARTICLES (+ totals,
-// quantity edit while editable), LIVRAISON, PAIEMENT, HISTORIQUE, APPELS, NOTES INTERNES.
+// quantity edit while editable), PAIEMENT, HISTORIQUE, APPELS, NOTES INTERNES (LIVRAISON: features/delivery/order-block).
 import { formatDate, formatMoney, formatPhoneDz, type AppLocale } from '@djaber/shared';
 import { Button, DetailRows, Field, FormAlert, IconButton, Input, Ltr, MonoChip, OrderBlock, OrderTimeline, PhoneInput, QtyStepper, Textarea, TotalsRows, Tooltip, type TimelineItem } from '@djaber/ui';
 import { ExternalLink, Trash2 } from 'lucide-react';
@@ -14,7 +14,7 @@ import { relativeTime } from '@/lib/time';
 import { ORDER_ACTION } from '../action-keys';
 import type { Order, OrderItem } from '../contracts';
 import { actorKind, algiersTime, historyValue, newestFirst, shortName } from '../logic';
-import { CallResultPill, DeliveryPill, PaymentPill, RiskPill } from '../ui';
+import { CallResultPill, PaymentPill, RiskPill } from '../ui';
 
 const linkClass = 'text-[13px] text-text-secondary hover:text-text-primary disabled:opacity-45';
 
@@ -299,68 +299,7 @@ export function ItemsBlock({
   );
 }
 
-/* ---------- LIVRAISON ---------- */
-export function DeliveryBlock({ order, onSend, onShip }: { order: Order; onSend: () => void; onShip: () => void }) {
-  const t = useT();
-  const locale = useLocaleCode() as AppLocale;
-  const send = actionState(order.actions, ORDER_ACTION.sendToCourier, t);
-  const ship = actionState(order.actions, ORDER_ACTION.shipManual, t);
-  const shipment = order.shipments[0] ?? null;
-  const margin = order.courierCost !== null ? order.total - order.courierCost : null;
-  const events: TimelineItem[] = shipment
-    ? newestFirst(shipment.events, (e) => e.at).map((e, i) => ({
-        key: `${e.at}-${i}`,
-        time: algiersTime(e.at),
-        title: e.mappedStatus ? t(`enum.Shipment.status.${e.mappedStatus}`) : e.rawStatus,
-        text: [e.description, e.location].filter(Boolean).join(' · ') || undefined,
-        meta: formatDate(e.at, locale),
-      }))
-    : [];
-  return (
-    <OrderBlock label={t('orders.page.deliveryBlock')} end={<DeliveryPill row={order} />} bodyClassName="flex flex-col gap-3 p-4" data-testid="delivery-block">
-      <DetailRows
-        rows={[
-          {
-            key: 'courier',
-            label: t('common.courier'),
-            value: shipment ? (
-              <span>
-                {t(`enum.Courier.${shipment.provider}`)}
-                {shipment.trackingNumber ? (
-                  <>
-                    {' · '}
-                    <Ltr>{shipment.trackingNumber}</Ltr>
-                  </>
-                ) : null}
-              </span>
-            ) : (
-              t('orders.page.noParcel')
-            ),
-          },
-          { key: 'fee', label: t('orders.page.clientFee'), value: <span><Ltr>{formatMoney(order.deliveryFee)}</Ltr>{order.feeExplanation ? <span className="text-text-muted"> ({order.feeExplanation})</span> : null}</span> },
-          ...(order.courierCost !== null ? [{ key: 'cost', label: t('orders.page.courierCost'), value: <span><Ltr>{formatMoney(order.courierCost)}</Ltr> · {t('orders.page.margin', { amount: formatMoney(margin ?? 0) })}</span> }] : []),
-          ...(order.returnFee ? [{ key: 'returnFee', label: t('orders.page.returnFee'), value: <Ltr>{formatMoney(order.returnFee)}</Ltr> }] : []),
-        ]}
-      />
-      {send.present || ship.present ? (
-        <div className="flex flex-col gap-2">
-          {send.present ? (
-            <Button className="w-full" onClick={onSend} disabled={!send.enabled} title={send.reason} data-testid="send-to-courier">
-              {t('action.sendToCourier')}
-            </Button>
-          ) : null}
-          {ship.present ? (
-            <Button className="w-full" variant="ghost" onClick={onShip} disabled={!ship.enabled} title={ship.reason}>
-              {t('orders.menu.shipManual')}
-            </Button>
-          ) : null}
-          {send.present && !send.enabled ? <p className="ts-label-micro !normal-case text-text-muted">{send.reason ?? t('orders.page.sendHint')}</p> : null}
-        </div>
-      ) : null}
-      {events.length ? <OrderTimeline items={events} label={t('orders.page.tracking')} className="-mx-4 border-t border-line-hairline" /> : null}
-    </OrderBlock>
-  );
-}
+/* LIVRAISON: `features/delivery/order-block.tsx` (M6 parcel states, tracking, labels). */
 
 /* ---------- PAIEMENT ---------- */
 export function PaymentBlock({ order, onRecord, onLink }: { order: Order; onRecord: () => void; onLink: () => void }) {
