@@ -161,13 +161,14 @@ function Queue({ view }: { view: HomeView }) {
       count={formatNumber(view.queue.total)}
       data-testid="home-queue"
     >
-      {items.length === 0 ? (
+      {items.length === 0 || items.every((i) => i.handled) ? (
         <HomeEmptyCard
           title={t('home.queue.empty.title')}
           description={t('home.queue.empty.description')}
           data-testid="home-queue-empty"
         />
-      ) : (
+      ) : null}
+      {items.length === 0 ? null : (
         <ul className="flex flex-col gap-3">
           {items.map((i) => {
             const text = queueText(i, clock);
@@ -176,7 +177,7 @@ function Queue({ view }: { view: HomeView }) {
                 <Link
                   href={queueHref(i)}
                   className="block rounded-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-inbound"
-                  data-testid="home-queue-item"
+                  data-testid={i.handled ? 'home-queue-handled' : 'home-queue-item'}
                 >
                   <HomeQueueCard
                     kind={i.kind}
@@ -185,6 +186,7 @@ function Queue({ view }: { view: HomeView }) {
                     age={ageText(t, i.since)}
                     title={<bdi>{words(t, text.title) ?? i.title}</bdi>}
                     subtitle={words(t, text.subtitle) ?? i.subtitle}
+                    handledLabel={i.handled ? (i.handled.by ? t('home.queue.handledBy', { name: i.handled.by.name }) : t('home.queue.handled')) : undefined}
                   />
                 </Link>
               </li>

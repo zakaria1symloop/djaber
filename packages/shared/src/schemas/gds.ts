@@ -297,6 +297,9 @@ export const PurchasesQuerySchema = z
 export type PurchasesQuery = z.infer<typeof PurchasesQuerySchema>;
 /** `GET /purchases/stats` — same filters as the list. */
 export const PurchaseStatsQuerySchema = PurchasesQuerySchema.omit({ page: true, pageSize: true, sort: true });
+/** `GET /purchases/export` (M8, Figma GDS-07 "Exporter"): the list filters + `format` → 202 `{ jobId }`. */
+export const PurchasesExportQuerySchema = PurchasesQuerySchema.omit({ page: true, pageSize: true }).extend({ format: z.enum(['csv', 'xlsx']).default('csv') }).strict();
+export type PurchasesExportQuery = z.infer<typeof PurchasesExportQuerySchema>;
 
 export type GdsProductRef = { id: string; name: string; sku: string; price: number; primaryImageUrl: string | null; hasVariants: boolean; trackStock: boolean };
 export type PurchaseItemView = {
@@ -460,6 +463,9 @@ export const SalesQuerySchema = z
   .strict();
 export type SalesQuery = z.infer<typeof SalesQuerySchema>;
 export const SaleStatsQuerySchema = SalesQuerySchema.omit({ page: true, pageSize: true, sort: true });
+/** `GET /sales/export` (M8, Figma GDS-08 "Exporter"): the list filters + `format` → 202 `{ jobId }`. */
+export const SalesExportQuerySchema = SalesQuerySchema.omit({ page: true, pageSize: true }).extend({ format: z.enum(['csv', 'xlsx']).default('csv') }).strict();
+export type SalesExportQuery = z.infer<typeof SalesExportQuerySchema>;
 
 export type SaleItemView = {
   id: string;

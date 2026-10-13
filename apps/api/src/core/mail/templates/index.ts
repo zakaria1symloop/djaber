@@ -13,6 +13,8 @@ export type MailTemplateName =
   | 'workspace/ownership-transferred'
   | 'workspace/deletion-scheduled'
   | 'workspace/deleted'
+  /** 03-events §4 `sched-report-schedules`: monthly report e-mail (D62) */
+  | 'reports/scheduled'
   /** 03-events §5.3 generic "notification/<type>" layout: title, body, CTA deep link (the type rides in params.type) */
   | 'notification';
 
@@ -116,6 +118,12 @@ const COPY: Record<MailTemplateName, Copy> = {
       'The {workspaceName} workspace will be permanently deleted on {at}. You can cancel the deletion until then from Settings › Danger zone.',
     ),
     cta: l('Annuler la suppression', 'إلغاء الحذف', 'Cancel the deletion'),
+  },
+  'reports/scheduled': {
+    subject: l('Rapport mensuel : {report} — {period}', 'التقرير الشهري: {report} — {period}', 'Monthly report: {report} — {period}'),
+    title: l('{report} · {period}', '{report} · {period}', '{report} · {period}'),
+    body: l('Votre rapport « {report} » de {workspaceName} pour {period} est prêt : {delivery}.', 'تقريرك « {report} » لـ {workspaceName} عن {period} جاهز: {delivery}.', 'Your “{report}” report for {workspaceName}, {period}, is ready: {delivery}.'),
+    cta: l('Ouvrir le rapport dans Djaber', 'فتح التقرير في جابر', 'Open the report in Djaber'),
   },
   'workspace/deleted': {
     subject: l('Espace {workspaceName} supprimé', 'تم حذف مساحة {workspaceName}', 'Workspace {workspaceName} deleted'),

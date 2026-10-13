@@ -18,6 +18,7 @@ import { useListState } from '@/lib/use-list-state';
 import { usePurchases, usePurchaseStats, useSuppliers } from './api';
 import { GDS_PAYMENT_STATUSES, PURCHASE_STATUSES, type PurchaseRow } from './contracts';
 import { usePurchaseActions } from './purchase-dialogs';
+import { ListExportMenu } from './export-menu';
 import { AdvancedOnly, KpiSkeleton, PaymentPill, PeriodDropdown, PurchaseStatusPill, useDayLabel } from './ui';
 
 export const PURCHASES_SPEC: ListSpec = {
@@ -99,11 +100,14 @@ function PurchasesList() {
       description={t('purchases.subtitle')}
       permission="gds.read"
       actions={
-        canWrite ? (
-          <Link href="/purchases/new" className={buttonClass({ variant: 'primary' })} aria-disabled={offline || undefined} data-testid="purchase-new">
-            {t('purchases.new')}
-          </Link>
-        ) : undefined
+        <>
+          <ListExportMenu path="/purchases/export" filters={list.filterQuery()} entity={t('purchases.export.entity')} file={t('purchases.export.file')} disabledReason={offline ? t('banner.offline') : undefined} />
+          {canWrite ? (
+            <Link href="/purchases/new" className={buttonClass({ variant: 'primary' })} aria-disabled={offline || undefined} data-testid="purchase-new">
+              {t('purchases.new')}
+            </Link>
+          ) : null}
+        </>
       }
     >
       {offline ? <OfflineBanner since={since} onRetry={() => void q.refetch()} /> : null}

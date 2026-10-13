@@ -454,6 +454,9 @@ export const ShipmentsQuerySchema = z
   })
   .strict();
 export type ShipmentsQuery = z.infer<typeof ShipmentsQuerySchema>;
+/** `GET /delivery/export` (M8, MECH "Exporter CSV"): the list filters + `format` → 202 `{ jobId }` (kind `export`). */
+export const ShipmentsExportQuerySchema = ShipmentsQuerySchema.omit({ page: true, pageSize: true }).extend({ format: z.enum(['csv', 'xlsx']).default('csv') }).strict();
+export type ShipmentsExportQuery = z.infer<typeof ShipmentsExportQuerySchema>;
 /** `/delivery` tabs (Figma: Échecs · Sans mouvement · À envoyer · En transit · Retours · Toutes) = list filters (never a separate param). */
 export const DELIVERY_TABS = {
   failed: { shipmentStatus: ['failed'] },

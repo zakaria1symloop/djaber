@@ -19,3 +19,5 @@ export * from './delivery';
 export * from './order-form';
 export * from './shipments';
 export * from './gds';
+export * from './analytics';
+export * from './wilaya-geo';

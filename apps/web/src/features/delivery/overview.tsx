@@ -40,7 +40,7 @@ import { algiersTime } from '@/features/orders/logic';
 import { Link, useRouter } from '@/i18n/navigation';
 import { actionState } from '@/lib/actions';
 import { useLocaleCode, useT } from '@/lib/i18n';
-import { trackJob } from '@/lib/jobs';
+import { downloadUrl, trackJob } from '@/lib/jobs';
 import { filterList, filterText } from '@/lib/list-state';
 import { useSession } from '@/lib/session';
 import { relativeTime } from '@/lib/time';
@@ -227,6 +227,26 @@ export function DeliveryOverviewPage() {
           });
           setSelected(new Set());
           void refresh();
+        } catch (e) {
+          toast({ tone: 'danger', message: refusal(e, t) });
+        }
+      },
+    },
+    {
+      key: 'export',
+      label: t('delivery.bulk.export'),
+      disabledReason: offline ? t('banner.offline') : undefined,
+      onSelect: async () => {
+        try {
+          const { page: _p, pageSize: _ps, sort: _s, ...filters } = query;
+          const { jobId } = await deliveryApi.exportShipments({ ...filters, ids: chosen.map((x) => x.id), format: 'csv' });
+          trackJob({
+            jobId,
+            started: t('toast.jobStarted'),
+            progress: (j) => t('toast.export.progress', { entity: t('delivery.export.entity'), pct: j.progress, rows: formatNumber(j.total ?? 0) }),
+            done: (j) => ({ message: t('toast.export.done', { file: t('delivery.export.file') }), action: j.resultUrl ? { label: t('action.download'), onClick: () => downloadUrl(j.resultUrl!) } : undefined }),
+            failed: (j, e) => (j?.error ? `${j.error.message} (${j.error.code})` : refusal(e, t)),
+          });
         } catch (e) {
           toast({ tone: 'danger', message: refusal(e, t) });
         }

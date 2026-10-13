@@ -54,6 +54,7 @@ import { GDS_PAYMENT_STATUSES, type CashMethod, type Sale, type SaleRow } from '
 import { int, priceEdited, saleTotals, type DiscountMode } from './logic';
 import { ProductPicker, type PickedProduct } from './product-picker';
 import { ClientPicker, useSaleActions } from './sale-dialogs';
+import { ListExportMenu } from './export-menu';
 import { AdvancedOnly, KpiSkeleton, PeriodDropdown, SaleStatusPill, shortName } from './ui';
 import { withoutYear } from '@/features/catalog/stock/logic';
 
@@ -129,11 +130,14 @@ function SalesList({ creating }: { creating?: boolean }) {
       description={t('sales.subtitle')}
       permission="gds.read"
       actions={
-        canWrite ? (
-          <Link href="/sales/new" className={buttonClass({ variant: 'primary' })} aria-disabled={offline || undefined} data-testid="sale-new">
-            {t('sales.new')}
-          </Link>
-        ) : undefined
+        <>
+          <ListExportMenu path="/sales/export" filters={list.filterQuery()} entity={t('sales.export.entity')} file={t('sales.export.file')} disabledReason={offline ? t('banner.offline') : undefined} />
+          {canWrite ? (
+            <Link href="/sales/new" className={buttonClass({ variant: 'primary' })} aria-disabled={offline || undefined} data-testid="sale-new">
+              {t('sales.new')}
+            </Link>
+          ) : null}
+        </>
       }
     >
       {offline ? <OfflineBanner since={since} onRetry={() => void q.refetch()} /> : null}

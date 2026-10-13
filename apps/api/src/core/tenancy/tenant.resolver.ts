@@ -14,6 +14,8 @@ type WorkspaceCtx = {
   limits: TenantLimits;
   planSlug: string;
   subscriptionStatus: string;
+  /** `Plan.features` of the plan that applies (M8: `scheduled_reports`, …) */
+  features?: string[];
 };
 
 const CURRENT = ['trial', 'active', 'dunning'] as const;
@@ -62,11 +64,27 @@ export class TenantResolver {
         limits,
         planSlug: plan?.slug ?? 'free',
         subscriptionStatus: sub?.status ?? 'expired',
+        features: plan?.features ?? [],
       };
       return out;
     });
     if (ctx) await this.redis.setJson(TenantResolver.ctxKey(workspaceId), ctx, 30);
     return ctx;
+  }
+
+  /** Features of the plan that applies to the workspace (02 §5: expired ⇒ free plan). */
+  async features(workspaceId: string): Promise<string[]> {
+    let ctx = await this.workspaceCtx(workspaceId);
+    if (ctx && !ctx.features) {
+      // context cached by an older build without `features`
+      await this.invalidate(workspaceId);
+      ctx = await this.workspaceCtx(workspaceId);
+    }
+    return ctx?.features ?? [];
+  }
+
+  async hasFeature(workspaceId: string, feature: string): Promise<boolean> {
+    return (await this.features(workspaceId)).includes(feature);
   }
 
   private toInfo(ctx: WorkspaceCtx, extra: Partial<TenantInfo>): TenantInfo {

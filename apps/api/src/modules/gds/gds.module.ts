@@ -4,6 +4,7 @@ import { ClientsModule } from '../clients/clients.module';
 import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { CashService } from './cash.service';
 import { CashController, InventoriesController, PurchasesController, SalesController, SuppliersController } from './gds.controllers';
+import { GdsExportsService } from './gds-exports.service';
 import { GdsPrintService } from './gds-print.service';
 import { InventoryService } from './inventory.service';
 import { PurchaseEffects } from './purchase-effects.service';
@@ -20,7 +21,7 @@ import { SupplierService } from './supplier.service';
 @Module({
   imports: [CatalogModule, ClientsModule, RecommendationsModule],
   controllers: [SuppliersController, PurchasesController, SalesController, CashController, InventoriesController],
-  providers: [GdsPrintService, PurchaseEffects, SaleEffects, PurchaseService, SupplierService, SaleService, CashService, InventoryService],
+  providers: [GdsPrintService, GdsExportsService, PurchaseEffects, SaleEffects, PurchaseService, SupplierService, SaleService, CashService, InventoryService],
   exports: [PurchaseService, SaleService, CashService],
 })
 export class GdsModule {}

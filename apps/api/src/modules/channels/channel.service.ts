@@ -191,11 +191,18 @@ export class ChannelService {
 
   async summary(id: string): Promise<ChannelSummaryView> {
     const view = await this.get(id);
-    const [children, lastJob, aiOrders30d] = await Promise.all([
+    const since = new Date(Date.now() - 30 * 86_400_000);
+    const [children, lastJob, aiOrders30d, resolution] = await Promise.all([
       prisma.channel.findMany({ where: { parentChannelId: id }, orderBy: { createdAt: 'asc' } }),
       prisma.job.findFirst({ where: { workspaceId: TenantContext.workspaceId(), kind: 'sync_history', payload: { path: ['channelId'], equals: id } }, orderBy: { createdAt: 'desc' }, select: { id: true } }),
-      prisma.order.count({ where: { channelId: id, source: 'ai', orderedAt: { gte: new Date(Date.now() - 30 * 86_400_000) } } }),
+      prisma.order.count({ where: { channelId: id, source: 'ai', orderedAt: { gte: since } } }),
+      // CHN-07 "Résolution IA" (M8, same definition as Analytics › Conversations "traitées par l'IA"): conversations of the
+      // page in 30 d without an AI handoff ÷ conversations
+      prisma.$queryRaw<{ total: number; handed: number }[]>`
+        SELECT count(*)::int total, count(*) FILTER (WHERE EXISTS (SELECT 1 FROM "AiRun" r WHERE r."conversationId" = c."id" AND r."status" = 'handoff' AND r."kind" = 'reply'))::int handed
+        FROM "Conversation" c WHERE c."workspaceId" = ${TenantContext.workspaceId()}::uuid AND c."channelId" = ${id}::uuid AND c."deletedAt" IS NULL AND c."createdAt" >= ${since}`,
     ]);
+    const r = resolution[0];
     return {
       counts: view.counts,
       agent: view.agent ? { ...view.agent, productsInScope: view.counts.productsInScope } : null,
@@ -203,6 +210,7 @@ export class ChannelService {
       children: children.map(channelRef),
       lastHistorySyncJobId: lastJob?.id ?? null,
       aiOrders30d,
+      aiResolutionPct30d: r && r.total ? Math.round(((r.total - r.handed) * 1000) / r.total) / 10 : null,
     };
   }
 

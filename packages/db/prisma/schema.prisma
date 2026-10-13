@@ -1924,6 +1924,7 @@ model Conversation {
   @@index([workspaceId, status, lastMessageAt])
   @@index([workspaceId, assigneeId])
   @@index([workspaceId, clientId])
+  @@index([workspaceId, createdAt]) // M8 analytics day buckets
 }
 
 model Message {
@@ -1957,6 +1958,7 @@ model Message {
 
   @@unique([conversationId, externalId])
   @@index([conversationId, sentAt])
+  @@index([workspaceId, sentAt]) // M8 analytics day buckets
 }
 
 model ConversationNote {
@@ -2887,6 +2889,13 @@ model Order {
   @@index([workspaceId, callbackAt])
   @@index([workspaceId, clientId])
   @@index([workspaceId, deliveryStatus])
+  // M8 analytics: one index per event date counted by `computeDays` (orders placed / confirmed / shipped / delivered / cancelled)
+  @@index([workspaceId, orderedAt])
+  @@index([workspaceId, confirmedAt])
+  @@index([workspaceId, shippedAt])
+  @@index([workspaceId, deliveredAt])
+  @@index([workspaceId, cancelledAt])
+  @@index([conversationId])
 }
 
 model OrderItem {
@@ -2926,6 +2935,7 @@ model OrderStatusHistory {
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId, at])
+  @@index([field, to, at]) // M8 analytics: returns by day
 }
 
 model OrderCall {
@@ -3159,6 +3169,7 @@ model Shipment {
   @@index([nextSyncAt])
   @@index([workspaceId, lastEventAt])
   @@index([trackingNumber])
+  @@index([workspaceId, createdAt]) // M8 analytics: parcels by day
 }
 
 model ShipmentEvent {

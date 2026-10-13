@@ -39,7 +39,10 @@ import {
   UpdateSaleDto,
   UpdateSupplierDto,
   ValidateInventoryDto,
+  PurchasesExportQueryDto,
+  SalesExportQueryDto,
 } from './dto';
+import type { PurchasesExportQuery, SalesExportQuery } from '@djaber/shared';
 import { InventoryService } from './inventory.service';
 import { PurchaseService } from './purchase.service';
 import { SaleService } from './sale.service';
@@ -119,7 +122,19 @@ export class SuppliersController {
 
 @Controller('purchases')
 export class PurchasesController {
-  constructor(private readonly purchases: PurchaseService) {}
+  constructor(
+    private readonly purchases: PurchaseService,
+    private readonly exports: ExportService,
+  ) {}
+
+  /** M8 (Figma GDS-07 "Exporter"): the list filters → 202 `{ jobId }`. */
+  @Get('export')
+  @RequirePermission('gds.read')
+  @HttpCode(202)
+  export(@Query() q: PurchasesExportQueryDto) {
+    const { format, ...filters } = q as PurchasesExportQuery;
+    return this.exports.request('purchases', filters, format);
+  }
 
   @Get()
   @RequirePermission('gds.read')
@@ -214,7 +229,19 @@ export class PurchasesController {
 
 @Controller('sales')
 export class SalesController {
-  constructor(private readonly sales: SaleService) {}
+  constructor(
+    private readonly sales: SaleService,
+    private readonly exports: ExportService,
+  ) {}
+
+  /** M8 (Figma GDS-08 "Exporter"): the list filters → 202 `{ jobId }`. */
+  @Get('export')
+  @RequirePermission('gds.read')
+  @HttpCode(202)
+  export(@Query() q: SalesExportQueryDto) {
+    const { format, ...filters } = q as SalesExportQuery;
+    return this.exports.request('sales', filters, format);
+  }
 
   @Get()
   @RequirePermission('gds.read')

@@ -4,6 +4,7 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { ConfigService } from '../config/config.service';
 import { fromRepoRoot } from '../config/repo-root';
+import { StorageService } from '../storage/storage.service';
 
 export type MailMessage = {
   to: string;
@@ -14,12 +15,18 @@ export type MailMessage = {
   template?: string;
   params?: Record<string, unknown>;
   locale?: string;
+  /** files stored by StorageService (M8 scheduled reports); the `file` driver records them, `resend` attaches them */
+  attachments?: MailAttachment[];
 };
+export type MailAttachment = { fileName: string; storageKey: string; mime: string; size?: number };
 
 @Injectable()
 export class MailService {
   private readonly log = new Logger(MailService.name);
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly storage: StorageService,
+  ) {}
 
   private get dir() {
     const dir = this.config.get('MAIL_LOCAL_DIR');
@@ -31,7 +38,16 @@ export class MailService {
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${this.config.get('RESEND_API_KEY')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: this.config.get('MAIL_FROM'), to: m.to, subject: m.subject, html: m.html, text: m.text }),
+        body: JSON.stringify({
+          from: this.config.get('MAIL_FROM'),
+          to: m.to,
+          subject: m.subject,
+          html: m.html,
+          text: m.text,
+          ...(m.attachments?.length
+            ? { attachments: await Promise.all(m.attachments.map(async (a) => ({ filename: a.fileName, content: (await this.storage.get(a.storageKey)).body.toString('base64') }))) }
+            : {}),
+        }),
       });
       if (!res.ok) throw new Error(`mail provider answered ${res.status}`);
       return;

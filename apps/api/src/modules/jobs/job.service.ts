@@ -22,6 +22,8 @@ export type CreateJobInput = {
   payload?: Record<string, unknown>;
   total?: number | null;
   expiresAt?: Date | null;
+  /** initial `Job.result` (M8: report exports carry their label — report, period, format — from creation on) */
+  result?: Record<string, unknown>;
 };
 export type JobDto = {
   id: string;
@@ -75,6 +77,7 @@ export class JobService {
           total: input.total ?? null,
           payload: { ...(input.payload ?? {}), name: input.name } as Prisma.InputJsonValue,
           expiresAt: input.expiresAt ?? null,
+          ...(input.result ? { result: input.result as Prisma.InputJsonValue } : {}),
           createdById: t.userId ?? null,
         },
       });
@@ -285,7 +288,8 @@ export class JobService {
     const job = await this.byIdOrNotFound(id);
     const name = this.nameOf(job);
     if ((job.status !== 'failed' && job.status !== 'partial') || !name) throw new AppException('JOB_NOT_CANCELLABLE');
-    const created = await this.create({ kind: job.kind, name, payload: (job.payload ?? {}) as Record<string, unknown>, total: job.total, expiresAt: job.expiresAt });
+    const label = (job.payload as { label?: unknown } | null)?.label;
+    const created = await this.create({ kind: job.kind, name, payload: (job.payload ?? {}) as Record<string, unknown>, total: job.total, expiresAt: job.expiresAt ? new Date(Date.now() + (job.expiresAt.getTime() - job.createdAt.getTime())) : null, ...(label && typeof label === 'object' ? { result: label as Record<string, unknown> } : {}) });
     return { jobId: created.id };
   }
 }

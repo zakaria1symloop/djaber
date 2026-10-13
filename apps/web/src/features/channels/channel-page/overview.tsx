@@ -64,7 +64,14 @@ export function ChannelOverview() {
         <StatTile label={t('channels.overview.unread')} value={<Ltr>{formatNumber(counts.unread)}</Ltr>} />
         <StatTile label={t('channels.overview.products')} value={<Ltr>{formatNumber(counts.productsInScope)}</Ltr>} hint={agent ? agent.name : t('channels.agent.none')} />
         <AiOrdersTile channelId={c.id} />
-        {/* M8: "RÉSOLUTION IA" tile needs the analytics module */}
+        {/* "RÉSOLUTION IA" (carry-over M3 → M8): conversations of the page without a handoff ÷ conversations, 30 d */}
+        <Link href={`/analytics/conversations?period=30d&channelId=${c.id}`} className="block rounded-card" data-testid="channel-ai-resolution">
+          <StatTile
+            label={t('channels.overview.aiResolution')}
+            value={summary.data ? <Ltr>{summary.data.aiResolutionPct30d === null ? '—' : `${String(summary.data.aiResolutionPct30d).replace('.', locale === 'en' ? '.' : ',')} %`}</Ltr> : summary.isError ? '—' : <Skeleton className="h-6 w-10" />}
+            hint={t('channels.overview.aiResolutionHint')}
+          />
+        </Link>
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">

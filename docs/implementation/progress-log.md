@@ -158,3 +158,19 @@ One entry per finished stage: what was built, checks passing, what is still simu
 - Nothing new is external in M7. Couriers, Meta, push and AI stay on their fake drivers; e-mails go to `.local/mail`.
 
 **Deferred** (tracked in `carry-overs.md`): the GDS reports and purchases / sales export (M8); recommendations section in the AI prompt, filter products by supplier, saved views on GDS lists (M11); "Créer la promo" only records the choice (no promotion entity in the specs).
+
+## M8 — Analytics and reports (2026-10-13)
+
+**Built**
+- Statistics (`/analytics`): overview and 8 tabs (Conversations, Réponses IA, Consommation, Agents, Canaux, Produits, Commandes, Livraison); period presets and custom range up to 732 days (Algiers days), comparison with the previous period, filter by connected page, named money figures (revenus, revenus nets, pipeline, encaissés, revenus IA) identical to the home page and the reports, AI cost from tokens × model prices, credit run-out estimate, wilaya map, links into the filtered lists. Charts are small built-in pieces (bars with the previous period dashed, donut, funnel), mirrored in Arabic.
+- Daily figures are pre-computed every night (recomputed, never incremented) and today is computed live: with 100 000 orders over a year, the pages answer in p95 237 ms (budget 500 ms).
+- Reports (`/reports`): the 23 reports in 5 groups (9 in simple stock mode), search, favourites, recent exports with cancel / download / retry; report page with period and filters in the address, KPIs with comparison, chart, sortable table with totals, CSV (immediate up to 5 000 rows, background job above), XLSX (job), PDF; monthly e-mail schedule (plan feature `scheduled_reports`, upgrade state otherwise).
+- Left open by earlier stages and now closed: "Résolution IA" on connected pages, insight tab counts, PDF order export, home cards handled in the last 24 h greyed with "fait par …", Analytics › Livraison, CSV export of `/delivery`, export of purchases and sales.
+
+**Checks** — lint ✔ · typecheck ✔ · unit ✔ (shared 38, api 597, web 498) · integration ✔ (603 in 42 files, incl. AT-ORD-10 same figures on home / analytics / reports and the 100 000-order speed test) · AI pipeline scenarios ✔ (29) · translations ✔ (5 958 texts × 3 languages) · Storybook build ✔ · browser ✔ (387 in one complete run; skeleton / server error / > 5 000 rows banner / running and failed export / plan without scheduled reports are served through `// mock:` because they cannot be produced on demand; the date-cell no-wrap fix came after that run and was checked by lint, typecheck and screenshots) · production build ✔, served on the local network.
+
+**Simulated / not verifiable here**
+- The monthly report e-mail is written to `.local/mail` (file driver); sending through Resend with attachments needs a mail key (none in the old project).
+- Plans: every workspace is still on the trial, so the "no scheduled reports" state is only tested with a mock until billing (M9).
+
+**Deferred** (tracked in `carry-overs.md`): platform-wide totals for the admin (M10); real wilaya boundaries for the map, extra report filters drawn in Figma (M11 polish); upgrade link target `/settings/billing` (M9).

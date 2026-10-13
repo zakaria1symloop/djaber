@@ -17,6 +17,8 @@ import {
   InventoryLinesSchema,
   InventoryScopePreviewQuerySchema,
   PurchasesQuerySchema,
+  PurchasesExportQuerySchema,
+  SalesExportQuerySchema,
   PurchaseStatsQuerySchema,
   ReceivePurchaseSchema,
   ReopenCashSchema,
@@ -71,3 +73,5 @@ export class ValidateInventoryDto extends createZodDto(optionalBody(ValidateInve
 export class InventoriesQueryDto extends createZodDto(InventoriesQuerySchema) {}
 export class InventoryScopePreviewQueryDto extends createZodDto(InventoryScopePreviewQuerySchema) {}
 export class PrintQueryDto extends createZodDto(z.object({ lang: z.enum(['fr', 'ar', 'en']).optional() })) {}
+export class PurchasesExportQueryDto extends createZodDto(PurchasesExportQuerySchema) {}
+export class SalesExportQueryDto extends createZodDto(SalesExportQuerySchema) {}

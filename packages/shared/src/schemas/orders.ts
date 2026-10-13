@@ -348,7 +348,8 @@ export const OrdersExportQuerySchema = z
       .regex(/^-?[a-zA-Z]+$/)
       .optional(),
     scope: z.enum(['selection', 'filter', 'all']).default('filter'),
-    format: z.enum(['csv', 'xlsx']).default('xlsx'),
+    /** `pdf` (M8): A4 landscape table of the standard columns, produced by the export job like the others */
+    format: z.enum(['csv', 'xlsx', 'pdf']).default('xlsx'),
     columns: z.enum(['standard', 'all']).default('standard'),
     includeItems: flag.optional(),
     courierFormat: z.enum(['zrexpress']).optional(),

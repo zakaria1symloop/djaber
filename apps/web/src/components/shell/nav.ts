@@ -77,7 +77,7 @@ export const MAIN_NAV: NavGroup[] = [
     key: 'nav.group.analysis',
     items: [
       { key: 'nav.analytics', href: '/analytics', icon: BarChart3 },
-      { key: 'nav.reports', href: '/reports', icon: FileBarChart, advancedOnly: true, permission: 'reports.read' },
+      { key: 'nav.reports', href: '/reports', icon: FileBarChart, permission: 'reports.read' },
     ],
   },
 ];
