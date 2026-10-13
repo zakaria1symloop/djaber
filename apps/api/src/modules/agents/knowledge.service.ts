@@ -2,6 +2,7 @@
 //   FAQ (AGV-02 step 2): ≤ 50 entries / 20 000 characters, sources SAISI · EXTRAIT DE LA PAGE · SUGGÉRÉ PAR L'IA · IMPORT
 //   insights queue (AGT-08): list, resolve (instruction / FAQ / product / ignore 30 days), bulk dismiss
 import { Injectable } from '@nestjs/common';
+import { strFromU8, unzipSync } from 'fflate';
 import { AGENT_FAQ_MAX_CHARS, AGENT_FAQ_MAX_ENTRIES, AGENT_INSTRUCTIONS_MAX, type AgentFaqDto, type AgentFaqInput, type AgentInsightDto, type InsightsQuery, type ResolveInsightInput } from '@djaber/shared';
 import { prisma, Prisma, TenantContext, type AgentFaq, type FaqSource, type Tx } from '@djaber/db';
 import { AppException, notFound, validationError } from '../../core/errors/app.exception';
@@ -43,6 +44,35 @@ export const parseFaqText = (text: string): { question: string; answer: string }
   }
   flush();
   return out;
+};
+
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const XML_ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+const unescapeXml = (v: string) =>
+  v.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_, e: string) => (e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : Number(e.slice(1))) : (XML_ENTITIES[e.toLowerCase()] ?? '')));
+
+/**
+ * M11 (M4 carry-over): the plain text of a Word document (.docx = ZIP + `word/document.xml`), one line per paragraph
+ * (`<w:p>`), runs (`<w:t>`) joined, tabs and line breaks kept. Returns null when the file is not a readable DOCX.
+ */
+export const docxText = (buf: Buffer): string | null => {
+  let xml: string;
+  try {
+    const files = unzipSync(new Uint8Array(buf), { filter: (f) => f.name === 'word/document.xml' });
+    const doc = files['word/document.xml'];
+    if (!doc) return null;
+    xml = strFromU8(doc);
+  } catch {
+    return null;
+  }
+  const body = xml.replace(/^[\s\S]*?<w:body[^>]*>/, '');
+  const lines: string[] = [];
+  for (const p of body.split(/<\/w:p>/)) {
+    const parts: string[] = [];
+    for (const m of p.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>|<w:tab\/>|<w:(?:br|cr)(?:\s[^>]*)?\/>/g)) parts.push(m[1] !== undefined ? unescapeXml(m[1]) : m[0].startsWith('<w:tab') ? '\t' : '\n');
+    lines.push(parts.join(''));
+  }
+  return lines.join('\n');
 };
 
 @Injectable()
@@ -115,9 +145,14 @@ export class KnowledgeService {
     if (!file) throw validationError({ file: 'validation.required' });
     if (file.size > FAQ_FILE_MAX_BYTES) throw new AppException('UPLOAD_TOO_LARGE', { max: 5 });
     const name = (file.originalname ?? '').toLowerCase();
-    // plain text and Markdown are read here; PDF / DOCX need a document parser (not part of this milestone)
-    if (!(file.mimetype.startsWith('text/') || /\.(txt|md|csv)$/.test(name))) throw new AppException('UPLOAD_TYPE_INVALID');
-    const pairs = parseFaqText(file.buffer.toString('utf8'));
+    // plain text, Markdown, CSV and Word (.docx, M11); PDF stays refused (no PDF text extractor in the dependencies)
+    let text: string | null;
+    if (file.mimetype === DOCX_MIME || name.endsWith('.docx')) {
+      text = docxText(file.buffer);
+      if (text === null) throw new AppException('UPLOAD_TYPE_INVALID');
+    } else if (file.mimetype.startsWith('text/') || /\.(txt|md|csv)$/.test(name)) text = file.buffer.toString('utf8');
+    else throw new AppException('UPLOAD_TYPE_INVALID');
+    const pairs = parseFaqText(text);
     if (!pairs.length) throw validationError({ file: 'validation.invalid' });
     const existing = new Set((await prisma.agentFaq.findMany({ where: { agentId }, select: { question: true } })).map((f) => f.question.trim().toLowerCase()));
     const fresh = pairs.filter((p) => !existing.has(p.question.trim().toLowerCase()));

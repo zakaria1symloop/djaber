@@ -175,6 +175,7 @@ export class OrderPaymentService implements OnModuleInit {
           } else {
             await this.settleOrder(tx, p.orderId, ['paymentLink']);
             await this.effects.notify(tx, 'payment_failed', { workspaceId: p.workspaceId, key: `payment_failed:${p.id}`, roles: ['owner', 'admin'], data: { orderId: p.orderId, paymentId: p.id, reason: status, number: order.number } });
+            await this.effects.webhookData(tx, 'payment.failed', p.id, p.workspaceId, { orderId: p.orderId, paymentId: p.id, reason: status });
             await this.effects.customerText(tx, order, 'paymentFailed', { number: order.number });
           }
         },

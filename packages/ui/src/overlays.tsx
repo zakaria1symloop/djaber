@@ -38,13 +38,15 @@ export function Dialog({
         <DialogPrimitive.Content
           onEscapeKeyDown={hideClose ? (e) => e.preventDefault() : undefined}
           onInteractOutside={hideClose ? (e) => e.preventDefault() : undefined}
+          // the title and the footer stay put; only the body scrolls when the dialog is taller than the screen (90 dvh:
+          // the visible height on phones, under the browser bars)
           className={cn(
-            'fixed start-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100vw-2rem)] -translate-y-1/2 overflow-y-auto rounded-card border border-line-edge bg-ink-surface p-5',
+            'fixed start-1/2 top-1/2 z-50 flex max-h-[90dvh] w-[calc(100vw-2rem)] -translate-y-1/2 flex-col rounded-card border border-line-edge bg-ink-surface p-5',
             'ltr:-translate-x-1/2 rtl:translate-x-1/2',
             size === 'sm' ? 'max-w-sm' : size === 'lg' ? 'max-w-2xl' : size === 'xl' ? 'max-w-4xl' : 'max-w-md',
           )}
         >
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex shrink-0 items-start justify-between gap-4">
             <DialogPrimitive.Title className="ts-title">{title}</DialogPrimitive.Title>
             {hideClose ? null : (
               <DialogPrimitive.Close aria-label={closeLabel} className="text-text-muted hover:text-text-primary">
@@ -53,12 +55,13 @@ export function Dialog({
             )}
           </div>
           {description ? (
-            <DialogPrimitive.Description className="ts-label-meta mt-2 text-text-muted">{description}</DialogPrimitive.Description>
+            <DialogPrimitive.Description className="ts-label-meta mt-2 shrink-0 text-text-muted">{description}</DialogPrimitive.Description>
           ) : (
             <DialogPrimitive.Description className="sr-only">{title}</DialogPrimitive.Description>
           )}
-          {children ? <div className="mt-4">{children}</div> : null}
-          {footer ? <div className="mt-5 flex flex-wrap items-center justify-end gap-2">{footer}</div> : null}
+          {/* -mx-5 px-5: the scroll box spans the dialog so focus rings of full-width fields are not clipped */}
+          {children ? <div className="-mx-5 mt-4 min-h-0 flex-1 overflow-y-auto px-5 py-0.5">{children}</div> : null}
+          {footer ? <div className="mt-5 flex shrink-0 flex-wrap items-center justify-end gap-2">{footer}</div> : null}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
@@ -213,7 +216,7 @@ export function Menu({ trigger, children, align = 'end' }: { trigger: React.Reac
     <Dropdown.Root>
       <Dropdown.Trigger asChild>{trigger}</Dropdown.Trigger>
       <Dropdown.Portal>
-        <Dropdown.Content align={align} sideOffset={6} className="z-50 min-w-52 rounded-card border border-line-edge bg-ink-raised p-1 shadow-xl">
+        <Dropdown.Content align={align} sideOffset={6} collisionPadding={8} className="z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-52 overflow-y-auto rounded-card border border-line-edge bg-ink-raised p-1 shadow-xl">
           {children}
         </Dropdown.Content>
       </Dropdown.Portal>

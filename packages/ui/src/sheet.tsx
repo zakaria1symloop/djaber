@@ -65,7 +65,9 @@ export function SideSheet({
           <header className="flex items-start gap-3 border-b border-line-hairline px-5 py-4">
             {media}
             <div className="min-w-0 flex-1">
-              <DialogPrimitive.Title className="ts-display-s truncate">{title}</DialogPrimitive.Title>
+              <DialogPrimitive.Title className="ts-display-s truncate" title={title}>
+                {title}
+              </DialogPrimitive.Title>
               {subtitle ? (
                 <DialogPrimitive.Description className="ts-label-meta mt-1 truncate uppercase text-text-muted">{subtitle}</DialogPrimitive.Description>
               ) : (

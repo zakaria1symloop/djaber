@@ -22,7 +22,7 @@ Multi-tenant SaaS: AI sales agent for Facebook Messenger / Instagram shops in Al
 - `pnpm dev` (api :4010, worker health :4011, web :3010 — ports 4000/3000 are already in use on the owner's machine) · `pnpm --filter @djaber/api dev` …
 - `pnpm --filter db prisma migrate dev --name <name>` · `pnpm --filter db seed` · never `prisma db push`
 - `pnpm lint` · `pnpm typecheck` · `pnpm test` (unit) · `pnpm test:int` (embedded Postgres + Redis) · `pnpm test:e2e` (Playwright) · `pnpm test:evals` · `pnpm i18n:check`
-- API contract: `docs/implementation/api-contract.md` (Swagger UI is not generated: DTOs are zod schemas, see assumptions-log M0)
+- API contract: `docs/implementation/api-contract.md`; since M11 the OpenAPI document is generated from the zod schemas and served at `/api/docs` (+ Postman collection), see assumptions-log M11
 
 ## Read order before any task
 `CLAUDE.md` → `docs/implementation/00-build-order.md` (§0 name reconciliation, then the current milestone) → `01-nest-module-map.md` → `02-next-route-map.md` → cited `docs/specs/*` sections → `03…07` as needed → `09-code-conventions.md` (scaffolds) → `prisma-schema.prisma` + `api-contract.md` (names win) → the Figma frame (file `3SieH2XU0UvTnTNRl991LO`, page **"Web V2"** (node id `898:24126`, formerly "Web"), frame name from the route map). Mobile tasks: `docs/specs/14-mobile-app.md` (wins over 03 §21) → `10-flutter-mobile.md` → Figma page **"Mobile V2"** (base FR + V2 frames) and page "Screens" (AR/EN of base screens only). Workflow and checklists: `08-coder-playbook.md`.

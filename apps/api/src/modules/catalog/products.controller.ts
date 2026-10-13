@@ -5,7 +5,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, P
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { IMPORT_MAX_BYTES, PRODUCT_IMAGE_MAX_BYTES } from '@djaber/shared';
-import { Audited, Idempotent, RequirePermission } from '../../core/auth/decorators';
+import { Audited, Idempotent, RequirePermission, ApiScopes } from '../../core/auth/decorators';
 import { addWarning } from '../../core/http/envelope.interceptor';
 import { ExportService } from '../jobs/export.service';
 import type { UploadedFile as Incoming } from '../uploads/image-upload.service';
@@ -56,6 +56,7 @@ const unwrap = <T>(req: any, r: WithWarnings<T>): T => {
 const bulkCtx = (req: any) => ({ locale: req.locale ?? 'fr', ref: req.id ?? 'unknown' });
 const Id = () => Param('id', ParseUUIDPipe);
 
+@ApiScopes({ read: 'products:read', write: 'products:write' })
 @Controller('products')
 export class ProductsController {
   constructor(

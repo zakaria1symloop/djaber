@@ -7,6 +7,7 @@ import { MovementTypeValues, type MovementStatsView, type StockAdjustmentInput, 
 import { can } from '../../core/rbac/permission-matrix';
 import { AppException, notFound } from '../../core/errors/app.exception';
 import { page, toSkipTake, type Page } from '../../core/http/pagination';
+import { originSessionId } from '../../core/tenancy/tenant.guard';
 import { OutboxService } from '../../core/outbox/outbox.service';
 import { algiersDay, algiersDayEnd, algiersDayStart } from '../../core/time/algiers';
 import { ExportService } from '../jobs/export.service';
@@ -193,6 +194,8 @@ export class StockService implements OnModuleInit {
     await this.outbox.ws(tx, `ws:${TenantContext.workspaceId()}`, 'product.updated', {
       id: p.id,
       product: { id: p.id, stock: p.stock, isActive: p.isActive, moderationStatus: p.moderationStatus, lowStock, archived: !!p.deletedAt },
+      // M11: the tab that made the change recognises its own write (web conflict detection, M2 carry-over)
+      originSessionId: originSessionId(),
     });
   }
 

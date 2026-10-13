@@ -3,7 +3,7 @@
 // signups / activations / churn per day, platform alerts (code → `admin.alert.<code>`), top workspaces (credits),
 // AI cost per provider / model, trials expiring within 7 days.
 import { ADMIN_PERIODS, type AdminAlertDto, type AdminOverviewDto, type AdminPeriod } from '@djaber/shared';
-import { AdminAlertRow, BarChart, Card, ChartPanel, LegendChip, ListSkeleton, Menu, MenuItem, OpsKpiStrip, OpsKpiTile, RankPanel, Button } from '@djaber/ui';
+import { AdminAlertRow, BarChart, Card, ChartPanel, LegendChip, ListSkeleton, Menu, MenuItem, OpsKpiStrip, OpsKpiTile, RankPanel, Button, Skeleton } from '@djaber/ui';
 import { ChevronDown } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { AdminPage, AdminQueryError } from '@/features/admin/admin-page';
@@ -72,7 +72,8 @@ export default function AdminOverviewPage() {
             <OpsKpiTile data-kpi="conversations" context={k?.conversations.peak ? t('admin.overview.kpi.peak', { count: f.num(k.conversations.peak.count), date: f.short(k.conversations.peak.day) }) : undefined} value={k ? f.num(k.conversations.perDayAvg) : '—'} unit={t('admin.overview.kpi.conversations')} />
             <OpsKpiTile data-kpi="webhooks" context={k ? t('admin.overview.kpi.webhooksCtx', { minutes: k.webhooks.incidentMinutes, delays: k.webhooks.queueDelays }) : undefined} value={typeof k?.webhooks.availabilityPct === 'number' ? `${String(k.webhooks.availabilityPct).replace('.', f.locale === 'en' ? '.' : ',')} %` : '—'} unit={t('admin.overview.kpi.webhooks')} />
           </OpsKpiStrip>
-          <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+          {/* minmax(0, …) columns: an implicit / fr column grew to its longest line and pushed the panels past the screen */}
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
             <ChartPanel
               title={t('admin.overview.chart.title')}
               end={
@@ -97,7 +98,10 @@ export default function AdminOverviewPage() {
                   empty={t('admin.overview.chart.empty')}
                 />
               ) : (
-                <ListSkeleton rows={4} columns={1} label={t('common.loading')} />
+                // same height as the chart (BarChart default 180 px) instead of four text lines
+                <div role="status" aria-label={t('common.loading')}>
+                  <Skeleton className="h-[180px] w-full" />
+                </div>
               )}
             </ChartPanel>
             <section className="flex min-w-0 flex-col rounded-card border border-line-edge bg-ink-surface" data-testid="overview-alerts">
@@ -126,7 +130,7 @@ export default function AdminOverviewPage() {
               )}
             </section>
           </div>
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <RankPanel
               title={t('admin.overview.top.title', { days })}
               link={<Link href="/admin/workspaces" className={linkCls}>{t('admin.overview.top.link')}</Link>}

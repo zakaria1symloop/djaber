@@ -4,12 +4,14 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Prisma, prisma, TenantContext, type Client, type Tx } from '@djaber/db';
 import {
+  CLIENT_TAGS_SUGGESTIONS_MAX,
   type ClientAddressInput,
   type ClientListItemView,
   type ClientMergePreview,
   type ClientPill,
   type ClientQuality,
   type ClientsQuery,
+  type ClientTagCount,
   type ClientView,
   type CreateClientInput,
   type UpdateClientInput,
@@ -193,6 +195,19 @@ export class ClientService implements OnModuleInit {
       // a client with orders is archived (soft) only after the explicit confirmation of the dialog
       userAction(c.orderCount > 0 ? 'archive' : 'delete', 'clients.delete'),
     ];
+  }
+
+  /** `GET /clients/tags?q=` (M11): distinct tags of the live clients of the workspace, most used first (ties: case-insensitive A→Z), ≤ 100. */
+  async tags(q?: string): Promise<ClientTagCount[]> {
+    const ws = TenantContext.workspaceId();
+    const like = q ? `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : null;
+    const rows = await prisma.$queryRaw<{ tag: string; count: number }[]>`
+      SELECT t.tag, count(*)::int AS count
+      FROM "Client" c CROSS JOIN LATERAL unnest(c."tags") AS t(tag)
+      WHERE c."workspaceId" = ${ws}::uuid AND c."deletedAt" IS NULL AND c."mergedIntoId" IS NULL
+        ${like ? Prisma.sql`AND t.tag ILIKE ${like}` : Prisma.empty}
+      GROUP BY t.tag ORDER BY count(*) DESC, lower(t.tag) ASC, t.tag ASC LIMIT ${CLIENT_TAGS_SUGGESTIONS_MAX}`;
+    return rows.map((r) => ({ tag: r.tag, count: Number(r.count) }));
   }
 
   async list(q: ClientsQuery): Promise<Page<ClientListItemView>> {

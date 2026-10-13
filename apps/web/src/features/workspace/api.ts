@@ -54,7 +54,7 @@ export const workspaceApi = {
   resetSystemMessage: (key: SystemMessageKey) => api<SystemMessages>('/workspace/system-messages/reset', { method: 'POST', body: { key } }),
 
   wilayas: () => api<Wilaya[]>('/geo/wilayas'),
-  upload: (file: File, kind: 'avatar' | 'logo') => {
+  upload: (file: File, kind: 'avatar' | 'logo' | 'category_image') => {
     const formData = new FormData();
     formData.set('file', file);
     formData.set('kind', kind);

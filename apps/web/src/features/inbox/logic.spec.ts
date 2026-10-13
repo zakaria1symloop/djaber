@@ -297,6 +297,14 @@ describe('tab / filter codec', () => {
     expect(qs).toBe('tab=needs_human&channel=ch1&q=amina&ai=paused&unread=1&assignee=me&order=cart&intent=sale%2Cinfo&client=risk&language=ar&lastMessage=lt24h&sort=oldestWaiting');
     expect(parseInboxParams(new URLSearchParams(qs))).toEqual(f);
   });
+  it('?agentId= (M11): round-trips, reaches the API as agentId and counts as a filtered view', () => {
+    const f = parseInboxParams(new URLSearchParams('agentId=a1'));
+    expect(f).toEqual({ ...DEFAULT_FILTERS, agent: 'a1' });
+    expect(inboxQueryString(f)).toBe('agentId=a1');
+    expect(inboxApiQuery(f)).toMatchObject({ agentId: 'a1' });
+    expect(isFiltered(f)).toBe(true);
+    expect(countPanelFilters(f)).toBe(0);
+  });
   it('ignores unknown values instead of failing', () => {
     const f = parseInboxParams(new URLSearchParams('tab=zzz&ai=robot&intent=sale,hack&sort=price&unread=yes'));
     expect(f).toEqual({ ...DEFAULT_FILTERS, intent: ['sale'] });

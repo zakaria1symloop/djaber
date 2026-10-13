@@ -391,6 +391,12 @@ function SupplierSheet({
               {t('suppliers.sheet.allPurchases', { count: s.purchaseCount })}
               <ArrowUpRight className="size-3.5 rtl:-scale-x-100" aria-hidden />
             </Link>
+            {s.productCount > 0 ? (
+              <Link href={`/products?supplierId=${s.id}`} className={buttonClass({ variant: 'ghost' })} data-testid="supplier-products">
+                {t('carry.suppliers.allProducts', { count: s.productCount })}
+                <ArrowUpRight className="size-3.5 rtl:-scale-x-100" aria-hidden />
+              </Link>
+            ) : null}
           </div>
           {actions.canWrite ? (
             <div>

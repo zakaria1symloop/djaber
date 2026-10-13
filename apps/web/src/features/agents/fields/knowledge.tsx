@@ -2,7 +2,7 @@
 // Knowledge section (wizard step 2 = "Connaissances" of the Configuration tab) — Figma "AGT-02 — Agent wizard — step 2
 // knowledge": catalogue scope, out-of-stock behaviour, shop rules (policies) and the FAQ (≤ 50 entries / 20 000
 // characters; sources SAISI · EXTRAIT DE LA PAGE FB · SUGGÉRÉ PAR L'IA · FICHIER; extraction from the page is free,
-// 3 per day; file import PDF / DOCX / TXT ≤ 5 MB). FAQ rows are saved one by one (`/agents/:id/faq`).
+// 3 per day; file import DOCX / TXT / MD / CSV ≤ 5 MB — PDF refused until a text extractor is chosen). FAQ rows are saved one by one (`/agents/:id/faq`).
 import { Button, CheckChip, Dialog, Field, FormAlert, FormSection, Input, KeyValueList, Ltr, MonoChip, Select, Textarea, toast, ToggleRow } from '@djaber/ui';
 import { formatNumber } from '@djaber/shared';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,7 +23,8 @@ import { POLICY_MAX } from '../logic';
 import { issueText, type SectionProps } from './identity';
 
 const FAQ_FILE_MAX = 5 * 1024 * 1024;
-const FAQ_FILE_TYPES = /\.(pdf|docx|txt)$/i;
+// M11: Word (.docx) and text files; PDF is refused by the API (no PDF text extractor — carry-over kept open)
+const FAQ_FILE_TYPES = /\.(docx|txt|md|csv)$/i;
 const SOURCE_TONE: Record<FaqSource, 'neutral' | 'info' | 'success'> = { manual: 'neutral', page_extraction: 'info', ai_suggested: 'success', file_import: 'neutral' };
 
 export function KnowledgeFields({ draft: d, set, errors, readOnly, badge, agentId, productCount, hasInsights }: SectionProps & { agentId: string | null; productCount?: number | null; hasInsights?: boolean }) {
@@ -177,7 +178,10 @@ export function FaqSection({ agentId, readOnly, hasInsights }: { agentId: string
     else {
       setBusy('import');
       try {
-        follow((await agentsApi.importFaq(agentId, file)).jobId, 'import');
+        // the import is answered at once (`{ created, skipped }`): entries already in the FAQ are skipped, not duplicated
+        const r = await agentsApi.importFaq(agentId, file);
+        await refetch();
+        toast({ tone: 'success', message: r.skipped ? t('carry.faq.imported', { count: r.created.length, skipped: r.skipped }) : t('agents.faq.job.done', { count: r.created.length }) });
       } catch (e) {
         setError(errorMessage(e, t));
       } finally {
@@ -234,9 +238,9 @@ export function FaqSection({ agentId, readOnly, hasInsights }: { agentId: string
             {t('agents.faq.extract')}
           </Button>
           <Button variant="ghost" onClick={() => fileRef.current?.click()} loading={busy === 'import'} disabledReason={full ? t('error.AGENT_FAQ_LIMIT') : undefined} data-testid="faq-import">
-            {t('agents.faq.import')}
+            {t('carry.faq.import')}
           </Button>
-          <input ref={fileRef} type="file" accept=".pdf,.docx,.txt" className="sr-only" tabIndex={-1} aria-label={t('agents.faq.import')} onChange={(e) => void onFile(e.target.files?.[0])} />
+          <input ref={fileRef} type="file" accept=".docx,.txt,.md,.csv" data-upload="faq-import" className="sr-only" tabIndex={-1} aria-label={t('carry.faq.import')} onChange={(e) => void onFile(e.target.files?.[0])} />
           {hasInsights ? (
             <Link href={`/agents/${agentId}/insights`} className="ms-auto text-[13px] text-accent-inbound hover:underline">
               {t('agents.faq.unanswered')}

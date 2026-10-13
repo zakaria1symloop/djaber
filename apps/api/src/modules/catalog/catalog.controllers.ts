@@ -1,6 +1,6 @@
 // 06-api "Catalogue (GDS)" — categories, units, stock (adjustments, journal, dashboard, snapshot), moderation summary.
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
-import { Audited, Idempotent, RequirePermission } from '../../core/auth/decorators';
+import { Audited, Idempotent, RequirePermission, ApiScope, ApiScopes } from '../../core/auth/decorators';
 import { ExportService } from '../jobs/export.service';
 import { CategoryService, UnitService } from './category.service';
 import {
@@ -21,6 +21,7 @@ import { StockService } from './stock.service';
 
 const Id = () => Param('id', ParseUUIDPipe);
 
+@ApiScopes({ read: 'products:read' })
 @Controller('categories')
 export class CategoriesController {
   constructor(private readonly categories: CategoryService) {}
@@ -54,6 +55,7 @@ export class CategoriesController {
   }
 }
 
+@ApiScopes({ read: 'products:read' })
 @Controller('units')
 export class UnitsController {
   constructor(private readonly units: UnitService) {}
@@ -87,6 +89,7 @@ export class UnitsController {
   }
 }
 
+@ApiScopes({ read: 'products:read' })
 @Controller('stock')
 export class StockController {
   constructor(
@@ -103,6 +106,7 @@ export class StockController {
 
   /** CAT-05 — the only stock-adjustment endpoint (Idempotency-Key required, api-contract §1.7). */
   @Post('adjustments')
+  @ApiScope('products:write')
   @RequirePermission('stock.adjust')
   @Idempotent({ required: true })
   @Audited({ entity: 'StockMovement', action: 'stock.adjust', idFrom: 'result.id' })

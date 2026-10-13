@@ -6,6 +6,7 @@ import { prisma, TenantContext, type ModerationSource, type Prisma, type Tx } fr
 import { formatMoney, type CreateProductInput, type DuplicateProductInput, type ProductListItemView, type ProductView, type UpdateProductInput } from '@djaber/shared';
 import { AppException, conflict, notFound, validationError } from '../../core/errors/app.exception';
 import { page, toSkipTake, type Page } from '../../core/http/pagination';
+import { originSessionId } from '../../core/tenancy/tenant.guard';
 import { OutboxService } from '../../core/outbox/outbox.service';
 import { StorageService } from '../../core/storage/storage.service';
 import { algiersDay } from '../../core/time/algiers';
@@ -239,6 +240,9 @@ export class ProductService implements OnModuleInit {
       // 04 §12: stock, variants, minStock, keywords, weight, unit, isActive never trigger a review
       if (needsReview(before, after)) await this.moderation.submit(tx, id, 'update');
       await this.stock.emitProductUpdated(tx, id);
+      // outbound webhook `product.updated` (api-contract §6, 03-events §6: `{ productId, sku, changed:[…] }`)
+      const changed = Object.keys(fields).filter((k) => (fields as Record<string, unknown>)[k] !== undefined);
+      await this.outbox.enqueue(tx, { topic: 'webhook', key: `product.updated:${id}:${before.version + 1}`, workspaceId: before.workspaceId, payload: { event: 'product.updated', workspaceId: before.workspaceId, data: { productId: id, sku: fields.sku ?? before.sku, name: fields.name ?? before.name, changed } } });
       return true;
     });
     if (!ok) throw await stale();
@@ -289,7 +293,7 @@ export class ProductService implements OnModuleInit {
       await prisma.$transaction(async (db) => {
         const tx = db as Tx;
         await tx.product.delete({ where: { id } });
-        await this.outbox.ws(tx, `ws:${TenantContext.workspaceId()}`, 'product.updated', { id, product: { id, deleted: true } });
+        await this.outbox.ws(tx, `ws:${TenantContext.workspaceId()}`, 'product.updated', { id, product: { id, deleted: true }, originSessionId: originSessionId() });
       });
     } catch (e) {
       if (isForeignKey(e)) throw new AppException('PRODUCT_HAS_ORDERS', { count: 1 });

@@ -121,7 +121,7 @@ export function PresetEditor({ preset, locale, onLocale, canWrite }: { preset: A
         })}
       </div>
       <fieldset disabled={!editable || run.isPending} className="flex flex-col gap-4">
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
           <Field label={t('admin.presets.field.name', { locale: locale.toUpperCase() })} htmlFor="ps-name">
             <Input id="ps-name" dir={locale === 'ar' ? 'rtl' : 'ltr'} value={L.name} onChange={(e) => setLoc('name', e.target.value)} />
           </Field>
@@ -145,7 +145,7 @@ export function PresetEditor({ preset, locale, onLocale, canWrite }: { preset: A
         <Field label={t('admin.presets.field.prompt', { locale: locale.toUpperCase(), vars: PRESET_PROMPT_VARIABLES.map((v) => `{{${v}}}`).join(' ') })} htmlFor="ps-prompt">
           <Textarea id="ps-prompt" rows={7} dir={locale === 'ar' ? 'rtl' : 'ltr'} value={L.systemPrompt} onChange={(e) => setLoc('systemPrompt', e.target.value)} />
         </Field>
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
           <Field label={t('admin.presets.field.tone')} htmlFor="ps-tone">
             <Select id="ps-tone" value={d.tone} onChange={(e) => setD((x) => ({ ...x, tone: e.target.value }))}>
               {TONES.map((x) => (

@@ -145,7 +145,7 @@ export class AgentsController {
   @RequirePermission('agents.manage')
   @Audited({ entity: 'Agent', action: 'agent.pause', idFrom: 'params.id' })
   pause(@Id() id: string, @Body() dto: PauseAgentDto, @Req() req: any) {
-    return this.agents.pause(id, dto.confirm === true, locale(req));
+    return this.agents.pause(id, dto.confirm === true, locale(req), { sendOutOfHours: dto.sendOutOfHours === true });
   }
 
   @Post(':id/resume')

@@ -117,8 +117,9 @@ test('AT-CAT-11 sort by price from the header, search by SKU, page size in the U
   await page.goto('/fr/products');
   await page.getByRole('button', { name: 'Trier par PRIX' }).click();
   await expect(page).toHaveURL(/sort=price/);
+  // the previous page stays on screen until the sorted one arrives (placeholder data): wait for the new order
+  await expect.poll(async () => (await names(page))[0]).toBe('Livraison express Sétif');
   const asc = await names(page);
-  expect(asc[0]).toBe('Livraison express Sétif');
   expect(asc[asc.length - 1]).toBe('Sac cuir camel');
   await page.getByRole('button', { name: 'Trier par PRIX' }).click();
   await expect(page).toHaveURL(/sort=-price/);

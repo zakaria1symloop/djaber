@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { Link } from '@/i18n/navigation';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
+import { useStickToBottom } from '@/lib/stick-to-bottom';
 import { AdminQueryError } from '../admin-page';
 import { adminWrite, useAdminGet, useAdminList } from '../api';
 import { AdminDialog, NO_ERRORS, ReasonField, reasonOk, toServerErrors, useOnOpen, type ServerErrors } from '../dialog-kit';
@@ -58,6 +59,7 @@ export function ConversationViewer({ id }: { id: string }) {
   const [data, setData] = useState<AdminViewerConversationDto | null>(null);
   const [errors, setErrors] = useState<ServerErrors>(NO_ERRORS);
   const [unmask, setUnmask] = useState(false);
+  const thread = useStickToBottom<HTMLDivElement>(data ? `${data.id}:${data.messages.length}:${data.masked}` : null);
   const open = useMutation({ mutationFn: (r: string) => api<AdminViewerConversationDto>(`/admin/conversations/${id}`, { query: { reason: r } }) });
   const submit = async () => {
     setErrors(NO_ERRORS);
@@ -87,7 +89,8 @@ export function ConversationViewer({ id }: { id: string }) {
       end={data.masked && can('admin.workspaces.unmask') ? <Button size="sm" variant="ghost" onClick={() => setUnmask(true)} data-testid="viewer-unmask">{t('admin.viewers.unmask.cta')}</Button> : undefined}
       data-testid="viewer-thread"
     >
-      <div className="flex flex-col gap-2">
+      {/* long conversations scroll inside the panel (sized to the screen, opened on the latest message) */}
+      <div ref={thread.ref} onScroll={thread.onScroll} className="-mx-1 flex max-h-[max(18rem,calc(100dvh-22rem))] flex-col gap-2 overflow-y-auto overscroll-contain px-1" data-testid="viewer-messages">
         {data.messages.map((m) => (
           <ViewerMessage key={m.id} author={author(m)} at={f.shortTime(m.at).split(' ').pop() ?? ''}>
             {m.text ? `« ${m.text} »` : m.attachments.map((a) => `[${a.type}]`).join(' ')}

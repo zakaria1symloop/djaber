@@ -18,6 +18,7 @@ import { useT } from '@/lib/i18n';
 import { isJobRunning, useJob } from '@/lib/jobs';
 import { agentsApi, useAgentsRefresh } from './api';
 import type { GenerationResult } from './contracts';
+import { ReviewEditor, reviewOverride, type Review } from './generate-review';
 import { resumePath } from './logic';
 
 const DAYS = [7, 30, 90] as const;
@@ -40,6 +41,8 @@ export function GenerateAgent() {
   const [error, setError] = useState<{ message: string; code: string | null } | null>(null);
   const [applying, setApplying] = useState<'new' | 'update' | null>(null);
   const [confirm, setConfirm] = useState(false);
+  const [review, setReview] = useState<Review | null>(null);
+  useEffect(() => setReview(null), [jobId]);
   useEffect(() => {
     if (!channelId && pages[0]) setChannelId(pages[0].id);
   }, [channelId, pages]);
@@ -74,10 +77,17 @@ export function GenerateAgent() {
   };
   const apply = async (update: boolean) => {
     if (!jobId) return;
+    // M11: the review edited by the merchant is sent as `override` (an untouched review sends nothing: the proposal applies)
+    const override = review && result ? reviewOverride(result, review) : undefined;
+    if (override === null) {
+      setError({ message: t('carry.generate.faq.incomplete'), code: null });
+      setConfirm(false);
+      return;
+    }
     setApplying(update ? 'update' : 'new');
     setError(null);
     try {
-      const agent = await agentsApi.applyGeneration(jobId, update && linked ? { agentId: linked.id, confirm: true } : {});
+      const agent = await agentsApi.applyGeneration(jobId, { ...(update && linked ? { agentId: linked.id, confirm: true } : {}), ...(override ? { override } : {}) });
       await refresh(agent.id);
       toast(update ? t('agents.generate.toast.updated', { name: agent.name, version: agent.currentVersion }) : t('agents.generate.toast.created', { name: agent.name }));
       router.push(agent.status === 'draft' ? resumePath(agent) : `/agents/${agent.id}`);
@@ -174,7 +184,7 @@ export function GenerateAgent() {
               {result.tone ? ` · ${t('agents.generate.tone', { tone: result.tone })}` : ''}
             </ReviewBlock>
             <ReviewBlock label={t('agents.generate.questions')}>
-              <ul className="flex flex-col gap-1">
+              <ul className="flex flex-col gap-1" data-testid="generate-questions">
                 {result.topQuestions.map((q) => (
                   <li key={q.question} dir="auto">
                     {q.question} <Ltr className="text-text-muted">({formatNumber(q.count)})</Ltr>
@@ -183,12 +193,8 @@ export function GenerateAgent() {
                 {result.topQuestions.length === 0 ? <li className="text-text-muted">—</li> : null}
               </ul>
             </ReviewBlock>
-            <ReviewBlock label={t('agents.generate.instructions')}>
-              <p dir="auto" className="whitespace-pre-wrap" data-testid="generate-instructions">
-                {result.proposedInstructions || '—'}
-              </p>
-            </ReviewBlock>
-            <p className="ts-label-meta text-text-muted">{t('agents.generate.reviewNote', { faq: result.proposedFaq.length })}</p>
+            <ReviewEditor key={jobId ?? ''} result={result} value={review} onChange={setReview} disabled={applying !== null} />
+            <p className="ts-label-meta text-text-muted">{t('agents.generate.reviewNote', { faq: review?.faq.filter((r) => r.q.trim() || r.a.trim()).length ?? result.proposedFaq.length })}</p>
           </div>
         ) : null}
 

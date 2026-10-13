@@ -347,6 +347,10 @@ export const LabelsJobSchema = z
     format: z.enum(LABEL_FORMATS).default('a6'),
     markPrinted: z.boolean().default(false),
     lang: z.enum(['fr', 'ar', 'en']).optional(),
+    /** M11 (DLG "Imprimer les bordereaux"): `true` ⇒ one PDF per order in a ZIP instead of one merged PDF */
+    onePdfPerOrder: z.boolean().default(false),
+    /** M11: first page = internal recap (order number, client, wilaya, courier, tracking, COD amount) */
+    includeRecap: z.boolean().default(false),
   })
   .strict()
   .superRefine((v, ctx) => {
@@ -354,7 +358,11 @@ export const LabelsJobSchema = z
   });
 export type LabelsJobInput = z.infer<typeof LabelsJobSchema>;
 /** `Job.result` of `labels-merge`. */
-export type LabelsJobResult = { kind: 'labels'; count: number; pages: number; format: LabelFormat; fileName: string; size: number; skipped: { id: string; orderNumber: string | null; code: 'SHIPMENT_NOT_CREATED' | 'NOT_FOUND' }[]; courierLabels: number; djaberLabels: number };
+/**
+ * `Job.result` of `labels-merge`. M11: with `onePdfPerOrder` the file is a ZIP (`fileName` ends in `.zip`, `files` = PDFs
+ * inside: one per order + `recapitulatif.pdf` when `includeRecap`); `pages` counts every page, the recap included.
+ */
+export type LabelsJobResult = { kind: 'labels'; count: number; pages: number; format: LabelFormat; fileName: string; size: number; skipped: { id: string; orderNumber: string | null; code: 'SHIPMENT_NOT_CREATED' | 'NOT_FOUND' }[]; courierLabels: number; djaberLabels: number; onePdfPerOrder?: boolean; includeRecap?: boolean; files?: number };
 /** `POST /products/bulk/labels { ids[], copies?, withPrice? }` → 202 `{ data: { jobId } }` (A4 sheet, 3 × 8 labels: name, variant, SKU, price, QR of the SKU). */
 export const ProductLabelsSchema = z
   .object({ ids: z.array(id).min(1, 'validation.required').max(SHIPMENT_BULK_MAX_IDS, 'validation.length'), copies: z.number().int().min(1, 'validation.range').max(50, 'validation.range').default(1), withPrice: z.boolean().default(true), includeVariants: z.boolean().default(true) })
@@ -558,8 +566,12 @@ export type TrackingPublicView = {
   updatedAt: string;
   reportUrl: string;
 };
-/** `POST /track/:publicToken/report { reason, details? }` (public "Signaler ce vendeur"; 3 / h / IP ⇒ 429 ABUSE_REPORT_RATE_LIMITED) → `{ data: { id, status } }`. */
+/**
+ * `POST /track/:publicToken/report { reason, details?, email?, captchaToken? }` (public "Signaler ce vendeur"; 3 / h / IP ⇒
+ * 429 ABUSE_REPORT_RATE_LIMITED) → `{ data: { id, status } }`. M11: `captchaToken` is required when `GET /captcha/config`
+ * answers a provider other than `none` (`422 VALIDATION_ERROR`, `fields.captchaToken = validation.captcha`).
+ */
 export const PublicTrackingReportSchema = z
-  .object({ reason: z.enum(['harassment', 'fraud', 'spam', 'inappropriate_content', 'other'], { errorMap: () => ({ message: 'validation.required' }) }), details: emptyToNull(text(1000)), email: emptyToNull(z.string().trim().email('validation.email').max(200)) })
+  .object({ reason: z.enum(['harassment', 'fraud', 'spam', 'inappropriate_content', 'other'], { errorMap: () => ({ message: 'validation.required' }) }), details: emptyToNull(text(1000)), email: emptyToNull(z.string().trim().email('validation.email').max(200)), captchaToken: z.string().trim().max(4096).optional() })
   .strict();
 export type PublicTrackingReportInput = z.infer<typeof PublicTrackingReportSchema>;

@@ -40,8 +40,12 @@ const sumOf = (rows: ReportRow[], key: string) => rows.reduce((s, row) => s + n(
 
 type SoldLine = { pid: string; vid: string | null; product: string; variant: string | null; sku: string | null; cid: string | null; category: string | null; qty: number; revenue: number; cogs: number; docs: number };
 /** Lines sold in the period: delivered orders (deliveredAt) + completed counter sales (soldAt) — the 04 §4 Revenue lines. */
-async function soldLines(ctx: ReportCtx, f: { categoryId?: string; productId?: string; q?: string | null } = {}): Promise<SoldLine[]> {
+async function soldLines(ctx: ReportCtx, f: { categoryId?: string; productId?: string; q?: string | null; source?: string; channelId?: string } = {}): Promise<SoldLine[]> {
   const { gte, lt } = r(ctx);
+  // M11 filters (ANA-04): a channel only exists on orders, so `channelId` leaves the counter sales out
+  const withOrders = f.source !== 'sales';
+  const withSales = f.source !== 'orders' && !f.channelId;
+  const channel = f.channelId ? Prisma.sql`AND o."channelId" = ${f.channelId}::uuid` : Prisma.empty;
   const cat = f.categoryId ? Prisma.sql`AND p."categoryId" = ${f.categoryId}::uuid` : Prisma.empty;
   const prod = f.productId ? Prisma.sql`AND p."id" = ${f.productId}::uuid` : Prisma.empty;
   const q = f.q ? Prisma.sql`AND (p."name" ILIKE ${f.q} OR p."sku" ILIKE ${f.q} OR v."sku" ILIKE ${f.q})` : Prisma.empty;
@@ -51,15 +55,35 @@ async function soldLines(ctx: ReportCtx, f: { categoryId?: string; productId?: s
     FROM (
       SELECT i."productId" pid, i."variantId" vid, i."quantity" qty, i."total" rev, i."quantity" * coalesce(i."costPrice", 0) cogs, o."id" doc
       FROM "OrderItem" i JOIN "Order" o ON o."id" = i."orderId"
-      WHERE o."workspaceId" = ${ws(ctx)} AND o."status" = 'delivered' AND o."deliveredAt" >= ${gte} AND o."deliveredAt" < ${lt}
+      WHERE ${withOrders ? Prisma.sql`true` : Prisma.sql`false`} AND o."workspaceId" = ${ws(ctx)} AND o."status" = 'delivered' AND o."deliveredAt" >= ${gte} AND o."deliveredAt" < ${lt} ${channel}
       UNION ALL
       SELECT i."productId", i."variantId", i."quantity", i."total", i."quantity" * coalesce(i."costPrice", 0), s."id"
       FROM "SaleItem" i JOIN "Sale" s ON s."id" = i."saleId"
-      WHERE s."workspaceId" = ${ws(ctx)} AND s."status" = 'completed' AND s."soldAt" >= ${gte} AND s."soldAt" < ${lt}
+      WHERE ${withSales ? Prisma.sql`true` : Prisma.sql`false`} AND s."workspaceId" = ${ws(ctx)} AND s."status" = 'completed' AND s."soldAt" >= ${gte} AND s."soldAt" < ${lt}
     ) x JOIN "Product" p ON p."id" = x.pid LEFT JOIN "ProductVariant" v ON v."id" = x.vid LEFT JOIN "Category" c ON c."id" = p."categoryId"
     WHERE true ${cat} ${prod} ${q}
     GROUP BY 1,2,3,4,5,6,7`;
   return rows.map((x) => ({ pid: x.pid, vid: x.vid, product: x.product, variant: x.variant, sku: x.sku, cid: x.cid, category: x.category, qty: n(x.qty), revenue: n(x.rev), cogs: n(x.cogs), docs: x.docs }));
+}
+
+/** `source` / `channelId` of the report filters (M11, ANA-04). */
+const sourceFilters = (ctx: ReportCtx) => ({ source: str(ctx, 'source'), channelId: str(ctx, 'channelId') });
+
+/** `groupBy=product`: the variants of a product merged into one line (no variant, the product SKU). */
+function byProduct(lines: SoldLine[]): SoldLine[] {
+  const by = new Map<string, SoldLine>();
+  for (const l of lines) {
+    const e = by.get(l.pid);
+    if (!e) by.set(l.pid, { ...l, vid: null, variant: null, sku: l.vid ? null : l.sku });
+    else {
+      e.qty += l.qty;
+      e.revenue += l.revenue;
+      e.cogs += l.cogs;
+      e.docs += l.docs;
+      if (!l.vid) e.sku = l.sku;
+    }
+  }
+  return [...by.values()];
 }
 
 /** Revenue days of the analytics rollups (identical figures to the analytics tabs and the home tiles). */
@@ -110,7 +134,8 @@ export const REPORT_PRODUCERS: Record<ReportKey, Producer> = {
   },
 
   async sales_by_product(ctx) {
-    const lines = await soldLines(ctx, { categoryId: str(ctx, 'categoryId'), productId: str(ctx, 'productId'), q: like(ctx) });
+    const sold = await soldLines(ctx, { categoryId: str(ctx, 'categoryId'), productId: str(ctx, 'productId'), q: like(ctx), ...sourceFilters(ctx) });
+    const lines = str(ctx, 'groupBy') === 'product' ? byProduct(sold) : sold;
     const total = lines.reduce((s, l) => s + l.revenue, 0);
     const cogs = lines.reduce((s, l) => s + l.cogs, 0);
     const rows: ReportRow[] = lines.map((l) => ({ product: l.product, variant: l.variant, sku: l.sku, category: l.category, quantity: l.qty, revenue: l.revenue, cogs: l.cogs, margin: l.revenue - l.cogs, marginPct: pct(l.revenue - l.cogs, l.revenue), sharePct: pct(l.revenue, total), _ref: productRef(l.pid) }));
@@ -118,7 +143,7 @@ export const REPORT_PRODUCERS: Record<ReportKey, Producer> = {
   },
 
   async sales_by_category(ctx) {
-    const lines = await soldLines(ctx);
+    const lines = await soldLines(ctx, sourceFilters(ctx));
     const by = new Map<string, { cid: string | null; name: string | null; qty: number; revenue: number; cogs: number }>();
     for (const l of lines) {
       const k = l.cid ?? 'none';
@@ -134,7 +159,7 @@ export const REPORT_PRODUCERS: Record<ReportKey, Producer> = {
   },
 
   async top_products(ctx) {
-    const lines = await soldLines(ctx, { categoryId: str(ctx, 'categoryId'), q: like(ctx) });
+    const lines = await soldLines(ctx, { categoryId: str(ctx, 'categoryId'), q: like(ctx), ...sourceFilters(ctx) });
     const by = new Map<string, { pid: string; product: string; sku: string | null; category: string | null; qty: number; revenue: number; docs: number }>();
     for (const l of lines) {
       const e = by.get(l.pid) ?? { pid: l.pid, product: l.product, sku: l.vid ? null : l.sku, category: l.category, qty: 0, revenue: 0, docs: 0 };

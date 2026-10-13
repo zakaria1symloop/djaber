@@ -10,6 +10,7 @@ import {
   ClientRiskSchema,
   ClientsExportQuerySchema,
   ClientsQuerySchema,
+  ClientTagsQuerySchema,
   CreateClientSchema,
   DeleteClientQuerySchema,
   MergeClientsSchema,
@@ -17,7 +18,7 @@ import {
   type ClientsQuery,
 } from '@djaber/shared';
 import { prisma } from '@djaber/db';
-import { RequirePermission } from '../../core/auth/decorators';
+import { RequirePermission, ApiScopes } from '../../core/auth/decorators';
 import { notFound } from '../../core/errors/app.exception';
 import { bulkCtx, runBulk } from '../../core/http/bulk';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -28,6 +29,7 @@ import { ORDER_LIST_INCLUDE, presentOrderListItem } from '../orders/order.presen
 import { ClientService } from './client.service';
 
 class ClientsQueryDto extends createZodDto(ClientsQuerySchema) {}
+class ClientTagsQueryDto extends createZodDto(ClientTagsQuerySchema) {}
 class ClientsExportQueryDto extends createZodDto(ClientsExportQuerySchema) {}
 class CreateClientDto extends createZodDto(CreateClientSchema) {}
 class UpdateClientDto extends createZodDto(UpdateClientSchema) {}
@@ -40,6 +42,7 @@ class DeleteClientQueryDto extends createZodDto(DeleteClientQuerySchema) {}
 
 const Id = () => Param('id', ParseUUIDPipe);
 
+@ApiScopes({ read: 'customers:read', write: 'customers:write' })
 @Controller('clients')
 export class ClientsController {
   constructor(
@@ -59,6 +62,13 @@ export class ClientsController {
   @RequirePermission('clients.write')
   create(@Body() dto: CreateClientDto) {
     return this.clients.create(dto);
+  }
+
+  /** M11 — tag suggestions: `{ tag, count }[]` of the workspace's clients (count desc, ≤ 100), `?q=` filters by substring (API key: `customers:read` of the controller). */
+  @Get('tags')
+  @RequirePermission('clients.read')
+  tags(@Query() q: ClientTagsQueryDto) {
+    return this.clients.tags(q.q);
   }
 
   /** XLSX (default) or CSV of the filtered list → 202 job (06 §7 columns). */

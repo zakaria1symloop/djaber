@@ -59,9 +59,10 @@ export function SharedTest({ token }: { token: string }) {
         <MonoChip tone="warning">{t('agents.playground.simulation')}</MonoChip>
       </header>
       {q.isPending ? (
-        <Card role="status" aria-label={t('common.loading')} className="flex flex-col gap-3 p-6">
+        // same box as the loaded thread: the centred page does not jump when the link answers (CLS)
+        <Card role="status" aria-label={t('common.loading')} className="flex h-[min(78vh,46rem)] min-h-[26rem] flex-col gap-3 p-6">
           <Skeleton className="h-10 w-1/2" />
-          <Skeleton className="h-40" />
+          <Skeleton className="min-h-0 flex-1" />
         </Card>
       ) : expired ? (
         <StateBlock icon={<Clock className="size-5" />} title={t('agents.shared.expired.title')} description={`${t('error.AGENT_TEST_LINK_EXPIRED')} ${t('agents.shared.expired.description')}`} />

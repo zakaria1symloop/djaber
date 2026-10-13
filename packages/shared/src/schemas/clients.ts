@@ -143,6 +143,13 @@ export type ClientsQuery = z.infer<typeof ClientsQuerySchema>;
 /** `GET /clients/export` → 202: the list filters + format. */
 export const ClientsExportQuerySchema = ClientsQuerySchema.extend({ format: z.enum(['csv', 'xlsx']).optional() });
 
+/** M11 — `GET /clients/tags?q=` (tag suggestions of the filters and of the Tags dialog): the distinct tags of the workspace's clients. */
+export const CLIENT_TAGS_SUGGESTIONS_MAX = 100;
+export const ClientTagsQuerySchema = z.object({ q: z.string().trim().max(50, 'validation.length').optional() }).strict();
+export type ClientTagsQuery = z.infer<typeof ClientTagsQuerySchema>;
+/** One row of `GET /clients/tags` → `{ data: ClientTagCount[] }`: sorted by `count` desc, then `tag`; at most 100 rows. */
+export type ClientTagCount = { tag: string; count: number };
+
 // --- read models (api-contract §2 ClientRef, §3.6) ----------------------------------------------------------------------
 export type ClientRefView = { id: string; name: string; phone: string | null; riskLevel: 'normal' | 'high'; isPlaceholder: boolean; blocked: boolean; orderCount: number };
 export type ClientQuality = 'placeholder' | 'no_phone' | 'no_address' | 'duplicate';

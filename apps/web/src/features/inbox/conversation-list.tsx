@@ -3,10 +3,11 @@
 // conversation menu", "DLG — Inbox & queue" (sélecteur de canal). Channel switcher, search, status tabs with server
 // counts (`GET /conversations/counts`), "Filtres (n)" panel, cursor-paginated rows (50, infinite) with their
 // `Actions` menu. Every piece of state lives in the URL (`?tab&channel&q&ai&unread&assignee&…`).
-import { ActionsMenu, Avatar, Button, Checkbox, cn, ConversationItem, FilterChips, FilterGroup, FilterPanel, Menu, MenuItem, MenuLabel, MonoTag, SearchInput, Skeleton } from '@djaber/ui';
+import { ActionsMenu, ActiveFilters, Avatar, Button, Checkbox, cn, ConversationItem, FilterChips, FilterGroup, FilterPanel, Menu, MenuItem, MenuLabel, MonoTag, SearchInput, Skeleton } from '@djaber/ui';
 import { Check, ChevronDown, ListChecks, SlidersHorizontal } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ListEmpty, ListFilteredEmpty, QueryError } from '@/components/global-states';
+import { useAgent } from '@/features/agents/api';
 import { useChannels } from '@/features/channels/api';
 import { useMembers } from '@/features/workspace/api';
 import { Link, useRouter } from '@/i18n/navigation';
@@ -19,6 +20,7 @@ import { InboxBulkBar } from './bulk';
 import type { ConversationListItem } from './contracts';
 import { countPanelFilters, DEFAULT_FILTERS, inboxApiQuery, INBOX_SORTS, INBOX_TABS, isFiltered, previewTypeKey, resetPanelFilters, tabCount, type InboxFilters, type InboxSort, type InboxTab } from './logic';
 import { ChannelBadge, PlatformIcon, shortAge, shortUserName, useLocale, useNow, userName } from './ui';
+import { useTyping } from './typing';
 import type { ConversationActions } from './use-conversation-actions';
 
 const INTENTS = ['sale', 'info', 'tracking', 'complaint', 'greeting'] as const;
@@ -63,6 +65,9 @@ export function ConversationList({
   const activeFilters = countPanelFilters(filters);
   const blockedCount = counts.data?.blocked ?? 0;
   const tabs = INBOX_TABS.filter((tab) => tab !== 'blocked' || blockedCount > 0 || filters.tab === 'blocked');
+  // `?agentId=` (M11): the name of the agent on the chip (the id when the member cannot read agents)
+  const agent = useAgent(filters.agent && can('agents.read') ? filters.agent : null);
+  const agentName = agent.data?.name ?? (agent.isPending && filters.agent && can('agents.read') ? '…' : '—');
 
   /* ---------- infinite list: the sentinel at the bottom loads the next 50 ---------- */
   const sentinel = useRef<HTMLLIElement>(null);
@@ -185,11 +190,28 @@ export function ConversationList({
                 )}
               >
                 {t(`inbox.tab.${tab}`)}
-                {n !== null ? <span className={cn('tabular-nums', active ? 'text-black/70' : 'text-text-muted')}>{n}</span> : null}
+                {n !== null ? (
+                  <span className={cn('tabular-nums', active ? 'text-black/70' : 'text-text-muted')}>{n}</span>
+                ) : counts.isPending ? (
+                  // room for the count while it loads: the chips keep their width and the list under them does not jump
+                  <span aria-hidden className="invisible tabular-nums">
+                    0
+                  </span>
+                ) : null}
               </button>
             );
           })}
         </div>
+        {filters.agent ? (
+          <div data-testid="inbox-agent-filter">
+            <ActiveFilters
+              items={[{ key: 'agent', label: `${t('carry.inbox.filter.agent')} : ${agentName}`, onRemove: () => set({ agent: null }) }]}
+              label={t('action.filters')}
+              clearLabel={t('action.clearAll')}
+              removeLabel={(l) => t('agents.filter.remove', { label: l })}
+            />
+          </div>
+        ) : null}
       </div>
 
       {selecting && selected.length > 0 ? (
@@ -235,7 +257,7 @@ export function ConversationList({
                   name={row.client?.name || t('inbox.client.unknown')}
                   avatarUrl={row.client?.avatarUrl}
                   time={shortAge(row.lastMessageAt, t, locale, now)}
-                  preview={row.lastMessagePreview ? (previewTypeKey(row.lastMessagePreview) ? t(previewTypeKey(row.lastMessagePreview)!) : row.lastMessagePreview) : t('inbox.preview.media')}
+                  preview={<RowPreview id={row.id} text={row.lastMessagePreview ? (previewTypeKey(row.lastMessagePreview) ? t(previewTypeKey(row.lastMessagePreview)!) : row.lastMessagePreview) : t('inbox.preview.media')} />}
                   outbound={row.lastMessageDirection === 'out'}
                   unread={row.unreadCount}
                   unreadLabel={t('inbox.unread', { count: row.unreadCount })}
@@ -284,6 +306,20 @@ export function ConversationList({
       <InboxFilterPanel open={panel} onClose={() => setPanel(false)} filters={filters} setFilters={setFilters} total={rows.length} more={!!hasNextPage} />
     </div>
   );
+}
+
+/** Row preview; "IA répond…" replaces it while the AI reply job of that conversation runs (M11, `conversation.typing`). */
+function RowPreview({ id, text }: { id: string; text: string }) {
+  const t = useT();
+  const typing = useTyping(id);
+  if (typing.ai) {
+    return (
+      <span className="text-accent-inbound" data-typing="ai">
+        {t('carry.inbox.typing.ai')}
+      </span>
+    );
+  }
+  return <>{text}</>;
 }
 
 /** "Filtres" side panel (model: Conversation). Filters apply live; the footer button closes the panel. */

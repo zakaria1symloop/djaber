@@ -21,6 +21,7 @@ import {
   FilterGroup,
   FilterPanel,
   KpiTile,
+  KpiTileSkeleton,
   Ltr,
   OrderNumber,
   Pill,
@@ -287,7 +288,7 @@ export function DeliveryOverviewPage() {
             <KpiTile value={formatNumber(k.returned30d)} label={t('delivery.kpi.returned')} meta={`${k.returnedPct30d} %`} data-kpi="returned" />
           </>
         ) : overview.isError ? null : (
-          Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-[66px] animate-pulse rounded-card border border-line-edge bg-ink-surface" />)
+          Array.from({ length: 6 }).map((_, i) => <KpiTileSkeleton key={i} />)
         )}
       </section>
 

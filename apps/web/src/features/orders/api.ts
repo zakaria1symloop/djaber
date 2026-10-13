@@ -189,6 +189,19 @@ export function useOrderEvents() {
     void qc.invalidateQueries({ queryKey: ordersKeys.list(ws) });
     derived();
   });
+  // reconnect (M11): the server answers `resync { orders }` with the orders changed while the socket was down
+  useWsEvent<{ orders?: OrderUpdatedEvent['order'][] }>('resync', (p) => {
+    const rows = (p?.orders ?? []).filter((s) => s?.id);
+    if (!rows.length) return;
+    const byId = new Map(rows.map((s) => [s.id, s]));
+    qc.setQueriesData<OrdersPage>({ queryKey: ordersKeys.list(ws) }, (old) => (old ? { ...old, rows: old.rows.map((r) => (byId.has(r.id) ? patchRowFromSummary(r, byId.get(r.id)!) : r)) } : old));
+    for (const s of rows) {
+      const known = qc.getQueryData<Order>(ordersKeys.order(ws, s.id));
+      if (known && known.version !== s.version) void qc.invalidateQueries({ queryKey: ordersKeys.order(ws, s.id), exact: true });
+    }
+    void qc.invalidateQueries({ queryKey: ordersKeys.list(ws) });
+    derived();
+  });
   useWsEvent<OrderDeletedEvent>(ORDER_EVENTS.deleted, (p) => {
     if (!p?.id) return;
     qc.setQueriesData<OrdersPage>({ queryKey: ordersKeys.list(ws) }, (old) => (old ? { ...old, rows: old.rows.filter((r) => r.id !== p.id), total: Math.max(0, old.total - 1) } : old));

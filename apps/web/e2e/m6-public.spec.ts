@@ -50,6 +50,11 @@ test('AT-PUB-05 — "Signaler ce vendeur" sends an end-customer report; unknown 
   await expect(d).toContainText('Champ requis');
   await d.getByRole('radio', { name: /Arnaque/ }).click();
   await page.locator('#rep-details').fill('Le colis ne correspond pas à la commande.');
+  // M11: the captcha is required (dev provider `fake` = the "Je ne suis pas un robot" checkbox, token `fake-pass`)
+  await page.getByTestId('dialog-submit').click();
+  await expect(d.getByTestId('captcha')).toContainText('Cochez la case « Je ne suis pas un robot ».');
+  await expect(page.locator('#rep-details')).toHaveValue('Le colis ne correspond pas à la commande.');
+  await d.getByTestId('captcha-fake').check();
   await page.getByTestId('dialog-submit').click();
   await expect(page.getByTestId('report-sent')).toBeVisible({ timeout: 30_000 });
 

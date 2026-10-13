@@ -133,7 +133,8 @@ export function HelpCenterPage() {
         </Card>
       ) : null}
 
-      <div className="grid items-start gap-4 lg:grid-cols-3">
+      {/* grid-cols-1 = minmax(0, 1fr): an implicit column grew to the longest ticket subject and pushed the cards off a phone screen */}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
         <HelpCard title={t('help.contact.title')} sub={t('help.contact.sub')} data-testid="help-contact-card">
           <ContactForm compact />
         </HelpCard>

@@ -87,7 +87,9 @@ export class ConversationService implements OnModuleInit {
     if (q.ai === 'active') and.push({ aiPaused: false, agentId: { not: null }, status: { not: 'needs_human' } });
     if (q.ai === 'paused') and.push({ OR: [{ aiPaused: true }, { status: 'needs_human' }] });
     if (q.ai === 'no_agent') and.push({ agentId: null });
-    if (q.agentId?.length) and.push({ agentId: { in: q.agentId } });
+    // conversations of the agent: answered by it (`Conversation.agentId`, set at its first reply) or not answered yet on a
+    // page it is linked to (agent page "Conversations" link, M11)
+    if (q.agentId?.length) and.push({ OR: [{ agentId: { in: q.agentId } }, { agentId: null, channel: { agentChannels: { some: { agentId: { in: q.agentId } } } } }] });
     if (q.unread !== undefined) and.push({ unreadCount: q.unread ? { gt: 0 } : 0 });
     if (q.assigneeId === 'me') and.push({ assigneeId: t.userId ?? null });
     else if (q.assigneeId === 'none') and.push({ assigneeId: null });

@@ -31,7 +31,16 @@ html { color-scheme: dark; }
 body { min-height: 100dvh; -webkit-font-smoothing: antialiased; font-size: 13px; }
 * { scrollbar-width: thin; scrollbar-color: var(--line-lit) transparent; }
 ::selection { background: rgba(96, 165, 250, 0.35); }
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Layout pass (M11): a grid without explicit columns (`grid gap-6 lg:grid-cols-2`) gets one implicit `auto` column as
+   wide as its widest unbreakable child (truncated titles, button rows), which pushed phone pages sideways. The single
+   default column may shrink; every `grid-cols-*` utility (later layer) and inline template still wins. */
+@layer base {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+}
+/* `inset-inline-start: 0`: an absolute box without offsets sits at its static position; inside a horizontally scrolled
+   table (fee grid) that position is far to the inline end and, with no positioned ancestor, it widened the whole document
+   on phones. Logical + no negative margin: the 1 px box stays inside the start edge in LTR and RTL (no scrollable overflow). */
+.sr-only { position: absolute; inset-inline-start: 0; width: 1px; height: 1px; margin: 0; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* next/font families (hashed names) feed the token font variables */
 html:root {

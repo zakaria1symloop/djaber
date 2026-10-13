@@ -172,6 +172,8 @@ export const AgentsQuerySchema = z
     activeDays: z.coerce.number().refine((v) => v === 7 || v === 30, 'validation.invalid').optional(),
     defaultLanguage: z.string().max(20).optional(),
     hasPendingInsights: flag.optional(),
+    /** M11: agents whose catalogue scope includes this product ("Agents qui le vendent" on the product page) */
+    productId: id.optional(),
     q: z.string().trim().max(120).optional(),
     sort: z.enum(['lastActiveAt', '-lastActiveAt', 'name', '-name']).optional(),
     // the agents list is small (plan max 5): it is returned whole; page params of the shared list hook are accepted and ignored
@@ -184,7 +186,8 @@ export type AgentsQuery = z.infer<typeof AgentsQuerySchema>;
 /** `POST /agents/:id/activate { at? }` — `at` schedules the activation. */
 export const ActivateAgentSchema = z.object({ at: z.string().datetime({ offset: true, message: 'validation.date' }).optional() }).strict();
 /** `POST /agents/:id/pause` — `confirm` acknowledges 409 AGENT_PAUSED_WITH_OPEN_THREADS. */
-export const PauseAgentSchema = z.object({ confirm: z.boolean().optional() }).strict();
+/** `POST /agents/:id/pause { confirm?, sendOutOfHours? }` — AGV-07 / AT-AGV-08: `sendOutOfHours` sends the workspace `out_of_hours` system message once to every open thread moved to « À traiter » (M11). */
+export const PauseAgentSchema = z.object({ confirm: z.boolean().optional(), sendOutOfHours: z.boolean().default(false) }).strict();
 export const AgentBulkSchema = z.object({ ids: z.array(id).min(1).max(100), confirm: z.boolean().optional() }).strict();
 export const AgentMetricsQuerySchema = z.object({ from: day.optional(), to: day.optional() }).strict();
 export const ApplyPresetUpdateSchema = z.object({ presetVersion: z.number().int().min(1) }).strict();
@@ -242,7 +245,25 @@ export const SharedTestMessageSchema = z
 // --- generate from page (AGT-03) / page analysis (CHN-08) -----------------------------------------------------------------------
 export const GenerateAgentSchema = z.object({ channelId: id, days: z.union([z.literal(7), z.literal(30), z.literal(90)]).optional() }).strict();
 /** `POST /agents/generate/:jobId/apply { agentId?, confirm? }` — no `agentId` ⇒ a new agent; with it ⇒ update after confirmation. */
-export const ApplyGenerationSchema = z.object({ agentId: id.optional(), confirm: z.boolean().optional() }).strict();
+/**
+ * `POST /agents/generate/:jobId/apply { agentId?, confirm?, override? }` — no `agentId` ⇒ a new agent; with it ⇒ update after
+ * confirmation. M11: `override` = the review edited by the merchant before applying (instructions text, FAQ rows kept / edited,
+ * policies); absent fields keep the proposal of `Job.result`.
+ */
+export const ApplyGenerationSchema = z
+  .object({
+    agentId: id.optional(),
+    confirm: z.boolean().optional(),
+    override: z
+      .object({
+        instructions: z.string().max(10_000, 'validation.length').optional(),
+        faq: z.array(z.object({ q: z.string().trim().min(1, 'validation.required').max(500, 'validation.length'), a: z.string().trim().min(1, 'validation.required').max(2000, 'validation.length') }).strict()).max(100).optional(),
+        policies: z.record(z.string().max(500, 'validation.length')).optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
 export const AnalysisImportItemSchema = z
   .object({
     name: z.string().trim().min(1, 'validation.required').max(255, 'validation.length'),

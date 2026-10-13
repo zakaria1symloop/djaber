@@ -3,7 +3,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
 import { createZodDto } from 'nestjs-zod';
 import { FeeQuoteQuerySchema, SeedFeesSchema, StopdesksQuerySchema, UpdateFeeRuleSchema } from '@djaber/shared';
-import { RequirePermission } from '../../core/auth/decorators';
+import { RequirePermission, ApiScope } from '../../core/auth/decorators';
 import { RawResponse } from '../../core/http/envelope.interceptor';
 import { FeeService } from './fee.service';
 import { GeoService } from './geo.service';
@@ -24,6 +24,7 @@ export class DeliveryController {
 
   /** `{ data: FeeRuleView[58], meta: { freeDeliveryThreshold, custom, inactive, missing, warnings } }`. */
   @Get('fees')
+  @ApiScope('delivery:read')
   @RequirePermission('delivery.send')
   async grid() {
     const g = await this.fees.grid();
@@ -31,6 +32,7 @@ export class DeliveryController {
   }
 
   @Get('fees/quote')
+  @ApiScope('delivery:read')
   @RequirePermission('delivery.send')
   quote(@Query() q: FeeQuoteQueryDto) {
     return this.fees.quote({ wilayaId: q.wilayaId, isStopdesk: q.stopdesk === true, subtotal: q.subtotal ?? null });
@@ -57,6 +59,7 @@ export class DeliveryController {
   }
 
   @Get('stopdesks')
+  @ApiScope('delivery:read')
   @RequirePermission('delivery.send')
   stopdesks(@Query() q: StopdesksQueryDto) {
     return this.geo.stopdesks(q);

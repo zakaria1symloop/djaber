@@ -9,7 +9,9 @@ import { Page403 } from '@/components/global-states';
 import { workspaceApi } from '@/features/workspace/api';
 import { errorMessage } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
+import type { UploadDto } from '@/lib/contracts';
 import { useSession } from '@/lib/session';
+import { CropDialog } from './crop-dialog';
 import { checkImage, IMAGE_TYPES } from './image';
 
 /**
@@ -52,30 +54,44 @@ export function Section({ title, description, children, className, tone }: { tit
   );
 }
 
-/** Hidden file input + upload (`POST /uploads`): returns the upload id to attach with a PATCH. */
-export function useImageUpload(kind: 'avatar' | 'logo', onUploaded: (uploadId: string) => Promise<unknown>) {
+/**
+ * Hidden file input + crop step (M11, Figma "Logo de l'espace & avatar": RECADRER) + upload (`POST /uploads`): returns
+ * the upload id to attach with a PATCH. A refused file (type / size) is reported before the crop dialog opens.
+ */
+export function useImageUpload(kind: 'avatar' | 'logo' | 'category_image', onUploaded: (uploadId: string, upload: UploadDto) => Promise<unknown> | void) {
   const t = useT();
   const ref = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [picked, setPicked] = useState<File | null>(null);
+  const [cropError, setCropError] = useState<string | null>(null);
   const upload = useMutation({
     mutationFn: async (file: File) => {
       const up = await workspaceApi.upload(file, kind);
-      await onUploaded(up.id);
+      await onUploaded(up.id, up);
     },
   });
-  const onFile = async (file: File | undefined) => {
+  const onFile = (file: File | undefined) => {
     if (!file) return;
     setError(null);
+    setCropError(null);
     const bad = checkImage(file);
     if (bad) return setError(t(`error.${bad}`));
+    setPicked(file);
+  };
+  const onCropped = async (file: File) => {
+    setCropError(null);
     try {
       await upload.mutateAsync(file);
+      setPicked(null);
     } catch (e) {
-      setError(errorMessage(e, t));
+      // shown inside the crop dialog, the picture kept (AT-UX-04)
+      setCropError(errorMessage(e, t));
     }
   };
   const input = (
-    <input
+    <>
+      <CropDialog file={picked} kind={kind} uploading={upload.isPending} error={cropError} onCancel={() => (setPicked(null), setCropError(null))} onConfirm={(f) => void onCropped(f)} />
+      <input
       ref={ref}
       type="file"
       accept={IMAGE_TYPES.join(',')}
@@ -84,10 +100,11 @@ export function useImageUpload(kind: 'avatar' | 'logo', onUploaded: (uploadId: s
       aria-hidden
       data-upload={kind}
       onChange={(e) => {
-        void onFile(e.target.files?.[0]);
+        onFile(e.target.files?.[0]);
         e.target.value = '';
       }}
     />
+    </>
   );
   return { input, open: () => ref.current?.click(), uploading: upload.isPending, error, clearError: () => setError(null) };
 }

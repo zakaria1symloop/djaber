@@ -21,6 +21,7 @@ import { useCallback } from 'react';
 import { api, apiRaw, type Meta } from '@/lib/api';
 import type { JobRef } from '@/lib/jobs';
 import type { ApiQuery } from '@/lib/list-state';
+import { recordOrigin } from '@/lib/origin';
 import { useWorkspaceId } from '@/lib/session';
 import { uploadWithProgress } from '@/lib/upload';
 import { useWsEvent } from '@/lib/ws';
@@ -228,9 +229,11 @@ export function useCatalogRefresh() {
 export function useCatalogEvents() {
   const ws = useWorkspaceId();
   const qc = useQueryClient();
-  useWsEvent<{ product?: { id: string; stock?: number | null; isActive?: boolean; moderationStatus?: string; lowStock?: boolean } }>('product.updated', (p) => {
+  useWsEvent<{ product?: { id: string; stock?: number | null; isActive?: boolean; moderationStatus?: string; lowStock?: boolean }; originSessionId?: string | null }>('product.updated', (p) => {
     const u = p?.product;
     if (!u?.id) return;
+    // M11: who caused it (JWT `sid` of the request) — the product form tells its own writes from someone else's
+    recordOrigin(u.id, p?.originSessionId);
     const patchRow = <T extends ProductListItem>(row: T): T => {
       if (row.id !== u.id) return row;
       const next = { ...row };

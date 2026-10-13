@@ -203,10 +203,11 @@ Every adapter throws `CourierError { kind: 'validation', field?: 'phone'|'commun
 | Q | Source / المصدر / Source | `source` label |
 | R | `djaber_id` (hidden) | `order.id` |
 
-- Upsert (`sheets-upsert` job, debounced 5 s per order): find row by `R == orderId` using `GET /v4/spreadsheets/<id>/values/Commandes!R:R` (cached per connection 60 s; on miss re-read); found ⇒ `PUT …/values/Commandes!A{row}:R{row}?valueInputOption=USER_ENTERED`; not found ⇒ `POST …/values/Commandes!A:R:append`; store `SheetsRow{ orderId, rowIndex, syncedAt }` (row index is a hint only; always re-locate by `djaber_id` — GSH-04 fix). Filters: `SheetsConnection.filters { channelIds?: string[], sources?: OrderSource[] }`; non-matching orders are skipped; rows are never deleted from the sheet (one-way).
+- Upsert (`sheets-upsert` job, debounced 5 s per order): find row by `R == orderId` using `GET /v4/spreadsheets/<id>/values/Commandes!R:R` (read before every write — no cache: a cached index would hit another order after a re-sort, GSH-04; M11); found ⇒ `PUT …/values/Commandes!A{row}:R{row}?valueInputOption=USER_ENTERED`; not found ⇒ `POST …/values/Commandes!A:R:append`; store `SheetsRow{ orderId, rowIndex, syncedAt }` (row index is a hint only; always re-locate by `djaber_id` — GSH-04 fix). Filters: `SheetsConnection.filters { channelIds?: string[], sources?: OrderSource[] }`; non-matching orders are skipped; rows are never deleted from the sheet (one-way).
 - Errors: 401/`invalid_grant` ⇒ `status='error'`, `lastError='SHEETS_TOKEN_REVOKED'`, notification, queue skips this connection until reconnect; 404 ⇒ `SHEETS_SPREADSHEET_NOT_FOUND`; 429/403 `quotaExceeded` ⇒ `SHEETS_QUOTA`, pause 60 s, retry; others ⇒ retry then `error`.
 - Backfill: `POST /integrations/google-sheets/backfill { from, to }` ⇒ `sheets-backfill` job iterating orders by `orderedAt` ascending, 100 per batch (`values:batchUpdate`), progress %.
-- Disconnect: revoke `POST https://oauth2.googleapis.com/revoke?token=`, delete row; sheet untouched.
+- Disconnect: delete row, revoke `POST https://oauth2.googleapis.com/revoke?token=` from the worker job `outbox/sheets-revoke` (M11: no Google call from the handler); sheet untouched.
+- Drivers (M11): `SheetsGateway` port — `GoogleSheetsGateway` (`SHEETS_DRIVER=google`, refused in development / test unless `SHEETS_ALLOW_LIVE=true`) and `FakeSheetsGateway` (`SHEETS_DRIVER=fake`, dev / test default: consent page `/api/v1/dev/google/consent`, spreadsheets in Redis, dev viewer `/api/v1/dev/google/spreadsheets/:id/view`).
 
 ---
 

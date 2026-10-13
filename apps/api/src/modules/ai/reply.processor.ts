@@ -15,6 +15,7 @@ import { acquireSemaphore, AI_REPLY_RETRY_MS, AI_REPLY_SLOT_TTL_MS, AI_REPLY_WOR
 import { RedisService } from '../../core/redis/redis.provider';
 import { StorageService } from '../../core/storage/storage.service';
 import { TenantResolver } from '../../core/tenancy/tenant.resolver';
+import { WsEmitter } from '../../core/ws/ws.emitter';
 import { ChannelTokens } from '../channels/channel.util';
 import { CreditService } from '../credits/credit.service';
 import { BatchingService, type AiReplyJob } from '../messaging/batching.service';
@@ -63,6 +64,7 @@ export class ReplyProcessor implements OnModuleInit {
     private readonly notifications: NotificationProducer,
     @Inject(META_GATEWAY) private readonly meta: MetaGateway,
     private readonly crossSell: CrossSellService,
+    private readonly ws: WsEmitter,
   ) {}
 
   onModuleInit() {
@@ -162,6 +164,8 @@ export class ReplyProcessor implements OnModuleInit {
       return 'exhausted';
     }
 
+    // M11: "IA répond…" in the inbox — ephemeral, so emitted directly (Redis emitter) rather than through the outbox
+    this.aiTyping(conv.workspaceId, conv.id, true);
     try {
       return await this.answer(conv, agent, run, ref, batch, { attempt, max: job?.opts?.attempts ?? 1 });
     } catch (e) {
@@ -170,6 +174,17 @@ export class ReplyProcessor implements OnModuleInit {
         await this.fail(conv, agent, run, null, 'internal_error', batch).catch((err) => this.log.error({ runId: run.id, err: String(err) }, 'could not close a failed run'));
       }
       throw e;
+    } finally {
+      this.aiTyping(conv.workspaceId, conv.id, false);
+    }
+  }
+
+  /** WS `conversation.typing { conversationId, ai: true, active }` around the AI reply (03-events §2, M11). */
+  private aiTyping(workspaceId: string, conversationId: string, active: boolean) {
+    try {
+      this.ws.emit(`ws:${workspaceId}`, 'conversation.typing', { conversationId, ai: true, active, at: new Date().toISOString() });
+    } catch (err) {
+      this.log.warn({ conversationId, err: String(err) }, 'ai typing event not emitted');
     }
   }
 

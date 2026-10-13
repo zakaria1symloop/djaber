@@ -111,6 +111,12 @@ describe('prompt sections (04-ai-pipeline §3)', () => {
     expect(imageRuleSection(ctx({}, { imageRecognition: false }))).toBe('');
     expect(crossSellSection(ctx())).toMatchSnapshot();
     expect(crossSellSection(ctx({}, { capabilities: { crossSell: false } }))).toBe('');
+    // M11 dedicated recommendations section (REC-01): the pairs of the catalogue products, the per-turn cap, the output field
+    const cs = crossSellSection(ctx());
+    expect(cs).toContain('RECOMMENDATION PAIRS (source → recommended):');
+    expect(cs).toContain('Never more than 3 suggestions in one reply');
+    expect(cs).toContain('"recommendations"');
+    expect(crossSellSection(ctx({ catalogue: { count: 214, full: false, products: [] } }))).toContain('only the ALSO lines returned by search_products / get_product');
     expect(cardTemplateSection(ctx())).toMatchSnapshot();
     expect(cardTemplateSection(ctx({}, { productCardTemplate: '⭐ {name} : {price} DA ({stock})' }))).toContain('use this template: ⭐ {name} : {price} DA ({stock})');
     expect(closingSection(ctx())).toBe('');

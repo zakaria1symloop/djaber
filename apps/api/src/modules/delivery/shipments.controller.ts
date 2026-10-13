@@ -22,7 +22,7 @@ import {
   type LabelsJobInput,
   type ShipmentsQuery,
 } from '@djaber/shared';
-import { ApiScope, Idempotent, RequirePermission } from '../../core/auth/decorators';
+import { ApiScope, Idempotent, RequirePermission, ApiScopes } from '../../core/auth/decorators';
 import { addWarning } from '../../core/http/envelope.interceptor';
 import { bulkCtx } from '../../core/http/bulk';
 import { DeliveryOverviewService } from './delivery-overview.service';
@@ -60,6 +60,7 @@ export class OrderShipmentsController {
   }
 }
 
+@ApiScopes({ read: 'delivery:read' })
 @Controller('shipments')
 export class ShipmentsController {
   constructor(

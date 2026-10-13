@@ -1,0 +1,13 @@
+{
+ "agent.api.copySuffix": "(copie)",
+ "agent.api.defaultName": "Nouvel agent",
+ "agent.api.generatedName": "Agent de {page}",
+ "agent.api.readiness.catalog": "Produits actifs dans le périmètre de l’agent",
+ "agent.api.readiness.channels": "Pages rattachées",
+ "agent.api.readiness.credits": "Crédits disponibles",
+ "agent.api.readiness.emailVerified": "Adresse e-mail vérifiée",
+ "agent.api.readiness.feeGrid": "Grille des frais de livraison",
+ "agent.api.readiness.pendingModeration": "Produits en attente de validation",
+ "agent.api.readiness.policies": "Politiques de la boutique (livraison, paiement, retours)",
+ "agent.api.readiness.productsWithoutPhoto": "Produits sans photo"
+}

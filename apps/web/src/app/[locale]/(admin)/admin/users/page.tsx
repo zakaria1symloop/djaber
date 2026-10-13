@@ -39,7 +39,7 @@ export default function AdminUsersPage() {
   );
   const status = (u: AdminUserRowDto) => (u.status === 'active' && !u.emailVerified ? 'unverified' : u.status);
   const columns: Column<AdminUserRowDto>[] = [
-    { key: 'name', header: t('admin.users.col.user'), hideable: false, cell: (u) => <span className="block truncate font-medium">{fullName(u) || '—'}</span> },
+    { key: 'name', header: t('admin.users.col.user'), hideable: false, cell: (u) => <span className="block truncate font-medium" title={fullName(u) || undefined}>{fullName(u) || '—'}</span> },
     { key: 'email', header: t('admin.users.col.email'), sortKey: 'email', cell: (u) => <span dir="ltr" className="whitespace-nowrap">{u.email} {u.emailVerified ? '✓' : '✗'}</span> },
     { key: 'workspaces', header: t('admin.users.col.workspaces'), className: 'max-w-[240px]', cell: (u) => (u.workspaces.length ? u.workspaces.map((w) => `${w.name} (${t(`enum.Membership.role.${w.role}`).toLowerCase()})`).join(' · ') : '—') },
     { key: 'platform', header: t('admin.users.col.platform'), cell: (u) => (u.platformRole === 'none' ? '—' : t(`enum.PlatformRole.${u.platformRole}`)) },

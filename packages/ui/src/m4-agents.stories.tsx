@@ -122,6 +122,14 @@ function Tags() {
 }
 export const TagInputField: Story = { render: () => <Frame><Tags /><TagInput value={['plein']} onChange={() => undefined} label="Désactivé" removeLabel={(t) => t} disabled /></Frame> };
 
+function TagsWithSuggestions() {
+  const [v, setV] = React.useState(['VIP']);
+  const known = [{ tag: 'VIP', count: 42 }, { tag: 'fidèle', count: 18 }, { tag: 'Grossiste', count: 7 }, { tag: 'Alger centre', count: 3 }];
+  return <TagInput value={v} onChange={setV} label="Étiquettes" placeholder="Ajouter une étiquette…" max={10} removeLabel={(t) => `Retirer ${t}`} suggestions={known} suggestionsLabel="Étiquettes existantes" />;
+}
+/** M11 — client tags with suggestions from `GET /clients/tags?q=` (count per tag). */
+export const TagInputSuggestions: Story = { render: () => <Frame><TagsWithSuggestions /></Frame> };
+
 function Slider() {
   const [v, setV] = React.useState(2);
   return <RangeSlider label="Délai de réponse" min={0} max={10} value={v} onChange={setV} format={(n) => (n === 0 ? 'immédiat' : `${n} s (naturel)`)} />;

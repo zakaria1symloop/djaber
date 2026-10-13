@@ -99,6 +99,8 @@ export const ProductsQuerySchema = PageQuery.extend({
   maxMargin: num,
   agentId: csvUuid,
   noAgent: flag,
+  /** M11 (supplier sheet "Voir les produits (n)"): products in the purchase lines of this supplier (cancelled purchases excluded) */
+  supplierId: z.string().uuid('validation.id').optional(),
   moderationStatus: csv(ModerationStatusProductValues),
   createdFrom: day,
   createdTo: day,

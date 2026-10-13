@@ -30,11 +30,14 @@ const merchantPage = async (browser: Browser, path: string) => {
 test('AT-MOD-04 reject without message ⇒ MODERATION_REASON_REQUIRED inline; with reason ⇒ product hidden and the merchant sees the refusal', async ({ page, request, browser }) => {
   test.setTimeout(180_000);
   const { product, item, name } = await pendingProduct(request, moderator, merchant);
-  await loginAdmin(page, moderator, `/fr/admin/moderation?sheet=${item.id}`);
+  // the shared dev queue holds many pending items of earlier runs: the queue is searched by this product's unique name
+  // (`?q=`, in the URL) so its row is on the first page whatever the queue length
+  await loginAdmin(page, moderator, `/fr/admin/moderation?q=${encodeURIComponent(name)}&sheet=${item.id}`);
 
   const panel = page.getByTestId('mod-panel');
   await expect(panel.getByRole('heading', { name })).toBeVisible();
   await expect(panel).toContainText('EN ATTENTE');
+  await expect(page.getByTestId('mod-row')).toHaveCount(1);
   await expect(page.getByTestId('mod-row').filter({ hasText: name })).toHaveAttribute('data-active', 'true');
 
   // no reason, no message → the API refuses, the error stays in the panel
@@ -93,7 +96,8 @@ test('AT-MOD-08 an item past its SLA shows URGENT and sits in the Urgents tab', 
   test.setTimeout(180_000);
   const { item, name } = await pendingProduct(request, moderator, merchant);
   await breachSla(item.id);
-  await loginAdmin(page, moderator, '/fr/admin/moderation?tab=urgent');
+  // searched by its unique name: earlier runs leave other urgent items in the shared dev queue
+  await loginAdmin(page, moderator, `/fr/admin/moderation?tab=urgent&q=${encodeURIComponent(name)}`);
   await expect(page.locator('[data-tab=urgent]')).toHaveAttribute('aria-current', 'page');
   const row = page.getByTestId('mod-row').filter({ hasText: name });
   await expect(row).toBeVisible();
@@ -105,7 +109,7 @@ test('AT-MOD-10 a failed pre-screen leaves the item pending without score, flagg
   const name = `Lampe prescreen-fail ${Date.now().toString(36)}`;
   const product = await asMerchant<{ id: string }>(request, merchant, 'post', '/products', { name, price: 2500, stock: 3 });
   const item = await waitForItem(request, moderator, product.id, (i) => i.status === 'pending' && i.aiScore === null);
-  await loginAdmin(page, moderator, `/fr/admin/moderation?sheet=${item.id}`);
+  await loginAdmin(page, moderator, `/fr/admin/moderation?q=${encodeURIComponent(name)}&sheet=${item.id}`);
   const row = page.getByTestId('mod-row').filter({ hasText: name });
   await expect(row).toContainText('pré-filtrage indisponible');
   await expect(row).toContainText('—');

@@ -5,7 +5,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, Req, Res }
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { ReportQuerySchema, ReportScheduleSchema, type ReportQuery, type ReportScheduleInput } from '@djaber/shared';
-import { Audited, RequirePermission } from '../../../core/auth/decorators';
+import { Audited, RequirePermission, ApiScopes } from '../../../core/auth/decorators';
 import { ReportScheduleService } from './report-schedule.service';
 import { ReportService } from './report.service';
 
@@ -17,6 +17,7 @@ export class ReportUnscheduleDto extends createZodDto(z.preprocess((v) => v ?? {
 type Lang = 'fr' | 'ar' | 'en';
 const langOf = (req: any, q?: { lang?: Lang }): Lang => q?.lang ?? (req.locale === 'ar' || req.locale === 'en' ? req.locale : 'fr');
 
+@ApiScopes({ read: 'analytics:read' })
 @Controller('reports')
 export class ReportsController {
   constructor(

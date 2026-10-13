@@ -10,7 +10,7 @@ Every route row: **Route** → **Figma frame** (exact name on page "Web V2") →
 
 ```
 app/[locale]/
-  (public)/layout.tsx        # PublicLayout: header (logo, nav Fonctionnalités/Tarifs/Aide, Connexion, Essayer), footer, locale switch — frames PUB *
+  (public)/layout.tsx        # PublicLayout: header (logo, nav Fonctionnalités/Tarifs/Aide/Statut, FR·AR·EN, Se connecter, Essai gratuit 14 j), footer, locale switch — frames PUB * (server-rendered pages; `/status` and `/s/[code]` reuse the header)
   (auth)/layout.tsx          # AuthLayout: centred 440 px card on ink/base, logo + tagline — frame "AUTH — States catalogue"
   (onboarding)/layout.tsx    # OnboardingLayout: stepper 1–6 top, "Passer la configuration" link — frames ONB-01 step 1…6
   (app)/layout.tsx           # MerchantShell (§2.1) — requires session + workspace; hosts the 3 layout hooks below
@@ -55,8 +55,8 @@ Sidebar items exactly as frame `ADM-01 — Platform admin — overview`: Vue d'e
 | `/` | PUB — Legal (CMS) · Landing & help · Meta data-deletion status (landing part) | `GET /cms/landing?lang` (optional blocks), `GET /plans` | public | [S] · published · locale fallback notice |
 | `/features` | same frame (help/features part) | `GET /cms/features?lang` | public | same |
 | `/pricing` | PUB — Pricing page (plans · FAQ · CTA) | `GET /plans`, `GET /cms/pricing-faq?lang` | public | [S] · plans · monthly/yearly toggle · FAQ |
-| `/help`, `/help/[slug]` (public help centre; the merchant help hub is `/help` inside `(app)`, §3.4) | PUB — … Landing & help; HELP — Help & support (public part) | `GET /help/articles?q&category&lang`, `GET /help/articles/:slug` | public | [S] · published · 404 · locale fallback |
-| `/legal/[key]` (`terms`, `privacy`, `account_deletion`, `content_rules` = `LegalDocKey`; plus CMS pages `cookies`, `data-deletion`) | PUB — Legal (CMS) … | `GET /cms/:slug?lang` (slug = key) | public | [S] · published · unpublished 404 · fallback · version + "en vigueur depuis" |
+| `/help-center` (public help centre index: search `?q`, `?category`) and `/help/[slug]` (one public guide; also the target of the admin preview link `?preview=`) — the merchant help hub owns `/help` inside `(app)` (§3.4); an anonymous visitor of `/help` is sent to `/help-center` (`?article=<key>` ⇒ `/help/<key>`), 12 §1b | PUB — … Landing & help; HELP — Help & support (public part) | `GET /help/articles?q&category&lang`, `GET /help/articles/:slug` (`GET /cms/:key?preview=` for a preview) | public | [S] · published · search results · no match · 404 · locale fallback |
+| `/legal/[key]` (`terms`, `privacy`, `account_deletion`, `content_rules` = `LegalDocKey`; plus CMS pages `cookies`, `data-deletion`) — `?lang=` = document language (FR · AR · EN tabs, default = interface language), `?preview=<token>` = admin signed preview; `/preview/cms/[key]?preview=` (preview link of a `type=page` entry) redirects to the page showing it (`landing` ⇒ `/`, `features`, `pricing-faq` ⇒ `/pricing`) | PUB — Legal (CMS) … | `GET /cms/:slug?lang&preview` (slug = key) | public | [S] · published · unpublished 404 · fallback · version + "en vigueur depuis" · history + vN-1 → vN diff · preview |
 | `/status` | PUB — Public status page (status.djaber.ai) | `GET /status` (components, incidents, banner), `POST /status/subscribe { email, locale }`, `GET /status/unsubscribe/:token` | public | operational · incident open · resolved list · subscribed |
 | `/account/deletion` | PUB — Public account deletion page (djaber.ai/compte/suppression) | `POST /account-deletion/request { email }` (always 200, 3/h/IP) → e-mail link → `GET /account-deletion/confirm/:token`, `POST /account-deletion/confirm/:token { exportData? }`, `POST /account-deletion/cancel/:token` | public | form · sent · confirm page · confirmed (scheduledAt) · blocked (`ACCOUNT_OWNS_WORKSPACE`, `WORKSPACE_HAS_DEBT`) · cancelled |
 | `/meta/data-deletion/[code]` | PUB — … Meta data-deletion status | `GET /data-deletion/:code` | public | pending · done · not_found |
@@ -198,7 +198,7 @@ These frames of page "Web V2" are not screens; they are consumed by the routes a
 | `DLG — Settings & billing — dialogs catalogue` | DLG | `/settings/*` (2FA, password, e-mail change, delete account, logo, quick reply, system message reset, delete workspace, invite member, transfer ownership, language & region, change plan, promo, credit calculator, buy pack, checkout return, Sheets picker/backfill, webhook, payment link, refund) |
 | `DLG — Platform admin — dialogs catalogue` | DLG | `/admin/*` dialogs (suspend, credits, release, create workspace, schedule deletion, plan, subscription, manual payment, provider key, model, preset, CMS entry, audit export, platform role, platform invitation, impersonation reason) |
 | `SAFE — Trust & safety (merchant)` | section frame | `/settings/security` (blocked customers, auto rules), `/inbox` menu (block / report), `/s/[code]` "Signaler ce vendeur" |
-| `HELP — Help & support (merchant)` | section frame | `/help*` inside `(app)`; public part `/help` in `(public)` |
+| `HELP — Help & support (merchant)` | section frame | `/help*` inside `(app)`; public part `/help-center` + `/help/[slug]` in `(public)` |
 | `AUTH — States catalogue (…)` | catalogue | every `(auth)` route (§3.2) |
 | `ANA-01b — Home & Notifications — states catalogue` | catalogue | `/home`, `/notifications` |
 

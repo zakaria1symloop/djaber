@@ -6,6 +6,7 @@ import { CopyFeesFromCourierSchema, ProductLabelsSchema, PublicTrackingReportSch
 import { ExportService } from '../jobs/export.service';
 import { Public, RateLimit, RequirePermission } from '../../core/auth/decorators';
 import { RawResponse } from '../../core/http/envelope.interceptor';
+import { CaptchaService } from '../../core/captcha/captcha.service';
 import { DeliveryOverviewService } from './delivery-overview.service';
 import { LabelService } from './label.service';
 import { PublicTrackingService } from './public-tracking.service';
@@ -74,7 +75,10 @@ export class CourierWebhookController {
 /** `/s/[code]` — public parcel tracking (no auth, mapped timeline only) + "Signaler ce vendeur". */
 @Controller('track')
 export class PublicTrackingController {
-  constructor(private readonly tracking: PublicTrackingService) {}
+  constructor(
+    private readonly tracking: PublicTrackingService,
+    private readonly captcha: CaptchaService,
+  ) {}
 
   @Public()
   @Get(':publicToken')
@@ -86,8 +90,11 @@ export class PublicTrackingController {
   @Public()
   @Post(':publicToken/report')
   @HttpCode(201)
-  report(@Param('publicToken') token: string, @Body() dto: PublicReportDto, @Req() req: any) {
-    return this.tracking.report(token, dto, String(req.ip ?? 'unknown'));
+  async report(@Param('publicToken') token: string, @Body() dto: PublicReportDto, @Req() req: any) {
+    // M11 (M6 carry-over): captcha of the public form, before anything is counted or stored
+    await this.captcha.assert(dto.captchaToken, typeof req.ip === 'string' ? req.ip : null);
+    const { captchaToken: _c, ...input } = dto;
+    return this.tracking.report(token, input, String(req.ip ?? 'unknown'));
   }
 }
 

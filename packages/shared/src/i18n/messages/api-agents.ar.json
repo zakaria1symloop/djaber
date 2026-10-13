@@ -1,0 +1,13 @@
+{
+ "agent.api.copySuffix": "(نسخة)",
+ "agent.api.defaultName": "وكيل جديد",
+ "agent.api.generatedName": "وكيل {page}",
+ "agent.api.readiness.catalog": "منتجات نشطة ضمن نطاق الوكيل",
+ "agent.api.readiness.channels": "الصفحات المرتبطة",
+ "agent.api.readiness.credits": "الرصيد المتاح",
+ "agent.api.readiness.emailVerified": "البريد الإلكتروني مؤكَّد",
+ "agent.api.readiness.feeGrid": "جدول رسوم التوصيل",
+ "agent.api.readiness.pendingModeration": "منتجات في انتظار المراجعة",
+ "agent.api.readiness.policies": "سياسات المتجر (التوصيل، الدفع، الإرجاع)",
+ "agent.api.readiness.productsWithoutPhoto": "منتجات بدون صورة"
+}

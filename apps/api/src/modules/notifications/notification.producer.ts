@@ -56,8 +56,8 @@ export class NotificationProducer implements OnModuleInit {
     this.registry.onOutbox('notification', async (row) => {
       await this.deliver(row.payload as NotificationInput);
     });
-    // TODO(M11): outbound webhooks (`stock.low`, `stock.out`, `product.updated`, …) are delivered by the integrations
-    // module; until then the rows are produced (deterministic key = sent once) and acknowledged without a delivery.
+    // outbound webhooks are delivered by `WebhookDispatchService` (integrations module, M11); this no-op only covers a
+    // process built without that module
     if (!this.registry.outbox.has('webhook')) this.registry.onOutbox('webhook', async () => undefined);
   }
 

@@ -95,7 +95,9 @@ export function WizardFrame({
         </div>
         {rail ? <aside className="flex min-w-0 flex-col gap-3 xl:sticky xl:top-4">{rail}</aside> : null}
       </div>
-      <footer data-testid="wizard-footer" className="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line-hairline bg-ink-base/95 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
+      {/* `-bottom-6 -mb-6`: the shell's <main> has a 24 px bottom padding that sticky positioning keeps free — the bar
+          would float 24 px above the edge with content scrolling under it; this pins it flush to the bottom edge */}
+      <footer data-testid="wizard-footer" className="sticky -bottom-6 z-10 -mx-4 -mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line-hairline bg-ink-base/95 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
         <div className="flex items-center gap-2">{footer.back}</div>
         <div className="min-w-0 flex-1 text-end ts-label-meta text-text-muted max-sm:order-first max-sm:basis-full max-sm:truncate max-sm:text-start" role="status" data-testid="wizard-status">
           {footer.status}
@@ -207,6 +209,9 @@ export function TagInput({
   maxLength = 40,
   disabled,
   invalid,
+  suggestions,
+  suggestionsLabel,
+  onDraftChange,
 }: {
   id?: string;
   value: string[];
@@ -218,9 +223,21 @@ export function TagInput({
   maxLength?: number;
   disabled?: boolean;
   invalid?: boolean;
+  /** known tags offered under the field (client tags `GET /clients/tags?q=`); the ones already chosen are hidden */
+  suggestions?: { tag: string; count?: number }[];
+  /** accessible name of the suggestion list */
+  suggestionsLabel?: string;
+  /** the text being typed (to fetch matching suggestions) */
+  onDraftChange?: (draft: string) => void;
 }) {
-  const [draft, setDraft] = React.useState('');
+  const [draft, setDraftState] = React.useState('');
+  const setDraft = (v: string) => {
+    setDraftState(v);
+    onDraftChange?.(v);
+  };
   const full = max !== undefined && value.length >= max;
+  const chosen = new Set(value.map((v) => v.toLowerCase()));
+  const offered = (suggestions ?? []).filter((s) => !chosen.has(s.tag.toLowerCase())).slice(0, 12);
   const add = (raw: string) => {
     const parts = raw
       .split(/[,\n;]/)
@@ -238,7 +255,7 @@ export function TagInput({
     if (next.length !== value.length) onChange(next);
     setDraft('');
   };
-  return (
+  const field = (
     <div
       data-testid="tag-input"
       aria-invalid={invalid || undefined}
@@ -274,6 +291,35 @@ export function TagInput({
         onBlur={() => add(draft)}
         className="h-6 min-w-24 flex-1 bg-transparent text-[13px] placeholder:text-text-muted focus:outline-none"
       />
+    </div>
+  );
+  if (!suggestions) return field;
+  return (
+    <div className="flex flex-col gap-1.5">
+      {field}
+      {offered.length && !disabled && !full ? (
+        <div role="group" aria-label={suggestionsLabel ?? label} data-testid="tag-suggestions" className="flex flex-wrap gap-1.5">
+          {offered.map((s) => (
+            <button
+              key={s.tag}
+              type="button"
+              data-suggestion={s.tag}
+              // mousedown keeps the focus in the field: its blur would otherwise add the half-typed draft first
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const next = max !== undefined && value.length >= max ? value : [...value, s.tag];
+                onChange(next);
+                setDraft('');
+              }}
+              className="inline-flex h-6 max-w-full items-center gap-1 rounded-[4px] border border-dashed border-line-edge px-2 text-[12px] text-text-secondary hover:border-line-lit hover:text-text-primary"
+            >
+              <span aria-hidden>+</span>
+              <bdi className="truncate">{s.tag}</bdi>
+              {s.count !== undefined ? <span className="ts-label-meta text-text-muted">{s.count}</span> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -560,6 +606,23 @@ export function KpiTile({ value, label, meta, tone, className, ...rest }: { valu
           {value}
         </bdi>
         <span className="ts-label-micro text-text-muted">{label}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Loading twin of `KpiTile`: the same box and line heights (invisible numeral), so a row of tiles keeps its height when
+ * the figures arrive and the page under it does not jump. */
+export function KpiTileSkeleton({ className }: { className?: string }) {
+  return (
+    <div aria-hidden className={cn('rounded-card border border-line-edge bg-ink-surface px-3 py-2.5', className)} data-kpi-skeleton="">
+      <div className="ts-label-micro relative min-h-3">
+        <span className="invisible">0</span>
+        <span className="absolute inset-y-0 start-0 my-auto h-2 w-24 animate-pulse rounded-[4px] bg-ink-raised" />
+      </div>
+      <div className="mt-1 flex items-center gap-x-2">
+        <span className="ts-numeral-l invisible">0</span>
+        <span className="h-2.5 w-16 animate-pulse rounded-[4px] bg-ink-raised" />
       </div>
     </div>
   );

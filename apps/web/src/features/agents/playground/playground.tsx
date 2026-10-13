@@ -50,7 +50,8 @@ export function PlaygroundPane({ pg, agent, scenarios = true, className }: { pg:
     <div className={className ?? 'flex min-h-[28rem] min-w-0 flex-col'}>
       <div role="status" data-testid="playground-banner" className="mx-4 mb-2 flex flex-wrap items-center gap-2 rounded-card border border-line-hairline bg-ink-surface px-3 py-2 ts-label-meta text-text-muted">
         <MonoChip tone="warning">{t('agents.playground.simulation')}</MonoChip>
-        <span className="min-w-0 flex-1">{t('agents.playground.banner')}</span>
+        {/* basis: on a phone the turn counter goes under the sentence instead of squeezing it into a narrow column */}
+        <span className="min-w-0 flex-1 basis-48">{t('agents.playground.banner')}</span>
         <span data-testid="playground-turns">
           <Ltr>{t('agents.playground.turns', { used: pg.turns, limit: PLAYGROUND_TURNS_PER_HOUR })}</Ltr>
         </span>
@@ -118,7 +119,7 @@ export function PlaygroundInspector({ pg, agent, children }: { pg: Pg; agent: Ag
           <InspectorPanel title={t('agents.inspector.title')} rows={inspectorRows(t, locale, turn)} />
           <section className="flex flex-col gap-2">
             <h2 className="ts-label-section text-text-muted">{t('agents.inspector.prompt')}</h2>
-            <ul className="flex flex-col gap-1 rounded-card border border-line-edge bg-ink-surface p-3 text-[13px] text-text-secondary" data-testid="prompt-preview">
+            <ul className="flex flex-col gap-1 rounded-card border border-line-edge bg-ink-surface p-3 text-[13px] text-text-secondary [overflow-wrap:anywhere]" data-testid="prompt-preview">
               {turn.prompt.length ? (
                 turn.prompt.map((line) => (
                   <li key={line} dir="auto">
@@ -197,7 +198,9 @@ export function AgentPlayground({ agent, initialScenario }: { agent: Agent; init
     }
   };
   return (
-    <div className="flex flex-col gap-4" data-testid="agent-playground">
+    // ≥ 1280 the page frame has the height of the content area (AppPage `fill`): the chat takes what is left and
+    // scrolls inside, the composer stays on screen; below, the stacked layout keeps a fixed chat height
+    <div className="flex flex-col gap-4 xl:min-h-0 xl:flex-1" data-testid="agent-playground">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="ts-title">{t('agents.playground.title', { name: agent.name })}</h2>
         <ModelBadge label={agent.model?.label ?? ''} />
@@ -215,11 +218,13 @@ export function AgentPlayground({ agent, initialScenario }: { agent: Agent; init
         </Button>
       </div>
       <p className="-mt-2 text-[13px] text-text-secondary">{t('agents.playground.description')}</p>
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="rounded-card border border-line-edge bg-ink-base py-4">
-          <PlaygroundPane pg={pg} agent={agent} className="flex h-[min(70vh,44rem)] min-h-[28rem] min-w-0 flex-col" />
+      <div className="grid items-start gap-5 xl:min-h-88 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_360px] xl:grid-rows-[minmax(0,1fr)] xl:items-stretch">
+        <div className="flex min-w-0 flex-col rounded-card border border-line-edge bg-ink-base py-4">
+          <PlaygroundPane pg={pg} agent={agent} className="flex h-[min(70vh,44rem)] min-h-[28rem] min-w-0 flex-col xl:h-auto xl:min-h-0 xl:flex-1" />
         </div>
-        <PlaygroundInspector pg={pg} agent={agent} />
+        <div className="min-w-0 xl:min-h-0 xl:overflow-y-auto">
+          <PlaygroundInspector pg={pg} agent={agent} />
+        </div>
       </div>
     </div>
   );

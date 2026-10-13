@@ -21,7 +21,7 @@ import {
   type UpdateConversationInput,
 } from '@djaber/shared';
 import { prisma } from '@djaber/db';
-import { Audited, Idempotent, Public, RequirePermission } from '../../core/auth/decorators';
+import { Audited, Idempotent, Public, RequirePermission, ApiScope, ApiScopes } from '../../core/auth/decorators';
 import { ConfigService } from '../../core/config/config.service';
 import { AppException, notFound } from '../../core/errors/app.exception';
 import { RawResponse } from '../../core/http/envelope.interceptor';
@@ -114,6 +114,7 @@ export class DataDeletionController {
 }
 
 // --- inbox ---------------------------------------------------------------------------------------------------------------
+@ApiScopes({ read: 'conversations:read' })
 @Controller('conversations')
 export class ConversationsController {
   constructor(
@@ -178,6 +179,7 @@ export class ConversationsController {
   }
 
   @Post(':id/messages')
+  @ApiScope('conversations:reply')
   @RequirePermission('inbox.read')
   @Idempotent({ required: true })
   send(@Id() id: string, @Body() dto: SendMessageDto) {

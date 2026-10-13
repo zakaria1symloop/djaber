@@ -5,7 +5,7 @@
 //   (`LABEL_UNAVAILABLE` warning: "Réessayer de récupérer le bordereau transporteur" / Djaber label);
 // - `PrintLabelsDialog`: many orders → one merged PDF job (`POST /shipments/labels`), unsent orders listed as ignored
 //   (`SHIPMENT_NOT_CREATED`, announced before and listed by the job result), format A6 / thermal 100 × 150 / A5,
-//   "Marquer « bordereau imprimé »";
+//   "Marquer « bordereau imprimé »", "Un PDF par commande" (ZIP) and "Inclure le récapitulatif interne" (M11);
 // - `LabelJobViewer`: the job EN COURS n / m → PRÊT (Ouvrir · Télécharger) / PARTIEL (skipped rows) / ÉCHEC (Réessayer).
 import { formatNumber } from '@djaber/shared';
 import { Button, Checkbox, Dialog, FormAlert, LabelJobRow, Skeleton } from '@djaber/ui';
@@ -146,6 +146,8 @@ export function LabelJobViewer({ jobId, open, onClose, onRetry }: { jobId: strin
   const total = job?.total ?? null;
   const done = total ? Math.round(((job?.progress ?? 0) / 100) * total) : null;
   const state = running ? 'running' : job.status === 'failed' || job.status === 'cancelled' ? 'failed' : (result?.skipped.length ?? 0) > 0 || job.status === 'partial' ? 'partial' : 'ready';
+  // "Un PDF par commande" ⇒ the job file is a ZIP (one PDF per order + recap): it is downloaded, never framed
+  const zip = !!result && (result.onePdfPerOrder === true || result.fileName.toLowerCase().endsWith('.zip'));
   return (
     <Dialog
       open={open}
@@ -166,7 +168,7 @@ export function LabelJobViewer({ jobId, open, onClose, onRetry }: { jobId: strin
         </>
       }
     >
-      <div className="flex flex-col gap-3" data-testid="labels-job" data-state={state}>
+      <div className="flex flex-col gap-3" data-testid="labels-job" data-state={state} data-zip={zip || undefined}>
         {running ? (
           <LabelJobRow state="running" label={done !== null && total ? t('labels.job.running', { done, total }) : t('labels.job.runningShort')} text={t('labels.job.keepWorking')} />
         ) : state === 'failed' ? (
@@ -187,13 +189,21 @@ export function LabelJobViewer({ jobId, open, onClose, onRetry }: { jobId: strin
             <LabelJobRow
               state="ready"
               label={t('labels.job.ready')}
-              text={result ? t('labels.job.file', { file: result.fileName, pages: formatNumber(result.pages) }) : undefined}
+              text={
+                result
+                  ? zip
+                    ? t('carry.labels.zipFile', { file: result.fileName, files: formatNumber(result.files ?? result.count), pages: formatNumber(result.pages) })
+                    : t('labels.job.file', { file: result.fileName, pages: formatNumber(result.pages) })
+                  : undefined
+              }
               actions={
                 job?.resultUrl ? (
                   <>
-                    <Button size="sm" onClick={() => window.open(job.resultUrl!, '_blank', 'noopener')}>
-                      {t('action.open')}
-                    </Button>
+                    {zip ? null : (
+                      <Button size="sm" onClick={() => window.open(job.resultUrl!, '_blank', 'noopener')}>
+                        {t('action.open')}
+                      </Button>
+                    )}
                     <Button size="sm" variant="ghost" onClick={() => downloadUrl(job.resultUrl!, result?.fileName)}>
                       {t('action.download')}
                     </Button>
@@ -214,7 +224,7 @@ export function LabelJobViewer({ jobId, open, onClose, onRetry }: { jobId: strin
                 </ul>
               </div>
             ) : null}
-            {job?.resultUrl ? <PdfFrame url={job.resultUrl} title={t('labels.job.title')} /> : null}
+            {job?.resultUrl && !zip ? <PdfFrame url={job.resultUrl} title={t('labels.job.title')} /> : null}
           </>
         )}
         {q.isError ? <FormAlert>{refusal(q.error, t)}</FormAlert> : null}
@@ -231,6 +241,8 @@ export function PrintLabelsDialog({ open, orders, courier, onClose }: { open: bo
   const key = useRef(uuid());
   const [format, setFormat] = useState<LabelFormat>('a6');
   const [markPrinted, setMarkPrinted] = useState(true);
+  const [onePdfPerOrder, setOnePdfPerOrder] = useState(false);
+  const [includeRecap, setIncludeRecap] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -238,6 +250,8 @@ export function PrintLabelsDialog({ open, orders, courier, onClose }: { open: bo
     key.current = uuid();
     setFormat('a6');
     setMarkPrinted(true);
+    setOnePdfPerOrder(false);
+    setIncludeRecap(false);
     setError(null);
     setJobId(null);
   });
@@ -247,7 +261,7 @@ export function PrintLabelsDialog({ open, orders, courier, onClose }: { open: bo
     setBusy(true);
     setError(null);
     try {
-      const r = await deliveryApi.labels({ orderIds: orders.map((o) => o.id), format, markPrinted, lang: locale as 'fr' | 'ar' | 'en' }, key.current);
+      const r = await deliveryApi.labels({ orderIds: orders.map((o) => o.id), format, markPrinted, onePdfPerOrder, includeRecap, lang: locale as 'fr' | 'ar' | 'en' }, key.current);
       key.current = uuid();
       setJobId(r.jobId);
     } catch (e) {
@@ -289,6 +303,15 @@ export function PrintLabelsDialog({ open, orders, courier, onClose }: { open: bo
           <label className="flex items-center gap-2 text-[13px]">
             <Checkbox checked={markPrinted} onChange={(e) => setMarkPrinted(e.target.checked)} />
             {t('labels.print.markPrinted')}
+          </label>
+          {/* M11: options of the Figma dialog (DLG "Imprimer les bordereaux") */}
+          <label className="flex items-center gap-2 text-[13px]">
+            <Checkbox checked={onePdfPerOrder} onChange={(e) => setOnePdfPerOrder(e.target.checked)} data-testid="labels-one-pdf" />
+            {t('carry.labels.onePdfPerOrder')}
+          </label>
+          <label className="flex items-center gap-2 text-[13px]">
+            <Checkbox checked={includeRecap} onChange={(e) => setIncludeRecap(e.target.checked)} data-testid="labels-recap" />
+            {t('carry.labels.includeRecap')}
           </label>
           {ignored.length ? (
             <ul className="flex flex-col gap-0.5 rounded-card border border-line-edge p-2.5">

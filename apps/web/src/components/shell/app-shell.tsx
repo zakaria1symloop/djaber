@@ -3,6 +3,7 @@
 import { IconButton } from '@djaber/ui';
 import { Menu as MenuIcon } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
+import { useAutoTitles } from '@/lib/auto-title';
 import { useT } from '@/lib/i18n';
 import { BannerStack, type ShellBanner } from './banner-stack';
 import type { NavGroup, NavItem } from './nav';
@@ -32,6 +33,8 @@ export function AppShell({
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  // truncated names / previews show their full text in a tooltip
+  useAutoTitles();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Ctrl+K focuses the search of the current list (GLOBAL shortcuts)

@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AppPage } from '@/components/app-page';
 import { ListFilteredEmpty, ListLoading, QueryError } from '@/components/global-states';
 import { ListPagination } from '@/features/catalog/ui';
-import { clientsApi, useClients, useClientsExport } from '@/features/clients/api';
+import { clientsApi, useClients, useClientsExport, useClientTags } from '@/features/clients/api';
 import { ClientsBulkBar } from '@/features/clients/bulk';
 import { ClientSheet } from '@/features/clients/client-sheet';
 import type { ClientListItem } from '@/features/clients/contracts';
@@ -37,7 +37,8 @@ export default function ClientsPage() {
   const total = clients.data?.total ?? 0;
   const view = JSON.stringify(query);
   useEffect(() => setSelected(new Set()), [view]);
-  const tags = useMemo(() => tagOptions(rows, filterList(s, 'tags')), [rows, s]);
+  const workspaceTags = useClientTags();
+  const tags = useMemo(() => tagOptions(rows, filterList(s, 'tags'), (workspaceTags.data ?? []).slice(0, 30).map((w) => w.tag)), [rows, s, workspaceTags.data]);
   const actions = useClientActions({ openSheet: (id) => list.openSheet(id), afterDelete: (id) => (s.sheet === id ? list.openSheet(null) : undefined), knownTags: tags });
   const canSelect = can('clients.write') || can('clients.delete');
 

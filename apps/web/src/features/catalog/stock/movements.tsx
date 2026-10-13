@@ -4,7 +4,7 @@
 // `GET /stock/movements`, `POST /stock/movements/:id/reverse`, `GET /stock/snapshot?date`, `GET /stock/movements/export`.
 import type { ActionDescriptor } from '@djaber/shared';
 import { formatDateTime, formatNumber } from '@djaber/shared';
-import { ActionsMenu, ActiveFilters, Button, buttonClass, Card, cn, DataTable, EmptyState, KpiTile, Ltr, SearchInput, TableViewMenu, toast, type Column } from '@djaber/ui';
+import { ActionsMenu, ActiveFilters, Button, buttonClass, Card, cn, DataTable, EmptyState, KpiTile, KpiTileSkeleton, Ltr, SearchInput, TableViewMenu, toast, type Column } from '@djaber/ui';
 import { ArrowLeftRight, ArrowUpRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { AppPage } from '@/components/app-page';
@@ -308,7 +308,7 @@ function MovementKpis({ stats, period }: { stats: ReturnType<typeof useMovementS
           <KpiTile value={(stats.net > 0 ? '+' : stats.net < 0 ? '−' : '') + formatNumber(Math.abs(stats.net))} label={t('movements.kpi.net')} meta={stats.netValue === null ? t('movements.kpi.count', { count: stats.count }) : t('movements.kpi.netValue', { amount: formatNumber(stats.netValue) })} data-kpi="net" />
         </>
       ) : (
-        Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-[66px] animate-pulse rounded-card border border-line-edge bg-ink-surface" />)
+        Array.from({ length: 4 }).map((_, i) => <KpiTileSkeleton key={i} />)
       )}
     </section>
   );

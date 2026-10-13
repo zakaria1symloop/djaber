@@ -8,7 +8,7 @@ import { TicketCategoryValues, TicketChannelValues, TicketPriorityValues, type A
 import { ActionsMenu, Button, buttonClass, ConfirmDialog, DataTable, EmptyState, Ltr, OpsKpiStrip, OpsKpiTile, Pill, PillTabs, SlaPill, toast, type Column, type Tone } from '@djaber/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AdminPage, AdminQueryError } from '@/features/admin/admin-page';
 import { AdminFilterBar, AdminListBody, type AdminFilter } from '@/features/admin/list-kit';
 import { usePlatform } from '@/features/admin/platform';
@@ -50,6 +50,15 @@ export function SupportPage() {
   const [busy, setBusy] = useState(false);
   const [confirmResolve, setConfirmResolve] = useState<AdminTicketDto | null>(null);
   const { userId } = usePlatform();
+  // the ticket opens under the list (Figma ADM-12): bring it into view by scrolling the content area only
+  const detailRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = detailRef.current;
+    const main = el?.closest('main');
+    if (!el || !main) return;
+    const top = el.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop - 16;
+    if (top > main.scrollTop + main.clientHeight * 0.5 || top < main.scrollTop) main.scrollTo({ top, behavior: 'smooth' });
+  }, [s.sheet]);
 
   // the API takes no sort (urgency order: SLA breached first, then due soonest)
   const query = useMemo<ApiQuery>(() => {
@@ -118,7 +127,7 @@ export function SupportPage() {
       key: 'workspace',
       header: t('adminSupport.col.workspace'),
       cell: (r) => (
-        <span className="block max-w-56">
+        <span className="block max-w-56" title={r.workspace ? `${r.workspace.name} · ${r.workspace.plan} — ${userName(r.user)} · ${r.user.email}` : undefined}>
           <span className="block truncate">{r.workspace ? `${r.workspace.name} · ${r.workspace.plan}` : '—'}</span>
           <span className="block truncate ts-label-micro !normal-case text-text-muted">
             {userName(r.user)} · <Ltr>{r.user.email}</Ltr>
@@ -129,8 +138,11 @@ export function SupportPage() {
     {
       key: 'subject',
       header: t('adminSupport.col.subject'),
+      // the subject takes the width left by the other columns (max-w-0 + w-full on the cell) and truncates inside it,
+      // so the SLA pill is no longer pushed under the sticky Actions column at 1440 (M11 layout pass)
+      className: 'w-full max-w-0',
       cell: (r) => (
-        <span className="block min-w-48 max-w-80">
+        <span className="block min-w-40" title={r.subject}>
           <span className="block truncate">{r.subject}</span>
           <span className="block truncate ts-label-micro !normal-case text-text-muted">
             {[relativeTime(r.createdAt, locale), r.messages.length ? t('adminSupport.messages', { count: r.messages.length }) : null, r.status === 'pending_customer' ? t('adminSupport.sla.waiting').toLowerCase() : null].filter(Boolean).join(' · ')}
@@ -200,7 +212,11 @@ export function SupportPage() {
           </button>
         )}
       />
-      {s.sheet ? <TicketDetail id={s.sheet} /> : null}
+      {s.sheet ? (
+        <div ref={detailRef} className="scroll-mt-4">
+          <TicketDetail id={s.sheet} />
+        </div>
+      ) : null}
       <NewTicketDialog open={create} onClose={() => setCreate(false)} onCreated={(r) => list.openSheet(r.id)} />
       <ConfirmDialog
         open={!!confirmResolve}
@@ -221,12 +237,12 @@ export function SupportPage() {
 export function SupportTicketPage({ id }: { id: string }) {
   const t = useT();
   return (
-    <AdminPage permission="admin.support.read" title={t('nav.admin.support')}>
+    <AdminPage permission="admin.support.read" title={t('nav.admin.support')} fill>
       <Link href="/admin/support" className="inline-flex w-fit items-center gap-1.5 ts-label-meta uppercase text-text-muted hover:text-text-primary">
         <ArrowLeft className="size-3 rtl:-scale-x-100" aria-hidden />
         {t('adminSupport.back')}
       </Link>
-      <TicketDetail id={id} backHref="/admin/support" />
+      <TicketDetail id={id} backHref="/admin/support" fill />
     </AdminPage>
   );
 }

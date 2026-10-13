@@ -5,7 +5,7 @@
 // incident) with "Ouvrir l'espace (admin)", "Se connecter en tant que (lecture seule)", "Lier à l'incident",
 // "Escalader (ingénierie)". Shown under the list (`?sheet=<id>`) and as the full page `/admin/support/[id]`.
 import { formatDateTime, type AdminTicketDto, type CannedReplyDto } from '@djaber/shared';
-import { Button, ContextRows, OpsPanel, Skeleton, Textarea, toast } from '@djaber/ui';
+import { Button, cn, ContextRows, OpsPanel, Skeleton, Textarea, toast } from '@djaber/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
 import { AdminQueryError } from '@/features/admin/admin-page';
@@ -15,6 +15,7 @@ import { useRouter } from '@/i18n/navigation';
 import { ApiError } from '@/lib/api';
 import { errorMessage, useLeaveGuard } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
+import { useStickToBottom } from '@/lib/stick-to-bottom';
 import { opsApi, opsKeys, useCannedReplies, useTicket } from './api';
 import { userName, useWrite } from './common';
 import { cannedQuery, insertCanned } from './logic';
@@ -24,15 +25,20 @@ const ATTACHMENTS_MAX = 5;
 const ATTACHMENT_MAX_BYTES = 5 * 1024 * 1024;
 import { EscalateDialog, LinkIncidentDialog } from './support-dialogs';
 
-export function TicketDetail({ id, backHref }: { id: string; backHref?: string }) {
+/**
+ * `fill` (full page `/admin/support/[id]`): on wide screens the thread panel takes the height left in the content area,
+ * its messages scroll inside it and the composer stays pinned under them. Otherwise (under the list, phones) the
+ * messages scroll inside a box of at most 60 % of the viewport. Either way the thread opens on the latest message.
+ */
+export function TicketDetail({ id, backHref, fill }: { id: string; backHref?: string; fill?: boolean }) {
   const t = useT();
   const q = useTicket(id);
-  if (q.isPending) return <Skeleton className="h-96" />;
+  if (q.isPending) return <Skeleton className={fill ? 'h-96 xl:min-h-0 xl:flex-1' : 'h-96'} />;
   if (!q.data) return <AdminQueryError error={q.error} onRetry={() => void q.refetch()} backHref={backHref} />;
-  return <TicketView ticket={q.data} key={q.data.id} label={t('adminSupport.detail.label')} />;
+  return <TicketView ticket={q.data} key={q.data.id} label={t('adminSupport.detail.label')} fill={fill} />;
 }
 
-function TicketView({ ticket, label }: { ticket: AdminTicketDto; label: string }) {
+function TicketView({ ticket, label, fill }: { ticket: AdminTicketDto; label: string; fill?: boolean }) {
   const t = useT();
   const locale = useLocaleCode() as 'fr' | 'ar' | 'en';
   const qc = useQueryClient();
@@ -46,6 +52,7 @@ function TicketView({ ticket, label }: { ticket: AdminTicketDto; label: string }
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<'impersonate' | 'incident' | 'escalate' | null>(null);
   const area = useRef<HTMLTextAreaElement>(null);
+  const thread = useStickToBottom<HTMLOListElement>(ticket.messages.length);
   const fileInput = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<{ id: string; name: string }[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -107,6 +114,7 @@ function TicketView({ ticket, label }: { ticket: AdminTicketDto; label: string }
     const body = text.trim();
     if (!body) return;
     const key = /^\/[a-z0-9-]+$/.test(body.split(/\s/)[0] ?? '') ? body.split(/\s/)[0] : undefined;
+    thread.follow();
     const r = await run(internal ? 'note' : 'wait', () => opsApi.reply(ticket.id, { body, isInternal: internal, attachments: files.map((f) => f.id), ...(internal ? {} : { waitCustomer: true }), ...(key ? { cannedReplyKey: key } : {}) }), internal ? 'adminSupport.toast.note' : 'adminSupport.toast.sent');
     if (r) {
       setText('');
@@ -142,9 +150,14 @@ function TicketView({ ticket, label }: { ticket: AdminTicketDto; label: string }
   const disabledReason = write.disabledReason ?? (closed ? `${t('error.TICKET_CLOSED')} (TICKET_CLOSED)` : undefined);
 
   return (
-    <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_400px]" data-testid="ticket-detail" data-status={ticket.status} aria-label={label}>
-      <OpsPanel title={`#${ticket.number} — ${ticket.subject}`} data-testid="ticket-thread">
-        <ol className="flex flex-col gap-3">
+    <div
+      className={cn('grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_400px]', fill && 'xl:min-h-0 xl:flex-1 xl:grid-rows-[minmax(0,1fr)] xl:items-stretch')}
+      data-testid="ticket-detail"
+      data-status={ticket.status}
+      aria-label={label}
+    >
+      <OpsPanel title={`#${ticket.number} — ${ticket.subject}`} data-testid="ticket-thread" className={cn(fill && 'xl:flex xl:min-h-0 xl:flex-col')} bodyClassName={cn(fill && 'xl:flex xl:min-h-0 xl:flex-1 xl:flex-col')}>
+        <ol ref={thread.ref} onScroll={thread.onScroll} className={cn('-mx-1 flex max-h-[60dvh] flex-col gap-3 overflow-y-auto overscroll-contain px-1', fill && 'xl:max-h-none xl:min-h-0 xl:flex-1')} data-testid="ticket-messages">
           {ticket.messages.map((m) => (
             <li
               key={m.id}
@@ -175,7 +188,7 @@ function TicketView({ ticket, label }: { ticket: AdminTicketDto; label: string }
           </p>
         ) : null}
         {write.allowed ? (
-          <div className="mt-4 flex flex-col gap-3">
+          <div className="mt-4 flex shrink-0 flex-col gap-3">
             <div className="relative">
               <Textarea
                 ref={area}
@@ -192,7 +205,7 @@ function TicketView({ ticket, label }: { ticket: AdminTicketDto; label: string }
                 data-testid="ticket-composer"
               />
               {suggestions.length ? (
-                <ul role="listbox" aria-label={t('adminSupport.canned.title')} className="absolute inset-x-0 top-full z-20 mt-1 max-h-56 overflow-auto rounded-card border border-line-edge bg-ink-raised p-1 shadow-xl" data-testid="canned-suggestions">
+                <ul role="listbox" aria-label={t('adminSupport.canned.title')} className="absolute inset-x-0 bottom-full z-20 mb-1 max-h-56 overflow-auto rounded-card border border-line-edge bg-ink-raised p-1 shadow-xl" data-testid="canned-suggestions">
                   {suggestions.map((c) => (
                     <li key={c.id} role="option" aria-selected={false}>
                       <button type="button" onClick={() => pickCanned(c)} className="flex w-full flex-col rounded-[6px] px-2.5 py-1.5 text-start hover:bg-ink-raised-high">
@@ -248,7 +261,7 @@ function TicketView({ ticket, label }: { ticket: AdminTicketDto; label: string }
         ) : null}
       </OpsPanel>
 
-      <OpsPanel title={t('adminSupport.context.title')} data-testid="ticket-context">
+      <OpsPanel title={t('adminSupport.context.title')} data-testid="ticket-context" className={cn(fill && 'xl:max-h-full xl:self-start xl:overflow-y-auto')}>
         <ContextRows
           rows={[
             { label: t('adminSupport.context.workspace'), value: workspace ? [workspace.name, workspace.plan, t(`adminSupport.workspaceStatus.${workspace.status}`)].join(' · ') : '—', testId: 'ctx-workspace' },

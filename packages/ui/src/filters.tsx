@@ -232,7 +232,13 @@ export function FilterDropdown({ label, count, children, align = 'start' }: { la
         </Button>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content align={align} sideOffset={6} className="z-50 w-64 rounded-card border border-line-edge bg-ink-raised p-3 shadow-xl">
+        <Popover.Content
+          align={align}
+          sideOffset={6}
+          collisionPadding={8}
+          // long option lists scroll inside the room left on screen instead of running under the bottom edge
+          className="z-50 max-h-[var(--radix-popover-content-available-height)] w-64 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-card border border-line-edge bg-ink-raised p-3 shadow-xl"
+        >
           {children}
         </Popover.Content>
       </Popover.Portal>

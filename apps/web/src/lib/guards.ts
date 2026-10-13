@@ -45,12 +45,30 @@ export type GuardDecision =
   | { kind: 'redirect'; to: string }
   | { kind: 'state'; state: 'session-expired' | 'suspended' | 'error' };
 
+/**
+ * 12 §1b: "the public help page stays reachable at `/help` without login" — the in-app help hub owns `/help` inside
+ * (app), so an anonymous visitor of `/help` (search / category / `?article=` guide) is sent to the public help centre.
+ */
+export const publicHelpHref = (pathname: string, search = ''): string | null => {
+  if (pathname !== '/help') return null;
+  const p = new URLSearchParams(search.replace(/^\?/, ''));
+  const article = p.get('article');
+  if (article) return `/help/${encodeURIComponent(article)}`;
+  const out = new URLSearchParams();
+  for (const k of ['q', 'category']) {
+    const v = p.get(k);
+    if (v) out.set(k, v);
+  }
+  const qs = out.toString();
+  return qs ? `/help-center?${qs}` : '/help-center';
+};
+
 /** `(app)` layout: session required, then workspace, then the onboarding resume rule. */
 export const decideApp = (i: GuardInput): GuardDecision => {
   if (i.status === 'loading') return { kind: 'wait' };
   if (i.status === 'expired') return { kind: 'state', state: 'session-expired' };
   if (i.status === 'error') return { kind: 'state', state: 'error' };
-  if (i.status === 'anonymous') return { kind: 'redirect', to: loginHref(i.pathname, i.search) };
+  if (i.status === 'anonymous') return { kind: 'redirect', to: publicHelpHref(i.pathname, i.search) ?? loginHref(i.pathname, i.search) };
   if (i.membershipCount === 0) return { kind: 'redirect', to: '/workspaces/new' };
   if (i.workspaceLoading || !i.workspace) return { kind: 'wait' };
   // a suspended workspace keeps Settings and Help reachable (api-contract §1.3: /workspace, /me*, /support/*)

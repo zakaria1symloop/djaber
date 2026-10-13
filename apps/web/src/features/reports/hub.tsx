@@ -68,9 +68,10 @@ export function ReportsHubPage() {
       {offline ? <OfflineBanner since="—" onRetry={() => void hub.refetch()} /> : null}
       {hub.isPending ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-testid="reports-skeleton">
-          {[0, 1, 2].map((i) => (
+          {/* the five groups of the hub at their usual sizes: the "Exports récents" block below does not jump on load */}
+          {[7, 2, 5, 7, 2].map((rows, i) => (
             <Card key={i}>
-              <ListSkeleton rows={5} columns={2} label={t('common.loading')} />
+              <ListSkeleton rows={rows} columns={2} label={t('common.loading')} />
             </Card>
           ))}
         </div>

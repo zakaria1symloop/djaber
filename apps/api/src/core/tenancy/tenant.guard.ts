@@ -18,10 +18,14 @@ export class TenantGuard implements CanActivate {
     const targets = [ctx.getHandler(), ctx.getClass()];
     const req = ctx.switchToHttp().getRequest();
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, targets);
-    if (isPublic && !req.user && !req.apiKey) return true;
+    if (isPublic && !req.user) return true;
 
     let info: TenantInfo | null;
     const isPlatform = this.reflector.getAllAndOverride<boolean>(IS_PLATFORM, targets);
+    // 06 §5: an API key reaches only workspace routes of its whitelist — never account (`/me`, `/legal`) or platform routes
+    if (req.apiKey && (isPlatform || this.reflector.getAllAndOverride<boolean>(IS_AUTHENTICATED_ONLY, targets))) {
+      throw new AppException('API_SCOPE_FORBIDDEN', { scope: '—' });
+    }
     const imp = req.headers['x-impersonation-session'] ?? req.claims?.imp;
     if (imp && req.user && !isPlatform) {
       // D21-bis: read-only impersonation — audited, then every non-GET request is refused before the handler
@@ -58,7 +62,12 @@ export class TenantGuard implements CanActivate {
     const store = TenantContext.get();
     for (const k of Object.keys(store)) delete (store as Record<string, unknown>)[k];
     Object.assign(store, info);
+    // M11 (M2 carry-over): the session of the request tags the WS events it causes (`originSessionId`)
+    if (req.user?.sessionId) (store as TenantInfo & { sessionId?: string }).sessionId = String(req.user.sessionId);
     req.tenant = store;
     return true;
   }
 }
+
+/** Session id (JWT `sid`) of the HTTP request being served, null in workers / API-key calls (WS `originSessionId`). */
+export const originSessionId = (): string | null => (TenantContext.maybe() as (TenantInfo & { sessionId?: string }) | undefined)?.sessionId ?? null;

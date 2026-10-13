@@ -228,7 +228,8 @@ export function ParcelSteps({ steps, label, className }: { steps: ParcelStep[]; 
               s.state === 'upcoming' && 'bg-ink-raised-high',
             )}
           />
-          <span className={cn('ts-label-micro truncate', s.state === 'upcoming' ? 'text-text-muted' : s.state === 'failed' ? 'text-accent-alert' : 'text-text-primary')}>{s.label}</span>
+          {/* wraps (never cut) on phones: "EN LIVRAISON" on two lines rather than "EN LIVRA…" */}
+          <span className={cn('ts-label-micro leading-tight [overflow-wrap:anywhere]', s.state === 'upcoming' ? 'text-text-muted' : s.state === 'failed' ? 'text-accent-alert' : 'text-text-primary')}>{s.label}</span>
         </li>
       ))}
     </ol>

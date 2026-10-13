@@ -512,7 +512,7 @@ export function RankPanel({
                 <bdi dir="ltr" className="whitespace-nowrap tabular-nums">
                   {r.value}
                 </bdi>
-                <span className="w-12 shrink-0 text-end">{r.delta}</span>
+                <span className="min-w-12 shrink-0 whitespace-nowrap text-end">{r.delta}</span>
               </>
             );
             const cls = 'flex items-center gap-3 px-4 py-2.5 text-[13px]';

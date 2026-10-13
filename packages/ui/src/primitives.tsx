@@ -22,13 +22,20 @@ const BUTTON: Record<ButtonVariant, string> = {
   ghost: 'bg-transparent text-text-secondary hover:text-text-primary hover:bg-ink-raised border border-transparent',
   danger: 'bg-accent-alert text-black hover:bg-accent-alert/90 border border-accent-alert',
 };
+// Phones (< 640): a button never gets wider than its container — a long label ("Remplir depuis la photo (nom,
+// description, catégorie)") wraps on two lines instead of pushing the page sideways; one-line buttons keep their height.
 const BUTTON_BASE =
-  'inline-flex items-center justify-center gap-2 rounded-card font-medium whitespace-nowrap transition-colors ' +
+  'inline-flex max-w-full items-center justify-center gap-2 rounded-card font-medium whitespace-nowrap transition-colors [&>svg]:shrink-0 ' +
+  'max-sm:whitespace-normal max-sm:text-center ' +
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-inbound ' +
   'disabled:opacity-45 disabled:cursor-not-allowed';
+const BUTTON_SIZE: Record<ButtonSize, string> = {
+  sm: 'h-8 px-3 text-[13px] max-sm:h-auto max-sm:min-h-8 max-sm:py-1',
+  md: 'h-10 px-4 text-[14px] max-sm:h-auto max-sm:min-h-10 max-sm:py-2',
+};
 /** Button look for a link (`<Link className={buttonClass({ variant: 'primary' })}>`): never nest a button inside an anchor. */
 export const buttonClass = ({ variant = 'secondary', size = 'md', className }: { variant?: ButtonVariant; size?: ButtonSize; className?: string } = {}) =>
-  cn(BUTTON_BASE, size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-10 px-4 text-[14px]', BUTTON[variant], className);
+  cn(BUTTON_BASE, BUTTON_SIZE[size], BUTTON[variant], className);
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { variant = 'secondary', size = 'md', loading, disabled, disabledReason, className, children, type = 'button', ...rest },
@@ -220,12 +227,13 @@ export const toneDot = DOT;
 export function Skeleton({ className }: { className?: string }) {
   return <div aria-hidden className={cn('animate-pulse rounded-[4px] bg-ink-raised', className)} />;
 }
-/** List skeleton: same grid as the data, never a full-screen spinner (GLOBAL frame). */
+/** List skeleton: same grid as the data, never a full-screen spinner (GLOBAL frame). Rows are 44 px like the list rows
+ * (compact table row, list card row) so the content under the list moves as little as possible when the data arrives. */
 export function ListSkeleton({ rows = 5, columns = 4, label }: { rows?: number; columns?: number; label: string }) {
   return (
-    <div role="status" aria-label={label} className="flex flex-col gap-2 p-3">
+    <div role="status" aria-label={label} className="flex flex-col px-3 py-1.5">
       {Array.from({ length: rows }).map((_, r) => (
-        <div key={r} className="grid gap-2" style={{ gridTemplateColumns: `2fr repeat(${columns - 1}, 1fr)` }}>
+        <div key={r} className="grid h-11 items-center gap-2" style={{ gridTemplateColumns: `2fr repeat(${columns - 1}, 1fr)` }}>
           {Array.from({ length: columns }).map((__, c) => (
             <Skeleton key={c} className="h-4" />
           ))}

@@ -172,12 +172,15 @@ export function StatusComponentRow({
       <span className={cn('size-2 shrink-0 rounded-full', state === 'operational' ? 'bg-accent-money' : state === 'degraded' ? 'bg-accent-starred' : 'bg-accent-alert')} aria-hidden />
       <span className="min-w-[10rem] flex-1 text-[14px] text-text-primary">{name}</span>
       {days ? <UptimeBars days={days} label={barsLabel} className="max-md:hidden" /> : null}
-      <span dir="ltr" className="min-w-[4.5rem] text-end ts-label-micro text-text-muted">
+      {/* fixed widths for the end cluster: the 90-day bars of every row line up */}
+      <span dir="ltr" className="w-28 shrink-0 text-end ts-label-micro text-text-muted">
         {uptime}
       </span>
-      <Pill tone={tone} className="shrink-0">
-        {pill}
-      </Pill>
+      <span className="flex w-32 shrink-0 justify-end">
+        <Pill tone={tone} className="shrink-0">
+          {pill}
+        </Pill>
+      </span>
     </div>
   );
 }
