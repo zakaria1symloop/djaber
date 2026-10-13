@@ -166,5 +166,29 @@ export async function apiRaw<T>(path: string, o: RequestOptions = {}): Promise<E
   return json;
 }
 
+/**
+ * A file answered directly by the API (invoice PDF `GET /billing/invoices/:id/pdf`): authenticated fetch → Blob.
+ * Errors keep the envelope semantics (`ApiError` with the code of 11).
+ */
+export async function apiBlob(path: string, retried = false): Promise<Blob> {
+  const headers: Record<string, string> = { 'Accept-Language': session.locale };
+  if (session.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
+  if (session.workspaceId) headers['X-Workspace-Id'] = session.workspaceId;
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/api/v1${path}`, { headers, credentials: 'include' });
+    emit('online');
+  } catch (e) {
+    emit('offline');
+    throw e;
+  }
+  if (res.status === 401 && !retried && (await refreshSession())) return apiBlob(path, true);
+  if (!res.ok) {
+    const json = (await res.json().catch(() => null)) as { error?: Partial<ApiErrorBody> } | null;
+    throw new ApiError(res.status, { code: 'INTERNAL', message: res.statusText, details: null, ref: res.headers.get('x-request-id') ?? '', ...json?.error, params: { ...json?.error?.params }, fields: { ...json?.error?.fields } });
+  }
+  return res.blob();
+}
+
 /** Returns `data` only. Use `apiRaw` when `meta` (pagination, warnings) is needed. */
 export const api = async <T>(path: string, o: RequestOptions = {}): Promise<T> => (await apiRaw<T>(path, o)).data;

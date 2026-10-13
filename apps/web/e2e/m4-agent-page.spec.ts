@@ -334,14 +334,7 @@ test.describe('AGT-03 overview', () => {
     await expect(page.getByTestId('agent-paused-banner')).toHaveCount(0);
     expect((await fullAgent(request, owner, ids.c)).status).toBe('active');
 
-    // paused by the plan: no switch, the banner sends to the plans
-    // mock: `pausedReason = plan` is only written by a plan downgrade, which the e2e API cannot trigger
-    await patchAnswer(page, new RegExp(`/api/v1/agents/${ids.c}(\\?|$)`), (d: Record<string, unknown>) => ({ ...d, status: 'paused', isActive: false, pausedReason: 'plan' }));
-    await load(page, () => page.reload());
-    await expect(page.getByTestId('agent-status')).toHaveAttribute('data-state', 'paused_plan', FIRST);
-    await expect(page.getByTestId('agent-status')).toHaveText('PAUSE (PLAN)');
-    await expect(page.getByTestId('agent-paused-banner')).toContainText("En pause par le plan : la limite d'agents est atteinte.");
-    await expect(page.getByRole('switch', { name: new RegExp(`Agent ${NAMES.c} actif`) })).toHaveCount(0);
+    // paused by the plan (no switch, banner to the plans): real plan expiry since M9, see m9-carryovers.spec.ts
 
     // a draft has no page: it resumes in the wizard (created from the API at step 1 ⇒ step 2)
     await load(page, () => page.goto(agentPath(ids.d)));

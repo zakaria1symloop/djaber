@@ -11,6 +11,8 @@ export const BANNER_PRIORITY = [
   'credits100',
   'negativeCredits',
   'planExpired',
+  // unpaid renewal invoice (Subscription.status = dunning, R-J): same level as "plan expiré" (12 §0)
+  'dunning',
   'credits80',
   'planExpiring',
   'approvalPending',

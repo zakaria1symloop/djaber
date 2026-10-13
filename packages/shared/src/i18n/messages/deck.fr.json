@@ -233,6 +233,7 @@
  "customer.out_of_hours": "Notre équipe est absente pour le moment, je prends votre commande en attendant et nous vous rappelons dès l'ouverture.",
  "customer.out_of_stock": "Désolé, {product} est en rupture de stock pour le moment.",
  "customer.outsideWindowSkipped": "Non délivré — hors fenêtre 24 h",
+ "customer.paymentFailed": "Le paiement de la commande #{number} n'a pas abouti. Répondez « lien » pour recevoir un nouveau lien, ou payez à la livraison.",
  "customer.paymentLink": "Payez votre commande #{number} en ligne ({total} DA) : {url} — valable {minutes} min.",
  "customer.paymentReceived": "Paiement reçu pour #{number}. Merci !",
  "customer.reminderScheduled": "Nous vous rappelons à {time}.",

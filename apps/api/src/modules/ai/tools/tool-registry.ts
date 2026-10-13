@@ -9,7 +9,8 @@ import { prisma, TenantContext, type Agent } from '@djaber/db';
 import { FAQ_CANDIDATE_INSIGHT_AT } from '../ai.constants';
 import { CatalogueService, type CatalogueProduct } from '../catalogue.service';
 import type { AiToolDef } from '../provider/ai.gateway';
-import { ORDER_TOOLS, type CancellableOrder, type CreateOrderRequest, type OrderTools, type ToolResult } from './order-tools';
+import { ORDER_TOOLS, PAYMENT_LINK_TOOL, type CancellableOrder, type CreateOrderRequest, type OrderTools, type PaymentLinkTool, type ToolResult } from './order-tools';
+import { FlagsService } from '../../../core/flags/flags.service';
 import { fold, WILAYA_ALIASES } from './wilaya-aliases';
 
 export type ToolName = 'search_products' | 'get_product' | 'quote_delivery' | 'create_order' | 'cancel_order' | 'lookup_order' | 'handoff_to_human' | 'add_faq_candidate' | 'create_payment_link';
@@ -82,11 +83,11 @@ export const TOOL_DEFS: Record<ToolName, AiToolDef> = {
     description: 'Record a customer question the shop has no answer for, so the merchant can add it.',
     parameters: { type: 'object', required: ['question'], additionalProperties: false, properties: { question: { type: 'string', maxLength: 300 }, topic: { type: 'string', maxLength: 80 } } },
   },
-  /** enabledWhen: workspace.onlinePaymentEnabled && flag `online_payment` (P2 — offered from M9). */
+  /** enabledWhen: workspace.onlinePaymentEnabled && flag `online_payment` (P2 — offered since M9). */
   create_payment_link: {
     name: 'create_payment_link',
-    description: 'Create an online payment link for an order of this customer.',
-    parameters: { type: 'object', required: ['orderId'], additionalProperties: false, properties: { orderId: { type: 'string' } } },
+    description: 'Create an online payment link (Chargily: CIB / Edahabia card, valid 15 minutes) for an order of THIS customer, only when the customer asks to pay online. Give the returned url to the customer; cash on delivery stays possible.',
+    parameters: { type: 'object', required: ['orderId'], additionalProperties: false, properties: { orderId: { type: 'string', description: 'order id or order number (CMD-1001)' } } },
   },
 };
 /** §4.2 "Tool availability per run": order-taking is always on (D23); the payment link is conditional. */
@@ -119,11 +120,21 @@ export class ToolRegistry {
   constructor(
     private readonly catalogue: CatalogueService,
     @Inject(ORDER_TOOLS) private readonly orders: OrderTools,
+    @Inject(PAYMENT_LINK_TOOL) private readonly paymentLinks: PaymentLinkTool,
+    private readonly flags: FlagsService,
   ) {}
 
   /** Tools offered to the model for this run. */
   defs(): AiToolDef[] {
     return RUN_TOOLS.map((n) => TOOL_DEFS[n]);
+  }
+
+  /** §4.2 "Tool availability per run": + `create_payment_link` when the workspace switched online payment on. */
+  async defsFor(workspaceId: string): Promise<AiToolDef[]> {
+    const base = this.defs();
+    if (!(await this.paymentLinks.enabledFor(workspaceId))) return base;
+    if (!(await this.flags.isEnabledOr('online_payment', workspaceId, true))) return base;
+    return [...base, TOOL_DEFS.create_payment_link];
   }
 
   /**
@@ -158,6 +169,8 @@ export class ToolRegistry {
         return { ok: true };
       case 'add_faq_candidate':
         return this.faqCandidate(args, ctx);
+      case 'create_payment_link':
+        return this.paymentLinks.forAi({ workspaceId: ctx.workspaceId, clientId: ctx.clientId, dryRun: ctx.dryRun }, typeof args.orderId === 'string' ? args.orderId.trim() : '');
       default:
         return { ok: false, error: { code: 'UNKNOWN_TOOL', name: rawName } };
     }

@@ -346,7 +346,8 @@ describe('create from photo and credits reads', () => {
     await owner.get('/credits/ledger?action=nope').expect(422);
     const events = (await db.outbox.findMany({ where: { topic: 'ws' } })).map((r) => r.payload as any).filter((p) => p.room === `ws:${owner.workspaceId}` && p.event === 'credits.updated');
     expect(events.at(-1)!.payload).toEqual({ planUsed: 0, planLimit: 5250, packBalance: 0, exhausted: false });
-    expect((await owner.get('/credits/calculator?conversations=100&photoPct=10&voicePct=5&msgsPerConv=6').expect(200)).body.data).toEqual({ conversations: 100, textTurns: 585, imageTurns: 10, voiceTurns: 5, credits: 585 + 50 + 15, estimatedCostDzd: 585 });
+    // M9 (AT-PCK-04 formula): every message pays the text credit, photo / voice conversations add their cost
+    expect((await owner.get('/credits/calculator?conversations=100&photoPct=10&voicePct=5&msgsPerConv=6').expect(200)).body.data).toMatchObject({ conversations: 100, textTurns: 600, imageTurns: 10, voiceTurns: 5, credits: 600 + 50 + 15, estimatedCostDzd: 599 });
     await owner.get('/credits/calculator').expect(422);
     // the scheduler opens the period of the workspaces that have none yet, and only once
     await credits.openPeriods();

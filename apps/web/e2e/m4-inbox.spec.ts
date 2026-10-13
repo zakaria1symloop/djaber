@@ -253,7 +253,8 @@ test('AT-AI-14 credits exhausted: banner "IA arrêtée : crédits épuisés" wit
   await expect(banners(page)).toHaveCount(1);
   const renew = page.getByTestId('thread-renew-credits');
   await expect(renew).toHaveText('Renouveler');
-  await expect(renew).toHaveAttribute('href', '/fr/settings/credits');
+  // Owner (`billing.write`): straight to the pack purchase of the credits page (M9)
+  await expect(renew).toHaveAttribute('href', '/fr/settings/credits?buy=1');
   // the customer got the fixed "unavailable" text, never an AI answer
   expect((await messagesOf(r, owner, exhausted.id)).filter((m) => m.author === 'ai')).toHaveLength(0);
 
@@ -267,12 +268,12 @@ test('AT-AI-14 credits exhausted: banner "IA arrêtée : crédits épuisés" wit
   await expect(thread(page).locator('[data-message="human"][data-pending]')).toHaveCount(0, { timeout: 15_000 });
   await expect(mine.getByLabel('Envoyé')).toBeVisible({ timeout: 15_000 });
 
-  // the banner stays after the manual reply; its link leads to the credits page
+  // the banner stays after the manual reply; its link leads to the pack purchase of the credits page
   await expect(page.locator('[data-banner="credits"]')).toBeVisible();
   // a click on the busy dev server can be lost while the thread re-renders (WS updates): repeated until it navigates
   await expect(async () => {
-    if (!/\/fr\/settings\/credits$/.test(page.url())) await page.getByTestId('thread-renew-credits').click({ timeout: 10_000 });
-    await expectUrl(page, '**/fr/settings/credits', { timeout: 30_000 });
+    if (!/\/fr\/settings\/credits\?buy=1$/.test(page.url())) await page.getByTestId('thread-renew-credits').click({ timeout: 10_000 });
+    await expect(page).toHaveURL(/\/fr\/settings\/credits\?buy=1$/, { timeout: 30_000 });
   }).toPass({ timeout: 120_000 });
 });
 

@@ -4,7 +4,7 @@
 // One shop for the whole file (14-day Pro trial: 300 credits, trial `grant` row): real AI turns (text 1 · photo 5 ·
 // vocal 3) write the ledger, `POST /dev/ai/credits { balance }` moves the balance (an `adjustment` / `grant` row each).
 // `page.route` only where the API cannot produce the state over HTTP; each use says why.
-// Purchases (packs, calculator, export) are M9: the page must not offer them yet.
+// Purchases (packs, calculator, export), pack balance and the negative balance of a store refund: m9-credits.spec.ts.
 import { expect as baseExpect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import { expectNoA11yViolations } from './support/a11y';
 import { apiReady, expectUrl, type Account } from './support/m1';
@@ -108,7 +108,7 @@ test('ok level: neutral pill "used / limit" linking to /settings/credits, no cre
   await expect(page.getByRole('heading', { name: 'Crédits', level: 1 })).toBeVisible(FIRST);
 });
 
-test('default state: tiles, meter, ledger rows of real AI turns (text · photo · vocal) — no purchase controls (M9), axe', async ({ page }) => {
+test('default state: tiles, meter, ledger rows of real AI turns (text · photo · vocal) — M9 purchase controls, axe', async ({ page }) => {
   const r = req(page);
   // three customers: a text question (1), a photo (5), a voice note (3)
   const turns = [
@@ -182,11 +182,10 @@ test('default state: tiles, meter, ledger rows of real AI turns (text · photo �
   await expect(page.getByRole('table', { name: 'Historique (CreditLedger)' }).getByRole('columnheader')).toHaveText(['QUAND', 'ACTION', 'DÉTAIL', 'CRÉDITS', 'SOLDE']);
   for (const name of ['Période', 'Action', 'Agent', 'Origine']) await expect(page.getByTestId('credits-ledger').getByRole('button', { name, exact: true })).toBeVisible();
 
-  // M9: no pack purchase, calculator or export yet
-  for (const name of [/Acheter/, /Calculateur/, /Exporter/]) {
-    await expect(page.getByRole('button', { name })).toHaveCount(0);
-    await expect(page.getByRole('link', { name })).toHaveCount(0);
-  }
+  // M9: pack purchase, calculator and export (their flows: m9-credits.spec.ts)
+  await expect(page.getByTestId('open-buy-pack')).toHaveText('Acheter un pack');
+  await expect(page.getByTestId('open-calculator')).toHaveText('Calculateur');
+  await expect(page.getByTestId('ledger-export')).toHaveText('Exporter CSV');
   await expectNoA11yViolations(page);
 });
 
@@ -291,7 +290,7 @@ test.describe('header pill and shell banners', () => {
     await expect(shellBanner(page, 'credits80')).toHaveCount(0);
   });
 
-  test('exhausted: red pill and the credits100 alert, "Acheter des crédits" opens /settings/credits', async ({ page }) => {
+  test('exhausted: red pill and the credits100 alert, "Acheter des crédits" opens the pack purchase of /settings/credits', async ({ page }) => {
     const c = await setCredits(req(page), owner, 0);
     expect([c.exhausted, c.plan.used]).toEqual([true, c.plan.limit]);
     await signIn(page, owner);
@@ -302,34 +301,18 @@ test.describe('header pill and shell banners', () => {
     await expect(banner.getByRole('alert')).toBeVisible();
     await expect(banner).toHaveText(rx(`Crédits épuisés \\(${n(c.plan.used)} / ${n(c.plan.limit)}\\) — l'IA ne répond plus\\. Rechargez ou attendez le ${DATE}\\.`));
     await banner.getByRole('button', { name: 'Acheter des crédits' }).click();
-    await expectUrl(page, '**/fr/settings/credits', NAV);
+    await expect(page).toHaveURL(/\/fr\/settings\/credits\?buy=1$/, NAV);
+    await expect(page.getByTestId('buy-pack-dialog')).toBeVisible(FIRST);
+    await page.keyboard.press('Escape');
+    await expect(page).toHaveURL(/\/fr\/settings\/credits$/);
     await expect(page.getByTestId('credits-meter')).toHaveAttribute('data-level', 'exhausted', FIRST);
     await expect(page.getByTestId('credits-state')).toHaveAttribute('data-level', 'exhausted');
     await expect(page.getByTestId('credits-state')).toHaveText('Crédits épuisés : l’IA ne répond plus, les réponses manuelles fonctionnent.');
     await expect(page.getByTestId('tile-plan')).toContainText('0');
   });
 
-  test('plan used up with a pack left: the AI still answers ⇒ warning, not exhausted', async ({ page }) => {
-    // mock: packs are bought with billing (M9), nothing writes the pack bucket over HTTP yet — the real balance (plan
-    // used up) is answered with 500 pack credits left
-    await patchAnswer(page, CREDITS_URL, (c: Record<string, any>) => ({ ...c, plan: { ...c.plan, used: c.plan.limit, remaining: 0 }, packs: { remaining: 500 }, total: 500, exhausted: false, negative: false }));
-    await signIn(page, owner);
-    await expect(pill(page)).toHaveAttribute('data-level', 'warning', FIRST);
-    await expect(shellBanner(page, 'credits80')).toBeVisible();
-    await expect(shellBanner(page, 'credits100')).toHaveCount(0);
-  });
-
-  test('negative balance (store refund): red alert in the shell and on the page', async ({ page }) => {
-    // mock: a negative balance comes from a store refund of a pack (M9 billing); no HTTP route produces it in M4
-    await patchAnswer(page, CREDITS_URL, (c: Record<string, any>) => ({ ...c, packs: { remaining: -120 }, total: Math.max(0, c.plan.remaining) - 120, negative: true }));
-    await signIn(page, owner);
-    const banner = shellBanner(page, 'negativeCredits');
-    await expect(banner).toHaveText(/Solde de crédits négatif \(remboursement store\) — l'IA est bloquée jusqu'à régularisation\./, FIRST);
-    await banner.getByRole('button', { name: 'Voir les crédits' }).click();
-    await expectUrl(page, '**/fr/settings/credits', NAV);
-    await expect(page.getByTestId('credits-negative')).toHaveText("Solde de crédits négatif (remboursement store) — l'IA est bloquée jusqu'à régularisation.", FIRST);
-    await expect(page.getByTestId('tile-packs')).toContainText('-120');
-  });
+  // pack balance (plan used up, AI still answering ⇒ warning) and negative balance (store refund): real API in
+  // m9-credits.spec.ts since M9 (they replaced the `// mock:` answers of M4)
 
   test('the pill follows the balance live (WS credits.updated): an AI turn, then 80 %, then exhausted — no reload', async ({ page }) => {
     const r = req(page);

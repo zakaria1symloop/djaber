@@ -1634,6 +1634,9 @@ model Subscription {
   cancelledAt            DateTime?
   cancelReason           String?
   dunningStage           DunningStage?
+  /// M9: downgrade booked for the renewal (cheaper paid plan / yearly → monthly); applied when the renewal invoice is paid
+  nextPlanId             String?            @db.Uuid
+  nextBillingCycle       BillingCycle?
   providerSubscriptionId String?
   providerCustomerId     String?
   createdAt              DateTime           @default(now())
@@ -1675,6 +1678,7 @@ model Invoice {
   payments     BillingPayment[]
 
   @@index([workspaceId, status, createdAt])
+  @@index([subscriptionId, status])
 }
 
 model BillingPayment {
@@ -1701,6 +1705,7 @@ model BillingPayment {
   recordedBy   User?         @relation("BillingPaymentRecordedBy", fields: [recordedById], references: [id])
 
   @@index([workspaceId, createdAt])
+  @@index([status, createdAt])
 }
 
 model CreditLedger {
@@ -1782,6 +1787,8 @@ model CreditPackPurchase {
   ledgerRows  CreditLedger[]
 
   @@index([workspaceId, createdAt])
+  @@index([status, createdAt])
+  @@index([storeOrderId])
 }
 
 model PromoCode {
@@ -3009,6 +3016,7 @@ model OrderPayment {
   order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId, status])
+  @@index([status, expiresAt])
 }
 
 model Wilaya {

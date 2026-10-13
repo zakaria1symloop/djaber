@@ -14,3 +14,4 @@ export * from './gds';
 export * from './recommendations';
 export * from './analytics';
 export * from './reports';
+export * from './billing';

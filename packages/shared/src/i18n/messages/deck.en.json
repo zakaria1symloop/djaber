@@ -233,6 +233,7 @@
  "customer.out_of_hours": "Our team is away right now; I'll take your order meanwhile and we'll call you back at opening.",
  "customer.out_of_stock": "Sorry, {product} is out of stock right now.",
  "customer.outsideWindowSkipped": "Not delivered — outside the 24 h window",
+ "customer.paymentFailed": "The payment for order #{number} did not go through. Reply \"link\" to get a new link, or pay on delivery.",
  "customer.paymentLink": "Pay for your order #{number} online ({total} DA): {url} — valid for {minutes} min.",
  "customer.paymentReceived": "Payment received for #{number}. Thank you!",
  "customer.reminderScheduled": "We will call you back at {time}.",

@@ -1,13 +1,15 @@
 'use client';
 // /settings/credits — Figma "BIL-04 / BIL-03 — Credits page (ledger) · Invoices · Checkout return" (tiles + ledger).
-// M4 is the read-only part: the balance (every member, `billing.read_credits`) and the ledger (`billing.read`),
-// kept live by WS `credits.updated`. Filters, page and page size live in the URL.
-// M9: "Calculateur" (GET /credits/calculator), "Acheter un pack" (GET /credit-packs, POST /credits/packs/checkout),
-// "Exporter CSV" (GET /credits/ledger/export), the invoices card and the checkout-return page.
+// The balance (every member, `billing.read_credits`) and the ledger (`billing.read`), kept live by WS `credits.updated`;
+// filters, page and page size live in the URL. M9: "Calculateur" (every member, GET /credits/calculator), "Acheter un
+// pack" (`billing.write`, GET /credit-packs → POST /credits/packs/checkout → Chargily → /settings/billing/return;
+// `?buy=1` opens it), "Exporter CSV" (`billing.read`, GET /credits/ledger/export → job). The invoices live on
+// /settings/billing (02-next-route-map §3.4).
 import { formatDate, formatDateTime, formatNumber, type AppLocale } from '@djaber/shared';
-import { ActiveFilters, Banner, Card, cn, CreditsMeter, EmptyState, FilterChips, FilterDateRange, FilterDropdown, KpiTile, Ltr, Skeleton, StatusPill, Table, Td, Th, Tr, type ActiveFilter } from '@djaber/ui';
+import { ActiveFilters, Banner, Button, Card, cn, CreditsMeter, EmptyState, FilterChips, FilterDateRange, FilterDropdown, KpiTile, Ltr, Skeleton, StatusPill, Table, Td, Th, toast, Tr, type ActiveFilter } from '@djaber/ui';
 import { Zap } from 'lucide-react';
-import { useMemo } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useMemo, useState } from 'react';
 import { ListFilteredEmpty, ListLoading, QueryError } from '@/components/global-states';
 import { useAgents } from '@/features/agents/api';
 import { ListPagination } from '@/features/catalog/ui';
@@ -17,9 +19,14 @@ import { useLocaleCode, useT } from '@/lib/i18n';
 import { filterList, filterText, type ApiQuery, type ListSpec } from '@/lib/list-state';
 import { useSession } from '@/lib/session';
 import { useListState } from '@/lib/use-list-state';
+import { billingApi } from '@/features/billing/api';
+import { errorMessage } from '@/lib/forms';
+import { downloadUrl, trackJob } from '@/lib/jobs';
 import { useCredits, useLedger } from './api';
+import { BuyPackDialog } from './buy-pack-dialog';
+import { CalculatorDialog } from './calculator-dialog';
 import { BUCKETS, FILTER_ACTIONS, type Credits, type LedgerRow } from './contracts';
-import { actionLabelKey, burnRate, creditsTone, isBookkeeping, levelOf, orderedRange, pricePerCredit, signedCredits } from './logic';
+import { actionLabelKey, burnRate, creditsTone, isBookkeeping, levelOf, orderedRange, packsShown, pricePerCredit, signedCredits } from './logic';
 
 /** `GET /credits/ledger` parameters (api-contract §4 `LedgerQuery`). */
 export const LEDGER_SPEC: ListSpec = { filters: { from: 'date', to: 'date', action: 'list', agentId: 'text', bucket: 'text' }, sorts: ['at'], defaultSort: '-at' };
@@ -28,10 +35,40 @@ export function CreditsPage() {
   const t = useT();
   const { can } = useSession();
   const q = useCredits();
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [calculator, setCalculator] = useState(false);
+  const buying = params.get('buy') === '1';
+  const setBuying = useCallback(
+    (open: boolean) => {
+      const p = new URLSearchParams(params.toString());
+      if (open) p.set('buy', '1');
+      else p.delete('buy');
+      const qs = p.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [params, pathname, router],
+  );
+  const canBuy = can('billing.write');
   return (
-    <SettingsPage title={t('nav.settings.credits')} description={t('credits.description')} permission="billing.read_credits">
+    <SettingsPage
+      title={t('nav.settings.credits')}
+      description={t('credits.description')}
+      permission="billing.read_credits"
+      actions={
+        <>
+          <Button variant="ghost" onClick={() => setCalculator(true)} data-testid="open-calculator">
+            {t('credits.action.calculator')}
+          </Button>
+          <Button variant="primary" onClick={() => setBuying(true)} disabledReason={canBuy ? undefined : t('billing.writeOnly')} data-testid="open-buy-pack">
+            {t('action.buyPack')}
+          </Button>
+        </>
+      }
+    >
       {q.data?.negative ? (
-        <Banner tone="danger" className="border border-accent-alert/40">
+        <Banner tone="danger" className="border border-accent-alert/40" action={canBuy ? { label: t('action.buyPack'), onClick: () => setBuying(true) } : undefined}>
           <span data-testid="credits-negative">{t('banner.negativeCredits')}</span>
         </Banner>
       ) : null}
@@ -55,6 +92,19 @@ export function CreditsPage() {
           </p>
         </Section>
       )}
+      <CalculatorDialog
+        open={calculator}
+        onClose={() => setCalculator(false)}
+        onSeePacks={
+          canBuy
+            ? () => {
+                setCalculator(false);
+                setBuying(true);
+              }
+            : undefined
+        }
+      />
+      <BuyPackDialog open={buying && canBuy} onClose={() => setBuying(false)} />
     </SettingsPage>
   );
 }
@@ -77,7 +127,8 @@ function Balance({ credits: c }: { credits: Credits }) {
           meta={t('credits.tile.plan.meta', { limit: formatNumber(c.plan.limit), date: formatDate(c.plan.periodEnd, locale) })}
           tone={level === 'exhausted' ? 'danger' : level === 'warning' ? 'warning' : undefined}
         />
-        <KpiTile data-testid="tile-packs" value={formatNumber(c.packs.remaining)} label={t('credits.tile.packs')} meta={t('credits.tile.packs.meta')} tone={c.packs.remaining < 0 ? 'danger' : undefined} />
+        {/* a store refund can leave the balance below zero (AT-PCK-03): the API keeps `packs.remaining` at 0 and the debt in `total` */}
+        <KpiTile data-testid="tile-packs" value={formatNumber(packsShown(c))} label={t('credits.tile.packs')} meta={t('credits.tile.packs.meta')} tone={packsShown(c) < 0 ? 'danger' : undefined} />
         <KpiTile data-testid="tile-used" value={formatNumber(c.plan.used)} label={t('credits.tile.used')} meta={usedMeta} />
         <KpiTile
           data-testid="tile-price"
@@ -142,6 +193,29 @@ function Ledger() {
   if (agentId) chips.push({ key: 'agentId', label: `${t('credits.filter.agent')} : ${agentName}`, onRemove: () => list.setFilter('agentId', null) });
   if (bucket) chips.push({ key: 'bucket', label: `${t('credits.filter.bucket')} : ${t(`credits.bucket.${bucket === 'pack' ? 'pack' : 'plan'}`)}`, onRemove: () => list.setFilter('bucket', null) });
 
+  const [exporting, setExporting] = useState(false);
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      const { action: _a, page: _p, pageSize: _s, ...rest } = query;
+      const r = await billingApi.exportLedger({ ...rest, ...(actions.length ? { action: actions } : {}) });
+      trackJob({
+        jobId: r.jobId,
+        started: t('credits.export.started'),
+        progress: (j) => t('toast.export.progress', { entity: t('credits.export.entity'), pct: j.progress, rows: j.total ?? 0 }),
+        done: (j) => {
+          const result = (j.result ?? {}) as { fileName?: string };
+          return { message: t('toast.export.done', { file: result.fileName ?? 'credits.csv' }), action: j.resultUrl ? { label: t('action.download'), onClick: () => downloadUrl(j.resultUrl!, result.fileName) } : undefined };
+        },
+        failed: (_j, e) => (e ? errorMessage(e, t) : t('credits.export.failed')),
+      });
+    } catch (e) {
+      toast({ tone: 'danger', message: errorMessage(e, t) });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <Section title={t('credits.ledger.title')}>
       <div className="flex flex-col gap-3" data-testid="credits-ledger">
@@ -160,6 +234,9 @@ function Ledger() {
           <FilterDropdown label={t('credits.filter.bucket')} count={bucket ? 1 : undefined}>
             <FilterChips label={t('credits.filter.bucket')} allLabel={t('common.allM')} options={bucketOptions} value={bucket ? [bucket] : []} onChange={(next) => list.setFilter('bucket', next[0] ?? null)} />
           </FilterDropdown>
+          <Button variant="ghost" size="sm" className="ms-auto" onClick={exportCsv} loading={exporting} data-testid="ledger-export">
+            {t('credits.action.export')}
+          </Button>
         </div>
         <ActiveFilters items={chips} label={t('action.filters')} clearLabel={t('action.clearAll')} onClear={list.clear} removeLabel={(label) => `${t('action.remove')} ${label}`} />
 

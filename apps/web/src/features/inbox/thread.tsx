@@ -445,7 +445,7 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
           description={t('inbox.banner.credits.description')}
           actions={
             can('billing.read_credits') ? (
-              <Link href="/settings/credits" className="inline-flex h-8 items-center rounded-card border border-line-edge bg-ink-surface px-3 text-[13px] font-medium hover:border-line-lit hover:bg-ink-raised" data-testid="thread-renew-credits">
+              <Link href={can('billing.write') ? '/settings/credits?buy=1' : '/settings/credits'} className="inline-flex h-8 items-center rounded-card border border-line-edge bg-ink-surface px-3 text-[13px] font-medium hover:border-line-lit hover:bg-ink-raised" data-testid="thread-renew-credits">
                 {t('action.renew')}
               </Link>
             ) : null

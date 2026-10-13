@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { BillingModule } from '../billing/billing.module';
+import { OrderPaymentService } from '../billing/order-payment.service';
 import { ChannelsModule } from '../channels/channels.module';
 import { MessagingModule } from '../messaging/messaging.module';
 import { OrdersModule } from '../orders/orders.module';
@@ -9,7 +11,7 @@ import { AiController, DevAiController } from './ai.controller';
 import { InsightService } from './insight.service';
 import { PlaygroundService } from './playground.service';
 import { ReplyProcessor } from './reply.processor';
-import { ORDER_TOOLS } from './tools/order-tools';
+import { ORDER_TOOLS, PAYMENT_LINK_TOOL } from './tools/order-tools';
 import { ToolRegistry } from './tools/tool-registry';
 import { TranscriptionService } from './transcription.service';
 import { TurnContextService } from './turn-context.service';
@@ -20,9 +22,9 @@ import { TurnContextService } from './turn-context.service';
  * vision live in the global `AiCoreModule`. `ORDER_TOOLS` (the M4 seam) is bound to the orders module since M5.
  */
 @Module({
-  imports: [ChannelsModule, MessagingModule, OrdersModule, RecommendationsModule],
+  imports: [ChannelsModule, MessagingModule, OrdersModule, RecommendationsModule, BillingModule],
   controllers: [AiController, DevAiController],
-  providers: [{ provide: ORDER_TOOLS, useExisting: OrderToolsService }, ToolRegistry, AiRunService, TurnContextService, InsightService, TranscriptionService, ReplyProcessor, PlaygroundService],
+  providers: [{ provide: ORDER_TOOLS, useExisting: OrderToolsService }, { provide: PAYMENT_LINK_TOOL, useExisting: OrderPaymentService }, ToolRegistry, AiRunService, TurnContextService, InsightService, TranscriptionService, ReplyProcessor, PlaygroundService],
   exports: [ORDER_TOOLS, ToolRegistry, AiRunService, TurnContextService, InsightService, TranscriptionService, ReplyProcessor, PlaygroundService],
 })
 export class AiModule {}

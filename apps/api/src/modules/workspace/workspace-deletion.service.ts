@@ -4,7 +4,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { prisma, TenantContext } from '@djaber/db';
 import { AuditService } from '../../core/audit/audit.service';
 import { ConfigService } from '../../core/config/config.service';
-import { conflict, notFound, validationError } from '../../core/errors/app.exception';
+import { AppException, conflict, notFound, validationError } from '../../core/errors/app.exception';
 import { MailOutbox } from '../../core/mail/mail.outbox';
 import { OutboxService } from '../../core/outbox/outbox.service';
 import { ProcessorRegistry } from '../../core/queue/processor.registry';
@@ -49,10 +49,19 @@ export class WorkspaceDeletionService implements OnModuleInit {
     if (!ws) throw notFound();
     if (input.confirmName.trim().toLowerCase() !== ws.name.trim().toLowerCase()) throw validationError({ confirmName: 'validation.invalid' });
     const owner = await this.reauth.assertPassword(t.userId!, input.password, 'AUTH_CURRENT_PASSWORD_INCORRECT');
+    // 04 §14 "Debt guards" / AT-BIL-11: an unpaid invoice blocks the deletion until it is paid
+    const unpaid = await prisma.invoice.findMany({ where: { status: 'unpaid' }, select: { id: true, amount: true } });
+    if (unpaid.length) {
+      const paid = await prisma.billingPayment.aggregate({ where: { invoiceId: { in: unpaid.map((i) => i.id) }, status: 'paid' }, _sum: { amount: true } });
+      throw new AppException('WORKSPACE_HAS_DEBT', { amount: unpaid.reduce((n, i) => n + i.amount, 0) - (paid._sum.amount ?? 0) });
+    }
     const at = new Date(Date.now() + (await this.graceDays()) * DAY);
 
     const updated = await prisma.$transaction(async (tx) => {
       const row = await tx.workspace.update({ where: { id: ws.id }, data: { status: 'deletion_scheduled', deletionScheduledAt: at } });
+      // M1 carry-over (04 §16): the subscription is cancelled — no renewal / dunning during the grace period; undone by "cancel"
+      await tx.subscription.updateMany({ where: { status: { in: ['active', 'dunning'] }, billingCycle: { not: 'none' }, cancelAtPeriodEnd: false }, data: { cancelAtPeriodEnd: true, cancelledAt: new Date(), cancelReason: 'workspace_deletion' } });
+      await tx.invoice.updateMany({ where: { status: 'upcoming' }, data: { status: 'void' } });
       // channels are disconnected at once: nothing is received or answered any more (AI stops with them).
       // The pages are unsubscribed at Meta by the `channel-unsubscribe` job (Meta port), which then wipes the token.
       const connected = await tx.channel.findMany({ where: { status: { not: 'disconnected' } }, select: { id: true } });
@@ -108,6 +117,7 @@ export class WorkspaceDeletionService implements OnModuleInit {
     if (ws.status !== 'deletion_scheduled') throw conflict({ status: ws.status });
     const updated = await prisma.$transaction(async (tx) => {
       const row = await tx.workspace.update({ where: { id: ws.id }, data: { status: 'active', deletionScheduledAt: null } });
+      await tx.subscription.updateMany({ where: { status: { in: ['active', 'dunning'] }, cancelReason: 'workspace_deletion' }, data: { cancelAtPeriodEnd: false, cancelledAt: null, cancelReason: null } });
       await this.outbox.ws(tx, `ws:${ws.id}`, 'workspace.updated', { id: ws.id, workspace: { status: row.status, stockMode: row.stockMode, locale: row.locale } });
       return row;
     });

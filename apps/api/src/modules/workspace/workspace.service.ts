@@ -73,7 +73,7 @@ export class WorkspaceService {
     const [pages, agents, products, conversationsThisMonth, members, debits] = await Promise.all([
       // CHN-10: a page holds a slot while it is live; a linked Instagram account rides on its page, paused pages hold none
       prisma.channel.count({ where: { parentChannelId: null, status: { in: ['active', 'pending_review', 'needs_reconnect'] } } }),
-      prisma.agent.count({ where: { status: { in: ['active', 'paused'] }, deletedAt: null } }),
+      prisma.agent.count({ where: { status: { in: ['active', 'paused'] }, deletedAt: null, OR: [{ pausedReason: null }, { pausedReason: { not: 'plan' } }] } }),
       prisma.product.count({ where: { deletedAt: null } }),
       prisma.conversation.count({ where: { createdAt: { gte: algiersMonthStart() } } }),
       prisma.membership.count(),
@@ -85,6 +85,14 @@ export class WorkspaceService {
   private async planBlock(workspaceId: string, locale: string) {
     const { sub, plan, last } = await this.planOf(workspaceId);
     const periodStart = sub?.currentPeriodStart ?? algiersMonthStart();
+    // M9: shell banners for every member (Operators cannot read GET /billing/subscription)
+    const isFreeRow = !!sub && sub.provider === 'none' && sub.billingCycle === 'none' && sub.status === 'active';
+    const [expired, channels, agents, members] = await Promise.all([
+      isFreeRow ? prisma.subscription.findFirst({ where: { workspaceId, status: 'expired' }, orderBy: { updatedAt: 'desc' }, include: { plan: true } }) : Promise.resolve(null),
+      prisma.channel.count({ where: { parentChannelId: null, status: 'paused', pausedReason: 'plan' } }),
+      prisma.agent.count({ where: { deletedAt: null, status: 'paused', pausedReason: 'plan' } }),
+      prisma.membership.count({ where: { readOnly: true } }),
+    ]);
     return {
       slug: plan.slug,
       name: this.i18n.pick(plan.name, locale),
@@ -93,6 +101,10 @@ export class WorkspaceService {
       periodEnd: (sub?.currentPeriodEnd ?? last?.currentPeriodEnd ?? new Date()).toISOString(),
       status: sub?.status ?? 'expired',
       trialEndsAt: sub?.trialEndsAt ? sub.trialEndsAt.toISOString() : null,
+      cancelAtPeriodEnd: sub?.cancelAtPeriodEnd ?? false,
+      dunningStage: sub?.dunningStage ?? null,
+      expired: expired && expired.plan.slug !== 'free' ? { at: expired.updatedAt.toISOString(), planName: this.i18n.pick(expired.plan.name, locale) } : null,
+      paused: { channels, agents, members },
     };
   }
 

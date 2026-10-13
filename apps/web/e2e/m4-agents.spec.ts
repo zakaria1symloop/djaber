@@ -53,16 +53,12 @@ const openMenu = async (page: Page, id: string) => {
   await agentCard(page, id).getByRole('button', { name: 'Actions' }).click();
   return page.getByRole('menu');
 };
-// mock: `pausedReason: 'plan'` is set only by a plan downgrade (M9 billing), which no endpoint can trigger yet. The real
-// "Conseiller Produit" (paused manually, with a page) is shown as paused by the plan, with "Reprendre" refused PLAN_LIMIT.
-// (one route per URL: a second `patchAgentsList` would fetch the network answer and skip this one, so the patches compose)
-const pausedByPlan = (a: AgentRow): AgentRow => (a.id === w.conseiller.id ? { ...a, pausedReason: 'plan', actions: a.actions.map((d) => (d.key === 'resume' ? { key: 'resume', enabled: false, reasonCode: 'PLAN_LIMIT' } : d)) } : a);
-const asPausedByPlan = (page: Page, more: (a: AgentRow) => AgentRow = (a) => a) => patchAgentsList(page, (a) => more(pausedByPlan(a)));
+// The "paused by the plan" card (`pausedReason: 'plan'`, "Reprendre" refused PLAN_LIMIT) is produced by a real plan
+// expiry since M9: see m9-carryovers.spec.ts. Here "Conseiller Produit" is paused manually.
 
 test.describe('list — states, summary, plan limit', () => {
   test('AT-AGT-01 the four card states with their pills, summary line, no-channel strip, insights badge, axe', async ({ page, request }) => {
     const vendeurNow = await agentRow(request, owner, w.vendeur.id);
-    await asPausedByPlan(page);
     await openList(page);
     await expect(page.getByTestId('agent-card')).toHaveCount(4, { timeout: 30_000 });
     await expect(page.getByTestId('agents-count')).toHaveText('4');
@@ -70,7 +66,7 @@ test.describe('list — states, summary, plan limit', () => {
     const pills: [string, string, string][] = [
       [w.vendeur.id, 'active', 'ACTIF'],
       [w.service.id, 'paused', 'EN PAUSE'],
-      [w.conseiller.id, 'paused_plan', 'PAUSE (PLAN)'],
+      [w.conseiller.id, 'paused', 'EN PAUSE'],
       [w.draft.id, 'draft', 'BROUILLON'],
     ];
     for (const [id, state, label] of pills) {
@@ -107,9 +103,7 @@ test.describe('list — states, summary, plan limit', () => {
     await expect(strip.getByRole('link', { name: 'Rattacher une page' })).toHaveAttribute('href', `/fr/agents/${w.service.id}/configuration?section=channels`);
     await expect(agentCard(page, w.service.id)).toContainText('IA SILENCIEUSE');
 
-    // paused by the plan: its own strip, no "Actif" switch
-    await expect(agentCard(page, w.conseiller.id).getByTestId('agent-paused-plan')).toContainText('En pause par le plan');
-    await expect(agentCard(page, w.conseiller.id).getByRole('switch')).toHaveCount(0);
+    // paused by the plan (its own strip, no "Actif" switch): real plan expiry in m9-carryovers.spec.ts
 
     // draft saved at step 2: where it stopped and how to resume it; neither switch nor "Tester"
     const draft = agentCard(page, w.draft.id);
@@ -283,7 +277,7 @@ test.describe('row actions', () => {
     const pending = (await agentRow(request, owner, w.vendeur.id)).pendingInsights;
     // mock: the API sends `delete` enabled for an agent with pages (agent.service.ts `actions()`), and its single
     // DELETE unlinks the pages instead of refusing — 04 §240 / 11 AGENT_HAS_CHANNELS want it greyed (reported as API bug)
-    await asPausedByPlan(page, (a) => (a.channels.length ? { ...a, actions: a.actions.map((d) => (d.key === 'delete' ? { key: 'delete', enabled: false, reasonCode: 'AGENT_HAS_CHANNELS' } : d)) } : a));
+    await patchAgentsList(page, (a) => (a.channels.length ? { ...a, actions: a.actions.map((d) => (d.key === 'delete' ? { key: 'delete', enabled: false, reasonCode: 'AGENT_HAS_CHANNELS' } : d)) } : a));
     const writes = recordWrites(page, /^\/api\/v1\/agents/);
     await openList(page);
     const vendeur = agentCard(page, w.vendeur.id);
@@ -311,11 +305,7 @@ test.describe('row actions', () => {
     await expect(serviceMenu.getByRole('menuitem', { name: 'Reprendre', exact: true })).toBeVisible();
     await expect(serviceMenu).not.toContainText('AGENT_HAS_CHANNELS');
     await page.keyboard.press('Escape');
-    // paused by the plan: "Reprendre" is refused with PLAN_LIMIT
-    const planMenu = await openMenu(page, w.conseiller.id);
-    await expect(planMenu.getByRole('menuitem', { name: 'Reprendre', exact: true })).toHaveAttribute('aria-disabled', 'true');
-    await expect(planMenu).toContainText('(PLAN_LIMIT)');
-    await page.keyboard.press('Escape');
+    // paused by the plan ("Reprendre" refused PLAN_LIMIT): real plan expiry in m9-carryovers.spec.ts
 
     await expect(vendeur.getByRole('link', { name: 'Tester', exact: true })).toHaveAttribute('href', `/fr/agents/${w.vendeur.id}/playground`);
 

@@ -25,4 +25,13 @@ Object.assign(process.env, {
   COURIER_ALLOW_LIVE: 'false',
   COURIER_SEND_RPS: '1000',
   COURIER_TRACK_RPS: '1000',
+  // M9: simulated Chargily and fake stores only; never a real payment, never a store call
+  PAYMENT_DRIVER: 'fake',
+  PAYMENT_ALLOW_LIVE: 'false',
+  IAP_DRIVER: 'fake',
+  IAP_ALLOW_LIVE: 'false',
+  GOOGLE_PLAY_SERVICE_ACCOUNT: '',
+  GOOGLE_PLAY_PUBSUB_TOKEN: '',
+  APPLE_IAP_PRIVATE_KEY: '',
+  APP_STORE_SHARED_SECRET: '',
 });

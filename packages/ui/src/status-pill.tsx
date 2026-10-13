@@ -53,6 +53,11 @@ export const PILL_TONES = {
   'Recommendation.status': { active: 'info', applied: 'success', dismissed: 'neutral', snoozed: 'neutral', expired: 'neutral' },
   'Recommendation.kind': { cross_sell: 'info', up_sell: 'violet' },
   'ProductExpense.category': { marketing: 'neutral', shipping: 'neutral', packaging: 'neutral', customs: 'neutral', storage: 'neutral', other: 'neutral' },
+  // M9 — billing (BIL-01, BIL-03, REF — Component sheet): PAYÉE green, IMPAYÉE red, À VENIR / ANNULÉE / REMBOURSÉE neutral
+  'Invoice.status': { upcoming: 'neutral', unpaid: 'danger', paid: 'success', void: 'neutral', refunded: 'neutral' },
+  'Subscription.status': { trial: 'info', active: 'success', dunning: 'warning', expired: 'danger', cancelled: 'neutral' },
+  'Subscription.dunningStage': { d_minus_7: 'warning', d0: 'danger', d_plus_3: 'danger', expired: 'danger' },
+  'PaymentLink.status': { pending: 'info', paid: 'success', expired: 'neutral', failed: 'danger', cancelled: 'neutral', mismatch: 'warning' },
 } as const satisfies Record<string, Record<string, Tone>>;
 
 export type PillEnum = keyof typeof PILL_TONES;

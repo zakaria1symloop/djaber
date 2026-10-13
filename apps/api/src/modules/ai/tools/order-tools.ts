@@ -4,6 +4,12 @@
 import { Injectable } from '@nestjs/common';
 
 export const ORDER_TOOLS = Symbol('ORDER_TOOLS');
+/** M9: the `create_payment_link` tool, bound to the billing module's OrderPaymentService. */
+export const PAYMENT_LINK_TOOL = Symbol('PAYMENT_LINK_TOOL');
+export interface PaymentLinkTool {
+  enabledFor(workspaceId: string): Promise<boolean>;
+  forAi(ctx: { workspaceId: string; clientId: string | null; dryRun: boolean }, orderRef: string): Promise<Record<string, unknown>>;
+}
 
 export type OrderToolContext = { workspaceId: string; agentId: string; conversationId: string | null; clientId: string | null; channelId: string | null; runId: string; callId: string };
 /** Arguments of `create_order` after validation (phone normalised, products and variants checked, limits respected). */

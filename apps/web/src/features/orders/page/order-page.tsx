@@ -189,7 +189,7 @@ export function OrderPage({ id }: { id: string }) {
           />
           <div className="grid gap-5 md:grid-cols-2">
             <OrderDeliveryBlock order={order} onSend={() => actions.run('send', order)} onShip={() => actions.run('ship', order)} parcels={parcels} />
-            <PaymentBlock order={order} onRecord={() => actions.run('payment', order)} onLink={() => toast({ tone: 'info', message: t('orders.paymentLink.p2') })} />
+            <PaymentBlock order={order} onRecord={() => actions.run('payment', order)} onLink={() => actions.run('payment_link', order)} onRefund={() => actions.run('refund', order)} />
           </div>
         </div>
         <div className="flex min-w-0 flex-col gap-5">

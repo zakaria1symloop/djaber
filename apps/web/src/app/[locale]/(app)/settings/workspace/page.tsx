@@ -1,6 +1,7 @@
 'use client';
 // /settings/workspace — Figma "SET — Settings — Profile · Workspace · Security" (Espace de travail) + the auto-pause /
-// handoff-reminder line of "SET — … System messages" and the free-delivery rule (03 §20).
+// handoff-reminder line of "SET — … System messages", the free-delivery rule and the online payment toggle (03 §20,
+// PAY-02 P2 — saved at once, like the stock mode).
 import { zodResolver } from '@hookform/resolvers/zod';
 import { normalizePhoneDz, WorkspaceProfileSchema, type WorkspaceProfileInput } from '@djaber/shared';
 import { Avatar, Button, Field, FormAlert, Input, Select, Skeleton, Switch, toast } from '@djaber/ui';
@@ -12,7 +13,7 @@ import { Section, SettingsPage, useImageUpload } from '@/features/settings/commo
 import { conflictOf, usePatchWorkspace, useWilayas, useWorkspaceCache, type WorkspacePatch } from '@/features/workspace/api';
 import { routing } from '@/i18n/routing';
 import type { WorkspaceDto } from '@/lib/contracts';
-import { applyServerErrors, fieldError, useLeaveGuard } from '@/lib/forms';
+import { applyServerErrors, errorMessage, fieldError, useLeaveGuard } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { relativeTime } from '@/lib/time';
@@ -184,6 +185,8 @@ function WorkspaceForm() {
         </div>
       </Section>
 
+      <OnlinePayment workspace={workspace} locked={locked} />
+
       {formError ? <FormAlert>{formError}</FormAlert> : null}
       <div className="flex justify-end">
         <Button type="submit" form="workspace-form" variant="primary" loading={busy} disabled={!form.formState.isDirty} disabledReason={readOnlyReason}>
@@ -214,5 +217,31 @@ function WorkspaceForm() {
       />
       {guard}
     </>
+  );
+}
+
+/** "Paiement en ligne" (PAY-02): orders get "Lien de paiement" (Chargily checkout, 15 min) once it is on. */
+function OnlinePayment({ workspace, locked }: { workspace: WorkspaceDto; locked: boolean }) {
+  const t = useT();
+  const patch = usePatchWorkspace();
+  const write = useWorkspaceCache();
+  const [error, setError] = useState<string | null>(null);
+  const toggle = async (on: boolean) => {
+    setError(null);
+    try {
+      write(await patch.mutateAsync({ onlinePaymentEnabled: on, version: workspace.version }));
+      toast(on ? t('settings.workspace.onlinePayment.on') : t('settings.workspace.onlinePayment.off'));
+    } catch (e) {
+      setError(errorMessage(e, t));
+    }
+  };
+  return (
+    <Section title={t('settings.workspace.onlinePayment.title')} description={t('settings.workspace.onlinePayment.hint')}>
+      <div className="flex items-center gap-3" data-testid="online-payment">
+        <Switch checked={workspace.onlinePaymentEnabled} onCheckedChange={(v) => void toggle(v)} label={t('settings.workspace.onlinePayment.label')} disabled={locked || patch.isPending} />
+        <span className="text-[13px]">{t('settings.workspace.onlinePayment.label')}</span>
+      </div>
+      {error ? <FormAlert className="mt-3">{error}</FormAlert> : null}
+    </Section>
   );
 }

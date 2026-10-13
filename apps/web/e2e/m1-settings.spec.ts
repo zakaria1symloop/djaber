@@ -140,7 +140,7 @@ test('AT-SET-01 handoff reminder 0 disables the owner reminder; auto-pause and f
   await page.locator('#phone').fill('0550 11 22 33');
   await page.locator('#handoffReminderMin').fill('0');
   await page.locator('#freeDeliveryThreshold').fill('8000');
-  await page.getByRole('switch').click();
+  await page.getByRole('switch', { name: /Répondre manuellement met l’IA en pause/ }).click();
   await save.click();
   await expect(save).toBeDisabled();
 
@@ -153,7 +153,7 @@ test('AT-SET-01 handoff reminder 0 disables the owner reminder; auto-pause and f
   await page.reload();
   await expect(page.locator('#handoffReminderMin')).toHaveValue('0');
   await expect(page.locator('#freeDeliveryThreshold')).toHaveValue('8000');
-  await expect(page.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+  await expect(page.getByRole('switch', { name: /Répondre manuellement met l’IA en pause/ })).toHaveAttribute('aria-checked', 'false');
 
   // leave guard on a dirty form
   await page.locator('#name').fill('Boutique Amel');
