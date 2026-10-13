@@ -5,10 +5,11 @@
 // A run reserves its planned cost at job start, then either settles it (debit + compensating un-reserve) or releases it.
 // Every write is idempotent on `idempotencyKey` (`run:<id>:reserve|debit|unreserve|release`), so a retried job never
 // debits twice. Callers must be inside the workspace's tenant context.
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { CREDIT_COST, type CreditLedgerRowDto, type CreditsCalculatorDto, type CreditsDto, type CreditsUpdatedEvent, type LedgerQuery } from '@djaber/shared';
 import { prisma, Prisma, TenantContext, type CreditAction, type CreditBucket, type Tx } from '@djaber/db';
 import { page, toSkipTake, type Page } from '../../core/http/pagination';
+import { MetricsService } from '../../core/metrics/metrics.service';
 import { OutboxService } from '../../core/outbox/outbox.service';
 import { ProcessorRegistry } from '../../core/queue/processor.registry';
 import { TenantResolver } from '../../core/tenancy/tenant.resolver';
@@ -42,6 +43,7 @@ export class CreditService implements OnModuleInit {
     private readonly notifications: NotificationProducer,
     private readonly registry: ProcessorRegistry,
     private readonly tenants: TenantResolver,
+    @Optional() private readonly metrics?: MetricsService,
   ) {}
 
   onModuleInit() {
@@ -168,6 +170,7 @@ export class CreditService implements OnModuleInit {
       const total = before.unlimited ? 0 : before.total;
       await tx.creditLedger.create({ data: { ...base, action: 'release', kind: 'release', credits: reserved, balanceAfter: total + reserved, idempotencyKey: `run:${run.id}:unreserve` } });
       await tx.creditLedger.create({ data: { ...base, action, kind: 'debit', credits: -cost, balanceAfter: total + reserved - cost, idempotencyKey: `run:${run.id}:debit` } });
+      this.metrics?.creditsDebited.inc(cost);
       await tx.aiRun.updateMany({ where: { id: run.id }, data: { creditsCharged: cost } });
       const after = await this.balanceIn(tx, run.workspaceId);
       await this.emit(tx, run.workspaceId, after, `${run.id}:debit`);

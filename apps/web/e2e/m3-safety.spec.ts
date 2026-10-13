@@ -5,7 +5,7 @@
 import { expect, test } from '@playwright/test';
 import { expectNoA11yViolations } from './support/a11y';
 import { API, apiReady, authHeaders, createAccount, loginHome, type Account } from './support/m1';
-import { blockRow, fulfil, safetyReady, uniquePhone } from './support/m3-misc';
+import { safetyReady, uniquePhone } from './support/m3-misc';
 
 test.describe.configure({ mode: 'serial' });
 let account: Account;
@@ -64,24 +64,7 @@ test('AT-SAFE-01 unblock (Admin+): confirmation dialog, the row disappears, the 
   expect(((await res.json()) as { data: unknown[] }).data).toHaveLength(0);
 });
 
-test('AT-SAFE-03 platform rows are locked: PLATEFORME pill, no "Débloquer", tooltip CUSTOMER_BLOCKED_BY_PLATFORM', async ({ page }) => {
-  // a platform blacklist row is created by a moderator (M10): served from a contract-shaped fixture here
-  const rows = [blockRow({ name: 'Walid H.', phone: '0550112233', source: 'manual', reason: 'harassment', reportStatus: 'open' }), blockRow({ phone: '0770445566', source: 'platform', reason: 'spam' }), blockRow({ name: 'Fake Buyer', source: 'auto_rule', reason: 'uncollected' })];
-  await page.route(/\/api\/v1\/safety\/blocks/, (r) => (r.request().method() === 'GET' ? fulfil(r, rows, { page: 1, pageSize: 25, total: 3 }) : r.fallback()));
-  await loginHome(page, account);
-  await page.goto('/fr/settings/security');
-  const list = page.getByTestId('blocks');
-  await expect(list.locator('li')).toHaveCount(3);
-  await expect(list.locator('li[data-source=manual]')).toContainText('signalé à Djaber (en cours)');
-  await expect(list.locator('li[data-source=manual]')).toContainText('Harcèlement');
-  await expect(list.locator('li[data-source=auto_rule]')).toContainText('AUTO');
-  const platform = list.locator('li[data-source=platform]');
-  await expect(platform).toContainText('PLATEFORME');
-  await expect(platform).toContainText('(sans nom)');
-  await expect(platform.getByTestId('unblock')).toHaveCount(0);
-  await platform.getByTestId('unblock-locked').hover();
-  await expect(page.getByRole('tooltip')).toContainText('CUSTOMER_BLOCKED_BY_PLATFORM');
-});
+// AT-SAFE-03 platform rows: the platform blacklist exists since M10 — real API test in m10-safe.spec.ts (fixture removed)
 
 test('SAFE-05 automatic rules and blocked words are saved and survive a reload', async ({ page }) => {
   await loginHome(page, account);

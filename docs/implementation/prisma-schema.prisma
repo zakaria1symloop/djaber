@@ -3568,6 +3568,14 @@ model DailyStat {
   @@unique([workspaceId, day])
 }
 
+/// M10 (ADM-01, 03-events §4 `sched-daily-stats` "and the platform totals"): one row per Africa/Algiers day, recomputed (never incremented)
+model PlatformDailyStat {
+  id         String   @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
+  day        DateTime @unique @db.Date
+  metrics    Json     // { signups, workspacesCreated, activations, churned, activeWorkspaces, suspended, mrr, creditsConsumed, aiCostUsd, conversations, aiReplies, byModel[] }
+  computedAt DateTime @default(now())
+}
+
 /// Scheduled monthly report e-mail (D62, plan feature `scheduled_reports`)
 model ReportSchedule {
   id          String   @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid

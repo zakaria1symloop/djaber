@@ -10,7 +10,7 @@ const load = (f) => JSON.parse(readFileSync(f, 'utf8'));
 const cat = {};
 for (const l of ['fr', 'ar', 'en']) {
   const errors = load(`packages/shared/src/errors/messages.${l}.json`);
-  cat[l] = { ...load(`${dir}/deck.${l}.json`), ...load(`${dir}/app.${l}.json`) };
+  cat[l] = { ...load(`${dir}/deck.${l}.json`), ...load(`${dir}/app.${l}.json`), ...load(`${dir}/admin-core.${l}.json`) };
   for (const [code, text] of Object.entries(errors)) cat[l][`error.${code}`] = text;
 }
 const problems = [];

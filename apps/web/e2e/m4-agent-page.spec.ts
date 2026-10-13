@@ -294,8 +294,9 @@ test.describe('AGT-03 overview', () => {
     const a = await fullAgent(request, owner, ids.a);
     expect(a.preset?.key).toBe('vendeur-pro');
     const presetVersion = a.preset!.version;
-    // mock: no HTTP route publishes a new preset version (platform presets are seeded; the daily scheduler only
-    // announces). The real answer is patched to announce the preset's published version, which the API can apply.
+    // mock: since M10 the admin publishes preset versions (`POST /admin/agent-presets/:id/versions/:v/publish`), but the
+    // seeded platform presets are shared by every workspace of the dev API (a new version announces an update to all of
+    // them). The real answer is patched to announce the preset's published version, which the API can apply.
     let announce = true;
     await patchAnswer(page, new RegExp(`/api/v1/agents/${ids.a}(\\?|$)`), (d: { preset: Record<string, unknown> | null }) => (announce && d.preset ? { ...d, preset: { ...d.preset, updateAvailable: presetVersion } } : d));
     await go(page, agentPath(ids.a));

@@ -102,7 +102,7 @@ export default function HomePage() {
 
   return (
     <AppPage title={t('nav.home')} bare permission="analytics.read">
-      <div className="mx-auto flex w-full max-w-[1136px] flex-col gap-8" data-testid="home">
+      <div className="flex w-full flex-col gap-8" data-testid="home">
         <header>
           <div className="ts-label-meta uppercase text-text-muted">{longDate(now, locale)}</div>
           <h1 className="ts-display-m mt-2">{greeting}</h1>

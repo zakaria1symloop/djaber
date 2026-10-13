@@ -4,7 +4,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
-import { clearRateLimits } from './global-setup';
+import { clearRateLimits, trustWorkspace } from './global-setup';
 
 export const API = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4010'}/api/v1`;
 export const PASSWORD = 'Passw0rd123';
@@ -78,6 +78,7 @@ async function registerAccount(request: APIRequestContext, o: { prefix: string; 
   expect(res.status(), `register ${email}: ${await res.text()}`).toBeLessThan(300);
   const { data } = (await res.json()) as { data: { accessToken: string; user: { ownedWorkspaceId: string | null } } };
   const account: Account = { email, password: PASSWORD, firstName, lastName: 'Benali', accessToken: data.accessToken, workspaceId: data.user.ownedWorkspaceId };
+  if (account.workspaceId) await trustWorkspace(account.workspaceId);
   if (o.finishOnboarding && account.workspaceId) {
     const r = await request.patch(`${API}/workspace/onboarding`, { headers: authHeaders(account), data: { step: 99 } });
     expect(r.ok(), await r.text()).toBeTruthy();

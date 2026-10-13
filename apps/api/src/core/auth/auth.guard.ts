@@ -40,6 +40,8 @@ export class AuthGuard implements CanActivate {
         return true;
       } catch {
         if (isPublic) return true;
+        // D21-bis: an impersonation token past its 30 min window
+        if (req.headers['x-impersonation-session']) throw new AppException('ADMIN_IMPERSONATION_EXPIRED');
         throw new AppException('UNAUTHORIZED');
       }
     }

@@ -78,6 +78,9 @@ export const ConfigSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   SHEETS_DRIVER: z.enum(['fake', 'google']).default('fake'),
   PUSH_DRIVER: z.enum(['fake', 'fcm']).default('fake'),
+  // SMS port (M10, PlatformProvider `sms`): `fake` writes the messages to SMS_LOCAL_DIR (no live SMS), `none` drops them
+  SMS_DRIVER: z.enum(['fake', 'none']).default('fake'),
+  SMS_LOCAL_DIR: z.string().default('.local/sms'),
   FCM_SERVICE_ACCOUNT: z.string().optional(),
   // safety guard: the FCM adapter refuses to start in development / test unless this is true (03-events §5.2)
   PUSH_ALLOW_LIVE: bool.default(false),
@@ -97,6 +100,8 @@ export const ConfigSchema = z.object({
   // SHA-256 fingerprint of "Apple Root CA - G3" (the root of the x5c chain of every App Store signed payload)
   APPLE_ROOT_CA_SHA256: z.string().default('63343ABFB89A6A03EBB57E9B3F5FA7BE7C4F5C756F3017B3A8C488C3653E9179'),
 
+  // Prometheus `/metrics` (07-non-functional §5): internal network only; when set, the scrape needs `Authorization: Bearer <token>`
+  METRICS_TOKEN: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   SWAGGER_ENABLED: bool.default(true),
   SEED_ADMIN_EMAIL: z.string().default('admin@djaber.local'),

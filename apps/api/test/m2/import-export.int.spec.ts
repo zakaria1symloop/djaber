@@ -143,7 +143,7 @@ describe('catalogue import', () => {
     expect(await db.product.count({ where: { workspaceId: owner.workspaceId } })).toBe(4);
     expect((await owner.post('/products/import/mapping', { jobId, mapping: preview.result.mapping }).expect(409)).body.error.code).toBe('CONFLICT');
     await drain(app, owner.workspaceId, ['notification']);
-    expect((await db.notification.findMany({ where: { workspaceId: owner.workspaceId, userId: owner.userId } })).map((n) => n.type).sort()).toEqual(['job_failed', 'job_finished']);
+    expect((await db.notification.findMany({ where: { workspaceId: owner.workspaceId, userId: owner.userId } })).map((n) => n.type).sort()).toEqual(['job_failed', 'job_finished', 'product_approved']); // M10: auto-approved import rows ⇒ one grouped product.approved (03-events §5.1)
     const audit = await eventually(() => db.auditLog.findFirst({ where: { workspaceId: owner.workspaceId, action: 'product.import_commit', entityId: jobId } }));
     expect(audit).not.toBeNull();
 

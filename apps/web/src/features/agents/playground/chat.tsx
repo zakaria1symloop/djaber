@@ -96,12 +96,25 @@ const clock = (at: number, locale: string) => new Intl.DateTimeFormat(locale ===
 export function PlaygroundThread({ pg, agentName, empty, showTools = true, className }: { pg: Playground; agentName: string; empty: React.ReactNode; /** the shared public page shows neither tools nor the status line */ showTools?: boolean; className?: string }) {
   const t = useT();
   const locale = useLocaleCode();
-  const end = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  // follow new messages inside the thread only (scrollIntoView also scrolled the page around it); a reader who
+  // scrolled up to read an older turn is left where they are
+  const stick = useRef(true);
   useEffect(() => {
-    end.current?.scrollIntoView({ block: 'end' });
+    const el = box.current;
+    if (el && stick.current) el.scrollTop = el.scrollHeight;
   }, [pg.entries.length, pg.typing]);
   return (
-    <div className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4', className)} data-testid="playground-thread" aria-live="polite">
+    <div
+      ref={box}
+      onScroll={(e) => {
+        const el = e.currentTarget;
+        stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      }}
+      className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-4 pb-4', className)}
+      data-testid="playground-thread"
+      aria-live="polite"
+    >
       {pg.entries.length === 0 && !pg.typing ? <div className="m-auto max-w-md py-10 text-center text-[13px] text-text-muted">{empty}</div> : null}
       {pg.entries.map((e) => {
         if (e.role === 'user')
@@ -168,7 +181,6 @@ export function PlaygroundThread({ pg, agentName, empty, showTools = true, class
         );
       })}
       {pg.typing ? <TypingChip className="mt-3 self-end" label={t('agents.playground.typing', { name: agentName })} /> : null}
-      <div ref={end} />
     </div>
   );
 }

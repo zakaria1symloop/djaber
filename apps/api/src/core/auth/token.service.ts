@@ -52,8 +52,8 @@ export class TokenService implements OnModuleInit {
     this.publicKey = await importSPKI(pub, 'EdDSA');
   }
 
-  async signAccess(claims: Omit<AccessClaims, 'iat' | 'exp'>): Promise<{ token: string; expiresAt: Date }> {
-    const ttl = this.config.get('JWT_ACCESS_TTL_S');
+  async signAccess(claims: Omit<AccessClaims, 'iat' | 'exp'>, ttlSeconds?: number): Promise<{ token: string; expiresAt: Date }> {
+    const ttl = ttlSeconds ?? this.config.get('JWT_ACCESS_TTL_S');
     const now = Math.floor(Date.now() / 1000);
     const token = await new SignJWT({ ...claims })
       .setProtectedHeader({ alg: 'EdDSA' })

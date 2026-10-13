@@ -4,10 +4,12 @@
 // ABUSE_REPORT_RATE_LIMITED); moderators handle it in M10.
 import { Injectable } from '@nestjs/common';
 import type { PublicTrackingReportInput, ShipmentStatusName, TrackingPublicView } from '@djaber/shared';
-import { prisma, TenantContext } from '@djaber/db';
+import { prisma, TenantContext, type Tx } from '@djaber/db';
 import { ConfigService } from '../../core/config/config.service';
 import { AppException, notFound } from '../../core/errors/app.exception';
 import { I18nService } from '../../core/i18n/i18n.service';
+import { MailOutbox } from '../../core/mail/mail.outbox';
+import { OutboxService } from '../../core/outbox/outbox.service';
 import { RedisService } from '../../core/redis/redis.provider';
 import { PROVIDER_NAMES, type CourierProvider } from './adapters/courier-adapter';
 
@@ -20,6 +22,8 @@ export class PublicTrackingService {
     private readonly i18n: I18nService,
     private readonly redis: RedisService,
     private readonly config: ConfigService,
+    private readonly outbox: OutboxService,
+    private readonly mail: MailOutbox,
   ) {}
 
   private async byToken(token: string) {
@@ -74,9 +78,17 @@ export class PublicTrackingService {
     if (n > REPORT_LIMIT) throw new AppException('ABUSE_REPORT_RATE_LIMITED');
     const s = await this.byToken(token);
     const r = await TenantContext.runSystem(() =>
-      prisma.report.create({
-        data: { type: 'merchant', reporterKind: 'end_customer', reporterEmail: input.email ?? null, targetWorkspaceId: s.workspace.id, reason: input.reason, details: input.details ?? null, excerpt: { orderNumber: s.order.number, trackingNumber: s.trackingNumber, source: 'public_tracking' } },
-        select: { id: true, status: true },
+      prisma.$transaction(async (db) => {
+        const tx = db as Tx;
+        const row = await tx.report.create({
+          data: { type: 'merchant', reporterKind: 'end_customer', reporterEmail: input.email ?? null, targetWorkspaceId: s.workspace.id, reason: input.reason, details: input.details ?? null, excerpt: { orderNumber: s.order.number, trackingNumber: s.trackingNumber, source: 'public_tracking' } },
+          select: { id: true, status: true },
+        });
+        // 04 §13: acknowledged at once by e-mail when the customer left one; ADM-11 queue counter (M10)
+        if (input.email) await this.mail.send({ to: input.email, template: 'reports/acknowledged', locale: 'fr', key: `reports-ack:${row.id}` }, tx);
+        const open = await tx.report.count({ where: { status: { in: ['open', 'reviewing'] } } });
+        await this.outbox.ws(tx, 'admin:platform', 'reports.queue', { open }, `reports.queue:${row.id}`);
+        return row;
       }),
     );
     return r;

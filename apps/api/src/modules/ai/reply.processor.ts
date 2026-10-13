@@ -11,6 +11,7 @@ import { CREDIT_COST } from '@djaber/shared';
 import { prisma, Prisma, TenantContext, type Agent, type AiRun, type Channel, type Conversation, type Message, type Tx } from '@djaber/db';
 import { AppException } from '../../core/errors/app.exception';
 import { ProcessorRegistry } from '../../core/queue/processor.registry';
+import { acquireSemaphore, AI_REPLY_RETRY_MS, AI_REPLY_SLOT_TTL_MS, AI_REPLY_WORKSPACE_CAP, releaseSemaphore, throttleJob } from '../../core/queue/throttle';
 import { RedisService } from '../../core/redis/redis.provider';
 import { StorageService } from '../../core/storage/storage.service';
 import { TenantResolver } from '../../core/tenancy/tenant.resolver';
@@ -72,7 +73,16 @@ export class ReplyProcessor implements OnModuleInit {
     const ws = await this.tenants.workspaceCtx(d.workspaceId);
     if (!ws || ws.status !== 'active') return 'skipped:workspace';
     const tenant = await this.tenants.forWorker(d.workspaceId);
-    return TenantContext.run(tenant, () => this.run(d, job));
+    // 03-events §3: at most 2 `ai-reply` runs per workspace at a time (Redis semaphore; a capped job is re-delayed 2 s
+    // without consuming an attempt; a holder that crashed stops counting after its TTL)
+    const slotKey = `ai-reply:${d.workspaceId}`;
+    const member = String((job as { id?: string } | undefined)?.id ?? `ai:${d.conversationId}`);
+    await throttleJob(job, async () => ({ ok: await acquireSemaphore(this.redis.client, slotKey, member, AI_REPLY_WORKSPACE_CAP, AI_REPLY_SLOT_TTL_MS), retryInMs: AI_REPLY_RETRY_MS }), 120_000);
+    try {
+      return await TenantContext.run(tenant, () => this.run(d, job));
+    } finally {
+      await releaseSemaphore(this.redis.client, slotKey, member);
+    }
   }
 
   // --- batch ------------------------------------------------------------------------------------------------------------------

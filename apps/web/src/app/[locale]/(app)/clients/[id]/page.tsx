@@ -44,7 +44,7 @@ export default function ClientPage({ params }: { params: Promise<{ id: string }>
       ) : q.isError ? (
         <QueryError error={q.error} onRetry={() => q.refetch()} backHref={`/${locale}/clients`} />
       ) : c ? (
-        <div className="flex max-w-2xl flex-col gap-5">
+        <div className="flex w-full flex-col gap-5">
           <ClientDetailBody client={c} />
           <div className="max-w-sm">
             <NewOrderCta client={c} canOrder={can('orders.write')} />

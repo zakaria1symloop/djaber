@@ -76,13 +76,18 @@ export class MetaWebhookController {
   @Post()
   @HttpCode(200)
   async receive(@Req() req: any) {
-    if (!this.webhooks.verifySignature(req.rawBody, req.headers['x-hub-signature-256'])) throw new AppException('WEBHOOK_SIGNATURE_INVALID');
+    const started = Date.now();
+    if (!this.webhooks.verifySignature(req.rawBody, req.headers['x-hub-signature-256'])) {
+      this.webhooks.recordInvalidSignature();
+      throw new AppException('WEBHOOK_SIGNATURE_INVALID');
+    }
     try {
       await this.webhooks.ingest(req.body);
     } catch {
       // Postgres unavailable ⇒ 503 so that Meta redelivers (05 §1.2); nothing is logged from the body
       throw new AppException('INTERNAL', {}, {}, undefined, 503);
     }
+    this.webhooks.recordAck(Date.now() - started);
     return new RawResponse('EVENT_RECEIVED');
   }
 

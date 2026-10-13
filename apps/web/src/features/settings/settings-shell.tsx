@@ -17,9 +17,9 @@ export function SettingsShell({ children }: { children: ReactNode }) {
   // the sub-nav follows the role (a read-only owner still sees every page; mutations are disabled inside)
   const items = visibleSettingsNav((key) => roleCan(role, key));
   // the checkout return page is a full-width page (Figma "Retour de paiement — page plein écran")
-  if (FULL_PAGES.some((p) => pathname === p)) return <div className="mx-auto w-full max-w-[1160px]">{children}</div>;
+  if (FULL_PAGES.some((p) => pathname === p)) return <div className="w-full">{children}</div>;
   return (
-    <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-6 lg:flex-row lg:gap-8">
+    <div className="flex w-full flex-col gap-6 lg:flex-row lg:gap-8">
       <SubNav title={t('nav.settings')} className="lg:w-52 lg:shrink-0">
         {items.map((i) => {
           const active = pathname === i.href || pathname.startsWith(`${i.href}/`);

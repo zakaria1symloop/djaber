@@ -1,0 +1,65 @@
+// Shared helpers of the platform admin core (M10, api-a): actor, reason rule, masking, small presenters.
+import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { ADMIN_REASON_MIN, type AdminUserRef } from '@djaber/shared';
+import { TenantContext } from '@djaber/db';
+import { AppException, notFound } from '../../core/errors/app.exception';
+
+export type AdminActor = { userId: string; platformRole: string; ip: string | null; userAgent: string | null };
+
+/** The platform user behind an `/admin/*` request (role read from the database by the TenantGuard, not from the JWT). */
+export const Admin = createParamDecorator((_d: unknown, ctx: ExecutionContext): AdminActor => {
+  const req = ctx.switchToHttp().getRequest();
+  const t = TenantContext.maybe();
+  return { userId: req.user?.id, platformRole: t?.platformRole ?? req.user?.platformRole ?? 'none', ip: req.ip ?? null, userAgent: (req.headers?.['user-agent'] as string | undefined)?.slice(0, 300) ?? null };
+});
+
+/** 06 §9: every admin write touching a merchant carries a reason ≥ 10 chars (`422 ADMIN_REASON_REQUIRED`, `fields.reason`). */
+export const requireReason = (r: string | null | undefined, field = 'reason'): string => {
+  const v = (r ?? '').trim();
+  if (v.length < ADMIN_REASON_MIN) throw new AppException('ADMIN_REASON_REQUIRED', {}, { [field]: 'validation.length' });
+  return v;
+};
+
+export const assertUuid = (id: string) => {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw notFound();
+  return id;
+};
+
+/** PII masking of admin viewers and lists (07-non-functional: masked in admin viewers and logs). `0661987654` ⇒ `06•• •• •• 54`. */
+export const maskPhone = (p: string | null | undefined): string | null => {
+  if (!p) return null;
+  const d = p.replace(/\s+/g, '');
+  if (d.length < 5) return '••••';
+  return `${d.slice(0, 2)}•• •• •• ${d.slice(-2)}`;
+};
+/** "Mehdi Hadj" ⇒ "Mehdi H." */
+export const maskName = (n: string | null | undefined): string => {
+  const parts = (n ?? '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '—';
+  return parts.length === 1 ? parts[0]! : `${parts[0]} ${parts[parts.length - 1]![0]}.`;
+};
+/** Phone-like digit runs inside a text (≥ 8 digits) are masked too. */
+export const maskText = (t: string | null | undefined): string | null => (t ? t.replace(/(\+?\d[\d .-]{7,}\d)/g, (m) => maskPhone(m.replace(/[ .-]/g, '')) ?? m) : t ?? null);
+export const maskEmail = (e: string): string => {
+  const [u, d] = e.split('@');
+  return `${(u ?? '').slice(0, 1)}•••@${d ?? ''}`;
+};
+
+export const userRef = (u: { id: string; firstName: string; lastName: string; email: string; avatarUrl?: string | null } | null | undefined): AdminUserRef | null =>
+  u ? { id: u.id, firstName: u.firstName, lastName: u.lastName, email: u.email, avatarUrl: u.avatarUrl ?? null } : null;
+export const userSelect = { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } as const;
+
+export const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
+export const DAY = 86_400_000;
+
+/** `{ fr, ar?, en? }` input ⇒ stored JSON with the three keys. */
+export const toLocalized = (v: { fr: string; ar?: string; en?: string } | undefined | null) => (v ? { fr: v.fr, ar: v.ar ?? '', en: v.en ?? '' } : undefined);
+export const fromLocalized = (v: unknown): { fr: string; ar: string; en: string } => {
+  if (typeof v === 'string') return { fr: v, ar: '', en: '' };
+  const o = (v ?? {}) as Record<string, unknown>;
+  return { fr: String(o.fr ?? ''), ar: String(o.ar ?? ''), en: String(o.en ?? '') };
+};
+export const pickFr = (v: unknown) => fromLocalized(v).fr;
+
+/** Africa/Algiers day `YYYY-MM-DD` of an instant. */
+export const algiersDay = (d: Date) => new Date(d.getTime() + 3600_000).toISOString().slice(0, 10);

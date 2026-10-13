@@ -210,7 +210,7 @@ describe('PATCH /products/:id', () => {
     const detail = await owner.get(`/products/${p.id}/moderation`).expect(200);
     expect(detail.body.data).toMatchObject({ status: 'approved', contentVersion: 3, item: { decision: null }, appeal: { status: 'available' } });
     expect(detail.body.data.history).toHaveLength(6);
-    expect((await owner.get('/moderation/summary').expect(200)).body.data).toEqual({ pending: 0, rejected: 0, appealed: 0, trustLevel: 'new' });
+    expect((await owner.get('/moderation/summary').expect(200)).body.data).toEqual({ pending: 0, rejected: 0, appealed: 0, trustLevel: 'standard' });
   });
 
   it('moderation, merchant side: resubmit only when rejected; appeal once, within 7 days', async () => {

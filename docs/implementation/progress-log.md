@@ -192,3 +192,20 @@ One entry per finished stage: what was built, checks passing, what is still simu
 - The SMS reminder for an unpaid invoice is not sent (no SMS service yet).
 
 **Deferred** (tracked in `carry-overs.md`): admin screens for packs, promo codes, invoices and grants (M10); SMS reminders; live payment and store checks on staging.
+
+## M10 — Platform admin, moderation, trust & safety, support (2026-10-13)
+
+**Built**
+- Admin shell (`/admin`): platform login guard (2FA required for every platform role), role-aware sidebar with live badges, read-only impersonation bar.
+- Admin core: overview with KPIs and alerts (platform totals computed nightly), workspaces (filters, detail sheet with 7 tabs, suspend / reactivate, change plan, extend trial, create for a client, schedule / cancel deletion, find and force-release a page), users and platform roles (role matrix, invitations, force 2FA, account deletion requests), plans editor with versions / impact / migrate / archive, subscriptions and invoices with manual payment, credit packs and promo codes, AI providers (keys sealed, never shown), models, routes with forced failover, pricing calculator, agent presets with versions and locales, CMS per locale with scheduling, audit log with before / after diff and signed export, read-only data viewers (masked, unmask for super-admin only), read-only "view as merchant" (30 min, every write refused and audited).
+- Operations and safety: moderation queue (pre-screen, decisions, appeals with PDF / image attachments, SLA "URGENT" after 2 business hours, trust levels — new shops are moderated until 10 approvals), abuse reports, platform blocked words and blacklist (rows the merchant cannot lift), monthly compliance export, support tickets (SLA, canned replies, internal notes, escalate), platform settings (app versions with force update, feature flags, maintenance mode and banner, legal document versions with re-acceptance, Meta permissions, provider tests, limits — every change with a reason), jobs & health (queues, failed jobs with replay, incidents, Meta webhook stats, `/metrics`), Meta sends limited to 10 / s per page, AI replies capped per shop.
+- Merchant side: help center (`/help`, tickets, contact), "?" help panel, maintenance banner / page, legal re-acceptance, public status page `/status` with subscription.
+- Layout: every merchant and admin page fills the full width (owner request); the assistant test chat scrolls inside its own box instead of moving the page.
+
+**Checks** — lint ✔ · typecheck ✔ · unit ✔ (shared 38, api 641, web 571) · integration ✔ (711 in 56 files) · AI pipeline scenarios ✔ (29) · translations ✔ (8 284 texts × 3 languages) · Storybook build ✔ · browser ✔ (464 in one complete run; platform-wide states — active maintenance, major legal version, preset update, AI fallback — stay `// mock:` so the shared dev database is not changed for everyone; the chat-scroll fix came after that run and was checked with a scripted browser session) · production build ✔, served on the local network.
+
+**Simulated / not verifiable here**
+- SMS goes through a fake driver; provider "Tester" buttons use the fake drivers; Grafana link greyed until `NEXT_PUBLIC_MONITORING_URL` is set.
+- The platform admin account (`SEED_ADMIN_EMAIL`) must enable 2FA once before using the admin.
+
+**Deferred** (tracked in `carry-overs.md`): e2e on an isolated database for the platform-wide mocked states; ticket assignment to another agent (no picker drawn); live provider checks on staging.

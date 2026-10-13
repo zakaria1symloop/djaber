@@ -3,10 +3,11 @@
 // `OrderWorkflowService.transition` (`delivered` ⇒ COD rule via OrderEffects), the team notifications
 // (`shipment.*`), the customer transactional texts (MSG-06: shipped / out for delivery / delivered / failed) and the WS
 // `shipment.updated` event. Used by the tracking sync, the courier webhook, the send processor and the manual marks.
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { SHIPMENT_TRACKED_STATUSES, type FailureReasonCode, type ShipmentStatusName } from '@djaber/shared';
 import { TenantContext, type NotificationType, type Prisma, type Shipment, type ShipmentEventSource, type Tx } from '@djaber/db';
 import { I18nService } from '../../core/i18n/i18n.service';
+import { MetricsService } from '../../core/metrics/metrics.service';
 import { OutboxService } from '../../core/outbox/outbox.service';
 import type { Actor } from '../orders/order-effects.service';
 import { OrderService } from '../orders/order.service';
@@ -39,6 +40,7 @@ export class ShipmentEffects {
     readonly workflow: OrderWorkflowService,
     private readonly outbox: OutboxService,
     private readonly i18n: I18nService,
+    @Optional() private readonly metrics?: MetricsService,
   ) {}
 
   /** Row lock of a parcel (after its order: orders are always locked first — one lock order everywhere). */
@@ -105,6 +107,8 @@ export class ShipmentEffects {
     const last = await tx.shipmentEvent.findFirst({ where: { shipmentId }, orderBy: [{ at: 'desc' }, { createdAt: 'desc' }] });
     const isNewEvent = !courierSource || !last || last.rawStatus !== u.rawStatus || Math.abs(last.at.getTime() - at.getTime()) > 1000;
     const decision = u.force ? { change: !!u.mapped && s.status !== u.mapped, reason: 'forward' as const } : decideStatus(s.status, u.mapped);
+    // M6 carry-over: raw courier statuses without a mapping are stored as events with `mappedStatus = null` and counted
+    if (courierSource && !u.mapped) this.metrics?.courierUnknown(s.provider, u.rawStatus);
     const repeatFailure = !decision.change && s.status === 'failed' && u.mapped === 'failed' && isNewEvent && courierSource;
 
     let event: ShipmentRow['events'][number] | null = null;

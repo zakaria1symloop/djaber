@@ -201,7 +201,8 @@ test('AT-AI-17 the message menu opens the same inspector (a handoff turn); a fal
   await page.keyboard.press('Escape');
 
   // mock: the fallback model answers only when the primary provider fails, which the fake provider cannot be asked
-  // for over HTTP — the real run is answered with `usedFallback` and the primary's error
+  // for over HTTP; since M10 the admin can force the text route into failover (`PUT /admin/ai-routes/text`), but that
+  // switches every workspace of the shared dev API — the real run is answered with `usedFallback` and the primary's error
   await patchAnswer(page, new RegExp(`/api/v1/messages/${refundReply.id}/ai-run$`), (r: AiRun) => ({ ...r, usedFallback: true, error: 'primary: 500' }));
   await page.reload();
   await expect(thread(page)).toHaveAttribute('data-conversation', conv.refund.id, NAV);
@@ -279,7 +280,8 @@ test('AT-AI-14 credits exhausted: banner "IA arrêtée : crédits épuisés" wit
 
 test('IA INDISPONIBLE banner (AI_PROVIDER_ERROR) on a handoff; the credits banner wins when both flags are set', async ({ page }) => {
   // mock: `aiUnavailable` is set when the provider fails on the last attempt, which the fake provider cannot be asked
-  // for over HTTP — the real handed-off conversation (status needs_human) is answered with the flag
+  // for over HTTP; since M10 deactivating the route models (admin) would make the AI unavailable for every workspace
+  // of the shared dev API — the real handed-off conversation (status needs_human) is answered with the flag
   await patchAnswer(page, conversationUrl(conv.angry.id), (c: Conversation) => ({ ...c, aiUnavailable: true }));
   await signIn(page, owner);
   await open(page, conv.angry.id);

@@ -25,6 +25,8 @@ export type TenantInfo = {
   suspended: boolean;
   deletionScheduledAt?: Date | null;
   emailVerified?: boolean;
+  /** platform routes: D41 — every platform role needs 2FA (`TWO_FA_REQUIRED_FOR_ROLE`) */
+  totpEnabled?: boolean;
   limits: TenantLimits;
   impersonation?: { sessionId: string; adminId: string };
   /** When true the tenant extension lets queries through without a workspace filter (platform/system code only). */

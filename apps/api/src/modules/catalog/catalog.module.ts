@@ -10,6 +10,7 @@ import { ExpenseService } from './expense.service';
 import { ImportService } from './import.service';
 import { LowStockEvaluator } from './low-stock.evaluator';
 import { ModerationHookService } from './moderation-hook.service';
+import { ModerationPrescreenService } from './moderation-prescreen.service';
 import { PlanLimitService } from './plan-limit.service';
 import { ProductImageService } from './product-image.service';
 import { ProductService } from './product.service';
@@ -31,6 +32,7 @@ import { VariantService } from './variant.service';
     PlanLimitService,
     LowStockEvaluator,
     StockService,
+    ModerationPrescreenService,
     ModerationHookService,
     VariantService,
     ProductService,
@@ -45,6 +47,6 @@ import { VariantService } from './variant.service';
     { provide: IMAGE_CAPTION_PROVIDER, useExisting: RoutedImageCaptionProvider },
     { provide: PRODUCT_VISION_PROVIDER, useExisting: RoutedProductVisionProvider },
   ],
-  exports: [CategoryService, StockService, ProductService, ProductImageService, LowStockEvaluator, ModerationHookService, PlanLimitService, SkuService],
+  exports: [CategoryService, StockService, ProductService, ProductImageService, LowStockEvaluator, ModerationHookService, ModerationPrescreenService, PlanLimitService, SkuService],
 })
 export class CatalogModule {}

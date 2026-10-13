@@ -15,3 +15,6 @@ export * from './recommendations';
 export * from './analytics';
 export * from './reports';
 export * from './billing';
+export * from './admin-ops';
+export * from './support';
+export * from './admin';

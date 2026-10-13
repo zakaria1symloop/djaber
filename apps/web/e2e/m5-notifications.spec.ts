@@ -20,8 +20,11 @@ test.beforeAll(async ({ request }) => {
 test('NTF-01 "Préférences" opens Settings › Notifications; the table has the 11 families of the frame; axe', async ({ page }) => {
   await loginHome(page, owner);
   await page.goto('/fr/notifications');
-  await page.getByTestId('notification-preferences-link').click();
-  await expectUrl(page, '**/fr/settings/notifications');
+  // a click that lands while the freshly signed-in shell re-renders (badges, banners) is retried
+  await expect(async () => {
+    if (!/\/fr\/settings\/notifications$/.test(page.url())) await page.getByTestId('notification-preferences-link').click({ timeout: 3_000 });
+    await expect(page).toHaveURL(/\/fr\/settings\/notifications$/, { timeout: 3_000 });
+  }).toPass({ timeout: 20_000 });
   await expect(page).toHaveTitle('Notifications · Djaber.ai');
   await expect(page.getByRole('link', { name: 'Notifications', exact: true }).last()).toHaveAttribute('aria-current', 'page');
   const table = page.getByTestId('notification-preferences');

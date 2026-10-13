@@ -16,6 +16,7 @@ import { prisma, Prisma, TenantContext, type BlockReason, type Conversation, typ
 import { AuditService } from '../../core/audit/audit.service';
 import { AppException, notFound } from '../../core/errors/app.exception';
 import { page, toSkipTake, type Page } from '../../core/http/pagination';
+import { MailOutbox } from '../../core/mail/mail.outbox';
 import { OutboxService } from '../../core/outbox/outbox.service';
 import { algiersDay, algiersDayStart } from '../../core/time/algiers';
 import { conversationHead, userRef } from './messaging.presenter';
@@ -60,10 +61,29 @@ export class SafetyService {
   constructor(
     private readonly outbox: OutboxService,
     private readonly audit: AuditService,
+    private readonly mail: MailOutbox,
   ) {}
 
+  /**
+   * Active blocks of the workspace + the phones of the platform blacklist (SAFE-07: a blacklisted number cannot order in
+   * any workspace, also as a client created after the blacklisting — such clients get a synthetic `platform` row).
+   */
   async index(db: Tx | typeof prisma = prisma): Promise<BlockIndex> {
-    return new BlockIndex(await db.customerBlock.findMany({ where: { unblockedAt: null } }));
+    const rows = await db.customerBlock.findMany({ where: { unblockedAt: null } });
+    const platform = await TenantContext.runSystem(() => db.platformBlacklist.findMany({ where: { revokedAt: null }, select: { id: true, phone: true, reason: true, reportId: true, createdAt: true } }));
+    if (!platform.length) return new BlockIndex(rows);
+    // clients of this workspace holding a blacklisted phone that no block row covers yet (keyed on the client, so that the
+    // conversation filters never compare a NULL phone)
+    const covered = new Set(rows.filter((b) => b.phone).map((b) => b.phone));
+    const byPhone = new Map(platform.filter((p) => !covered.has(p.phone)).map((p) => [p.phone, p]));
+    const clients = byPhone.size ? await db.client.findMany({ where: { phone: { in: [...byPhone.keys()] }, deletedAt: null }, select: { id: true, phone: true, workspaceId: true } }) : [];
+    const synthetic: CustomerBlock[] = clients
+      .filter((c) => !rows.some((b) => b.clientId === c.id))
+      .map((c) => {
+        const p = byPhone.get(c.phone!)!;
+        return { id: p.id, workspaceId: c.workspaceId, clientId: c.id, phone: null, channelId: null, externalSenderId: null, reason: 'fraud', note: p.reason, source: 'platform', reportId: p.reportId, blockedById: null, blockedAt: p.createdAt, unblockedById: null, unblockedAt: null };
+      });
+    return new BlockIndex([...rows, ...synthetic]);
   }
 
   // --- blocks -----------------------------------------------------------------------------------------------------------
@@ -290,6 +310,11 @@ export class SafetyService {
       } else if (input.blockAlso && clientId) {
         await this.createBlock(tx, { clientId, phone: client?.phone ?? null }, { reason: 'other', reportId: r.id });
       }
+      // 04 §13: acknowledged at once (toast + e-mail); the admin queue counter moves (ADM-11)
+      const reporter = t.userId ? await tx.user.findUnique({ where: { id: t.userId }, select: { email: true, locale: true } }) : null;
+      if (reporter) await this.mail.send({ to: reporter.email, template: 'reports/acknowledged', locale: reporter.locale, key: `reports-ack:${r.id}`, workspaceId }, tx);
+      const open = await TenantContext.runSystem(() => tx.report.count({ where: { status: { in: ['open', 'reviewing'] } } }));
+      await this.outbox.ws(tx, 'admin:platform', 'reports.queue', { open }, `reports.queue:${r.id}`);
       return r;
     });
     await this.audit.write({ workspaceId, actorType: 'user', actorId: t.userId, actorRole: t.role, action: 'report.create', entity: 'Report', entityId: created.id, after: { type: created.type, reason: created.reason, blockRequested: created.blockRequested } });

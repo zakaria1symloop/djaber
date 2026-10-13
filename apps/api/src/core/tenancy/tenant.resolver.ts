@@ -148,7 +148,54 @@ export class TenantResolver {
         suspended: false,
         limits: NO_LIMITS,
         emailVerified: !!u.emailVerifiedAt,
+        totpEnabled: u.totpEnabled,
         bypass: true,
+      };
+    });
+  }
+
+  /**
+   * D21-bis read-only impersonation (01 §3.1): `X-Impersonation-Session` + the session token. Valid only while the session is
+   * open (`endedAt IS NULL AND expiresAt > now`), for its admin, whose role is still `super_admin|support`; otherwise
+   * `401 ADMIN_IMPERSONATION_EXPIRED`. The synthetic membership is `admin` + `readOnly`; every request increments
+   * `actionsCount` and is audited `impersonation.action` (the caller rejects non-GET requests afterwards).
+   */
+  async forImpersonation(
+    user: AuthUser,
+    sessionId: string,
+    claims: { imp?: string } | undefined,
+    req: { method: string; path: string; ip?: string | null; userAgent?: string | null },
+  ): Promise<TenantInfo> {
+    return TenantContext.runSystem(async () => {
+      if (!/^[0-9a-f-]{36}$/i.test(sessionId) || (claims?.imp && claims.imp !== sessionId)) throw new AppException('ADMIN_IMPERSONATION_EXPIRED');
+      const [session, u] = await Promise.all([
+        prisma.impersonationSession.findUnique({ where: { id: sessionId } }),
+        prisma.user.findFirst({ where: { id: user.id, deletedAt: null } }),
+      ]);
+      if (!session || !u || session.adminUserId !== u.id || session.endedAt || session.expiresAt <= new Date()) throw new AppException('ADMIN_IMPERSONATION_EXPIRED');
+      if (u.status !== 'active' || !['super_admin', 'support'].includes(u.platformRole)) throw new AppException('ADMIN_IMPERSONATION_EXPIRED');
+      const ctx = await this.workspaceCtx(session.workspaceId);
+      if (!ctx) throw new AppException('ADMIN_IMPERSONATION_EXPIRED');
+      await prisma.impersonationSession.update({ where: { id: session.id }, data: { actionsCount: { increment: 1 } } });
+      await prisma.auditLog.create({
+        data: {
+          workspaceId: session.workspaceId,
+          actorType: 'admin',
+          actorId: u.id,
+          actorRole: u.platformRole,
+          action: 'impersonation.action',
+          entity: 'ImpersonationSession',
+          entityId: session.id,
+          after: { method: req.method, path: req.path.slice(0, 300), allowed: req.method === 'GET' || req.method === 'HEAD' },
+          impersonationSessionId: session.id,
+          ip: req.ip ?? null,
+          userAgent: req.userAgent?.slice(0, 300) ?? null,
+        },
+      });
+      return {
+        ...this.toInfo(ctx, { userId: u.id, role: 'admin' as MembershipRole, readOnly: true, platformRole: u.platformRole, emailVerified: true }),
+        suspended: false,
+        impersonation: { sessionId: session.id, adminId: u.id },
       };
     });
   }

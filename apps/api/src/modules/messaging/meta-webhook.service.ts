@@ -2,10 +2,11 @@
 // ack: one SQL statement that stores the raw events (`InboundEvent`, dedup on `externalId`) and, atomically, the outbox
 // rows that make the relay add `meta-inbound / process-event` jobs (job id `inbound:<externalId>`). No read, no Meta call.
 // This code only RECEIVES: it never registers, verifies or changes a webhook subscription at Meta.
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { Prisma, rawPrisma } from '@djaber/db';
 import { ConfigService } from '../../core/config/config.service';
 import { CryptoService } from '../../core/crypto/crypto.service';
+import { MetricsService } from '../../core/metrics/metrics.service';
 import { verifyWebhookSignature } from '../meta/meta-signature';
 import { inboundExternalId, type MetaObject, type StoredInbound } from './inbound-parser';
 
@@ -18,7 +19,16 @@ export class MetaWebhookService {
   constructor(
     private readonly config: ConfigService,
     private readonly crypto: CryptoService,
+    @Optional() private readonly metrics?: MetricsService,
   ) {}
+
+  /** M3 carry-over metrics (ADM-14 "Webhooks Meta 24 h"): ack time and invalid signatures, best effort. */
+  recordAck(ms: number) {
+    void this.metrics?.metaWebhookAck(ms);
+  }
+  recordInvalidSignature() {
+    void this.metrics?.metaWebhookInvalidSignature();
+  }
 
   /** `hub.verify_token` check of the subscription handshake Meta performs (we only answer it). */
   verifyToken(token: unknown): boolean {
@@ -56,7 +66,7 @@ export class MetaWebhookService {
     const events = MetaWebhookService.events(body);
     if (!events.length) return 0;
     const values = Prisma.join(events.map((e) => Prisma.sql`(uuid_generate_v7(), 'meta'::"InboundProvider", ${e.externalId}, ${JSON.stringify(e.payload)}::jsonb, now())`));
-    return rawPrisma.$executeRaw`
+    const inserted = await rawPrisma.$executeRaw`
       WITH ev AS (
         INSERT INTO "InboundEvent" ("id","provider","externalId","payload","receivedAt")
         VALUES ${values}
@@ -69,5 +79,7 @@ export class MetaWebhookService {
              0, now()
       FROM ev
       ON CONFLICT ("topic","key") DO NOTHING`;
+    void this.metrics?.metaWebhookDeduped(events.length - inserted);
+    return inserted;
   }
 }

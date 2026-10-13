@@ -2,6 +2,9 @@
 // Milestone-specific seeds (ai-providers, cms, demo) are added by their milestone in ./extra/*.ts.
 import { existsSync, readFileSync } from 'node:fs';
 import { seedAi, seedPresets } from './ai';
+import { seedSafety } from './ops-safety';
+import { seedSettings } from './ops-settings';
+import { seedSupport } from './ops-support';
 import { resolve } from 'node:path';
 import * as argon2 from 'argon2';
 import { rawPrisma as db } from '../src/client';
@@ -319,6 +322,10 @@ async function main() {
   const ai = await seedAi(db, a.id);
   await platform(a.id);
   const lg = await legal(a.id);
+  // M10 ops & safety reference data (canned replies + help articles, platform settings + Meta permissions, brands + words)
+  await seedSupport(a.id);
+  await seedSettings(a.id);
+  await seedSafety(a.id);
   const fees = await feeGrids();
   const maps = await courierCommuneMaps();
    

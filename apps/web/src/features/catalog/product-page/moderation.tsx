@@ -11,6 +11,7 @@ import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { Link } from '@/i18n/navigation';
 import { ApiError } from '@/lib/api';
+import { uploadWithProgress } from '@/lib/upload';
 import { applyServerErrors, fieldError } from '@/lib/forms';
 import { useLocaleCode, useT, type TFunction } from '@/lib/i18n';
 import { catalogApi, useCatalogRefresh } from '../api';
@@ -206,6 +207,14 @@ export function ValidationBlock({
 }
 
 type AppealValues = z.input<typeof ProductAppealSchema>;
+const APPEAL_ACCEPT = 'application/pdf,image/png,image/jpeg,image/webp';
+const APPEAL_MAX_BYTES = 5 * 1024 * 1024;
+/** Appeal proof: PDF or image, ≤ 5 MB (MOD-05). */
+export const appealFileProblem = (f: { type: string; size: number; name: string }): 'type' | 'size' | null => {
+  const ok = /^(application\/pdf|image\/(png|jpeg|webp))$/.test(f.type) || /\.(pdf|png|jpe?g|webp)$/i.test(f.name);
+  if (!ok) return 'type';
+  return f.size > APPEAL_MAX_BYTES ? 'size' : null;
+};
 
 /** "Contester le refus" — once per product, within 7 days; errors stay inside the dialog, the message is kept. */
 export function AppealDialog({ product, open, onClose, onSent }: { product: Pick<Product, 'id' | 'name'>; open: boolean; onClose: () => void; onSent: () => void }) {
@@ -213,15 +222,41 @@ export function AppealDialog({ product, open, onClose, onSent }: { product: Pick
   const refresh = useCatalogRefresh();
   const form = useForm<AppealValues>({ resolver: zodResolver(ProductAppealSchema), defaultValues: { message: '' } });
   const [error, setError] = useState<string | null>(null);
-  const send = useMutation({ mutationFn: (v: { message: string }) => catalogApi.appeal(product.id, { message: v.message }) });
+  // optional proof (invoice, certificate): PDF or image ≤ 5 MB, `POST /uploads { kind: appeal_attachment }` (MOD-05)
+  const [attachment, setAttachment] = useState<{ id: string; name: string } | null>(null);
+  const [uploading, setUploading] = useState<number | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const send = useMutation({ mutationFn: (v: { message: string }) => catalogApi.appeal(product.id, { message: v.message, attachmentUploadId: attachment?.id ?? null }) });
   useEffect(() => {
     if (open) {
       form.reset({ message: '' });
       setError(null);
+      setAttachment(null);
+      setFileError(null);
     }
   }, [open, form]);
   const message = form.watch('message') ?? '';
-  const busy = send.isPending;
+  const busy = send.isPending || uploading !== null;
+
+  const pick = async (file: File | undefined) => {
+    setFileError(null);
+    if (!file) return;
+    const problem = appealFileProblem(file);
+    if (problem === 'type') return setFileError(`${t('error.UPLOAD_TYPE_INVALID')} (UPLOAD_TYPE_INVALID)`);
+    if (problem === 'size') return setFileError(`${t('error.UPLOAD_TOO_LARGE', { max: t('help.attachments.maxSize') })} (UPLOAD_TOO_LARGE)`);
+    try {
+      setUploading(0);
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('kind', 'appeal_attachment');
+      const r = await uploadWithProgress<{ id: string }>('/uploads', fd, { onProgress: setUploading });
+      setAttachment({ id: r.data.id, name: file.name });
+    } catch (e) {
+      setFileError(e instanceof ApiError ? `${e.message || t('error.INTERNAL')} (${e.code})` : t('toast.noConnection'));
+    } finally {
+      setUploading(null);
+    }
+  };
 
   const submit = form.handleSubmit(async (values) => {
     setError(null);
@@ -266,6 +301,30 @@ export function AppealDialog({ product, open, onClose, onSent }: { product: Pick
         <div id="appeal-count" className="-mt-2 text-end ts-label-meta tabular-nums text-text-muted">
           <bdi dir="ltr">{`${message.length} / ${APPEAL_MAX}`}</bdi>
         </div>
+        <Field label={t('products.moderation.appeal.attachment')} htmlFor="appeal-file" error={fileError ?? undefined} hint={t('products.moderation.appeal.attachment.hint')}>
+          <div className="flex min-h-10 items-center gap-2 rounded-card border border-line-edge bg-ink-surface px-3 py-1.5" data-testid="appeal-attachment">
+            <input id="appeal-file" type="file" accept={APPEAL_ACCEPT} className="sr-only" disabled={busy} onChange={(e) => {
+                const input = e.currentTarget;
+                void pick(input.files?.[0]).finally(() => {
+                  input.value = '';
+                });
+              }} data-testid="appeal-file" />
+            {attachment ? (
+              <>
+                <span className="min-w-0 flex-1 truncate text-[14px]" data-testid="appeal-file-name">
+                  <bdi>{attachment.name}</bdi> ✓
+                </span>
+                <button type="button" onClick={() => setAttachment(null)} disabled={busy} aria-label={`${t('action.remove')} ${attachment.name}`} className="ts-label-meta text-text-muted hover:text-text-primary">
+                  {t('action.remove')}
+                </button>
+              </>
+            ) : (
+              <label htmlFor="appeal-file" className={cn('cursor-pointer text-[14px] text-text-muted hover:text-text-primary', busy && 'pointer-events-none opacity-50')}>
+                {uploading !== null ? t('help.contact.attachments.uploading', { pct: uploading }) : t('products.moderation.appeal.attachment.choose')}
+              </label>
+            )}
+          </div>
+        </Field>
         {error ? <FormAlert>{error}</FormAlert> : null}
         <p className="ts-label-meta text-text-muted">{t('products.moderation.appeal.after')}</p>
       </form>

@@ -9,6 +9,7 @@ import { FlagsService } from './flags/flags.service';
 import { I18nService } from './i18n/i18n.service';
 import { MailOutbox } from './mail/mail.outbox';
 import { MailService } from './mail/mail.service';
+import { MetricsService } from './metrics/metrics.service';
 import { OutboxService } from './outbox/outbox.service';
 import { ProcessorRegistry } from './queue/processor.registry';
 import { QueueOutbox } from './queue/queue.outbox';
@@ -38,6 +39,7 @@ const providers = [
   WsEmitter,
   RateLimitGuard,
   CounterService,
+  MetricsService,
 ];
 
 @Global()

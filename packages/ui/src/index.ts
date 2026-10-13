@@ -22,3 +22,7 @@ export * from './gds';
 export * from './analytics';
 export * from './billing';
 export * from './wilaya-geo';
+export * from './admin-ops';
+export * from './help';
+export * from './admin-moderation';
+export * from './admin-core';

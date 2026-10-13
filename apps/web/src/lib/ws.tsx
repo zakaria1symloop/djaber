@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { API_URL, apiSession, refreshSession } from './api';
+import { impersonation } from './impersonation';
 import { useSession } from './session';
 
 export type WsStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting';
@@ -17,7 +18,7 @@ const Ctx = createContext<{ status: WsStatus; bus: Bus }>({ status: 'idle', bus:
 export const POLL_FALLBACK_MS = 15_000;
 const HANDSHAKE_RETRY_MS = 30_000;
 
-export function WsProvider({ children }: { children: ReactNode }) {
+export function WsProvider({ children, admin }: { children: ReactNode; /** admin shell: connects without a workspace (room `admin:platform`) */ admin?: boolean }) {
   const qc = useQueryClient();
   const { status: sessionStatus, workspaceId } = useSession();
   const [status, setStatus] = useState<WsStatus>('idle');
@@ -40,14 +41,14 @@ export function WsProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const enabled = sessionStatus === 'authenticated' && !!workspaceId;
+  const enabled = sessionStatus === 'authenticated' && (!!workspaceId || !!admin);
   useEffect(() => {
     if (!enabled) return;
     let lostAt: string | null = null;
     let refreshed = false;
     const socket = io(`${API_URL}/ws`, {
       // read at every (re)connection: the token is rotated every 15 min
-      auth: (cb) => cb({ token: apiSession.get().accessToken }),
+      auth: (cb) => cb({ token: impersonation.get()?.token ?? apiSession.get().accessToken }),
       transports: ['websocket', 'polling'],
       withCredentials: true,
       reconnectionDelay: 1_000,

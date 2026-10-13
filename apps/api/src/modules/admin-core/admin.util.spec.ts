@@ -1,0 +1,32 @@
+// Unit rules of the admin core helpers: PII masking of the viewers (07-non-functional) and the reason rule (06 §9).
+import { maskEmail, maskName, maskPhone, maskText, requireReason } from './admin.util';
+
+describe('admin PII masking', () => {
+  it('phones keep the first 2 and last 2 digits', () => {
+    expect(maskPhone('0661987654')).toBe('06•• •• •• 54');
+    expect(maskPhone('06 61 98 76 54')).toBe('06•• •• •• 54');
+    expect(maskPhone('123')).toBe('••••');
+    expect(maskPhone(null)).toBeNull();
+  });
+  it('names keep the first name and the initial of the last one', () => {
+    expect(maskName('Mehdi Hadj Ali')).toBe('Mehdi A.');
+    expect(maskName('Mehdi')).toBe('Mehdi');
+    expect(maskName('  ')).toBe('—');
+  });
+  it('phone numbers inside a text are masked, other digits kept', () => {
+    expect(maskText('Appelez-moi au 0661987654 pour 2 pièces')).toBe('Appelez-moi au 06•• •• •• 54 pour 2 pièces');
+    expect(maskText('+213 661 98 76 54')).toBe('+2•• •• •• 54');
+    expect(maskText(null)).toBeNull();
+  });
+  it('e-mails keep the first letter and the domain', () => {
+    expect(maskEmail('nadia@boutique.dz')).toBe('n•••@boutique.dz');
+  });
+});
+
+describe('admin reason rule (06 §9)', () => {
+  it('≥ 10 chars after trim, else 422 ADMIN_REASON_REQUIRED on the field', () => {
+    expect(requireReason('  Ticket #4821 ok  ')).toBe('Ticket #4821 ok');
+    expect(() => requireReason('123456789')).toThrow(expect.objectContaining({ code: 'ADMIN_REASON_REQUIRED' }));
+    expect(() => requireReason(undefined, 'note')).toThrow(expect.objectContaining({ fields: { note: 'validation.length' } }));
+  });
+});

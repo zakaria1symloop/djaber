@@ -279,7 +279,7 @@ export class ConnectService {
       const keepsPause = !!own && own.status === 'paused' && (own.pausedReason === 'plan' || own.pausedReason === 'moderation');
       if (p.parentChannelId === null && !heldSlot && !keepsPause) {
         const slots = await pageSlots(tx);
-        if (slots.free < 1) return { skipped: 'PLAN_LIMIT' };
+        if (slots.free < 1) return { skipped: slots.limit >= 0 && slots.current > slots.limit ? 'PLAN_LIMIT_GRANDFATHERED' : 'PLAN_LIMIT' };
       }
       const data = {
         name: p.name,

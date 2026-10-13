@@ -171,7 +171,8 @@ describe('low stock (CAT-09)', () => {
     const owner = await asOwner(app);
     const admin = await asAdmin(app, owner.workspaceId);
     const p = await createProduct(owner, { name: 'Savon', sku: 'SAV-1', stock: 10, minStock: 4 });
-    const lowRows = () => db.outbox.findMany({ where: { workspaceId: owner.workspaceId, topic: { in: ['notification', 'webhook'] } }, orderBy: { createdAt: 'asc' } });
+    // M10: the grouped `product.approved` of the creation (auto-approved) is not part of the stock rows
+    const lowRows = () => db.outbox.findMany({ where: { workspaceId: owner.workspaceId, topic: { in: ['notification', 'webhook'] }, NOT: { key: { startsWith: 'product_approved:' } } }, orderBy: { createdAt: 'asc' } });
 
     await adjust(owner, { productId: p.id, type: 'out', quantity: 3, reason: 'breakage' }).expect(201); // 7: above the threshold
     expect(await lowRows()).toHaveLength(0);

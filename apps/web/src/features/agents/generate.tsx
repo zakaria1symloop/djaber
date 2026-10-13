@@ -97,7 +97,7 @@ export function GenerateAgent() {
 
   return (
     <AppPage permission={['agents.read', 'agents.manage']} back={{ href: '/agents', label: t('nav.agents') }} title={t('dialog.generateAgent.title')} description={t('agents.generate.description')}>
-      <Card className="flex max-w-2xl flex-col gap-5 p-5" data-testid="generate-agent" data-phase={phase}>
+      <Card className="flex w-full flex-col gap-5 p-5" data-testid="generate-agent" data-phase={phase}>
         <Steps label={t('agents.generate.steps')} items={stepItems} />
 
         {phase === 'choose' ? (

@@ -1,10 +1,14 @@
 // Starts one BullMQ Worker per queue and the cron schedulers, using the handlers registered by feature modules.
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { Queue, Worker } from 'bullmq';
+import { DelayedError, Queue, Worker } from 'bullmq';
 import { TenantContext } from '@djaber/db';
 import { ConfigService } from '../core/config/config.service';
 import { ProcessorRegistry } from '../core/queue/processor.registry';
 import { bullConnection, QUEUES } from '../core/queue/queue.service';
+import { maintenanceNow } from '../core/platform/maintenance';
+
+/** 04 §15 "Maintenance": inbound Meta events stay stored (`processedAt=null`) and are replayed after the window. */
+const MAINTENANCE_RETRY_MS = 60_000;
 
 const SCHEDULER_QUEUE = 'scheduler';
 
@@ -26,9 +30,13 @@ export class WorkerRunner implements OnModuleDestroy {
       if (!handlers) continue;
       const worker = new Worker(
         queue,
-        async (job) => {
+        async (job, token) => {
           const handler = handlers.get(job.name);
           if (!handler) throw new Error(`no handler for ${queue}/${job.name}`);
+          if (queue === 'meta-inbound' && token && (await maintenanceNow()).active) {
+            await job.moveToDelayed(Date.now() + MAINTENANCE_RETRY_MS, token);
+            throw new DelayedError();
+          }
           // handlers open their own tenant scope (TenantContext.run(await tenants.forWorker(id), …))
           return TenantContext.runSystem(() => handler(job.data, job));
         },
@@ -58,6 +66,8 @@ export class WorkerRunner implements OnModuleDestroy {
         async (job) => {
           const task = this.registry.crons.find((c) => c.name === job.name);
           if (!task) return;
+          // 04 §15: cron jobs are paused during the maintenance window
+          if ((await maintenanceNow()).active) return { skipped: 'maintenance' };
           return TenantContext.runSystem(() => task.handler());
         },
         { connection, concurrency: 2 },

@@ -7,6 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { api, ApiError, apiSession, refreshSession } from './api';
 import type { AuthTokens, MeDto, Membership, WorkspaceDto } from './contracts';
 import type { SessionStatus } from './guards';
+import { useImpersonation } from './impersonation';
 import { pickWorkspaceId } from './workspace-pick';
 
 const WS_KEY = 'djaber.workspaceId';
@@ -34,6 +35,8 @@ export type SessionValue = {
   workspaceError: unknown;
   role: MemberRole | null;
   readOnly: boolean;
+  /** read-only impersonation session of a platform admin on this tab (D21-bis) */
+  impersonating: boolean;
   /** UI mirror of the API permission table; the API still enforces every key. */
   can: (key: MerchantPermission) => boolean;
   /** stores the tokens returned by login / register / 2FA verify / reset / invitation accept */
@@ -68,9 +71,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const meQ = useQuery({ queryKey: meKey, queryFn: () => api<MeDto>('/me'), enabled: boot.data === true, staleTime: 60_000 });
   const me = boot.data === true ? (meQ.data ?? null) : null;
 
-  const workspaceId = useMemo(() => pickWorkspaceId(me, stored), [me, stored]);
+  const imp = useImpersonation().session;
+  const ownWorkspaceId = useMemo(() => pickWorkspaceId(me, stored), [me, stored]);
+  // an impersonation session shows the target workspace; the API sends it with the impersonation headers
+  const workspaceId = imp ? imp.workspaceId : ownWorkspaceId;
   // the header must be in place before any child query runs
-  if (apiSession.get().workspaceId !== workspaceId) apiSession.set({ workspaceId });
+  if (apiSession.get().workspaceId !== ownWorkspaceId) apiSession.set({ workspaceId: ownWorkspaceId });
 
   const wsQ = useQuery({
     queryKey: workspaceKey(workspaceId),
@@ -87,7 +93,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const membership = useMemo(() => me?.memberships.find((m) => m.workspaceId === workspaceId) ?? null, [me, workspaceId]);
+  // impersonation = a read-only Admin view of the workspace (every write key off; the API answers 403 to any non-GET)
+  const membership = useMemo<Membership | null>(
+    () => (imp ? { workspaceId: imp.workspaceId, name: imp.workspaceName, logoUrl: null, role: 'admin', readOnly: true } : (me?.memberships.find((m) => m.workspaceId === workspaceId) ?? null)),
+    [me, workspaceId, imp],
+  );
   const role = membership?.role ?? null;
   const readOnly = membership?.readOnly ?? false;
 
@@ -159,6 +169,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       workspaceError: wsQ.error,
       role,
       readOnly,
+      impersonating: !!imp,
       can: (key) => memberCan({ role, readOnly }, key),
       signIn,
       logout,
@@ -168,7 +179,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       refetchWorkspace: () => wsQ.refetch(),
       bootError: meQ.error,
     }),
-    [status, me, membership, workspaceId, wsQ, role, readOnly, signIn, logout, logoutAll, switchWorkspace, meQ],
+    [status, me, membership, workspaceId, wsQ, role, readOnly, imp, signIn, logout, logoutAll, switchWorkspace, meQ],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
