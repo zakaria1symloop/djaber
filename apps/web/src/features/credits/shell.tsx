@@ -40,16 +40,19 @@ export function useCreditsBanners(): ShellBanner[] {
   const t = useT();
   const locale = useLocaleCode() as AppLocale;
   const router = useRouter();
+  const { can } = useSession();
   const q = useCredits();
   const c = q.data;
   const id = creditsBanner(c);
   if (!c || !id) return [];
   const used = formatNumber(c.plan.used);
   const limit = formatNumber(c.plan.limit);
-  const open = { label: t('action.buyCredits'), onClick: () => router.push('/settings/credits') };
-  if (id === 'negativeCredits') return [{ id, tone: 'danger', content: t('banner.negativeCredits'), action: { label: t('credits.banner.see'), onClick: open.onClick } }];
+  // "Acheter des crédits" opens the pack purchase for Owner / Admin (`billing.write`), the credits page otherwise
+  const open = { label: t('action.buyCredits'), onClick: () => router.push(can('billing.write') ? '/settings/credits?buy=1' : '/settings/credits') };
+  const see = () => router.push('/settings/credits');
+  if (id === 'negativeCredits') return [{ id, tone: 'danger', content: t('banner.negativeCredits'), action: can('billing.write') ? open : { label: t('credits.banner.see'), onClick: see } }];
   if (id === 'credits100') return [{ id, tone: 'danger', content: t('banner.credits100', { used, limit, date: formatDate(c.plan.periodEnd, locale) }), action: open }];
-  return [{ id, tone: 'warning', content: t('banner.credits80', { used, limit, date: formatDate(warningDate(c), locale) }), action: { label: t('credits.banner.see'), onClick: open.onClick } }];
+  return [{ id, tone: 'warning', content: t('banner.credits80', { used, limit, date: formatDate(warningDate(c), locale) }), action: { label: t('credits.banner.see'), onClick: see } }];
 }
 
 /**

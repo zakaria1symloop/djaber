@@ -17,6 +17,7 @@ import { useGdsEvents } from '@/features/gds/api';
 import { useOrderEvents } from '@/features/orders/api';
 import { useChannelBanners, useChannelEvents } from '@/features/channels/shell';
 import { CreditsPillLink, useCreditsBanners, useCreditsEvents } from '@/features/credits/shell';
+import { useBillingEvents, usePlanBanners } from '@/features/billing/shell';
 import { useInboxBadge, useInboxEvents } from '@/features/inbox/api';
 import { useMessageSound } from '@/features/inbox/sound';
 import { NotificationBell, useUnreadNotifications } from '@/features/notifications/shell';
@@ -129,6 +130,7 @@ function LiveShell({ groups, banners, children }: { groups: NavGroup[]; banners:
   useChannelEvents();
   useAgentEvents();
   useCreditsEvents();
+  useBillingEvents();
   useOrderEvents();
   useShipmentEvents();
   useGdsEvents();
@@ -154,6 +156,8 @@ function useShellBanners(): ShellBanner[] {
   const channelBanners = useChannelBanners();
   // `credits100` / `credits80` / `negativeCredits` (GET /credits, live through WS `credits.updated`)
   const creditsBanners = useCreditsBanners();
+  // `planExpired` / `dunning` / `planExpiring` (GET /billing/subscription for Owner + Admin, GET /workspace otherwise)
+  const planBanners = usePlanBanners();
 
   useEffect(() => {
     const sync = () => setOffline(!navigator.onLine);
@@ -183,7 +187,7 @@ function useShellBanners(): ShellBanner[] {
     }
   };
 
-  const banners: ShellBanner[] = [...channelBanners, ...creditsBanners];
+  const banners: ShellBanner[] = [...channelBanners, ...creditsBanners, ...planBanners];
   if (s.workspace?.status === 'suspended') banners.push({ id: 'suspended', tone: 'danger', content: t('banner.suspended') });
   if (s.workspace?.status === 'deletion_scheduled') {
     banners.push({

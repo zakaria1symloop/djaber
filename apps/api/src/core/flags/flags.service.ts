@@ -45,6 +45,12 @@ export class FlagsService {
     return FlagsService.bucket(key, workspaceId) < (surface === 'web' ? f.webPct : f.mobilePct);
   }
 
+  /** Like `isEnabled`, but a flag that does not exist (not created on ADM-13 yet) answers `fallback`. */
+  async isEnabledOr(key: string, workspaceId: string, fallback: boolean, surface: 'web' | 'mobile' = 'web'): Promise<boolean> {
+    const f = (await this.load())[key];
+    return f ? this.isEnabled(key, workspaceId, surface) : fallback;
+  }
+
   async allFor(workspaceId: string, surface: 'web' | 'mobile' = 'web'): Promise<Record<string, boolean>> {
     const flags = await this.load();
     const out: Record<string, boolean> = {};

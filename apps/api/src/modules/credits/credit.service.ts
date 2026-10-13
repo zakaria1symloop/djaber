@@ -222,6 +222,41 @@ export class CreditService implements OnModuleInit {
     });
   }
 
+  /**
+   * One ledger row inside the caller's transaction (M9: pack purchase `pack_purchase`, store refund `store_refund`, promo /
+   * upgrade / admin `grant`). Idempotent on `key`; emits `credits.updated`. `monthlyCredits` = the plan that applies when
+   * it just changed in this transaction (the tenant context still holds the old limits).
+   */
+  async writeIn(
+    tx: Tx,
+    workspaceId: string,
+    row: { bucket: CreditBucket; action: CreditAction; credits: number; key: string; reason?: string | null; grantedById?: string | null; creditPackPurchaseId?: string | null },
+    o: { monthlyCredits?: number } = {},
+  ): Promise<{ balance: Balance; entryId: string; created: boolean }> {
+    await this.lock(tx, workspaceId);
+    const existing = await tx.creditLedger.findUnique({ where: { idempotencyKey: row.key }, select: { id: true } });
+    if (existing) return { balance: await this.balanceIn(tx, workspaceId, o.monthlyCredits), entryId: existing.id, created: false };
+    const b = await this.balanceIn(tx, workspaceId, o.monthlyCredits);
+    const entry = await tx.creditLedger.create({
+      data: {
+        workspaceId,
+        periodStart: row.bucket === 'plan' ? b.periodStart : null,
+        bucket: row.bucket,
+        action: row.action,
+        kind: row.credits >= 0 ? 'credit' : 'debit',
+        credits: row.credits,
+        balanceAfter: (b.unlimited ? 0 : b.total) + row.credits,
+        reason: row.reason ?? null,
+        grantedById: row.grantedById ?? null,
+        creditPackPurchaseId: row.creditPackPurchaseId ?? null,
+        idempotencyKey: row.key,
+      },
+    });
+    const after = await this.balanceIn(tx, workspaceId, o.monthlyCredits);
+    await this.emit(tx, workspaceId, after, row.key);
+    return { balance: after, entryId: entry.id, created: true };
+  }
+
   // --- conversation quota (02 §5 `maxConversationsPerMonth`, same monthly period) ------------------------------------------
   /** Conversations with a customer message in the current period; `-1` = unlimited. */
   async quota(workspaceId: string = TenantContext.workspaceId()): Promise<{ used: number; limit: number; exceeded: boolean; periodStart: Date }> {
@@ -276,15 +311,46 @@ export class CreditService implements OnModuleInit {
     );
   }
 
-  /** `GET /credits/calculator` (V1 modal): estimated monthly credits for a volume of conversations. */
+  /**
+   * `GET /credits/calculator` (V1 modal, PCK-05). AT-PCK-04 fixes the formula: every AI message costs the text credit, a
+   * conversation with a photo adds the image cost, one with a voice note adds the voice cost
+   * (1 200 conv × 4 msgs, 15 % photo, 8 % voice ⇒ 4 800 + 180 × 5 + 96 × 3 = 5 988 credits). Suggestion: the cheapest plan
+   * whose monthly credits cover the estimate, else the largest plan + the fewest packs covering the rest (one pack when a
+   * single pack is enough — the smallest such pack).
+   */
   async calculator(q: { conversations: number; photoPct: number; voicePct: number; msgsPerConv: number }): Promise<CreditsCalculatorDto> {
-    const turns = Math.round(q.conversations * q.msgsPerConv);
+    const textTurns = Math.round(q.conversations * q.msgsPerConv);
     const imageTurns = Math.round(q.conversations * (q.photoPct / 100));
     const voiceTurns = Math.round(q.conversations * (q.voicePct / 100));
-    const textTurns = Math.max(0, turns - imageTurns - voiceTurns);
     const credits = textTurns * CREDIT_COST.text + imageTurns * CREDIT_COST.image + voiceTurns * CREDIT_COST.voice;
-    const pricing = await TenantContext.runSystem(() => prisma.creditPricing.findFirst({ where: { effectiveAt: { lte: new Date() } }, orderBy: { version: 'desc' } }));
-    return { conversations: q.conversations, textTurns, imageTurns, voiceTurns, credits, estimatedCostDzd: Math.round(credits * (pricing ? Number(pricing.creditPriceDzd) : 0)) };
+    const [pricing, plans, packs] = await TenantContext.runSystem(() =>
+      Promise.all([
+        prisma.creditPricing.findFirst({ where: { effectiveAt: { lte: new Date() } }, orderBy: { version: 'desc' } }),
+        prisma.plan.findMany({ where: { isActive: true, isVisible: true, archivedAt: null }, orderBy: [{ priceMonthly: 'asc' }, { sortOrder: 'asc' }] }),
+        prisma.creditPack.findMany({ where: { isActive: true, visibleWeb: true }, orderBy: [{ credits: 'asc' }] }),
+      ]),
+    );
+    const locale = TenantContext.maybe()?.locale ?? 'fr';
+    const pick = (v: unknown) => (v && typeof v === 'object' ? String((v as Record<string, string>)[locale] ?? (v as Record<string, string>).fr ?? '') : String(v ?? ''));
+    const rows = plans.map((p) => ({ planId: p.id, slug: p.slug, name: pick(p.name), monthlyCredits: p.monthlyCredits, priceMonthly: p.priceMonthly, coversPct: p.monthlyCredits < 0 ? 100 : credits === 0 ? 100 : Math.min(100, Math.round((p.monthlyCredits / credits) * 1000) / 10), missingCredits: p.monthlyCredits < 0 ? 0 : Math.max(0, credits - p.monthlyCredits) }));
+    let suggestion: CreditsCalculatorDto['suggestion'] = null;
+    const covering = rows.find((r) => r.missingCredits === 0);
+    const top = rows.filter((r) => r.monthlyCredits >= 0).sort((a, b) => b.monthlyCredits - a.monthlyCredits)[0];
+    const chosen = covering ?? top;
+    if (chosen) {
+      const missing = chosen.missingCredits;
+      const chosenPacks: NonNullable<CreditsCalculatorDto['suggestion']>['packs'] = [];
+      if (missing > 0 && packs.length) {
+        const single = packs.find((p) => p.credits >= missing);
+        if (single) chosenPacks.push({ packId: single.id, slug: single.slug, name: pick(single.name), credits: single.credits, quantity: 1, priceWebDzd: single.priceWebDzd });
+        else {
+          const biggest = packs[packs.length - 1]!;
+          chosenPacks.push({ packId: biggest.id, slug: biggest.slug, name: pick(biggest.name), credits: biggest.credits, quantity: Math.ceil(missing / biggest.credits), priceWebDzd: biggest.priceWebDzd });
+        }
+      }
+      suggestion = { planId: chosen.planId, planSlug: chosen.slug, planName: chosen.name, packs: chosenPacks, totalMonthlyDzd: chosen.priceMonthly + chosenPacks.reduce((n, p) => n + p.priceWebDzd * p.quantity, 0) };
+    }
+    return { conversations: q.conversations, textTurns, imageTurns, voiceTurns, credits, estimatedCostDzd: Math.round(credits * (pricing ? Number(pricing.creditPriceDzd) : 0)), plans: rows, suggestion };
   }
 
   // --- scheduled ------------------------------------------------------------------------------------------------------------

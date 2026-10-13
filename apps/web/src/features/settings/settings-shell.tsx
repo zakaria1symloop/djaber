@@ -8,12 +8,16 @@ import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { visibleSettingsNav } from './nav';
 
+const FULL_PAGES = ['/settings/billing/return'];
+
 export function SettingsShell({ children }: { children: ReactNode }) {
   const t = useT();
   const pathname = usePathname();
   const { role } = useSession();
   // the sub-nav follows the role (a read-only owner still sees every page; mutations are disabled inside)
   const items = visibleSettingsNav((key) => roleCan(role, key));
+  // the checkout return page is a full-width page (Figma "Retour de paiement — page plein écran")
+  if (FULL_PAGES.some((p) => pathname === p)) return <div className="mx-auto w-full max-w-[1160px]">{children}</div>;
   return (
     <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-6 lg:flex-row lg:gap-8">
       <SubNav title={t('nav.settings')} className="lg:w-52 lg:shrink-0">

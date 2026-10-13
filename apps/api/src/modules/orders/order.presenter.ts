@@ -48,7 +48,7 @@ export const ORDER_DETAIL_INCLUDE = {
     orderBy: { createdAt: 'desc' },
     include: { courierAccount: { select: { id: true, displayName: true } }, events: { orderBy: { at: 'desc' }, include: { actor: userRef } } },
   },
-  payments: { where: { status: 'pending' }, orderBy: { createdAt: 'desc' }, take: 1 },
+  payments: { orderBy: { createdAt: 'desc' }, take: 1 },
   sheetsRow: { select: { syncedAt: true } },
 } satisfies Prisma.OrderInclude;
 export type OrderDetailRow = Prisma.OrderGetPayload<{ include: typeof ORDER_DETAIL_INCLUDE }>;
@@ -59,6 +59,8 @@ export type PresentCtx = {
   blocked: (clientId: string, phone: string | null) => boolean;
   /** a courier account exists (enables "Envoyer au transporteur") */
   hasCourier?: boolean;
+  /** M9: `Workspace.onlinePaymentEnabled` (enables "Lien de paiement", PAY-02) */
+  onlinePayment?: boolean;
   publicWebUrl?: string;
   /** "Actualiser" cool-down per shipment id (manual sync 1 / 5 min) */
   syncAvailableAt?: (shipmentId: string) => string | null;
@@ -112,7 +114,7 @@ const act = (key: string, permission: MerchantPermission, o: { reasonCode?: stri
 const PRIMARY: Partial<Record<OrderStatusName, string>> = { new: 'confirm', confirmed: 'prepare', preparing: 'ship_manual', shipped: 'deliver' };
 
 /** `actions` of a row / the order page, in menu order (primary first). */
-export const orderActions = (o: Pick<Order, 'status' | 'deliveryStatus' | 'paymentStatus' | 'conversationId' | 'wilayaId' | 'communeId' | 'communeText' | 'address' | 'isStopdesk' | 'stopdeskId'>, activeShipment: { provider: string; status: string } | null | undefined, ctx: Pick<PresentCtx, 'hasCourier'>): ActionDescriptor[] => {
+export const orderActions = (o: Pick<Order, 'status' | 'deliveryStatus' | 'paymentStatus' | 'conversationId' | 'wilayaId' | 'communeId' | 'communeText' | 'address' | 'isStopdesk' | 'stopdeskId' | 'total' | 'amountPaid'>, activeShipment: { provider: string; status: string } | null | undefined, ctx: Pick<PresentCtx, 'hasCourier' | 'onlinePayment'>): ActionDescriptor[] => {
   const state = stateOf(o, activeShipment);
   const role = TenantContext.get().role;
   const terminal = isTerminal(o.status);
@@ -140,6 +142,9 @@ export const orderActions = (o: Pick<Order, 'status' | 'deliveryStatus' | 'payme
     act('change_status', 'orders.write', { reasonCode: allowedTargets(state, role).length ? null : 'ORDER_TERMINAL' }),
     act('cancel', 'orders.write', { reasonCode: t('cancelled'), shortcut: 'Delete' }),
     act('delete', 'orders.money', { reasonCode: o.status === 'delivered' ? 'ORDER_DELETE_DELIVERED' : state.courierParcel ? 'DELIVERY_ORDER_ALREADY_SENT' : null }),
+    // M9 (PAY-02 / PAY-03, P2): online payment link and recorded refund
+    act('payment_link', 'orders.money', { reasonCode: !ctx.onlinePayment ? 'FEATURE_DISABLED' : terminal || o.total - o.amountPaid <= 0 || o.paymentStatus === 'refunded' ? 'ORDER_PAYMENT_LOCKED' : null }),
+    act('refund', 'orders.money', { reasonCode: o.amountPaid <= 0 || o.paymentStatus === 'refunded' ? 'ORDER_PAYMENT_LOCKED' : null }),
   ];
   return [...list.filter((a) => a.primary), ...list.filter((a) => !a.primary)];
 };
@@ -248,7 +253,7 @@ export const presentOrder = (o: OrderDetailRow, extras: DetailExtras, ctx: Prese
     cancelReason: o.cancelReason,
     cancelNote: o.cancelNote,
     payments: extras.payments.map((p) => ({ id: p.id, amount: p.amount, method: p.method, reference: p.reference, note: p.note, paidAt: p.paidAt.toISOString(), createdBy: p.createdBy })),
-    paymentLink: link?.checkoutUrl && link.expiresAt ? { url: link.checkoutUrl, status: link.status, expiresAt: link.expiresAt.toISOString() } : null,
+    paymentLink: link ? { id: link.id, url: link.checkoutUrl, status: link.status === 'pending' && !link.checkoutUrl ? 'creating' : link.status, expiresAt: link.expiresAt?.toISOString() ?? null, amount: link.amount } : null,
     calls: o.calls.map((c) => ({ id: c.id, user: c.user, result: c.result, callbackAt: c.callbackAt?.toISOString() ?? null, notes: c.notes, calledAt: c.calledAt.toISOString() })),
     history: o.history.map((h) => ({
       id: h.id,

@@ -62,8 +62,9 @@ export class OrderService implements OnModuleInit {
   }
 
   async presentCtx(locale: string): Promise<PresentCtx> {
-    const [index, couriers] = await Promise.all([this.safety.index(), prisma.courierAccount.count({ where: { isActive: true } })]);
+    const [index, couriers, ws] = await Promise.all([this.safety.index(), prisma.courierAccount.count({ where: { isActive: true } }), prisma.workspace.findUnique({ where: { id: TenantContext.workspaceId() }, select: { onlinePaymentEnabled: true } })]);
     return {
+      onlinePayment: !!ws?.onlinePaymentEnabled,
       locale: locale === 'ar' || locale === 'en' ? locale : 'fr',
       blocked: (clientId, phone) => index.has({ clientId, channelId: '', externalSenderId: '' }, phone),
       hasCourier: couriers > 0,

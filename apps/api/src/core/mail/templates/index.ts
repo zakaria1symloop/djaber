@@ -15,6 +15,8 @@ export type MailTemplateName =
   | 'workspace/deleted'
   /** 03-events §4 `sched-report-schedules`: monthly report e-mail (D62) */
   | 'reports/scheduled'
+  /** PRM-03: admin credit gesture, e-mail to the Owner (M9) */
+  | 'billing/credits-granted'
   /** 03-events §5.3 generic "notification/<type>" layout: title, body, CTA deep link (the type rides in params.type) */
   | 'notification';
 
@@ -29,6 +31,16 @@ const COPY: Record<MailTemplateName, Copy> = {
     title: l('{title}', '{title}', '{title}'),
     body: l('{body}', '{body}', '{body}'),
     cta: l('Ouvrir dans Djaber', 'فتح في جابر', 'Open in Djaber'),
+  },
+  'billing/credits-granted': {
+    subject: l('{credits} crédits ajoutés à {workspaceName}', 'تمت إضافة {credits} رصيد إلى {workspaceName}', '{credits} credits added to {workspaceName}'),
+    title: l('{credits} crédits offerts', '{credits} رصيد هدية', '{credits} credits added'),
+    body: l(
+      'L’équipe Djaber a ajouté {credits} crédits à votre espace {workspaceName}. Motif : {reason}. Ils s’ajoutent aux crédits de votre période en cours.',
+      'أضاف فريق جابر {credits} رصيد إلى مساحتك {workspaceName}. السبب: {reason}. تُضاف إلى أرصدة فترتك الحالية.',
+      'The Djaber team added {credits} credits to your workspace {workspaceName}. Reason: {reason}. They come on top of the credits of your current period.',
+    ),
+    cta: l('Voir mes crédits', 'عرض أرصدتي', 'See my credits'),
   },
   'auth/verify': {
     subject: l('Vérifiez votre e-mail', 'تحقق من بريدك الإلكتروني', 'Verify your e-mail'),

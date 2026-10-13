@@ -13,7 +13,7 @@ export const SETTINGS_NAV: SettingsNavItem[] = [
   { key: 'nav.settings.notifications', href: '/settings/notifications', permission: 'notifications.own' },
   { key: 'nav.settings.security', href: '/settings/security' },
   // M11: Intégrations (/settings/integrations, `integrations.manage`)
-  // M9: Plan & facturation (/settings/billing, `billing.read`)
+  { key: 'nav.settings.billing', href: '/settings/billing', permission: 'billing.read' },
   { key: 'nav.settings.credits', href: '/settings/credits', permission: 'billing.read_credits' },
   { key: 'nav.settings.danger', href: '/settings/danger', permission: 'workspace.delete' },
 ];

@@ -10,5 +10,8 @@ describe('banner priority (02-next-route-map §2.1)', () => {
     expect(pickBanner([b('offline'), b('readOnly')])?.id).toBe('readOnly');
     expect(pickBanner([b('maintenance'), b('suspended')])?.id).toBe('maintenance');
     expect(pickBanner([])).toBeUndefined();
+    // M9: the unpaid-invoice banner sits with "plan expiré", above the 80 % and "plan expire" banners
+    expect(pickBanner([b('planExpiring'), b('credits80'), b('dunning')])?.id).toBe('dunning');
+    expect(pickBanner([b('dunning'), b('planExpired')])?.id).toBe('planExpired');
   });
 });

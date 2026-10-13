@@ -467,7 +467,7 @@ export type OrderView = Omit<OrderListItemView, 'items'> & {
   cancelReason: CancelReasonName | null;
   cancelNote: string | null;
   payments: PaymentEntryView[];
-  paymentLink: { url: string; status: string; expiresAt: string } | null;
+  paymentLink: { id: string; url: string | null; status: 'creating' | 'pending' | 'paid' | 'failed' | 'expired' | 'refunded' | 'mismatch'; expiresAt: string | null; amount: number } | null;
   calls: OrderCallView[];
   history: OrderHistoryView[];
   shipments: ShipmentView[];

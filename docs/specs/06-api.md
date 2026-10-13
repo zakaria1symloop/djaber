@@ -360,7 +360,7 @@ POST /billing/checkout { planId, cycle, promoCode? } → { checkoutUrl, prorata,
 POST /billing/promo/validate { code, planId? } → { kind: PromoKind, value, periods } | PROMO_* · POST /billing/promo/redeem { code } (kind=credits)
 GET /billing/checkout/return?ref → { status: verifying|success|pending|failed|expired, invoiceId?, planUntil? }
 GET /credit-packs (public, web prices + store product ids; `?platform=google_play|app_store` → store product ids only) · POST /credits/packs/checkout { packId } → { checkoutUrl } (web) · GET /credits/packs/purchases
-POST /credits/packs/iap/validate { platform: google_play|app_store, productId, transactionId, receipt?, purchaseToken? } → { credited: number, balance } (receipt = App Store, purchaseToken = Google Play; idempotent on transactionId; IAP_RECEIPT_INVALID / IAP_PRODUCT_UNKNOWN / IAP_STORE_UNAVAILABLE; a replayed transactionId ⇒ 409 IAP_RECEIPT_ALREADY_USED, treated as success by the client)   `[FIG ADM-15 rules]`
+POST /credits/packs/iap/validate { platform: google_play|app_store, productId, transactionId, receipt?, purchaseToken? } → `IapValidateResult { status, creditsAdded, purchaseId, balance }` (api-contract §3.10; receipt = App Store, purchaseToken = Google Play; idempotent on transactionId; IAP_RECEIPT_INVALID / IAP_PRODUCT_UNKNOWN / IAP_STORE_UNAVAILABLE; a replayed transactionId ⇒ 409 IAP_RECEIPT_ALREADY_USED, treated as success by the client)   `[FIG ADM-15 rules]`
 POST /webhooks/store/google-play · POST /webhooks/store/app-store (server notifications: refunds ⇒ CreditLedger action=store_refund, `credits.negative` when the balance goes below 0)
 GET /credits → { plan: {used, limit, periodEnd}, packs: {remaining}, burnRatePerDay, exhaustedEta? } · GET /credits/ledger?from&to&action&agentId&bucket&page · GET /credits/ledger/export → 202 · GET /credits/calculator?conversations&photoPct&voicePct&msgsPerConv → estimate
 ```
@@ -441,8 +441,8 @@ Mirror of `../implementation/01-nest-module-map.md` §3.2 (the single permission
 | Insights: resolve (instruction / FAQ / product / ignore) | ● | ● | ● |
 | Safety: block / report customer `[SAFE]` · unblock, auto-rules, blocked words | ● · ● | ● · ● | ● · — |
 | Support: open tickets, reply, see own `[HELP]` · see all workspace tickets (`support.read_all`) | ● · ● | ● · ● | ● · — |
-| Billing: plan change / checkout / cancel, billing info, invoice pay | ● | — | — |
-| Billing: invoices read, promo validate / redeem, buy pack, IAP (`billing.write`) `[BIL-04]` | ● | ● | — |
+| Billing: plan change / checkout / cancel, billing info (`billing.plan`) | ● | — | — |
+| Billing: invoices read, invoice pay, promo validate / redeem, buy pack, IAP (`billing.write`) `[BIL-04]` | ● | ● | — |
 | Credits: `GET /credits`, ledger (`billing.read_credits`) | ● | ● | ● |
 | Integrations: API keys, webhooks, Google Sheets | ● | ● | — |
 | Notifications, preferences, devices, prefs, legal acceptance, own deletion request | ● | ● | ● |
@@ -516,7 +516,7 @@ GET /app/version?platform=android|ios&version=2.1.0 (public, no auth)
     update_recommended when minVersion ≤ version < recommendedVersion, else ok; message = AppVersion.updateMessage in Accept-Language; maintenance present only while maintenance mode is on.
 POST /me/devices { token, platform: android|ios, appVersion, deviceName?, locale: fr|ar|en } → { id } (DeviceToken; upsert on token; 21st device of a user ⇒ 422 DEVICE_LIMIT {max: 20})
 DELETE /me/devices/:token → 204 (called on logout; unknown token ⇒ 204)
-POST /credits/packs/iap/validate { platform: google_play|app_store, productId, transactionId, receipt?, purchaseToken? } → { credited: number, balance } (§8.9; IAP_RECEIPT_INVALID / IAP_PRODUCT_UNKNOWN / IAP_STORE_UNAVAILABLE / 409 IAP_RECEIPT_ALREADY_USED)
+POST /credits/packs/iap/validate { platform: google_play|app_store, productId, transactionId, receipt?, purchaseToken? } → `IapValidateResult { status, creditsAdded, purchaseId, balance }` (§8.9; IAP_RECEIPT_INVALID / IAP_PRODUCT_UNKNOWN / IAP_STORE_UNAVAILABLE / 409 IAP_RECEIPT_ALREADY_USED)
 GET /credit-packs?platform=google_play|app_store → [{ id, slug, credits, storeProductId }] (store product ids only, no web price)
 GET /legal/pending → [{ key: terms|privacy|account_deletion|content_rules, version, url }] — shown at launch when non-empty (every protected call answers 403 LEGAL_REACCEPT_REQUIRED {document, version} until accepted)
 POST /legal/accept { key, version } → 204

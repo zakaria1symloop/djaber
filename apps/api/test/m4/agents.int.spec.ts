@@ -2,6 +2,7 @@
 // duplicate, delete, channel ↔ agent, FAQ, insights queue, metrics, role matrix, tenancy. AT ids from 13-acceptance-tests.md.
 import { asAdmin, asOperator, asOwner, type Actor } from '../support/actors';
 import { createTestApp, type TestApp } from '../support/app';
+import { RedisService } from '../../src/core/redis/redis.provider';
 import { createProduct } from '../support/m2';
 import { connect, connectedPage, forbidNetwork, newSender, receive } from '../support/m3';
 import { answer, closeOutbox, db, fakeAi, linkedAgent, textRoute, withLimits } from '../support/m4';
@@ -23,6 +24,10 @@ const withMaxAgents = async (actor: Actor, maxAgents: number) => {
 beforeAll(async () => {
   app = await createTestApp();
   net = forbidNetwork();
+  // a circuit breaker left open by another suite (provider-failure scenarios) would route this suite to the fallback model
+  const redis = app.app.get(RedisService).client;
+  const keys = await redis.keys('ai:cb:*');
+  if (keys.length) await redis.del(...keys);
 });
 afterAll(async () => {
   expect(net.spy).not.toHaveBeenCalled();

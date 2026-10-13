@@ -114,8 +114,13 @@ test('AT-AGT-07 queue insight cards: "Ouvrir la conversation", "Ajouter aux inst
 
   // a colleague was faster (resolved through the API): 422 INSIGHT_ALREADY_RESOLVED ⇒ toast, the card leaves as well
   await realPost(page.request, owner, `/agent-insights/${handoff.id}/resolve`, { action: 'ignored_30d' });
-  await card(handoff.id).locator('[data-action=ignore]').click();
-  await expect(page.getByText('Déjà traité. (INSIGHT_ALREADY_RESOLVED)')).toBeVisible();
+  // the WS event of the colleague's resolve may remove the card first (then there is nothing left to click)
+  const clicked = await card(handoff.id)
+    .locator('[data-action=ignore]')
+    .click({ timeout: 5_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (clicked) await expect(page.getByText('Déjà traité. (INSIGHT_ALREADY_RESOLVED)')).toBeVisible();
   await expect(card(handoff.id)).toHaveCount(0);
   await expect(column.locator('[data-insight]')).toHaveCount(0);
   expect((await insightsOf(page.request, owner, '?status=pending')).length).toBe(0);

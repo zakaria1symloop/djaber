@@ -125,7 +125,7 @@ export class AiRunService implements OnModuleInit {
     const executed: ExecutedTool[] = [];
     const seen = new Map<string, number>();
     const messages: AiMessage[] = [...req.prompt.messages];
-    const defs = this.tools.defs();
+    const defs = await this.tools.defsFor(req.toolCtx.workspaceId);
     let model = null as RoutedModel | null;
     let usedFallback = false;
     let repaired = false;

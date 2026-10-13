@@ -14,6 +14,8 @@ export type WorkspacePatch = Partial<{
   senderWilayaId: number | null;
   locale: 'fr' | 'ar' | 'en';
   stockMode: 'simple' | 'advanced';
+  /** PAY-02 workspace toggle (P2, M9): enables the order payment links */
+  onlinePaymentEnabled: boolean;
   autoPauseOnManualReply: boolean;
   handoffReminderMin: number;
   freeDeliveryThreshold: number | null;

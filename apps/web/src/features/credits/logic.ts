@@ -48,6 +48,9 @@ export const applyCreditsEvent = (old: Credits, e: WsCreditsUpdated): Credits =>
   };
 };
 
+/** Packs tile: the pack balance, or the (negative) total after a store refund — the API keeps `packs.remaining ≥ 0`. */
+export const packsShown = (c: Pick<Credits, 'packs' | 'total' | 'negative'>): number => (c.negative && c.total < 0 ? c.total : c.packs.remaining);
+
 /* ---------- ledger rows ---------- */
 /** "−5" / "+500" / "0" — a real minus sign; `format` groups the thousands. */
 export const signedCredits = (n: number, format: (abs: number) => string): string => (n > 0 ? `+${format(n)}` : n < 0 ? `−${format(-n)}` : '0');

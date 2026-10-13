@@ -1,7 +1,7 @@
 // The keys of the order `actions: ActionDescriptor[]` (api-contract §1.12) the web understands — one place, so the
 // screen follows the server presenter (`apps/api/src/modules/orders/order.presenter.ts` `orderActions`) by editing this map
-// only. `log_call`, `payment_link` and `duplicate` are not served in M5: "Journaliser un appel" uses the `call` descriptor,
-// "Dupliquer" is a local link (prefill of /orders/new), the payment link stays absent (P2).
+// only. `log_call` and `duplicate` are not served: "Journaliser un appel" uses the `call` descriptor, "Dupliquer" is a
+// local link (prefill of /orders/new). `payment_link` and `refund` open the online-payment dialogs (P2, M9).
 export const ORDER_ACTION = {
   /** opens the confirm dialog (call + outcome) */
   call: 'call',
@@ -21,6 +21,7 @@ export const ORDER_ACTION = {
   address: 'edit_address',
   recordPayment: 'record_payment',
   paymentLink: 'payment_link',
+  refund: 'refund',
   print: 'print',
   duplicate: 'duplicate',
   cancel: 'cancel',

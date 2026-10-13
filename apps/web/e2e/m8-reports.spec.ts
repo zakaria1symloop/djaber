@@ -169,7 +169,7 @@ test('AT-RPT-01 — > 5 000 rows banner; a running export is cancelled (JOB_NOT_
   expect(retried).toBe(true);
 });
 
-test('AT-RPT-01 — monthly e-mail: schedule, listed, stop; without `scheduled_reports` the upgrade state', async ({ page, request }) => {
+test('AT-RPT-01 — monthly e-mail: schedule, listed, stop', async ({ page, request }) => {
   await signIn(page, owner);
   await open(page, '/fr/reports/sales_by_period', () => page.getByTestId('report-schedule'));
   await page.getByTestId('report-schedule').click();
@@ -187,12 +187,7 @@ test('AT-RPT-01 — monthly e-mail: schedule, listed, stop; without `scheduled_r
   await expect(toastOf(page, 'compta@example.com ne recevra plus ce rapport')).toBeVisible();
   await page.keyboard.press('Escape');
 
-  // mock: every new workspace runs the Pro trial (with `scheduled_reports`); a plan without it cannot be produced before M9 — the API refusal is answered here
-  await page.route(/\/api\/v1\/reports\/sales_by_period\/schedule/, (route) => route.fulfill({ status: 403, json: { error: { code: 'PLAN_FEATURE_REQUIRED', message: 'Fonction réservée aux plans supérieurs.', params: { feature: 'scheduled_reports' }, ref: 'req_p' } } }));
-  await page.getByTestId('report-schedule').click();
-  await page.getByTestId('schedule-submit').click();
-  await expect(page.getByTestId('schedule-gated')).toContainText('PLAN_FEATURE_REQUIRED');
-  await expect(page.getByTestId('schedule-upgrade')).toHaveAttribute('href', /\/settings\/billing/);
+  // without `scheduled_reports` (Starter / free plan): real plan since M9, see m9-carryovers.spec.ts
 });
 
 test('GDS-10 — every one of the 23 reports renders its data or its empty state ([S] → data / [E])', async ({ page }) => {

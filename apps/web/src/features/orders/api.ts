@@ -9,6 +9,7 @@ import { useWorkspaceId } from '@/lib/session';
 import { useWsEvent } from '@/lib/ws';
 import { ORDER_EVENTS } from './action-keys';
 import type { Client } from '@/features/clients/contracts';
+import type { CreatePaymentLinkInput, OrderPaymentLinkDto, OrderRefundInput } from '@djaber/shared';
 import type {
   BulkItemResult,
   BulkOrderAssignInput,
@@ -68,6 +69,11 @@ export const ordersApi = {
   setCallback: (id: string, b: OrderCallbackInput) => api<Order>(`/orders/${id}/callback`, { method: 'POST', body: b }),
   clearCallback: (id: string) => api<Order | null>(`/orders/${id}/callback`, { method: 'DELETE' }),
   assign: (id: string, b: OrderAssignInput) => api<Order>(`/orders/${id}/assign`, { method: 'POST', body: b }),
+  /** PAY-02 (P2, M9): online payment link — the worker creates the Chargily checkout (`creating` → `pending` + url) */
+  createPaymentLink: (id: string, b: CreatePaymentLinkInput) => api<OrderPaymentLinkDto>(`/orders/${id}/payment-link`, { method: 'POST', body: b }),
+  paymentLink: (id: string) => api<OrderPaymentLinkDto | null>(`/orders/${id}/payment-link`),
+  /** PAY-03 (P2, M9): recorded refund → the order detail */
+  refund: (id: string, b: OrderRefundInput) => api<Order>(`/orders/${id}/refunds`, { method: 'POST', body: b }),
   address: (id: string, b: OrderAddressInput) => api<Order>(`/orders/${id}/address`, { method: 'POST', body: b }),
   /** `DELETE /orders/:id?confirmNumber=` — the typed number must match exactly */
   remove: (id: string, confirmNumber: string) => api<null>(`/orders/${id}`, { method: 'DELETE', query: { confirmNumber } }),

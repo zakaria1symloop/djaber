@@ -170,13 +170,14 @@ export class AgentService implements OnModuleInit {
     return out;
   }
 
-  private actions(a: Row, canManage: boolean): ActionDescriptor[] {
+  private actions(a: Row, canManage: boolean, slotFree: boolean): ActionDescriptor[] {
     const act = (key: string, enabled: boolean, reasonCode?: string, primary?: boolean): ActionDescriptor => ({ key, enabled: enabled && (canManage || key === 'test' || key === 'view'), ...(enabled || !reasonCode ? {} : { reasonCode }), ...(!canManage && key !== 'test' && key !== 'view' ? { reasonCode: 'FORBIDDEN' } : {}), ...(primary ? { primary } : {}) });
     return [
       act('edit', true, undefined, a.status !== 'draft'),
       act('activate', a.status === 'draft' && a.channels.length > 0, a.status !== 'draft' ? 'CONFLICT' : 'AGENT_NO_CHANNEL', a.status === 'draft'),
       act('pause', a.status === 'active', 'CONFLICT'),
-      act('resume', a.status === 'paused', 'CONFLICT'),
+      // an agent paused by the plan only comes back while a slot is free (assertSlot answers PLAN_LIMIT otherwise)
+      act('resume', a.status === 'paused' && (a.pausedReason !== 'plan' || slotFree), a.status !== 'paused' ? 'CONFLICT' : 'PLAN_LIMIT'),
       act('test', true),
       act('duplicate', true),
       act('delete', true),
@@ -195,6 +196,7 @@ export class AgentService implements OnModuleInit {
     ]);
     const activeProducts = rows.some((r) => r.sellAllProducts) ? await Promise.all(rows.map((r) => (r.sellAllProducts ? this.catalogue.count(r) : Promise.resolve(r._count.products)))) : rows.map((r) => r._count.products);
     const canManage = t.role === 'owner' || t.role === 'admin';
+    const slotFree = !rows.some((r) => r.status === 'paused' && r.pausedReason === 'plan') || t.limits.maxAgents < 0 || (await this.slotHolders()) < t.limits.maxAgents;
     return rows.map((a, i) => {
       const current = presetVersions.find((p) => p.id === a.presetId)?.currentVersion ?? null;
       return {
@@ -230,7 +232,7 @@ export class AgentService implements OnModuleInit {
         version: a.version,
         createdAt: a.createdAt.toISOString(),
         updatedAt: a.updatedAt.toISOString(),
-        actions: this.actions(a, canManage),
+        actions: this.actions(a, canManage, slotFree),
       };
     });
   }
@@ -458,13 +460,19 @@ export class AgentService implements OnModuleInit {
     return this.get(id, locale);
   }
 
+  /** Agents holding a plan slot (same filter as `assertSlot`, without the lock). */
+  private slotHolders() {
+    return prisma.agent.count({ where: { deletedAt: null, status: { in: ['active', 'paused'] }, OR: [{ pausedReason: null }, { pausedReason: { not: 'plan' } }] } });
+  }
+
   /** D67 / 04 §18: the plan limit counts agents `active` or `paused`; `-1` = unlimited. */
   private async assertSlot(tx: Tx, agentId: string) {
     const t = TenantContext.get();
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${t.workspaceId} || ':agents-limit', 0))`;
     const limit = t.limits.maxAgents;
     if (limit < 0) return;
-    const current = await tx.agent.count({ where: { deletedAt: null, status: { in: ['active', 'paused'] }, id: { not: agentId } } });
+    // agents paused by the plan (02 §5 expiry / downgrade) do not hold a slot: they come back with LimitService.apply
+    const current = await tx.agent.count({ where: { deletedAt: null, status: { in: ['active', 'paused'] }, id: { not: agentId }, OR: [{ pausedReason: null }, { pausedReason: { not: 'plan' } }] } });
     if (current >= limit) throw new AppException('PLAN_LIMIT', { resource: 'agents', limit, current });
   }
 

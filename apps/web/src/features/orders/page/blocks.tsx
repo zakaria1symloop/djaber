@@ -2,7 +2,7 @@
 // Blocks of the order page (Figma "ORD-06 — Order page — new"): CLIENTE (inline contact edit), ARTICLES (+ totals,
 // quantity edit while editable), PAIEMENT, HISTORIQUE, APPELS, NOTES INTERNES (LIVRAISON: features/delivery/order-block).
 import { formatDate, formatMoney, formatPhoneDz, type AppLocale } from '@djaber/shared';
-import { Button, DetailRows, Field, FormAlert, IconButton, Input, Ltr, MonoChip, OrderBlock, OrderTimeline, PhoneInput, QtyStepper, Textarea, TotalsRows, Tooltip, type TimelineItem } from '@djaber/ui';
+import { Button, DetailRows, Field, FormAlert, IconButton, Input, Ltr, MonoChip, OrderBlock, OrderTimeline, PhoneInput, QtyStepper, StatusPill, Textarea, TotalsRows, Tooltip, type TimelineItem } from '@djaber/ui';
 import { ExternalLink, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { ProductThumb } from '@/features/catalog/ui';
@@ -302,11 +302,13 @@ export function ItemsBlock({
 /* LIVRAISON: `features/delivery/order-block.tsx` (M6 parcel states, tracking, labels). */
 
 /* ---------- PAIEMENT ---------- */
-export function PaymentBlock({ order, onRecord, onLink }: { order: Order; onRecord: () => void; onLink: () => void }) {
+export function PaymentBlock({ order, onRecord, onLink, onRefund }: { order: Order; onRecord: () => void; onLink: () => void; onRefund: () => void }) {
   const t = useT();
   const locale = useLocaleCode() as AppLocale;
   const record = actionState(order.actions, ORDER_ACTION.recordPayment, t);
   const link = actionState(order.actions, ORDER_ACTION.paymentLink, t);
+  const refund = actionState(order.actions, ORDER_ACTION.refund, t);
+  const pl = order.paymentLink;
   return (
     <OrderBlock label={t('orders.page.payment')} end={<PaymentPill status={order.paymentStatus} />} bodyClassName="flex flex-col gap-3 p-4" data-testid="payment-block">
       <DetailRows
@@ -324,11 +326,27 @@ export function PaymentBlock({ order, onRecord, onLink }: { order: Order; onReco
             </Button>
           ) : null}
           {link.present ? (
-            <Button onClick={onLink} disabled={!link.enabled} title={link.reason}>
+            <Button onClick={onLink} disabled={!link.enabled} title={link.reason} data-testid="open-payment-link">
               {t('action.paymentLink')}
             </Button>
           ) : null}
         </div>
+      ) : null}
+      {pl && pl.status !== 'creating' ? (
+        <button type="button" onClick={onLink} className="flex items-center justify-between gap-2 rounded-card border border-line-hairline px-3 py-2 text-start text-[13px] hover:border-line-edge" data-testid="payment-link-summary" data-status={pl.status}>
+          <span className="text-text-secondary">{t('action.paymentLink')}</span>
+          <span className="inline-flex items-center gap-2">
+            <Ltr className="tabular-nums">{formatMoney(pl.amount)}</Ltr>
+            <StatusPill enumKey="PaymentLink.status" value={pl.status === 'refunded' ? 'cancelled' : pl.status} className="!rounded-[4px]">
+              {t(`orders.paymentLink.status.${pl.status}`)}
+            </StatusPill>
+          </span>
+        </button>
+      ) : null}
+      {refund.present ? (
+        <Button variant="ghost" size="sm" className="self-start text-accent-alert" onClick={onRefund} disabled={!refund.enabled} title={refund.reason} data-testid="open-refund">
+          {t('action.refund')}
+        </Button>
       ) : null}
       {record.present && !record.enabled && record.reason ? <p className="ts-label-micro !normal-case text-text-muted">{record.reason}</p> : null}
       <p className="ts-label-micro !normal-case text-text-muted">{t('orders.page.codNote')}</p>

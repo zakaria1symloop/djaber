@@ -474,7 +474,17 @@ export type CreditsDto = {
   packPricePerCreditDzd: number | null;
 };
 export type CreditLedgerRowDto = { id: string; at: string; action: (typeof CreditActionValues)[number]; kind: 'reserved' | 'debit' | 'release' | 'credit'; bucket: 'plan' | 'pack'; credits: number; balanceAfter: number; detail: string; agent: AgentRefView | null; conversationId: string | null; aiRunId: string | null };
-export type CreditsCalculatorDto = { conversations: number; textTurns: number; imageTurns: number; voiceTurns: number; credits: number; estimatedCostDzd: number };
+export type CreditsCalculatorDto = {
+  conversations: number;
+  textTurns: number;
+  imageTurns: number;
+  voiceTurns: number;
+  credits: number;
+  estimatedCostDzd: number;
+  /** AT-BIL-07 "estimates per plan" and PCK-05 suggestion (smallest plan that covers the estimate, else the largest + packs) */
+  plans?: import('./billing').CreditsCalculatorPlanRow[];
+  suggestion?: import('./billing').CreditsCalculatorSuggestion | null;
+};
 
 // --- WebSocket payloads (03-events-and-jobs §2) ---------------------------------------------------------------------------------
 /** `agent.updated` (room `ws:<workspaceId>`). */

@@ -413,6 +413,20 @@ type IapValidateDto = { platform: 'google_play'|'app_store'; productId: string; 
 type IapValidateResult = { status: 'credited'|'already_credited'|'invalid'|'pending'; creditsAdded: number; balance: CreditsDto };   // errors: 404 IAP_PRODUCT_UNKNOWN · 422 IAP_RECEIPT_INVALID · 409 IAP_RECEIPT_ALREADY_USED (mobile treats as success) · 503 IAP_STORE_UNAVAILABLE
 ```
 
+**M9 additions — billing, credits, packs, IAP, order payments** (zod schemas and view types in `packages/shared/src/schemas/billing.ts`; names there are the wire names):
+
+- `SubscriptionDto` adds `nextPlan { id, slug, name, cycle, at } | null` (downgrade booked for the renewal), `unpaidInvoice { id, number, amount, remaining, dueAt } | null`, `expiredFrom { planSlug, planName, at } | null` (02 §5 banner), `actions[{ key: change_plan|cancel|pay_invoice|buy_pack, enabled, reasonCode? }]`.
+- `CheckoutPreviewDto` adds `mode: 'upgrade'|'new_period'|'renewal'|'downgrade'`, `targetPlan { id, slug, name, cycle }`, `amountBeforePromo`, `effectiveAt`. `POST /billing/checkout` → `{ checkoutUrl: string|null, ref: string|null, prorata: number|null, preview }` (`checkoutUrl: null` = downgrade booked or amount waived). Prorata (02 §5 corrected): same cycle `round((new − current) × daysLeft / periodDays)`; cycle change upward / from trial: new period, unused value deducted.
+- `GET /billing/checkout/return?ref` → `CheckoutReturnDto { status: verifying|success|pending|failed|expired, kind: subscription|pack|invoice, invoiceId, invoiceNumber, planUntil, planName, credits, failureReason }`; one gateway `verify` per poll.
+- `POST /billing/cancel { reason? }`, `DELETE /billing/cancel` (= `POST /billing/cancel/undo`) → `SubscriptionDto`. `GET|PUT /billing/info`, `GET /billing/payments` → `BillingPaymentDto`.
+- `InvoiceDto` adds `dunningStage`, `lines[{ label, amount, quantity? }]`; `pdfUrl` = `/api/v1/billing/invoices/:id/pdf` (authenticated, null for `upcoming`). `POST /billing/invoices/:id/pay` → `{ checkoutUrl, ref }`.
+- `CreditPackDto` adds `pricePerCreditDzd`; `POST /credits/packs/checkout` → `{ checkoutUrl, ref, purchaseId }`; `GET /credits/packs/purchases` → `PackPurchaseDto`; `IapValidateResult` adds `purchaseId`. `GET /credits/ledger/export?format=csv|xlsx&…` → `202 { jobId }`. `CreditsCalculatorDto` adds `plans[]` and `suggestion` (AT-PCK-04 formula).
+- `POST /billing/promo/validate` → `PromoCheckDto { code, kind, value, periods, planSlugs, referral }`; `POST /billing/promo/redeem` → `PromoRedeemDto` (+ `creditsAdded`, `trialEndsAt`, `balance`).
+- Orders: `OrderDetailView.paymentLink = { id, url: string|null, status: creating|pending|paid|failed|expired|refunded|mismatch, expiresAt: string|null, amount } | null`; `POST /orders/:id/payment-link { send? }` → `201 OrderPaymentLinkDto` (checkout created by the worker); `GET /orders/:id/payment-link`; `POST /orders/:id/refunds { amount, reason, method? }` → order detail; order `actions` add `payment_link`, `refund`. `PATCH /workspace` accepts `onlinePaymentEnabled`.
+- `WorkspaceDto.plan` adds `cancelAtPeriodEnd`, `dunningStage`, `expired { at, planName } | null`, `paused { channels, agents, members }`.
+- Admin (M9 endpoints): `POST /admin/invoices/:id/mark-paid` → `AdminMarkPaidResultDto { invoice, paymentId, remaining, reactivated }` (+ `meta.warnings` `INVOICE_PARTIAL_PAYMENT`); `POST /admin/workspaces/:id/credits { credits, reason, type? }` → `{ ledgerEntryId, balance }`.
+- Development only (fake drivers, 404 in production): `GET|POST /dev-payments/:checkoutId` (fake Chargily checkout page), `POST /dev/billing/{subscription|clock|pack|store-refund}`, `GET /dev/billing/help`.
+
 ### 3.11 Safety, support, moderation (merchant side) — D36–D38
 
 ```ts

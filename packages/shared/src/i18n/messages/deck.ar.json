@@ -233,6 +233,7 @@
  "customer.out_of_hours": "فريقنا غير متاح حاليًا، سأسجّل طلبك في الأثناء وسنتصل بك عند الفتح.",
  "customer.out_of_stock": "عذرًا، {product} غير متوفر حاليًا.",
  "customer.outsideWindowSkipped": "غير مُسلَّم — خارج نافذة 24 ساعة",
+ "customer.paymentFailed": "لم يكتمل دفع الطلب #{number}. أرسل « رابط » لتلقي رابط جديد، أو ادفع عند الاستلام.",
  "customer.paymentLink": "ادفع طلبك رقم #{number} عبر الإنترنت ({total} د.ج): {url} — صالح لمدة {minutes} دقيقة.",
  "customer.paymentReceived": "تم استلام الدفع للطلب #{number}. شكرًا لك!",
  "customer.reminderScheduled": "سنتصل بك على الساعة {time}.",

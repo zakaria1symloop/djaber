@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Credits } from './contracts';
-import { actionLabelKey, applyCreditsEvent, burnRate, creditsBanner, creditsLevel, creditsTone, isBookkeeping, levelOf, orderedRange, pricePerCredit, signedCredits, usedPct, warningDate } from './logic';
+import { actionLabelKey, applyCreditsEvent, burnRate, creditsBanner, creditsLevel, creditsTone, isBookkeeping, levelOf, orderedRange, packsShown, pricePerCredit, signedCredits, usedPct, warningDate } from './logic';
 
 const credits = (o: Partial<Credits> & { used?: number; limit?: number } = {}): Credits => {
   const { used = 3_760, limit = 5_000, ...rest } = o;
@@ -98,5 +98,13 @@ describe('ledger rows', () => {
   it('orders a reversed period', () => {
     expect(orderedRange('2026-10-06', '2026-10-01')).toEqual({ from: '2026-10-01', to: '2026-10-06' });
     expect(orderedRange('2026-10-01', '')).toEqual({ from: '2026-10-01', to: '' });
+  });
+});
+
+describe('packs tile (AT-PCK-03)', () => {
+  it('shows the debt of a store refund, the pack balance otherwise', () => {
+    expect(packsShown({ packs: { remaining: 0 }, total: -120, negative: true })).toBe(-120);
+    expect(packsShown({ packs: { remaining: 500 }, total: 1200, negative: false })).toBe(500);
+    expect(packsShown({ packs: { remaining: -40 }, total: -40, negative: true })).toBe(-40);
   });
 });

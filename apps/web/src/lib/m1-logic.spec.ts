@@ -74,8 +74,11 @@ describe('sidebar and settings sub-nav', () => {
     expect(hrefs('admin')).not.toContain('/settings/danger');
     expect(hrefs('admin')).toContain('/settings/workspace');
     expect(hrefs('owner')).toHaveLength(SETTINGS_NAV.length);
+    // Plan & facturation (M9): Owner + Admin (`billing.read`), never Operators
+    expect(hrefs('owner')).toContain('/settings/billing');
+    expect(hrefs('admin')).toContain('/settings/billing');
     // entries of later milestones are not linked yet
-    for (const later of ['/settings/integrations', '/settings/billing']) expect(hrefs('owner')).not.toContain(later);
+    expect(hrefs('owner')).not.toContain('/settings/integrations');
     expect(hrefs('owner')).toContain('/settings/credits');
   });
 });

@@ -752,6 +752,7 @@ One `notification.<slug>.title` key per value of the Prisma enum `NotificationTy
 | customer.orderCancelled | Votre commande #{number} a été annulée. | | |
 | customer.paymentLink | Payez votre commande #{number} en ligne ({total} DA) : {url} — valable {minutes} min. | | |
 | customer.paymentReceived | Paiement reçu pour #{number}. Merci ! | | |
+| customer.paymentFailed | Le paiement de la commande #{number} n'a pas abouti. Répondez « lien » pour recevoir un nouveau lien, ou payez à la livraison. | لم يكتمل دفع الطلب #{number}. أرسل « رابط » لتلقي رابط جديد، أو ادفع عند الاستلام. | The payment for order #{number} did not go through. Reply "link" to get a new link, or pay on delivery. |
 | customer.reminderScheduled | Nous vous rappelons à {time}. | | |
 
 ### 2.12 Validation (`validation.*`) — 04 §2

@@ -3,6 +3,7 @@
 // items = the server descriptors in the Figma order, primary first, greyed with their code; navigation items are
 // local. Dialogs are opened on the order id (the row has no history / calls, the dialog reads the full order).
 import { toast, type MenuAction } from '@djaber/ui';
+import { PaymentLinkDialog, RefundDialog } from './dialogs/payment-dialogs';
 import { useCallback, useState, type ReactNode } from 'react';
 import { useRouter } from '@/i18n/navigation';
 import { toMenuActions, type ActionHandler } from '@/lib/actions';
@@ -20,7 +21,7 @@ import { AssignDialog, CallbackDialog, CancelOrderDialog, ChangeStatusDialog, De
 import { SendToCourierDialog } from '@/features/delivery/send-dialog';
 import type { ShipmentErrorView } from '@djaber/shared';
 
-export type OrderDialogKind = 'confirm' | 'log_call' | 'callback' | 'cancel' | 'status' | 'deliver' | 'return' | 'delete' | 'payment' | 'assign' | 'address' | 'ship' | 'send';
+export type OrderDialogKind = 'confirm' | 'log_call' | 'callback' | 'cancel' | 'status' | 'deliver' | 'return' | 'delete' | 'payment' | 'assign' | 'address' | 'ship' | 'send' | 'payment_link' | 'refund';
 type OrderLike = Pick<OrderListItem, 'id' | 'number' | 'status' | 'version' | 'actions' | 'conversationId' | 'client' | 'assignee'>;
 
 /** Status targets of "Changer le statut" (04 §1.2), cancellation having its own dialog. */
@@ -46,7 +47,8 @@ export function orderMenuActions(o: OrderLike, run: (kind: OrderDialogKind | 'co
     [ORDER_ACTION.assign]: { label: t('action.assignTo'), onSelect: () => run('assign', o) },
     [ORDER_ACTION.logCall]: { label: t('orders.menu.logCall'), onSelect: () => run('log_call', o), hint: t('orders.menu.hint.dialog') },
     [ORDER_ACTION.recordPayment]: { label: t('action.recordPayment'), onSelect: () => run('payment', o), hint: t('orders.menu.hint.dialog') },
-    [ORDER_ACTION.paymentLink]: { label: t('action.paymentLink'), onSelect: () => toast({ tone: 'info', message: t('orders.paymentLink.p2') }), hint: t('orders.menu.hint.p2') },
+    [ORDER_ACTION.paymentLink]: { label: t('action.paymentLink'), onSelect: () => run('payment_link', o), hint: t('orders.menu.hint.dialog') },
+    [ORDER_ACTION.refund]: { label: t('action.refund'), onSelect: () => run('refund', o), hint: t('orders.menu.hint.dialog') },
     print: { label: t('orders.menu.print'), onSelect: () => nav(`/orders/${o.id}/print`), hint: t('orders.menu.hint.pdf'), local: true, separated: true },
     client: { label: t('orders.menu.client', { count: o.client.orderCount }), onSelect: () => nav(`/clients?sheet=${o.client.id}`), hint: t('orders.menu.hint.clients'), local: true },
     [ORDER_ACTION.duplicate]: { label: t('orders.menu.duplicate'), onSelect: () => nav(`/orders/new?duplicate=${o.id}`), hint: t('orders.menu.hint.duplicate'), local: true, hidden: !opt.canWrite },
@@ -131,6 +133,8 @@ export function useOrderActions(o: { onDeleted?: () => void } = {}) {
           <ReturnDialog {...base} open={is('return')} />
           <DeleteOrderDialog {...base} open={is('delete')} />
           <PaymentDialog {...base} open={is('payment')} />
+          <PaymentLinkDialog {...base} open={is('payment_link')} />
+          <RefundDialog {...base} open={is('refund')} />
           <AddressDialog {...base} open={is('address')} />
           <ShipManualDialog {...base} open={is('ship')} />
           <SendToCourierDialog {...base} open={is('send')} initialError={state?.error} />

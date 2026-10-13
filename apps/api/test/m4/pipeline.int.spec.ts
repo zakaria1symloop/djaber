@@ -729,7 +729,7 @@ describe('providers, credits', () => {
     expect(await db.notification.count({ where: { workspaceId: s.owner.workspaceId, type: 'credits_exhausted' } })).toBe(1);
   });
 
-  it('credits: 80 % notification once per period, `credits.updated` on every debit, monthly conversation quota gate (F-4)', async () => {
+  it('AT-BIL-04 credits: 80 % notification once per period, `credits.updated` on every debit, monthly conversation quota gate (F-4)', async () => {
     const s = await shop();
     await setCredits(app, s.owner.workspaceId, 5);
     const b = await balanceOf(app, s.owner.workspaceId);

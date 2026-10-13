@@ -32,6 +32,8 @@ export const UpdateWorkspaceSchema = z
     targetMarginPct: z.number().int('validation.range').min(0, 'validation.range').max(100, 'validation.range').optional(),
     /** DLV-05 / D9: a confirmed order is sent to the default courier automatically */
     autoSendToCourier: z.boolean().optional(),
+    /** PAY-02 / 03 §20 (M9): online payment of orders through Chargily (payment links, AI tool `create_payment_link`) */
+    onlinePaymentEnabled: z.boolean().optional(),
     /** id returned by `POST /uploads { kind: 'logo' }`; null removes the logo */
     logoUploadId: z.string().uuid('validation.id').nullable().optional(),
     /** optimistic concurrency (api-contract §1.8): stale ⇒ 409 CONFLICT { current } */

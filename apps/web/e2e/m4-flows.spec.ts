@@ -167,9 +167,11 @@ test('AT-AI-14 — credits exhausted: the next customer message gets the thread 
   await expect.poll(async () => (await messagesOf(request(page), owner, conversation.id)).filter((m) => m.type === 'product_cards').length).toBe(0);
   await expectNoA11yViolations(page);
 
-  // "Acheter des crédits" of the shell banner opens the credits page, where the balance shows 0
+  // "Acheter des crédits" of the shell banner opens the pack purchase of the credits page (M9), where the balance shows 0
   await page.locator('[data-shell-banner="credits100"]').getByRole('button').first().click();
-  await expectUrl(page, '**/settings/credits', { timeout: 60_000 });
+  await expect(page).toHaveURL(/\/settings\/credits\?buy=1$/, { timeout: 60_000 });
+  await expect(page.getByTestId('buy-pack-dialog')).toBeVisible({ timeout: 30_000 });
+  await page.keyboard.press('Escape');
   await expect(page.getByTestId('ledger-row').first()).toBeVisible({ timeout: 30_000 });
   await setCredits(request(page), owner, 300);
 });

@@ -174,3 +174,21 @@ One entry per finished stage: what was built, checks passing, what is still simu
 - Plans: every workspace is still on the trial, so the "no scheduled reports" state is only tested with a mock until billing (M9).
 
 **Deferred** (tracked in `carry-overs.md`): platform-wide totals for the admin (M10); real wilaya boundaries for the map, extra report filters drawn in Figma (M11 polish); upgrade link target `/settings/billing` (M9).
+
+## M9 — Plans, payments, credits and packs (2026-10-13)
+
+**Built**
+- Plan & billing (`/settings/billing`): plan cards with limits, monthly / yearly, usage tiles, paused resources, change plan with a prorated preview (upgrade now, downgrade at renewal), promo codes, cancel at period end and undo, invoices with PDF and "Payer maintenant", billing details; banners for trial end, expiring plan, unpaid invoice and expired plan (page and shell). Owner-only actions are greyed for Admins; Operators get the 403 page.
+- Checkout: Chargily behind `PaymentGateway`, return page `/settings/billing/return` that checks the payment (verifying, success, pending, failed, expired, unknown), signed webhooks processed once.
+- Expiry and reminders: daily jobs apply the single rule of 02 §5 — when a plan or trial ends the shop moves to the free plan, pages / agents / members above its limits are paused (newest first) and come back (oldest first) when a plan is paid; reminders J−7, J0, J+3, J+7; never a suspension. Limits are enforced in every creating action; an agent paused by the plan shows "Reprendre" greyed while no slot is free.
+- Credits (`/settings/credits`): plan credits and pack credits (packs never expire, used after plan credits), buy a pack, calculator, ledger CSV export, negative balance after a store refund. Mobile store purchases are validated server side (Google Play, App Store) with store notifications.
+- Orders: online payment switch, "Lien de paiement" (created, copied, paid, expired, failed) and "Rembourser"; the AI can send a payment link when online payment is on.
+- Admin endpoints for marking an invoice paid and granting credits (their screens come with the admin in M10).
+
+**Checks** — lint ✔ · typecheck ✔ · unit ✔ (shared 38, api 609, web 518) · integration ✔ (633 in 47 files, incl. webhook signature refused / replay ignored, expiry pauses and restores, store receipts for both stores) · AI pipeline scenarios ✔ (29) · translations ✔ (6 232 texts × 3 languages) · Storybook build ✔ · browser ✔ (408 in one complete run, 23 of them M9; earlier `// mock:` states — agent paused by the plan, pack and negative balance, Starter without scheduled reports — now use the real API; the two small API fixes made after that run, the test checkout page returning to the app and the greyed "Reprendre", are covered by integration tests) · production build ✔, served on the local network.
+
+**Simulated / not verifiable here**
+- No real payment can happen: `PAYMENT_DRIVER=fake` runs the real Chargily code against a simulated Chargily kept in Redis; every checkout opens a test page (`/api/v1/dev-payments/:id`) with Payé / Échoué / Expiré / En attente. Live Chargily and the app stores are written but refused unless `PAYMENT_ALLOW_LIVE` / `IAP_ALLOW_LIVE` are true; they need a staging pass (Chargily test mode) and published store apps.
+- The SMS reminder for an unpaid invoice is not sent (no SMS service yet).
+
+**Deferred** (tracked in `carry-overs.md`): admin screens for packs, promo codes, invoices and grants (M10); SMS reminders; live payment and store checks on staging.

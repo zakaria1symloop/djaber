@@ -1,0 +1,13 @@
+{
+  "purchaseTimeMillis": "1760345000000",
+  "purchaseState": 0,
+  "consumptionState": 0,
+  "developerPayload": "",
+  "orderId": "GPA.3378-2296-1532-17841",
+  "purchaseType": 0,
+  "acknowledgementState": 0,
+  "kind": "androidpublisher#productPurchase",
+  "regionCode": "DZ",
+  "productId": "djaber.credits.pack-500",
+  "quantity": 1
+}

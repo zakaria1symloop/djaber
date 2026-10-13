@@ -52,6 +52,8 @@ export const ConfigSchema = z.object({
   // Payments (Chargily is the only gateway, D4)
   PAYMENT_PROVIDER: z.literal('chargily').default('chargily'),
   PAYMENT_DRIVER: z.enum(['fake', 'chargily']).default('fake'),
+  // safety guard: the Chargily adapter refuses to start in development / test unless this is true (no real payment from dev)
+  PAYMENT_ALLOW_LIVE: bool.default(false),
   CHARGILY_API_KEY: z.string().optional(),
   CHARGILY_SECRET: z.string().optional(),
   CHARGILY_MODE: z.enum(['test', 'live']).default('test'),
@@ -80,8 +82,20 @@ export const ConfigSchema = z.object({
   // safety guard: the FCM adapter refuses to start in development / test unless this is true (03-events §5.2)
   PUSH_ALLOW_LIVE: bool.default(false),
   IAP_DRIVER: z.enum(['fake', 'stores']).default('fake'),
+  // safety guard: the live store validators refuse to start in development / test unless this is true
+  IAP_ALLOW_LIVE: bool.default(false),
   GOOGLE_PLAY_SERVICE_ACCOUNT: z.string().optional(),
+  GOOGLE_PLAY_PACKAGE_NAME: z.string().default('ai.djaber.app'),
+  // Pub/Sub push subscription URL carries `?token=<this>` (05-integrations §5)
+  GOOGLE_PLAY_PUBSUB_TOKEN: z.string().optional(),
   APP_STORE_SHARED_SECRET: z.string().optional(),
+  APPLE_IAP_KEY_ID: z.string().optional(),
+  APPLE_IAP_ISSUER_ID: z.string().optional(),
+  APPLE_IAP_PRIVATE_KEY: z.string().optional(),
+  APPLE_IAP_BUNDLE_ID: z.string().default('ai.djaber.app'),
+  APPLE_IAP_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
+  // SHA-256 fingerprint of "Apple Root CA - G3" (the root of the x5c chain of every App Store signed payload)
+  APPLE_ROOT_CA_SHA256: z.string().default('63343ABFB89A6A03EBB57E9B3F5FA7BE7C4F5C756F3017B3A8C488C3653E9179'),
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   SWAGGER_ENABLED: bool.default(true),
