@@ -19,7 +19,7 @@ export type Actor = {
 
 const uniq = () => randomUUID().slice(0, 8);
 
-export const createUser = async (over: Partial<{ email: string; platformRole: string; emailVerified: boolean }> = {}) =>
+export const createUser = async (over: Partial<{ email: string; platformRole: string; emailVerified: boolean; totpEnabled: boolean }> = {}) =>
   db.user.create({
     data: {
       email: over.email ?? `user-${uniq()}@test.local`,
@@ -28,13 +28,16 @@ export const createUser = async (over: Partial<{ email: string; platformRole: st
       lastName: 'User',
       platformRole: (over.platformRole ?? 'none') as never,
       emailVerifiedAt: over.emailVerified === false ? null : new Date(),
+      totpEnabled: over.totpEnabled ?? false,
     },
   });
 
 /** Workspace with an owner and a subscription on `planSlug` (default pro, active). */
 export const createWorkspace = async (planSlug = 'pro') => {
   const owner = await createUser();
-  const ws = await db.workspace.create({ data: { name: `Boutique ${uniq()}`, slug: `ws-${uniq()}` } });
+  // an established merchant (M10 moderation, 04 §12): `standard` trust, so clean products are auto-approved as before;
+  // moderation suites set `new` / `trusted` / `watch` explicitly
+  const ws = await db.workspace.create({ data: { name: `Boutique ${uniq()}`, slug: `ws-${uniq()}`, trustLevel: 'standard' } });
   await db.user.update({ where: { id: owner.id }, data: { ownedWorkspaceId: ws.id } });
   await db.membership.create({ data: { workspaceId: ws.id, userId: owner.id, role: 'owner' } });
   const plan = await db.plan.findUniqueOrThrow({ where: { slug: planSlug } });
@@ -75,8 +78,9 @@ export const asMember = async (app: TestApp, workspaceId: string, role: Membersh
 export const asAdmin = (app: TestApp, workspaceId: string) => asMember(app, workspaceId, 'admin');
 export const asOperator = (app: TestApp, workspaceId: string) => asMember(app, workspaceId, 'operator');
 
-export const asPlatform = async (app: TestApp, role = 'super_admin') => {
-  const user = await createUser({ platformRole: role });
+/** Platform user (D41: 2FA enabled — every platform role needs it; `totpEnabled: false` ⇒ TWO_FA_REQUIRED_FOR_ROLE). */
+export const asPlatform = async (app: TestApp, role = 'super_admin', o: { totpEnabled?: boolean; email?: string } = {}) => {
+  const user = await createUser({ platformRole: role, totpEnabled: o.totpEnabled ?? true, email: o.email ?? `pf-${uniq()}@djaber.ai` });
   return actor(app, user.id, '', undefined, role);
 };
 

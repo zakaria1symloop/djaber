@@ -21,9 +21,21 @@ export class TenantGuard implements CanActivate {
     if (isPublic && !req.user && !req.apiKey) return true;
 
     let info: TenantInfo | null;
+    const isPlatform = this.reflector.getAllAndOverride<boolean>(IS_PLATFORM, targets);
+    const imp = req.headers['x-impersonation-session'] ?? req.claims?.imp;
+    if (imp && req.user && !isPlatform) {
+      // D21-bis: read-only impersonation — audited, then every non-GET request is refused before the handler
+      info = await this.resolver.forImpersonation(req.user, String(imp), req.claims, { method: req.method, path: req.path, ip: req.ip ?? null, userAgent: req.headers['user-agent'] ?? null });
+      if (req.method !== 'GET' && req.method !== 'HEAD') throw new AppException('ADMIN_IMPERSONATION_FORBIDDEN_ACTION');
+      const s = TenantContext.get();
+      for (const k of Object.keys(s)) delete (s as Record<string, unknown>)[k];
+      Object.assign(s, info);
+      req.tenant = s;
+      return true;
+    }
     if (
       isPublic ||
-      this.reflector.getAllAndOverride<boolean>(IS_PLATFORM, targets) ||
+      isPlatform ||
       this.reflector.getAllAndOverride<boolean>(IS_AUTHENTICATED_ONLY, targets)
     ) {
       info = await this.resolver.forAccount(req.user);

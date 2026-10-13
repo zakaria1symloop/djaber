@@ -6,8 +6,9 @@
 //   finish    status, tokens, latency, model, cost, metrics (§13)
 //   reaper    `sched-ai-run-reaper`: runs `running` for more than 5 min ⇒ `error('reaped')`, credits released
 import { createHash } from 'node:crypto';
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { prisma, Prisma, TenantContext, type AiIntent, type AiRun, type AiRunKind, type AiRunStatus, type Tx } from '@djaber/db';
+import { MetricsService } from '../../core/metrics/metrics.service';
 import { ProcessorRegistry } from '../../core/queue/processor.registry';
 import { TenantResolver } from '../../core/tenancy/tenant.resolver';
 import { CreditService } from '../credits/credit.service';
@@ -61,6 +62,7 @@ export class AiRunService implements OnModuleInit {
     private readonly credits: CreditService,
     private readonly registry: ProcessorRegistry,
     private readonly tenants: TenantResolver,
+    @Optional() private readonly metrics?: MetricsService,
   ) {}
 
   onModuleInit() {
@@ -205,6 +207,7 @@ export class AiRunService implements OnModuleInit {
         meta: meta as Prisma.InputJsonValue,
       },
     });
+    if (r.count === 1) this.metrics?.aiRun(p.status, Math.max(0, Date.now() - p.startedAt.getTime()), model?.provider ?? null);
     return r.count === 1;
   }
 

@@ -81,14 +81,15 @@ test('AT-NTF-03 list: unread count equals the server count, family and type filt
   await expect(page.getByRole('heading', { name: 'Aucun résultat' })).toBeVisible();
   await page.getByRole('button', { name: 'Effacer les filtres' }).click();
   await expect(page).toHaveURL(/\/fr\/notifications$/);
-  await expect(list.locator('li')).toHaveCount(2);
+  // the two stock rows (+ the grouped `product.approved` row of the moderation family since M10)
+  await expect(list.locator('li', { hasText: 'stock.' })).toHaveCount(2);
 
   // "Non lues" toggle is URL state too and survives a reload
   await chips.getByRole('button', { name: /^Non lues/ }).click();
   await expect(page).toHaveURL(/unread=1/);
   await page.reload();
   await expect(chips.getByRole('button', { name: /^Non lues/ })).toHaveAttribute('aria-pressed', 'true');
-  await expect(list.locator('li')).toHaveCount(2);
+  await expect(list.locator('li', { hasText: 'stock.' })).toHaveCount(2);
 });
 
 test('AT-NTF-03 deep link: "Ouvrir ›" marks the row read and opens the target screen (/products?lowStock=1)', async ({ page, request }) => {

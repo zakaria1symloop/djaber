@@ -38,7 +38,10 @@ export class PermissionGuard implements CanActivate {
     if (platformKey || this.reflector.getAllAndOverride<boolean>(IS_PLATFORM, targets)) {
       if (!platformKey) throw new Error(`Platform route ${req.method} ${req.path} has no @RequirePlatformRole`);
       const allowed = PLATFORM_PERMISSIONS[platformKey] as readonly string[];
-      if (!t.platformRole || !allowed.includes(t.platformRole)) throw new AppException('FORBIDDEN');
+      if (!t.platformRole) throw new AppException('FORBIDDEN');
+      // D41 / PRL-02: every platform role must have 2FA enabled — access blocked until then
+      if (!t.totpEnabled) throw new AppException('TWO_FA_REQUIRED_FOR_ROLE');
+      if (!allowed.includes(t.platformRole)) throw new AppException('FORBIDDEN');
       return true;
     }
     if (this.reflector.getAllAndOverride<boolean>(IS_AUTHENTICATED_ONLY, targets)) return true;

@@ -8,6 +8,10 @@ import { AppException, validationError } from '../../core/errors/app.exception';
 import { StorageService } from '../../core/storage/storage.service';
 
 export const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+/** PDF / CSV attachments (appeal proof, support tickets): ≤ 5 MB (04 §12 appeal, 03 §25 HELP-03), stored as sent. */
+export const FILE_MAX_BYTES = 5 * 1024 * 1024;
+const PDF_MIMES = new Set(['application/pdf', 'application/x-pdf']);
+const CSV_MIMES = new Set(['text/csv', 'application/csv', 'text/plain', 'application/vnd.ms-excel']);
 const IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const SHARP_FORMATS = new Set(['jpeg', 'png', 'webp', 'gif']);
 /** Square-ish identity pictures: 512 px is enough for every place they are shown. */
@@ -19,6 +23,30 @@ export type UploadResult = { id: string; url: string; mime: string; size: number
 @Injectable()
 export class ImageUploadService {
   constructor(private readonly storage: StorageService) {}
+
+  /**
+   * Images are re-encoded (`store`); PDF (magic `%PDF-`) and, when `allowCsv`, CSV text files are stored raw (≤ 5 MB):
+   * `appeal_attachment` (PDF since M10, carry-over M2) and `ticket_attachment` (screenshots, PDF, CSV — HELP-03).
+   */
+  async storeAttachment(file: UploadedFile | undefined, kind: UploadKind, userId: string, workspaceId: string | null, o: { allowCsv: boolean }): Promise<UploadResult> {
+    if (!file?.buffer?.length) throw validationError({ file: 'validation.required' });
+    if (IMAGE_MIMES.has(file.mimetype)) return this.store(file, kind, userId, workspaceId);
+    const isPdf = PDF_MIMES.has(file.mimetype) || file.buffer.subarray(0, 5).toString('latin1') === '%PDF-';
+    const isCsv = !isPdf && o.allowCsv && (CSV_MIMES.has(file.mimetype) || /\.csv$/i.test(file.originalname ?? ''));
+    if (!isPdf && !isCsv) throw new AppException('UPLOAD_TYPE_INVALID', {}, { file: 'validation.invalid' });
+    if (file.size > FILE_MAX_BYTES || file.buffer.length > FILE_MAX_BYTES) throw new AppException('UPLOAD_TOO_LARGE', { max: '5 MB' }, { file: 'validation.invalid' });
+    // the declared type is not trusted: a PDF starts with `%PDF-`, a CSV is text without NUL bytes
+    if (isPdf && file.buffer.subarray(0, 5).toString('latin1') !== '%PDF-') throw new AppException('UPLOAD_TYPE_INVALID', {}, { file: 'validation.invalid' });
+    if (isCsv && file.buffer.includes(0)) throw new AppException('UPLOAD_TYPE_INVALID', {}, { file: 'validation.invalid' });
+    const mime = isPdf ? 'application/pdf' : 'text/csv';
+    const ext = isPdf ? 'pdf' : 'csv';
+    const key = `${workspaceId ? `ws/${workspaceId}` : `users/${userId}`}/${kind}/${randomUUID()}.${ext}`;
+    const stored = await this.storage.put(key, file.buffer, mime);
+    const row = await TenantContext.runSystem(() =>
+      prisma.upload.create({ data: { workspaceId, storageKey: key, url: stored.url, mime, size: file.buffer.length, kind, createdById: userId } }),
+    );
+    return { id: row.id, url: row.url, mime: row.mime, size: row.size, width: null, height: null };
+  }
 
   async store(file: UploadedFile | undefined, kind: UploadKind, userId: string, workspaceId: string | null): Promise<UploadResult> {
     if (!file?.buffer?.length) throw validationError({ file: 'validation.required' });

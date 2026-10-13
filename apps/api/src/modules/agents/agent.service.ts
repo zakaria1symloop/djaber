@@ -25,6 +25,7 @@ import type { BulkResult } from '../../core/http/pagination';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { OutboxService } from '../../core/outbox/outbox.service';
 import { ProcessorRegistry } from '../../core/queue/processor.registry';
+import { ModerationHookService } from '../catalog/moderation-hook.service';
 import { TenantResolver } from '../../core/tenancy/tenant.resolver';
 import { algiersDayEnd, algiersDayStart } from '../../core/time/algiers';
 import { CatalogueService } from '../ai/catalogue.service';
@@ -78,6 +79,7 @@ export class AgentService implements OnModuleInit {
     private readonly registry: ProcessorRegistry,
     private readonly tenants: TenantResolver,
     private readonly notifications: NotificationProducer,
+    private readonly moderation: ModerationHookService,
   ) {}
 
   onModuleInit() {
@@ -453,7 +455,9 @@ export class AgentService implements OnModuleInit {
       if (channelIds) await this.setChannels(tx, before, channelIds, move === true);
       if (productIds) await this.setProducts(tx, id, productIds);
       await this.recordVersion(tx, id, before.status === 'draft' ? 'wizard' : 'manual', { note: note ?? null });
-      await this.emit(tx, await tx.agent.findUniqueOrThrow({ where: { id } }));
+      const saved = await tx.agent.findUniqueOrThrow({ where: { id } });
+      await this.moderation.submitAgentPrompt(tx, id, saved.customInstructions); // MOD-08 (M10)
+      await this.emit(tx, saved);
       return true;
     });
     if (!ok) throw await stale();

@@ -34,7 +34,7 @@ export type NavItem = {
   /** hidden when workspace.stockMode === 'simple' (D12) */
   advancedOnly?: boolean;
   /** name of the badge counter in the shell counters */
-  badge?: 'queue' | 'inbox' | 'notifications';
+  badge?: string;
   /** merchant permission required to see the item */
   permission?: string;
 };

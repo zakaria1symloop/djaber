@@ -113,7 +113,9 @@ export type ConnectReportCode =
   | 'PAGE_ALREADY_CONNECTED_ELSEWHERE'
   | 'PAGE_WEBHOOK_SUBSCRIBE_FAILED'
   | 'PAGE_INSTAGRAM_PENDING_APPROVAL'
-  | 'PLAN_LIMIT';
+  | 'PLAN_LIMIT'
+  /** D63: the plan was lowered below the pages already connected (kept, none can be added) */
+  | 'PLAN_LIMIT_GRANDFATHERED';
 export type ConnectReportPage = {
   externalId: string;
   name: string;

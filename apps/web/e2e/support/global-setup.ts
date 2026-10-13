@@ -16,6 +16,22 @@ export async function clearRateLimits() {
   }
 }
 
+/**
+ * M10 (D52): a new workspace starts at trust level `new`, so every product it creates waits for a moderator. The e2e
+ * workspaces are moved to `standard` (contract-b: "the web e2e workspaces must be standard") so clean products are
+ * approved at once, as in M2–M9; the moderation specs create their pending items with a protected-brand rule.
+ */
+export async function trustWorkspace(workspaceId: string) {
+  const require = createRequire(resolve(__dirname, '../../../../packages/db/package.json'));
+  const { PrismaClient } = require('@prisma/client');
+  const db = new PrismaClient({ datasourceUrl: process.env.E2E_DATABASE_URL ?? 'postgresql://djaber:djaber@localhost:54329/djaber' });
+  try {
+    await db.$executeRawUnsafe(`UPDATE "Workspace" SET "trustLevel" = 'standard' WHERE "id" = $1::uuid AND "trustLevel" = 'new'`, workspaceId);
+  } finally {
+    await db.$disconnect();
+  }
+}
+
 export default async function globalSetup() {
   await clearRateLimits();
 }

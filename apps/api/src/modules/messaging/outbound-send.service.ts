@@ -2,7 +2,7 @@
 // caller's transaction together with its `meta-send` job (outbox → queue `outbox`, job id `send:<messageId>`); the job
 // talks to Meta, then the message becomes `sent` or `failed`. Messages the 24 h window forbids are stored
 // `skipped_window` and never sent. The job is safe to run twice (status check + per-part bookkeeping).
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { formatMessage, formatMoney, getMessages, isAppLocale, PRODUCT_CARDS_MAX, type AppLocale, type MessageCardView } from '@djaber/shared';
 import { prisma, Prisma, TenantContext, type Conversation, type MessageType, type Tx } from '@djaber/db';
@@ -10,6 +10,8 @@ import { AppException, notFound } from '../../core/errors/app.exception';
 import { OutboxService } from '../../core/outbox/outbox.service';
 import { ProcessorRegistry } from '../../core/queue/processor.registry';
 import { QueueOutbox } from '../../core/queue/queue.outbox';
+import { MetricsService } from '../../core/metrics/metrics.service';
+import { META_SEND_PER_CHANNEL_RPS, takeSlot, throttleJob } from '../../core/queue/throttle';
 import { RedisService } from '../../core/redis/redis.provider';
 import { ChannelService } from '../channels/channel.service';
 import { ChannelTokens } from '../channels/channel.util';
@@ -54,6 +56,7 @@ export class OutboundSendService implements OnModuleInit {
     private readonly tokens: ChannelTokens,
     private readonly channels: ChannelService,
     @Inject(META_GATEWAY) private readonly meta: MetaGateway,
+    @Optional() private readonly metrics?: MetricsService,
   ) {}
 
   onModuleInit() {
@@ -220,6 +223,8 @@ export class OutboundSendService implements OnModuleInit {
       let firstMid = (await this.redis.client.get(`${doneKey}:mid`)) ?? null;
       try {
         for (let i = done; i < parts.length; i++) {
+          // 03-events §3: 10 sends / s per channel (Redis window shared by the workers); a throttled job is re-delayed
+          await throttleJob(job, () => takeSlot(this.redis.client, `meta-send:${data.channelId}`, META_SEND_PER_CHANNEL_RPS));
           const res = await this.meta.send(auth, { recipientId: conv.externalSenderId, message: parts[i]!, messagingType: data.messagingType, tag: data.tag });
           done = i + 1;
           firstMid ??= res.messageId || null;
@@ -250,6 +255,7 @@ export class OutboundSendService implements OnModuleInit {
 
   /** Final failure of a send (05 §1.4 table): the message is `failed`; the channel / conversation follow the error class. */
   private async fail(m: MessageRow, conv: Conversation, data: SendJob, code: string, e?: MetaError): Promise<'failed'> {
+    this.metrics?.metaSendFailures.inc({ code: e?.code !== undefined && e?.code !== null ? String(e.code) : code });
     await prisma.$transaction(async (db) => {
       const tx = db as Tx;
       const r = await tx.message.updateMany({ where: { id: m.id, deliveryStatus: 'pending' }, data: { deliveryStatus: 'failed', error: code } });

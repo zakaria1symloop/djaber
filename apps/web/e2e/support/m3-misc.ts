@@ -28,17 +28,22 @@ export async function unreadCount(request: APIRequestContext, a: Account): Promi
  * `null` when nothing arrives (relay not running) so that the spec can skip with that reason.
  */
 export async function seedStockNotifications(request: APIRequestContext, a: Account, tag: string): Promise<{ lowName: string; outName: string; unread: number } | null> {
-  const before = await unreadCount(request, a);
   const lowName = `Parfum Oud ${tag}`;
   const outName = `Sac cuir ${tag}`;
   const low = await seedProduct(request, a, { name: lowName, sku: sku('NTFL'), price: 4900, stock: 10, minStock: 5 });
   const out = await seedProduct(request, a, { name: outName, sku: sku('NTFO'), price: 9800, stock: 4, minStock: 2 });
   await adjustStock(request, a, { productId: low.id, type: 'out', quantity: 7 });
   await adjustStock(request, a, { productId: out.id, type: 'out', quantity: 4 });
+  // M10: saving a product also writes the grouped `product.approved` row (MOD-10); the stock rows are awaited by family
+  // and the unread count is read once both are there, so it is the server count the page will show
   const deadline = Date.now() + 20_000;
   for (;;) {
-    const unread = await unreadCount(request, a);
-    if (unread >= before + 2) return { lowName, outName, unread };
+    const res = await request.get(`${API}/notifications?group=stock`, { headers: authHeaders(a) });
+    const rows = res.ok() ? ((await res.json()) as { data: unknown[] }).data : [];
+    if (rows.length >= 2) {
+      await new Promise((r) => setTimeout(r, 1_000));
+      return { lowName, outName, unread: await unreadCount(request, a) };
+    }
     if (Date.now() > deadline) return null;
     await new Promise((r) => setTimeout(r, 500));
   }

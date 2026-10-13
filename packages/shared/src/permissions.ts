@@ -70,3 +70,40 @@ export const isReadPermission = (key: MerchantPermission): boolean => /\.(read|r
  */
 export const memberCan = (m: { role: MemberRole | null | undefined; readOnly?: boolean }, key: MerchantPermission): boolean =>
   roleCan(m.role, key) && (!m.readOnly || isReadPermission(key));
+
+// 01-nest-module-map §3.2 — platform keys `admin.<area>.read` / `admin.<area>.write` (+ extension keys), mirrored from
+// apps/api/src/core/rbac/permission-matrix.ts (PLATFORM_PERMISSIONS) for the admin shell. The API enforces every key.
+export type PlatformRoleName = 'super_admin' | 'support' | 'moderator' | 'finance' | 'read';
+const P_ALL: readonly PlatformRoleName[] = ['super_admin', 'support', 'moderator', 'finance', 'read'];
+const P_SA: readonly PlatformRoleName[] = ['super_admin'];
+export const PLATFORM_AREAS = ['overview', 'workspaces', 'users', 'billing', 'ai', 'presets', 'cms', 'audit', 'health', 'settings', 'moderation', 'safety', 'support', 'team', 'deletion'] as const;
+export type PlatformArea = (typeof PLATFORM_AREAS)[number];
+
+export const PLATFORM_PERMISSIONS = {
+  ...(Object.fromEntries(PLATFORM_AREAS.map((a) => [`admin.${a}.read`, P_ALL])) as Record<`admin.${PlatformArea}.read`, readonly PlatformRoleName[]>),
+  'admin.overview.write': P_SA,
+  'admin.workspaces.write': P_SA,
+  'admin.workspaces.credits': ['super_admin', 'support', 'finance'],
+  'admin.workspaces.impersonate': ['super_admin', 'support'],
+  'admin.workspaces.unmask': P_SA,
+  'admin.users.write': P_SA,
+  'admin.billing.write': ['super_admin', 'finance'],
+  'admin.ai.write': P_SA,
+  'admin.presets.write': P_SA,
+  'admin.cms.write': P_SA,
+  'admin.audit.export': ['super_admin', 'finance'],
+  'admin.health.write': P_SA,
+  'admin.health.replay': ['super_admin', 'support'],
+  'admin.settings.write': P_SA,
+  'admin.moderation.write': ['super_admin', 'moderator'],
+  'admin.safety.write': ['super_admin', 'moderator'],
+  'admin.support.write': ['super_admin', 'support'],
+  'admin.team.write': P_SA,
+  'admin.deletion.write': ['super_admin', 'support'],
+} as const satisfies Record<string, readonly PlatformRoleName[]>;
+
+export type PlatformPermission = keyof typeof PLATFORM_PERMISSIONS;
+export const isPlatformPermission = (key: string): key is PlatformPermission => key in PLATFORM_PERMISSIONS;
+/** UI mirror of `canPlatform` (API): `none` / unknown roles hold no key. */
+export const platformCan = (role: string | null | undefined, key: PlatformPermission): boolean =>
+  !!role && (PLATFORM_PERMISSIONS[key] as readonly string[]).includes(role);

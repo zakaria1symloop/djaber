@@ -22,6 +22,8 @@ import { useInboxBadge, useInboxEvents } from '@/features/inbox/api';
 import { useMessageSound } from '@/features/inbox/sound';
 import { NotificationBell, useUnreadNotifications } from '@/features/notifications/shell';
 import { useQueueCount } from '@/features/queue/shell';
+import { HelpPanelButton } from '@/features/help/help-panel';
+import { MaintenanceGate, useMaintenanceBanner } from '@/features/status/maintenance';
 import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import { routing } from '@/i18n/routing';
 import { apiSession } from '@/lib/api';
@@ -29,6 +31,8 @@ import type { LegalPending } from '@/lib/contracts';
 import { formatClock, retryAfterSeconds, useCooldown } from '@/lib/countdown';
 import { errorMessage } from '@/lib/forms';
 import { decideApp, loginHref } from '@/lib/guards';
+import { ImpersonationBanner, ImpersonationExpired } from '@/features/admin/impersonation';
+import { useImpersonation } from '@/lib/impersonation';
 import { JobToaster } from '@/lib/jobs';
 import { useWsStatus, WsProvider } from '@/lib/ws';
 import { useLocaleCode, useT } from '@/lib/i18n';
@@ -51,7 +55,7 @@ export function MerchantShell({ children }: { children: ReactNode }) {
     status: s.status,
     pathname,
     search: search ? `?${search}` : '',
-    membershipCount: s.me?.memberships.length ?? 0,
+    membershipCount: s.impersonating ? 1 : (s.me?.memberships.length ?? 0),
     role: s.role,
     workspace: s.workspace,
     workspaceLoading: s.workspaceLoading,
@@ -71,6 +75,7 @@ export function MerchantShell({ children }: { children: ReactNode }) {
   );
 
   const banners = useShellBanners();
+  const impersonationExpired = useImpersonation().expired;
   const can = s.can;
   const stockMode = s.workspace?.stockMode ?? 'simple';
   const groups = useMemo<NavGroup[]>(() => {
@@ -103,14 +108,16 @@ export function MerchantShell({ children }: { children: ReactNode }) {
     );
   }
 
+  // read-only impersonation whose 30 min window is over (ADMIN_IMPERSONATION_EXPIRED): back to the admin
+  if (s.impersonating && impersonationExpired) return <ImpersonationExpired />;
   const suspended = decision.kind === 'state' && decision.state === 'suspended';
   return (
     <WsProvider>
-      <LiveShell groups={groups} banners={banners}>
+      <LiveShell groups={groups} banners={banners} fixedBar={s.impersonating ? <ImpersonationBanner /> : undefined}>
         {suspended ? (
           <PageSuspended reason={t(`shell.suspendReason.${s.workspace?.suspendReason ?? 'other'}`)} supportHref={`/${locale}/help/contact`} />
         ) : (
-          children
+          <MaintenanceGate>{children}</MaintenanceGate>
         )}
       </LiveShell>
       <JobToaster />
@@ -124,7 +131,7 @@ export function MerchantShell({ children }: { children: ReactNode }) {
  * the sidebar badges — `queue` (needs-human conversations + pending insights), `inbox` (unread conversations),
  * `notifications` (server unread count, also shown on the bell).
  */
-function LiveShell({ groups, banners, children }: { groups: NavGroup[]; banners: ShellBanner[]; children: ReactNode }) {
+function LiveShell({ groups, banners, fixedBar, children }: { groups: NavGroup[]; banners: ShellBanner[]; fixedBar?: ReactNode; children: ReactNode }) {
   useCatalogEvents();
   useInboxEvents();
   useChannelEvents();
@@ -137,7 +144,7 @@ function LiveShell({ groups, banners, children }: { groups: NavGroup[]; banners:
   useMessageSound();
   const counters = { queue: useQueueCount(), inbox: useInboxBadge(), notifications: useUnreadNotifications() };
   return (
-    <AppShell groups={groups} footer={FOOTER_NAV} topBar={<TopBar />} banners={banners} counters={counters}>
+    <AppShell groups={groups} footer={FOOTER_NAV} topBar={<TopBar />} banners={banners} counters={counters} fixedBar={fixedBar}>
       {children}
     </AppShell>
   );
@@ -187,6 +194,8 @@ function useShellBanners(): ShellBanner[] {
     }
   };
 
+  // `maintenance` (GET /status every 60 s, or a write refused with 503 MAINTENANCE_MODE)
+  const maintenance = useMaintenanceBanner();
   const banners: ShellBanner[] = [...channelBanners, ...creditsBanners, ...planBanners];
   if (s.workspace?.status === 'suspended') banners.push({ id: 'suspended', tone: 'danger', content: t('banner.suspended') });
   if (s.workspace?.status === 'deletion_scheduled') {
@@ -207,6 +216,7 @@ function useShellBanners(): ShellBanner[] {
   }
   if (s.readOnly) banners.push({ id: 'readOnly', tone: 'warning', content: t('banner.readOnly') });
   if (offline) banners.push({ id: 'offline', tone: 'warning', content: t('banner.offline') });
+  if (maintenance) banners.push(maintenance);
   return banners;
 }
 
@@ -229,6 +239,7 @@ function TopBar() {
         </span>
       ) : null}
       <CreditsPillLink />
+      <HelpPanelButton />
       <NotificationBell />
       <UserMenu />
     </>
@@ -270,7 +281,7 @@ function WorkspaceSwitcher() {
   );
 }
 
-function UserMenu() {
+export function UserMenu() {
   const t = useT();
   const locale = useLocaleCode() as AppLocale;
   const s = useSession();
@@ -386,7 +397,7 @@ export function LanguageDialog({ open, onClose }: { open: boolean; onClose: () =
 }
 
 /** Blocking "Conditions mises à jour" dialog: the app is unusable until every pending document is accepted. */
-function LegalInterstitial() {
+export function LegalInterstitial() {
   const t = useT();
   const s = useSession();
   const qc = useQueryClient();

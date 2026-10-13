@@ -18,7 +18,13 @@ export type MailTemplateName =
   /** PRM-03: admin credit gesture, e-mail to the Owner (M9) */
   | 'billing/credits-granted'
   /** 03-events §5.3 generic "notification/<type>" layout: title, body, CTA deep link (the type rides in params.type) */
-  | 'notification';
+  | 'notification'
+  /** OPS-06 (M10): public status page subscription — confirmation link, then incident updates */
+  | 'status/subscribe-confirm'
+  | 'status/incident'
+  /** 04 §13 (M10): abuse report acknowledged at once / decided (end customers without an account, merchant reporters) */
+  | 'reports/acknowledged'
+  | 'reports/resolved';
 
 type L = Record<AppLocale, string>;
 type Copy = { subject: L; title: L; body: L; cta?: L; footer?: L };
@@ -136,6 +142,36 @@ const COPY: Record<MailTemplateName, Copy> = {
     title: l('{report} · {period}', '{report} · {period}', '{report} · {period}'),
     body: l('Votre rapport « {report} » de {workspaceName} pour {period} est prêt : {delivery}.', 'تقريرك « {report} » لـ {workspaceName} عن {period} جاهز: {delivery}.', 'Your “{report}” report for {workspaceName}, {period}, is ready: {delivery}.'),
     cta: l('Ouvrir le rapport dans Djaber', 'فتح التقرير في جابر', 'Open the report in Djaber'),
+  },
+  'status/subscribe-confirm': {
+    subject: l('Confirmez votre abonnement au statut Djaber', 'أكّد اشتراكك في حالة خدمات جابر', 'Confirm your Djaber status subscription'),
+    title: l('Suivre l’état des services Djaber', 'متابعة حالة خدمات جابر', 'Follow the status of Djaber services'),
+    body: l(
+      'Confirmez votre adresse pour recevoir un e-mail à chaque incident et à sa résolution. Vous pourrez vous désabonner à tout moment.',
+      'أكّد عنوانك لتتلقى رسالة عند كل حادث وعند حله. يمكنك إلغاء الاشتراك في أي وقت.',
+      'Confirm your address to receive an e-mail for every incident and its resolution. You can unsubscribe at any time.',
+    ),
+    cta: l('Confirmer l’abonnement', 'تأكيد الاشتراك', 'Confirm the subscription'),
+  },
+  'status/incident': {
+    subject: l('[Statut Djaber] {title}', '[حالة جابر] {title}', '[Djaber status] {title}'),
+    title: l('{title}', '{title}', '{title}'),
+    body: l('{status} — {body}', '{status} — {body}', '{status} — {body}'),
+    cta: l('Voir la page de statut', 'عرض صفحة الحالة', 'Open the status page'),
+  },
+  'reports/acknowledged': {
+    subject: l('Signalement reçu', 'تم استلام البلاغ', 'Report received'),
+    title: l('Merci pour votre signalement', 'شكرًا على بلاغك', 'Thank you for your report'),
+    body: l(
+      'Djaber a bien reçu votre signalement et l’examinera sous 24 heures. Vous serez informé de la décision.',
+      'استلم جابر بلاغك وسيدرسه خلال 24 ساعة. سيتم إعلامك بالقرار.',
+      'Djaber received your report and will review it within 24 hours. You will be told about the decision.',
+    ),
+  },
+  'reports/resolved': {
+    subject: l('Votre signalement a été traité', 'تمت معالجة بلاغك', 'Your report has been handled'),
+    title: l('Signalement traité', 'تمت معالجة البلاغ', 'Report handled'),
+    body: l('Décision de l’équipe Djaber : {decision}.', 'قرار فريق جابر: {decision}.', 'Decision of the Djaber team: {decision}.'),
   },
   'workspace/deleted': {
     subject: l('Espace {workspaceName} supprimé', 'تم حذف مساحة {workspaceName}', 'Workspace {workspaceName} deleted'),

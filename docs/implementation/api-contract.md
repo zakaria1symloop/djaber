@@ -466,6 +466,8 @@ type ImpersonationSessionDto = { id: string; admin: UserRef; workspace: { id: st
 type CmsEntryAdminDto = { id: string; key: string; type: CmsType; category: string | null; target: Record<string, unknown>; channels: string[]; startsAt: string | null; endsAt: string | null; link: string | null; sortOrder: number; status: CmsStatus; currentVersion: number; locales: { locale: Locale; title: string; body: string; status: CmsLocaleStatus; fallbackToFr: boolean; updatedBy: UserRef; updatedAt: string }[]; versions: { version: number; publishedAt: string; publishedBy: UserRef }[]; createdBy: UserRef; createdAt: string; updatedAt: string };
 ```
 
+**M10 admin core (api-a) — wire details beyond 06 §2 / §8.11** (zod + types: `packages/shared/src/schemas/admin.ts`): every platform route answers `403 TWO_FA_REQUIRED_FOR_ROLE` while the caller has no 2FA; list rows carry `actions: ActionDescriptor[]`; extra read routes used by the frames: `GET /admin/channels?q&workspaceId` (find the holder of a page before `POST /admin/channels/:id/release`), `GET /admin/payments?provider&status&from&to&q` (ADM-05 tab "Paiements manuels"), `GET /admin/ai-routes` (all capabilities), `GET /admin/audit-logs/:id`, `GET /admin/jobs/:id` (the caller's workspace-less jobs: audit / invoices exports, CMS translation), `POST /admin/plans/:id/restore`; `PATCH /admin/plans/:id { …, dryRun? }` → `{ plan, impact: PlanImpactDto }`; `POST /admin/workspaces/:id/extend { days: 3|7|30 | until, reason }`; `GET /admin/conversations/:id?reason=` (reason ≥ 10 chars, audited `viewer.open`); `POST /admin/impersonation/sessions` → `{ sessionId, token, expiresAt, workspace }`. Connect report code `PLAN_LIMIT_GRANDFATHERED` (D63) joins `ConnectReportCode`.
+
 ### 3.14 Public pages
 
 ```ts

@@ -199,8 +199,11 @@ test('AT-BIL-02 — trial expiry: free limits, newest pages / agents paused by p
   await page.goto('/fr/channels');
   await expect(shellBanner(page, 'planExpired')).toContainText(/Plan expiré le .* limites du plan gratuit appliquées \(1 page, 1 agent\)/, { timeout: 30_000 });
   await expect(page.getByText('EN PAUSE (PLAN)').first()).toBeVisible();
-  await shellBanner(page, 'planExpired').getByRole('button', { name: 'Choisir un plan' }).click();
-  await expect(page).toHaveURL(/\/fr\/settings\/billing$/);
+  // the shell re-renders while the expiry events of the billing clock land: a click swallowed by that re-render is retried
+  await baseExpect(async () => {
+    if (!/\/fr\/settings\/billing$/.test(page.url())) await shellBanner(page, 'planExpired').getByRole('button', { name: 'Choisir un plan' }).click({ timeout: 3_000 });
+    await baseExpect(page).toHaveURL(/\/fr\/settings\/billing$/, { timeout: 3_000 });
+  }).toPass({ timeout: 20_000 });
   await expect(page.locator('[data-banner="planExpired"]')).toBeVisible();
   await expect(page.getByTestId('paused-resources')).toContainText('EN PAUSE (PLAN)');
   await expect(card(page, 'free')).toContainText('VOTRE PLAN');

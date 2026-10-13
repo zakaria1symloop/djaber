@@ -25,7 +25,18 @@ export type CatalogueProduct = {
 };
 export type CatalogueSlice = { count: number; full: boolean; products: CatalogueProduct[] };
 
-const VISIBLE: Prisma.ProductWhereInput = { isActive: true, deletedAt: null, moderationStatus: { in: ['approved', 'not_required'] } };
+/** 04 §12 "Visibility while pending": a changed product keeps selling its last approved snapshot until the decision. */
+const VISIBLE: Prisma.ProductWhereInput = {
+  isActive: true,
+  deletedAt: null,
+  OR: [{ moderationStatus: { in: ['approved', 'not_required'] } }, { moderationStatus: 'pending', approvedSnapshot: { not: Prisma.AnyNull } }],
+};
+type ApprovedSnapshot = { title?: string; description?: string | null; price?: number };
+/** Customer-visible fields: the approved snapshot while a change waits for moderation, the live row otherwise. */
+const live = (p: { name: string; description: string | null; price: number; moderationStatus: string; approvedSnapshot: Prisma.JsonValue | null }) => {
+  const s = p.moderationStatus === 'pending' && p.approvedSnapshot && typeof p.approvedSnapshot === 'object' ? (p.approvedSnapshot as ApprovedSnapshot) : null;
+  return s ? { name: s.title ?? p.name, description: s.description ?? null, price: typeof s.price === 'number' ? s.price : p.price } : { name: p.name, description: p.description, price: p.price };
+};
 const include = {
   variants: { where: { isActive: true, deletedAt: null }, orderBy: { createdAt: 'asc' } },
   images: { where: { isPrimary: true }, take: 1 },
@@ -62,12 +73,10 @@ export class CatalogueService {
     }
     return rows.map((p) => ({
       id: p.id,
-      name: p.name,
+      ...live(p),
       sku: p.sku,
-      price: p.price,
       oldPrice: p.oldPrice,
       stock: !p.trackStock ? null : p.hasVariants ? p.variants.reduce((n, v) => n + v.stock, 0) : (p.stock ?? 0),
-      description: p.description,
       hasVariants: p.hasVariants,
       variants: p.hasVariants ? p.variants.map((v) => ({ id: v.id, name: v.name, price: v.price, stock: v.stock })) : [],
       imageUrl: p.images[0]?.url ?? null,
@@ -95,7 +104,7 @@ export class CatalogueService {
     if (!q) return [];
     const words = [...new Set(q.split(/\s+/).filter((w) => w.length >= 2))].slice(0, 8);
     if (!words.length) return [];
-    const scope: Prisma.Sql[] = [Prisma.sql`p."isActive" = true`, Prisma.sql`p."deletedAt" IS NULL`, Prisma.sql`p."moderationStatus" IN ('approved','not_required')`];
+    const scope: Prisma.Sql[] = [Prisma.sql`p."isActive" = true`, Prisma.sql`p."deletedAt" IS NULL`, Prisma.sql`(p."moderationStatus" IN ('approved','not_required') OR (p."moderationStatus" = 'pending' AND p."approvedSnapshot" IS NOT NULL))`];
     if (!agent.sellAllProducts) scope.push(Prisma.sql`EXISTS (SELECT 1 FROM "AgentProduct" ap WHERE ap."productId" = p."id" AND ap."agentId" = ${agent.id}::uuid)`);
     else if (agent.catalogScope === 'categories') scope.push(agent.scopeCategoryIds.length ? Prisma.sql`p."categoryId" IN (${Prisma.join(agent.scopeCategoryIds.map((c) => Prisma.sql`${c}::uuid`))})` : Prisma.sql`false`);
     const hay = Prisma.sql`f_unaccent(p."name" || ' ' || coalesce(p."sku", '') || ' ' || array_to_string(p."keywords", ' ') || ' ' || coalesce(c."name", ''))`;

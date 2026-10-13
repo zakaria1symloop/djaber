@@ -21,7 +21,7 @@ export function AppShell({
 }: {
   groups: NavGroup[];
   footer: NavItem[];
-  counters?: Partial<Record<'queue' | 'inbox' | 'notifications', number>>;
+  counters?: Partial<Record<string, number>>;
   sidebarHeader?: ReactNode;
   topBar?: ReactNode;
   banners?: ShellBanner[];

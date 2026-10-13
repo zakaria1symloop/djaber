@@ -1,8 +1,9 @@
 // Picks the courier driver. SAFETY: `COURIER_DRIVER=live` is refused in development / test unless
 // `COURIER_ALLOW_LIVE=true` (no real parcel may be created from a developer machine or a test run); tests always fake.
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '../../../core/config/config.service';
 import type { AppConfig } from '../../../core/config/config.schema';
+import { MetricsService } from '../../../core/metrics/metrics.service';
 import type { CourierAdapter, CourierProvider } from './courier-adapter';
 import { EcotrackAdapter } from './ecotrack.adapter';
 import { FakeCourierAdapter, FakeCourierBackend } from './fake-courier';
@@ -26,6 +27,30 @@ export const createCourierAdapters = (env: CourierEnv, transport: CourierTranspo
   return { driver: 'live' as const, fake, adapters: { zrexpress: new ZrExpressAdapter(transport), ecotrack: new EcotrackAdapter(transport), yalidine: new YalidineAdapter(transport), manual } as Record<CourierProvider, CourierAdapter> };
 };
 
+/** `courier_requests_total{provider,outcome}` (M6 carry-over): every async adapter call, outcome `ok` or the error code. */
+const metered = (provider: string, adapter: CourierAdapter, metrics: MetricsService): CourierAdapter =>
+  new Proxy(adapter, {
+    get(target, prop, receiver) {
+      const v = Reflect.get(target, prop, receiver);
+      if (typeof v !== 'function' || provider === 'manual') return v;
+      return (...args: unknown[]) => {
+        const out = (v as (...a: unknown[]) => unknown).apply(target, args);
+        if (!out || typeof (out as Promise<unknown>).then !== 'function') return out;
+        return (out as Promise<unknown>).then(
+          (res) => {
+            metrics.courier(provider, 'ok');
+            return res;
+          },
+          (err: unknown) => {
+            const code = (err as { code?: unknown })?.code;
+            metrics.courier(provider, typeof code === 'string' ? code : 'error');
+            throw err;
+          },
+        );
+      };
+    },
+  });
+
 @Injectable()
 export class CourierAdapters {
   readonly driver: 'fake' | 'live';
@@ -33,11 +58,11 @@ export class CourierAdapters {
   readonly fake: FakeCourierBackend;
   private readonly adapters: Record<CourierProvider, CourierAdapter>;
 
-  constructor(config: ConfigService) {
+  constructor(config: ConfigService, @Optional() metrics?: MetricsService) {
     const r = createCourierAdapters(config.all);
     this.driver = r.driver;
     this.fake = r.fake;
-    this.adapters = r.adapters;
+    this.adapters = (metrics ? Object.fromEntries(Object.entries(r.adapters).map(([k, a]) => [k, metered(k, a, metrics)])) : r.adapters) as Record<CourierProvider, CourierAdapter>;
     new Logger('CourierAdapters').log(`courier adapters: ${r.driver}`);
   }
 

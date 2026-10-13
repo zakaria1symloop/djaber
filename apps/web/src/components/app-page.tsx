@@ -21,7 +21,6 @@ export function AppPage({
   breadcrumb,
   badges,
   children,
-  wide,
   bare,
 }: {
   eyebrow?: string;
@@ -36,7 +35,7 @@ export function AppPage({
   /** pills next to the title */
   badges?: ReactNode;
   children: ReactNode;
-  /** no max width (lists); forms and details are capped */
+  /** @deprecated every page is full width (owner request 2026-10-13); kept so existing callers compile */
   wide?: boolean;
   /** the page draws its own heading (wizard frame): only the document title, the gate and the trail are kept */
   bare?: boolean;
@@ -48,7 +47,7 @@ export function AppPage({
   const keys = permission ? (Array.isArray(permission) ? permission : [permission]) : [];
   if (keys.some((k) => !roleCan(role, k))) return <Page403 role={role ? t(`enum.Membership.role.${role}`) : '—'} homeHref={`/${locale}/home`} />;
   return (
-    <div className={wide ? 'flex flex-col gap-5' : 'mx-auto flex w-full max-w-6xl flex-col gap-5'}>
+    <div className="flex w-full flex-col gap-5">
       {back ? (
         <Link href={back.href} className="inline-flex w-fit items-center gap-1.5 ts-label-meta uppercase text-text-muted hover:text-text-primary">
           <ArrowLeft className="size-3 rtl:-scale-x-100" aria-hidden />

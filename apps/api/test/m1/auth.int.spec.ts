@@ -430,7 +430,7 @@ describe('AUTH-05 TOTP 2FA', () => {
   });
 
   it('AT-AUTH-07 a platform role cannot disable 2FA (TWO_FA_REQUIRED_FOR_ROLE)', async () => {
-    const admin = await asPlatform(app, 'super_admin');
+    const admin = await asPlatform(app, 'super_admin', { totpEnabled: false });
     await setPassword(app, admin.userId);
     await enable2fa(admin);
     const res = await admin.post('/auth/2fa/disable', { password: PASSWORD }).expect(403);

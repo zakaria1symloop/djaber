@@ -63,7 +63,7 @@ export function Sidebar({
 }: {
   groups: NavGroup[];
   footer: NavItem[];
-  counters?: Partial<Record<'queue' | 'inbox' | 'notifications', number>>;
+  counters?: Partial<Record<string, number>>;
   header?: React.ReactNode;
   open: boolean;
   onClose: () => void;

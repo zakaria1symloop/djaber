@@ -76,6 +76,19 @@ export const decideOnboarding = (i: GuardInput & { slug: string }): GuardDecisio
   return { kind: 'render' };
 };
 
+/**
+ * `(admin)` layout (02 §1, §2.3): a session and a platform role are required; no workspace is needed (a platform
+ * member may own none). A member without a platform role gets the 403 page.
+ */
+export const decideAdmin = (i: { status: SessionStatus; pathname: string; search?: string; platformRole: string | null | undefined }): GuardDecision | { kind: 'state'; state: 'forbidden' } => {
+  if (i.status === 'loading') return { kind: 'wait' };
+  if (i.status === 'expired') return { kind: 'state', state: 'session-expired' };
+  if (i.status === 'error') return { kind: 'state', state: 'error' };
+  if (i.status === 'anonymous') return { kind: 'redirect', to: loginHref(i.pathname, i.search) };
+  if (!i.platformRole || i.platformRole === 'none') return { kind: 'state', state: 'forbidden' };
+  return { kind: 'render' };
+};
+
 /** `(auth)` layout: pages for anonymous visitors redirect away once logged in. */
 const ANY_SESSION = /^\/(verify-email|invitations\/[^/]+|reset-password)(\/|$)/;
 export const decideAuth = (i: { status: SessionStatus; pathname: string; returnTo?: string | null; ownedWorkspaceId: string | null }): GuardDecision => {

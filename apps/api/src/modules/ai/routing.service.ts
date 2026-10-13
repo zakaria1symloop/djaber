@@ -77,10 +77,16 @@ export class RoutingService {
       if (capability === 'transcription') return this.voiceRoute();
       throw new AppException('AGENT_MODEL_UNAVAILABLE');
     }
+    const fallbackOk = !!r.fallbackModel && r.fallbackModel.isActive && r.fallbackModel.provider.isActive;
+    // ADM-06: a deactivated model (or provider) is skipped; nothing active left ⇒ nothing can answer
+    if (!r.primaryModel.isActive || !r.primaryModel.provider.isActive) {
+      if (!fallbackOk) throw new AppException('AGENT_MODEL_UNAVAILABLE');
+      return { capability, primary: this.toRouted(r.fallbackModel!), fallback: null, timeoutMs: (r.timeoutSec || DEFAULT_CALL_TIMEOUT_S) * 1000, creditCost: r.creditCost, errorThresholdPct: r.errorThresholdPct, failoverActive: false };
+    }
     return {
       capability,
       primary: this.toRouted(r.primaryModel),
-      fallback: r.fallbackModel && r.fallbackModel.isActive ? this.toRouted(r.fallbackModel) : null,
+      fallback: fallbackOk ? this.toRouted(r.fallbackModel!) : null,
       timeoutMs: (r.timeoutSec || DEFAULT_CALL_TIMEOUT_S) * 1000,
       creditCost: r.creditCost,
       errorThresholdPct: r.errorThresholdPct,

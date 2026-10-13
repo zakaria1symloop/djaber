@@ -33,6 +33,7 @@ import { MetaModule } from './modules/meta/meta.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { LegalGuard } from './modules/workspace/legal.guard';
+import { AppVersionGuard, FeatureGuard, MaintenanceGuard } from './core/platform/platform.guards';
 import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { PlatformPublicModule } from './modules/platform-public/platform-public.module';
 import { GdsModule } from './modules/gds/gds.module';
@@ -40,9 +41,15 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { ReportsModule } from './modules/gds/reports/reports.module';
+import { AdminModerationModule } from './modules/admin-ops/moderation/moderation.module';
+import { AdminHealthModule } from './modules/admin-ops/health/health.module';
+import { AdminSafetyModule } from './modules/admin-ops/safety/admin-safety.module';
+import { SupportModule } from './modules/admin-ops/support/support.module';
+import { PlatformSettingsModule } from './modules/admin-ops/settings/settings.module';
+import { AdminCoreModule } from './modules/admin-core/admin-core.module';
 
 /** Feature modules are appended here milestone after milestone (00-build-order). */
-export const FEATURE_MODULES = [PlatformPublicModule, AccountModule, UploadsModule, WorkspaceModule, AuthModule, NotificationsModule, JobsModule, CreditsModule, AiCoreModule, CatalogModule, MetaModule, ChannelsModule, MessagingModule, DeliveryModule, ClientsModule, OrdersModule, ShippingModule, BillingModule, AiModule, AgentsModule, DashboardModule, RecommendationsModule, GdsModule, AnalyticsModule, ReportsModule];
+export const FEATURE_MODULES = [PlatformPublicModule, AccountModule, UploadsModule, WorkspaceModule, AuthModule, NotificationsModule, JobsModule, CreditsModule, AiCoreModule, CatalogModule, MetaModule, ChannelsModule, MessagingModule, DeliveryModule, ClientsModule, OrdersModule, ShippingModule, BillingModule, AiModule, AgentsModule, DashboardModule, RecommendationsModule, GdsModule, AnalyticsModule, ReportsModule, AdminModerationModule, SupportModule, AdminSafetyModule, PlatformSettingsModule, AdminHealthModule, AdminCoreModule];
 
 @Module({
   imports: [CoreModule, ...FEATURE_MODULES],
@@ -58,6 +65,10 @@ export const FEATURE_MODULES = [PlatformPublicModule, AccountModule, UploadsModu
     { provide: APP_GUARD, useClass: PermissionGuard },
     // 04 §15: 403 LEGAL_REACCEPT_REQUIRED until a major legal version is accepted (auth / legal routes exempt)
     { provide: APP_GUARD, useClass: LegalGuard },
+    // 04 §15 (M10): mobile version gate (426), maintenance window (503 on mutations), feature flags (403 FEATURE_DISABLED)
+    { provide: APP_GUARD, useClass: AppVersionGuard },
+    { provide: APP_GUARD, useClass: MaintenanceGuard },
+    { provide: APP_GUARD, useClass: FeatureGuard },
     // Interceptor order: envelope (outermost) → idempotency → audit
     { provide: APP_INTERCEPTOR, useClass: EnvelopeInterceptor },
     { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
