@@ -148,6 +148,8 @@ export type ChannelSummaryView = {
   lastHistorySyncJobId: string | null;
   /** CHN-07 tile "Commandes IA (30 j)": orders created by the AI on this channel over the last 30 days (M5) */
   aiOrders30d: number;
+  /** CHN-07 tile "Résolution IA" (M8): conversations of the page without a handoff ÷ conversations, last 30 days (pct, one decimal; null without conversations) */
+  aiResolutionPct30d: number | null;
 };
 export type ChannelEventView = {
   id: string;

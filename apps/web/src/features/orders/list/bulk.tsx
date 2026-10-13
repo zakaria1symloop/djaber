@@ -50,7 +50,7 @@ export function ExportOrdersDialog({ open, onClose, filters, filterLabel, select
   const t = useT();
   const run = useOrdersJob();
   const [scope, setScope] = useState<'selection' | 'filter' | 'all'>('filter');
-  const [format, setFormat] = useState<'csv' | 'xlsx'>('xlsx');
+  const [format, setFormat] = useState<'csv' | 'xlsx' | 'pdf'>('xlsx');
   const [columns, setColumns] = useState<'standard' | 'all'>('standard');
   const [items, setItems] = useState(false);
   const [zr, setZr] = useState(false);
@@ -105,9 +105,10 @@ export function ExportOrdersDialog({ open, onClose, filters, filterLabel, select
         />
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t('orders.export.format')} htmlFor="exp-format">
-            <Select id="exp-format" value={format} onChange={(e) => setFormat(e.target.value as 'csv' | 'xlsx')}>
+            <Select id="exp-format" value={format} onChange={(e) => setFormat(e.target.value as 'csv' | 'xlsx' | 'pdf')}>
               <option value="xlsx">XLSX</option>
               <option value="csv">CSV</option>
+              <option value="pdf">{t('orders.export.pdf')}</option>
             </Select>
           </Field>
           <Field label={t('common.columns')} htmlFor="exp-columns">

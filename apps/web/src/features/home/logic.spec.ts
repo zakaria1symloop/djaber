@@ -122,3 +122,15 @@ describe('home quick actions and page cards', () => {
     expect(checklistDone({ checklist: { channel: true, product: true, agent: false, order: false } })).toBe(2);
   });
 });
+
+describe('home handled cards (M8 carry-over, 03 §37 ANA-01)', () => {
+  it('keeps the open items first and appends the items handled in the last 24 h, newest first', () => {
+    const open = item('open', 'stock', 1, 10);
+    const h1 = { ...item('h1', 'conversation', 0, 30), handled: { at: '2026-10-12T11:00:00Z', by: { id: 'u', name: 'Nadia F.' } } };
+    const h2 = { ...item('h2', 'parcel', 0, 40), handled: { at: '2026-10-12T11:30:00Z', by: null } };
+    const sorted = sortQueue([h1, open, h2]);
+    expect(sorted.map((i) => i.key)).toEqual(['open', 'h2', 'h1']);
+    // handled cards never count in the "+ n autres" line
+    expect(queueOverflow({ items: [h1, open, h2], total: 1, counts: { stock: 1 } } as unknown as HomeView['queue'], sorted)).toBeNull();
+  });
+});

@@ -2,7 +2,8 @@
 // rates into my grid"; the public parcel tracking page and the courier webhooks; the product label sheet (M2 carry-over).
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import { createZodDto } from 'nestjs-zod';
-import { CopyFeesFromCourierSchema, ProductLabelsSchema, PublicTrackingReportSchema, RatesQuerySchema, type ProductLabelsInput, type RatesQuery } from '@djaber/shared';
+import { CopyFeesFromCourierSchema, ProductLabelsSchema, PublicTrackingReportSchema, RatesQuerySchema, ShipmentsExportQuerySchema, type ProductLabelsInput, type RatesQuery, type ShipmentsExportQuery } from '@djaber/shared';
+import { ExportService } from '../jobs/export.service';
 import { Public, RateLimit, RequirePermission } from '../../core/auth/decorators';
 import { RawResponse } from '../../core/http/envelope.interceptor';
 import { DeliveryOverviewService } from './delivery-overview.service';
@@ -15,13 +16,24 @@ class RatesQueryDto extends createZodDto(RatesQuerySchema) {}
 class CopyFeesDto extends createZodDto(CopyFeesFromCourierSchema) {}
 class PublicReportDto extends createZodDto(PublicTrackingReportSchema) {}
 class ProductLabelsDto extends createZodDto(ProductLabelsSchema) {}
+class ShipmentsExportQueryDto extends createZodDto(ShipmentsExportQuerySchema) {}
 
 @Controller('delivery')
 export class DeliveryOpsController {
   constructor(
     private readonly overview: DeliveryOverviewService,
     private readonly rates: RatesService,
+    private readonly exports: ExportService,
   ) {}
+
+  /** M8 (MECH "Exporter CSV"): the `/delivery` list filters → 202 `{ jobId }` (job kind `export`). */
+  @Get('export')
+  @RequirePermission('delivery.send')
+  @HttpCode(202)
+  export(@Query() q: ShipmentsExportQueryDto) {
+    const { format, ...filters } = q as ShipmentsExportQuery;
+    return this.exports.request('shipments', filters, format);
+  }
 
   @Get('overview')
   @RequirePermission('delivery.send')

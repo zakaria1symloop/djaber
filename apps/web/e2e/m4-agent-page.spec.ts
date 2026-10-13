@@ -604,7 +604,8 @@ test.describe('AGT-08 insights tab', () => {
     await expect(root).toHaveAttribute('data-status', 'pending');
     await expect(tabs(page).getByRole('link', { name: /^Insights/ })).toHaveAttribute('aria-current', 'page');
     await expect(tabs(page).getByRole('link', { name: /^Insights/ })).toHaveText('Insights5');
-    await expect(page.getByRole('radio', { name: 'En attente 4' })).toHaveAttribute('aria-checked', 'true');
+    // M8 carry-over: the three tab counts come from `meta.counts` (every pending insight, like the "Insights 5" badge), not from the grouped heads
+    await expect(page.getByRole('radio', { name: 'En attente 5' })).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByRole('radio', { name: /^Résolus/ })).toBeVisible();
     await expect(page.getByRole('radio', { name: /^Ignorés/ })).toBeVisible();
 

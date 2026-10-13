@@ -25,6 +25,8 @@ export type HomeQueueItem = {
   path: string;
   /** object ids the card refers to (conversationId, orderId, shipmentId, productId, variantId, channelId, insightId, jobId) */
   ref: Record<string, string>;
+  /** M8 (03 §37 ANA-01): an item handled in the last 24 h stays greyed with "fait par …"; open items have no `handled` */
+  handled?: { at: string; by: { id: string; name: string } | null };
 };
 export type HomeKpi = { value: number; previous: number | null; deltaPct: number | null };
 export type HomePageCard = ChannelRefView & {

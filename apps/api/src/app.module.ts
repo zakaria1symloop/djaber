@@ -37,9 +37,11 @@ import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { PlatformPublicModule } from './modules/platform-public/platform-public.module';
 import { GdsModule } from './modules/gds/gds.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { ReportsModule } from './modules/gds/reports/reports.module';
 
 /** Feature modules are appended here milestone after milestone (00-build-order). */
-export const FEATURE_MODULES = [PlatformPublicModule, AccountModule, UploadsModule, WorkspaceModule, AuthModule, NotificationsModule, JobsModule, CreditsModule, AiCoreModule, CatalogModule, MetaModule, ChannelsModule, MessagingModule, DeliveryModule, ClientsModule, OrdersModule, ShippingModule, AiModule, AgentsModule, DashboardModule, RecommendationsModule, GdsModule];
+export const FEATURE_MODULES = [PlatformPublicModule, AccountModule, UploadsModule, WorkspaceModule, AuthModule, NotificationsModule, JobsModule, CreditsModule, AiCoreModule, CatalogModule, MetaModule, ChannelsModule, MessagingModule, DeliveryModule, ClientsModule, OrdersModule, ShippingModule, AiModule, AgentsModule, DashboardModule, RecommendationsModule, GdsModule, AnalyticsModule, ReportsModule];
 
 @Module({
   imports: [CoreModule, ...FEATURE_MODULES],

@@ -2,6 +2,7 @@
 // AI creation with the shared validation and the CLI-02 client rule, list + KPIs + export, order page, PATCH with
 // optimistic `version`, delete with rollback, duplicate. Status changes, calls, payments… live in OrderWorkflowService.
 // Side effects (stock, cash, aggregates, outbox) only through OrderEffects (04 §3).
+import { formatSlipAmount } from './print/order-slip.pdf';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { AI_ORDER_DUPLICATE_WINDOW_MIN, ORDER_READ_ONLY_STATUSES, formatMoney, type CreateOrderInput, type OrderDraft, type OrderListItemView, type OrderView, type OrdersExportQuery, type OrdersQuery, type UpdateOrderInput } from '@djaber/shared';
 import { prisma, TenantContext, type Order, type Prisma, type Tx } from '@djaber/db';
@@ -552,6 +553,20 @@ export class OrderService implements OnModuleInit {
       { header: h.courier, value: (r: R) => r.shipments[0]?.provider ?? '' },
       { header: h.tracking, value: (r: R) => r.shipments[0]?.trackingNumber ?? '' },
     ];
+    if (q.format === 'pdf') {
+      // M8 (06 §7 "Orders XLSX/PDF"): A4 landscape — the columns that fit a printed page, totals at the bottom
+      const pick: string[] = [h.number, h.date, h.client, h.phone, h.wilaya, h.items, h.total, h.remaining, h.status, h.delivery];
+      const money = new Set<string>([h.total, h.remaining]);
+      const cols = standard.filter((c) => pick.includes(c.header)).map((c) => ({ ...c, kind: money.has(c.header) ? ('money' as const) : ('text' as const), width: c.header === h.items ? 6 : c.header === h.client ? 3 : 2 }));
+      const totalOf = (f: (o: (typeof rows)[number]) => number) => rows.reduce((sum, o) => sum + f(o), 0);
+      return {
+        sheetName: h.sheet,
+        fileName: `commandes-${algiersDay()}`,
+        rows: flat,
+        columns: cols,
+        pdf: { title: h.sheet, subtitle: `· ${rows.length}`, landscape: true, totals: [{ label: h.total, value: formatSlipAmount(totalOf((o) => o.total)), bold: true }, { label: h.remaining, value: formatSlipAmount(totalOf((o) => Math.max(0, o.total - o.amountPaid))) }] },
+      };
+    }
     const extra =
       columns === 'all'
         ? [

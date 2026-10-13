@@ -85,6 +85,8 @@ export const deliveryApi = {
     return { rows: r.data ?? [], total: r.meta?.total ?? r.data?.length ?? 0, meta: r.meta ?? {} };
   },
   shipment: (id: string) => api<Shipment>(`/shipments/${id}`),
+  /** M6 carry-over → M8: "Exporter CSV" of the selection / current filter → 202 job (kind `export`) */
+  exportShipments: (q: ApiQuery) => api<JobRef>('/delivery/export', { query: q }),
   orderShipments: (orderId: string) => api<Shipment[]>(`/orders/${orderId}/shipments`),
   /** one parcel from the order (Idempotency-Key required) → 202 ShipmentView `pending` ("sending…" until WS `shipment.updated`) */
   send: (orderId: string, b: SendInput, key: string) => api<Shipment>(`/orders/${orderId}/shipments`, { method: 'POST', body: b, idempotent: key }),

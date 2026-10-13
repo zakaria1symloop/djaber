@@ -6,7 +6,7 @@ import { CryptoService } from '../crypto/crypto.service';
 import { OutboxService } from '../outbox/outbox.service';
 import { ProcessorRegistry } from '../queue/processor.registry';
 import { QueueService } from '../queue/queue.service';
-import { MailService } from './mail.service';
+import { MailService, type MailAttachment } from './mail.service';
 import { isMailTemplate, renderMail, type MailTemplateName } from './templates';
 
 export type MailJob = {
@@ -20,9 +20,11 @@ export type MailJob = {
   /** deduplication key (`Outbox @@unique([topic, key])`); one e-mail per key */
   key: string;
   workspaceId?: string | null;
+  /** stored files to attach (keys only travel through the outbox) */
+  attachments?: MailAttachment[];
 };
 
-type Payload = { to: string; template: string; locale: string; params: Record<string, unknown>; sealed?: string };
+type Payload = { to: string; template: string; locale: string; params: Record<string, unknown>; sealed?: string; attachments?: MailAttachment[] };
 
 @Injectable()
 export class MailOutbox implements OnModuleInit {
@@ -46,7 +48,7 @@ export class MailOutbox implements OnModuleInit {
 
   /** Enqueue inside the caller's transaction (or without one when `tx` is omitted). */
   async send(m: MailJob, tx?: Tx) {
-    const payload: Payload = { to: m.to, template: m.template, locale: m.locale, params: m.params ?? {} };
+    const payload: Payload = { to: m.to, template: m.template, locale: m.locale, params: m.params ?? {}, ...(m.attachments?.length ? { attachments: m.attachments } : {}) };
     if (m.secret && Object.keys(m.secret).length) payload.sealed = this.crypto.encryptJson(m.secret);
     await this.outbox.enqueue((tx ?? prisma) as Tx, {
       topic: 'mail',
@@ -70,6 +72,7 @@ export class MailOutbox implements OnModuleInit {
       // the local mailbox (dev / test) keeps the full params so links can be followed; production mail has no such copy
       params: { ...data.params, ...secret },
       locale: data.locale,
+      ...(data.attachments?.length ? { attachments: data.attachments } : {}),
     });
   }
 }

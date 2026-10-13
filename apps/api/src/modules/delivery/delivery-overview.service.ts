@@ -2,7 +2,7 @@
 // parcel: the filters apply to that parcel; `not_sent` = a confirmed / preparing order without an active parcel) and
 // `GET /delivery/overview` (KPI tiles, tab counts, the first failures and "Sans mouvement" rows, per-courier figures —
 // also the data source of Analytics › Livraison, DLV-11). Raw SQL with the workspace filter written explicitly.
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { DELIVERY_TABS, SHIPMENT_STALE_AFTER_DAYS, type ActionDescriptor, type DeliveryOverviewView, type DeliveryRowView, type DeliveryTab, type ShipmentsQuery } from '@djaber/shared';
 import { Prisma, prisma, TenantContext, type Shipment } from '@djaber/db';
 import { AppException } from '../../core/errors/app.exception';
@@ -12,6 +12,7 @@ import { can } from '../../core/rbac/permission-matrix';
 import { checkTransition } from '../orders/order-rules';
 import { clientRefOf, stateOf } from '../orders/order.presenter';
 import { SafetyService } from '../messaging/safety.service';
+import { ExportService } from '../jobs/export.service';
 import { PROVIDER_NAMES, type CourierProvider } from './adapters/courier-adapter';
 import { isNoMovement, isReturnPending, parseShipmentError, shipmentActions, errorCodeOf } from './shipment.presenter';
 
@@ -28,8 +29,46 @@ const SORTS: Record<string, Prisma.Sql> = {
 const list = <T>(values: readonly T[], cast: string) => Prisma.join(values.map((v) => Prisma.sql`${v}::${Prisma.raw(cast)}`));
 
 @Injectable()
-export class DeliveryOverviewService {
-  constructor(private readonly safety: SafetyService) {}
+export class DeliveryOverviewService implements OnModuleInit {
+  constructor(
+    private readonly safety: SafetyService,
+    private readonly exports: ExportService,
+  ) {}
+
+  onModuleInit() {
+    // M8 (M6 carry-over, MECH "Exporter CSV"): `GET /delivery/export` → the generic export job
+    this.exports.registerSource('shipments', (filters, ctx) => this.exportTable(filters as Partial<ShipmentsQuery>, ctx.locale));
+  }
+
+  /** Every row of the `/delivery` list for the filters (latest parcel per order), ≤ 50 000 rows. */
+  private async exportTable(q: Partial<ShipmentsQuery>, locale: 'fr' | 'ar' | 'en') {
+    const pairs = await prisma.$queryRaw<{ id: string; sid: string | null }[]>`SELECT o."id", s."id" AS sid FROM "Order" o ${LATEST} WHERE ${this.where(q)} ORDER BY ${this.orderBy(q.sort)} LIMIT 50000`;
+    const rows = await this.rows(pairs, locale);
+    const h = EXPORT_HEADERS[locale] ?? EXPORT_HEADERS.fr;
+    type R = DeliveryRowView;
+    return {
+      sheetName: h.sheet,
+      fileName: `livraisons-${algiersDay()}`,
+      rows,
+      columns: [
+        { header: h.order, value: (r: R) => r.orderNumber },
+        { header: h.client, value: (r: R) => r.client.name },
+        { header: h.phone, value: (r: R) => r.client.phone ?? '' },
+        { header: h.wilaya, value: (r: R) => r.wilaya?.name ?? '' },
+        { header: h.commune, value: (r: R) => r.communeName ?? '' },
+        { header: h.stopdesk, value: (r: R) => (r.isStopdesk ? 1 : 0) },
+        { header: h.courier, value: (r: R) => r.shipment?.courierAccount?.displayName ?? (r.shipment ? PROVIDER_NAMES[r.shipment.provider as CourierProvider] ?? r.shipment.provider : '') },
+        { header: h.tracking, value: (r: R) => r.shipment?.trackingNumber ?? '' },
+        { header: h.status, value: (r: R) => r.shipment?.status ?? 'not_sent' },
+        { header: h.attempts, value: (r: R) => r.shipment?.deliveryAttempts ?? 0 },
+        { header: h.failure, value: (r: R) => r.shipment?.failureReason ?? '' },
+        { header: h.cod, value: (r: R) => r.shipment?.codAmount ?? r.remaining },
+        { header: h.total, value: (r: R) => r.total },
+        { header: h.sentAt, value: (r: R) => (r.shipment?.createdAt ? algiersDay(new Date(r.shipment.createdAt)) : '') },
+        { header: h.lastEventAt, value: (r: R) => (r.shipment?.lastEventAt ? algiersDay(new Date(r.shipment.lastEventAt)) : '') },
+      ],
+    };
+  }
 
   private where(q: Partial<ShipmentsQuery>, now = new Date()): Prisma.Sql {
     const ws = TenantContext.workspaceId();
@@ -230,3 +269,9 @@ export class DeliveryOverviewService {
     };
   }
 }
+
+const EXPORT_HEADERS = {
+  fr: { sheet: 'Livraisons', order: 'Commande', client: 'Client', phone: 'Téléphone', wilaya: 'Wilaya', commune: 'Commune', stopdesk: 'Point relais', courier: 'Transporteur', tracking: 'Suivi', status: 'Statut colis', attempts: 'Tentatives', failure: 'Motif d’échec', cod: 'Montant à encaisser', total: 'Total', sentAt: 'Envoyé le', lastEventAt: 'Dernier événement' },
+  en: { sheet: 'Deliveries', order: 'Order', client: 'Client', phone: 'Phone', wilaya: 'Wilaya', commune: 'Commune', stopdesk: 'Stop-desk', courier: 'Courier', tracking: 'Tracking', status: 'Parcel status', attempts: 'Attempts', failure: 'Failure reason', cod: 'Cash to collect', total: 'Total', sentAt: 'Sent on', lastEventAt: 'Last event' },
+  ar: { sheet: 'التوصيلات', order: 'الطلب', client: 'العميل', phone: 'الهاتف', wilaya: 'الولاية', commune: 'البلدية', stopdesk: 'نقطة الاستلام', courier: 'الناقل', tracking: 'التتبع', status: 'حالة الطرد', attempts: 'المحاولات', failure: 'سبب الفشل', cod: 'المبلغ المستحق', total: 'المجموع', sentAt: 'أُرسل في', lastEventAt: 'آخر حدث' },
+} as const;

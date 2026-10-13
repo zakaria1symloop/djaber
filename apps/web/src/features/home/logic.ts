@@ -10,8 +10,19 @@ export const queueLabelKey = (kind: HomeQueueKind): string => `home.queue.kind.$
 
 /** 12 §18: sort urgency first (0 = most urgent), then age (oldest waiting first); at most 8 cards. */
 export function sortQueue(items: readonly HomeQueueItem[], max = HOME_QUEUE_MAX): HomeQueueItem[] {
-  return [...items]
+  const open = items
+    .filter((i) => !i.handled)
     .sort((a, b) => a.urgency - b.urgency || Date.parse(a.since) - Date.parse(b.since) || a.key.localeCompare(b.key))
+    .slice(0, max);
+  return [...open, ...handledQueue(items)];
+}
+
+/** M8 (03 §37 ANA-01): items handled in the last 24 h stay greyed after the open ones ("fait par …"), newest first. */
+export const HANDLED_MAX = 3;
+export function handledQueue(items: readonly HomeQueueItem[], max = HANDLED_MAX): HomeQueueItem[] {
+  return items
+    .filter((i) => !!i.handled)
+    .sort((a, b) => Date.parse(b.handled!.at) - Date.parse(a.handled!.at) || a.key.localeCompare(b.key))
     .slice(0, max);
 }
 
@@ -20,10 +31,11 @@ export function sortQueue(items: readonly HomeQueueItem[], max = HOME_QUEUE_MAX)
  * to (in the order of the kinds). `null` when every item is on screen.
  */
 export function queueOverflow(queue: HomeView['queue'], shown: readonly HomeQueueItem[]): { count: number; kinds: HomeQueueKind[] } | null {
-  const count = Math.max(0, queue.total - shown.length);
+  const open = shown.filter((i) => !i.handled);
+  const count = Math.max(0, queue.total - open.length);
   if (count === 0) return null;
   const drawn = new Map<HomeQueueKind, number>();
-  for (const i of shown) drawn.set(i.kind, (drawn.get(i.kind) ?? 0) + 1);
+  for (const i of open) drawn.set(i.kind, (drawn.get(i.kind) ?? 0) + 1);
   const kinds = (Object.keys(queue.counts) as HomeQueueKind[]).filter((k) => (queue.counts[k] ?? 0) > (drawn.get(k) ?? 0));
   return { count, kinds };
 }

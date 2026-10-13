@@ -126,7 +126,7 @@ export class KnowledgeService {
   }
 
   // --- insights (AGT-08) --------------------------------------------------------------------------------------------------------
-  async listInsights(q: InsightsQuery): Promise<Page<AgentInsightDto>> {
+  async listInsights(q: InsightsQuery): Promise<Page<AgentInsightDto> & { meta: { counts: Record<'pending' | 'resolved' | 'dismissed', number> } }> {
     const where: Prisma.AgentInsightWhereInput = {
       ...(q.agentId ? { agentId: q.agentId } : {}),
       ...(q.status ? { status: q.status } : {}),
@@ -163,7 +163,11 @@ export class KnowledgeService {
       [rows, total] = await Promise.all([prisma.agentInsight.findMany({ where, include, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...toSkipTake(q) }), prisma.agentInsight.count({ where })]);
     }
     const counts = await occurrences(rows);
-    return page(
+    // M8 (M4 carry-over): counts of the three status tabs in the same answer (same filters, any status)
+    const { status: _status, ...anyStatus } = where;
+    const byStatus = await prisma.agentInsight.groupBy({ by: ['status'], where: anyStatus, _count: { _all: true } });
+    const tab = (s: string) => byStatus.find((x) => x.status === s)?._count._all ?? 0;
+    const result = page(
       rows.map((r) => ({
         id: r.id,
         agent: r.agent,
@@ -183,6 +187,7 @@ export class KnowledgeService {
       total,
       q,
     );
+    return { ...result, meta: { counts: { pending: tab('pending'), resolved: tab('resolved'), dismissed: tab('dismissed') } } };
   }
 
   /**

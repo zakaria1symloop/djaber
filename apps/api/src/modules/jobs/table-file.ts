@@ -4,7 +4,8 @@ import { readXlsx, writeXlsx, XLSX_MIME, type Cell } from './xlsx';
 
 export type TableFormat = 'csv' | 'xlsx';
 export type ParsedTable = { format: TableFormat; headers: string[]; rows: string[][] };
-export type TableColumn<T> = { header: string; value: (row: T) => Cell };
+/** `kind` / `width` only matter for the PDF rendering (alignment, money formatting, relative column width). */
+export type TableColumn<T> = { header: string; value: (row: T) => Cell; kind?: 'text' | 'money' | 'number'; width?: number };
 
 export class TableFileError extends Error {
   constructor(public readonly reason: 'type' | 'unreadable') {

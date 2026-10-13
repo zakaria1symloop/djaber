@@ -16,6 +16,10 @@ export type GdsDocument = {
   rows: string[][];
   totals: { label: string; value: string; bold?: boolean }[];
   note?: string | null;
+  /** M8 report / export tables: A4 landscape for wide tables */
+  landscape?: boolean;
+  /** M8: shop logo (PNG / JPEG bytes) drawn at the top corner; ignored when unreadable */
+  logo?: Buffer | null;
 };
 
 const A4: [number, number] = [595.28, 841.89];
@@ -34,15 +38,23 @@ export async function renderGdsDocument(d: GdsDocument): Promise<Buffer> {
     doc.on('error', reject);
     try {
       registerSlipFonts(doc);
-      const width = A4[0] - 2 * M;
+      const PAGE: [number, number] = d.landscape ? [A4[1], A4[0]] : A4;
+      const width = PAGE[0] - 2 * M;
       const scale = width / d.columns.reduce((s, c) => s + c.width, 0);
       const cols = d.columns.map((c) => ({ ...c, w: c.width * scale }));
       const rtl = d.lang === 'ar';
       const ordered = rtl ? [...cols].reverse() : cols;
       let y = 0;
       const header = () => {
-        doc.addPage({ size: A4, margin: 0 });
+        doc.addPage({ size: PAGE, margin: 0 });
         y = M;
+        if (d.logo) {
+          try {
+            doc.image(d.logo, rtl ? M : PAGE[0] - M - 60, M, { fit: [60, 36] });
+          } catch {
+            // unsupported image format (webp, svg): the header stays text-only
+          }
+        }
         drawBidiLine(doc, d.shopName, M, y, width, { size: 11, bold: true, align: rtl ? 'right' : 'left' });
         y += 11 * BIDI_LINE;
         drawBidiLine(doc, `${d.title} ${d.number}`, M, y, width, { size: 16, bold: true, align: rtl ? 'right' : 'left' });
@@ -68,7 +80,7 @@ export async function renderGdsDocument(d: GdsDocument): Promise<Buffer> {
         const cells = rtl ? [...row].reverse() : row;
         const wrapped = ordered.map((c, i) => wrapBidi(doc, cells[i] ?? '', c.w - 6, 9, false, 3));
         const h = Math.max(ROW_H, Math.max(...wrapped.map((w) => w.length)) * 9 * BIDI_LINE + 4);
-        if (y + h > A4[1] - M - 60) {
+        if (y + h > PAGE[1] - M - 60) {
           header();
         }
         let x = M;
@@ -85,7 +97,7 @@ export async function renderGdsDocument(d: GdsDocument): Promise<Buffer> {
       }
       y += 8;
       for (const t of d.totals) {
-        if (y + 14 > A4[1] - M) header();
+        if (y + 14 > PAGE[1] - M) header();
         drawBidiLine(doc, `${t.label} : ${t.value}`, M, y, width, { size: t.bold ? 11 : 9, bold: t.bold, align: rtl ? 'left' : 'right' });
         y += (t.bold ? 11 : 9) * BIDI_LINE;
       }
