@@ -34,9 +34,13 @@ import { RoutingService } from '../ai/routing.service';
 import { channelRef } from '../channels/channel.service';
 import { ChannelEvents } from '../channels/channel.util';
 import { CreditService } from '../credits/credit.service';
+import { ConversationService } from '../messaging/conversation.service';
+import { contextOf } from '../messaging/messaging.presenter';
+import { OutboundSendService } from '../messaging/outbound-send.service';
+import { SafetyService } from '../messaging/safety.service';
 import { NotificationProducer } from '../notifications/notification.producer';
 import {
-  agentText,
+  agentTextKey,
   compileInstructions,
   DEFAULT_CAPABILITIES,
   DEFAULT_HANDOFF_RULES,
@@ -80,6 +84,9 @@ export class AgentService implements OnModuleInit {
     private readonly tenants: TenantResolver,
     private readonly notifications: NotificationProducer,
     private readonly moderation: ModerationHookService,
+    private readonly conversations: ConversationService,
+    private readonly outbound: OutboundSendService,
+    private readonly safety: SafetyService,
   ) {}
 
   onModuleInit() {
@@ -251,6 +258,19 @@ export class AgentService implements OnModuleInit {
     if (q.defaultLanguage) and.push({ defaultLanguage: q.defaultLanguage });
     if (q.hasPendingInsights !== undefined) and.push({ insights: q.hasPendingInsights ? { some: { status: 'pending' } } : { none: { status: 'pending' } } });
     if (q.q) and.push({ OR: [{ name: { contains: q.q, mode: 'insensitive' } }, { displayName: { contains: q.q, mode: 'insensitive' } }] });
+    if (q.productId) {
+      // "Agents qui le vendent": the catalogue scope of `CatalogueService.scopeWhere` read the other way round. A product of
+      // another workspace (or an unknown id) is a 404, like every cross-workspace reference.
+      const p = await prisma.product.findFirst({ where: { id: q.productId }, select: { id: true, categoryId: true } });
+      if (!p) throw notFound();
+      and.push({
+        OR: [
+          { sellAllProducts: false, products: { some: { productId: p.id } } },
+          { sellAllProducts: true, catalogScope: 'all' },
+          ...(p.categoryId ? [{ sellAllProducts: true, catalogScope: 'categories' as const, scopeCategoryIds: { has: p.categoryId } }] : []),
+        ],
+      });
+    }
     const sort = q.sort ?? '-lastActiveAt';
     const dir = sort.startsWith('-') ? 'desc' : 'asc';
     const orderBy: Prisma.AgentOrderByWithRelationInput[] = sort.endsWith('name') ? [{ name: dir }, { id: 'asc' }] : [{ lastActiveAt: { sort: dir, nulls: 'last' } }, { createdAt: 'desc' }];
@@ -394,7 +414,7 @@ export class AgentService implements OnModuleInit {
       const agent = await tx.agent.create({
         data: {
           workspaceId: t.workspaceId,
-          name: input.name ?? preset?.name ?? agentText(locale, 'defaultName'),
+          name: input.name ?? preset?.name ?? this.i18n.t(locale, agentTextKey('defaultName')),
           description: input.description ?? null,
           personality: preset?.personality ?? 'friendly',
           temperature: preset?.temperature ?? 0.6,
@@ -542,21 +562,44 @@ export class AgentService implements OnModuleInit {
   }
 
   /** Conversations the agent is answering right now (customer wrote in the last 24 h, AI not paused). */
+  private openThreadsWhere(channelIds: string[], now = new Date()): Prisma.ConversationWhereInput {
+    return { channelId: { in: channelIds }, status: 'active', aiPaused: false, deletedAt: null, lastCustomerMessageAt: { gte: new Date(now.getTime() - DAY) } };
+  }
   private openThreads(channelIds: string[]) {
-    return prisma.conversation.count({ where: { channelId: { in: channelIds }, status: 'active', aiPaused: false, deletedAt: null, lastCustomerMessageAt: { gte: new Date(Date.now() - DAY) } } });
+    return prisma.conversation.count({ where: this.openThreadsWhere(channelIds) });
   }
 
-  /** `POST /agents/:id/pause` — 409 AGENT_PAUSED_WITH_OPEN_THREADS { count } until `confirm`. */
-  async pause(id: string, confirm: boolean, locale: string): Promise<AgentDto> {
+  /**
+   * `POST /agents/:id/pause { confirm?, sendOutOfHours? }` — 409 AGENT_PAUSED_WITH_OPEN_THREADS { count } until `confirm`.
+   * 04 §18 / AGV-07 / AT-AGV-08: on confirm the conversations awaiting a reply go to « À traiter » (`needs_human`, AI
+   * paused, reason `manual`); with `sendOutOfHours` each of them (blocked customers excepted) receives the workspace
+   * `out_of_hours` system message once, through the outbound path (outbox `meta-send`), in the same transaction.
+   */
+  async pause(id: string, confirm: boolean, locale: string, o: { sendOutOfHours?: boolean } = {}): Promise<AgentDto> {
     const a = await this.rowOrNotFound(id);
     if (a.status === 'paused') return this.get(id, locale);
     if (a.status !== 'active') throw conflict({ reason: 'AGENT_NOT_ACTIVE' });
-    const open = await this.openThreads(a.channels.map((c) => c.channelId));
+    const channelIds = a.channels.map((c) => c.channelId);
+    const open = await this.openThreads(channelIds);
     if (open > 0 && !confirm) throw new AppException('AGENT_PAUSED_WITH_OPEN_THREADS', { count: open });
+    const index = o.sendOutOfHours && open > 0 ? await this.safety.index() : null;
+    const userId = TenantContext.get().userId ?? null;
     await prisma.$transaction(async (db) => {
       const tx = db as Tx;
       const updated = await tx.agent.update({ where: { id }, data: { status: 'paused', isActive: false, pausedReason: 'manual', version: { increment: 1 } } });
       await this.emit(tx, updated);
+      if (!open) return;
+      const threads = await tx.conversation.findMany({ where: this.openThreadsWhere(channelIds), include: { client: { select: { phone: true } } } });
+      for (const c of threads) {
+        const handoffAt = new Date().toISOString();
+        const moved = await tx.conversation.update({
+          where: { id: c.id },
+          data: { status: 'needs_human', aiPaused: true, version: { increment: 1 }, context: { ...contextOf(c), handoffAt, handoffReason: 'manual', handoffRemindedAt: null, aiPausedById: userId } as Prisma.InputJsonValue },
+        });
+        await this.conversations.emitUpdated(tx, moved);
+        // once per thread (and never twice in 24 h if the AI already sent it outside the business hours)
+        if (index && !index.has(c, c.client?.phone)) await this.outbound.sendSystemText(c.id, 'out_of_hours', {}, { tx, kind: 'system', oncePer24h: true });
+      }
     });
     return this.get(id, locale);
   }
@@ -585,7 +628,7 @@ export class AgentService implements OnModuleInit {
       const { id: _i, createdAt: _c, updatedAt: _u, deletedAt: _d, lastActiveAt: _l, scheduledActivateAt: _s, currentVersion: _cv, version: _v, policies, capabilities, orderFields, handoffRules, businessHours, ...rest } = src;
       const json = (v: Prisma.JsonValue | null) => (v === null ? undefined : (v as Prisma.InputJsonValue));
       const copy = await tx.agent.create({
-        data: { ...rest, name: `${a.name} ${agentText(locale, 'copySuffix')}`.slice(0, 100), status: 'draft', isActive: false, pausedReason: null, wizardStep: 1, policies: json(policies), capabilities: json(capabilities), orderFields: json(orderFields), handoffRules: json(handoffRules), businessHours: json(businessHours) },
+        data: { ...rest, name: `${a.name} ${this.i18n.t(locale, agentTextKey('copySuffix'))}`.slice(0, 100), status: 'draft', isActive: false, pausedReason: null, wizardStep: 1, policies: json(policies), capabilities: json(capabilities), orderFields: json(orderFields), handoffRules: json(handoffRules), businessHours: json(businessHours) },
       });
       const [faqs, products] = await Promise.all([tx.agentFaq.findMany({ where: { agentId: id, source: { not: 'ai_suggested' } } }), tx.agentProduct.findMany({ where: { agentId: id } })]);
       if (faqs.length) await tx.agentFaq.createMany({ data: faqs.map((f) => ({ workspaceId: f.workspaceId, agentId: copy.id, question: f.question, answer: f.answer, source: f.source, sortOrder: f.sortOrder, isActive: f.isActive })) });
@@ -676,7 +719,7 @@ export class AgentService implements OnModuleInit {
       t.userId ? prisma.user.findUnique({ where: { id: t.userId }, select: { emailVerifiedAt: true } }) : null,
     ]);
     const policies = (a.policies ?? {}) as Record<string, string>;
-    const label = (key: string) => agentText(locale, `readiness.${key}`);
+    const label = (key: string) => this.i18n.t(locale, agentTextKey(`readiness.${key}`));
     const checks: AgentReadinessDto['checks'] = [
       { key: 'catalog', ok: products > 0, label: label('catalog'), count: products, link: '/products', blocking: false },
       { key: 'productsWithoutPhoto', ok: withoutPhoto === 0, label: label('productsWithoutPhoto'), count: withoutPhoto, link: '/products', blocking: false },

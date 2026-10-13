@@ -14,6 +14,7 @@ import type { BulkClientTagsInput, Client, ClientListItem, CreateClientInput, Me
 export type Page<T> = { rows: T[]; total: number; page: number; pageSize: number; meta: Meta };
 export type BulkItemResult = { id: string; ok: boolean; error?: { code: string; message: string; params?: Record<string, unknown> } };
 export type BulkResponse = { results: BulkItemResult[]; ok: number; failed: number };
+export type ClientTagCount = { tag: string; count: number };
 
 const page = async <T>(path: string, query: ApiQuery): Promise<Page<T>> => {
   const r = await apiRaw<T[]>(path, { query });
@@ -37,6 +38,8 @@ export const clientsApi = {
   /** without `confirm` ⇒ `409 CUSTOMER_MERGE_IRREVERSIBLE` with the preview in `details` */
   merge: (b: MergeClientsInput) => api<Client>('/clients/merge', { method: 'POST', body: b }),
   bulkTags: (b: BulkClientTagsInput) => bulk('/clients/bulk/tags', b),
+  /** M11 — tags used by the workspace's clients, count desc (≤ 100); `q` filters by substring */
+  tags: (q?: string) => api<ClientTagCount[]>('/clients/tags', { query: { q: q?.trim() || undefined } }),
   bulkDelete: (ids: string[]) => bulk('/clients/bulk/delete', { ids }),
   bulkExport: (ids: string[]) => api<JobRef>('/clients/bulk/export', { method: 'POST', body: { ids } }),
   /** export of the current filter → 202 job */
@@ -47,6 +50,14 @@ export const clientsApi = {
 export const clientKeys = {
   clients: (ws: string, q?: ApiQuery) => (q ? ([ws, 'clients', 'list', q] as const) : ([ws, 'clients'] as const)),
   client: (ws: string, id: string) => [ws, 'client', id] as const,
+  tags: (ws: string, q: string) => [ws, 'clients', 'tags', q] as const,
+};
+
+/** Tag suggestions (`GET /clients/tags?q=`): the typed text is debounced by the caller; kept while typing. */
+export const useClientTags = (q = '', enabled = true) => {
+  const ws = useWorkspaceId();
+  const term = q.trim();
+  return useQuery({ queryKey: clientKeys.tags(ws, term), queryFn: () => clientsApi.tags(term), enabled: !!ws && enabled, staleTime: 60_000, placeholderData: keepPreviousData });
 };
 
 export const useClients = (q: ApiQuery, enabled = true) => {

@@ -47,7 +47,8 @@ test.afterAll(async ({ request }) => {
 
 test('AT-HELP-03 support side: row with SLA, canned reply, "Envoyer & attendre le client", note interne, Résoudre, satisfaction, TICKET_CLOSED', async ({ request }) => {
   const ticket = await createTicket(request, merchant, { message: `Depuis hier les commandes n’arrivent plus dans ma feuille ${stamp}.` });
-  await page.goto('/fr/admin/support');
+  // the shared dev DB keeps tickets of earlier runs (more than one page): the list is searched by this ticket's number
+  await page.goto(`/fr/admin/support?q=${encodeURIComponent(ticket.number)}`);
   await expect(page.getByRole('heading', { level: 1, name: 'Support' })).toBeVisible();
   await expect(page.locator('[data-tab="open"]')).toHaveAttribute('aria-current', 'page');
   const row = page.locator(`tr[data-row="${ticket.id}"]`);

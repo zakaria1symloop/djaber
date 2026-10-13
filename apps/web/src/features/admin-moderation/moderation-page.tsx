@@ -90,7 +90,8 @@ function Kpis({ stats, t, locale }: { stats: ModerationStatsDto | undefined; t: 
     return (
       <OpsKpiStrip label={t('adminMod.kpi.label')}>
         {[0, 1, 2, 3, 4].map((i) => (
-          <Skeleton key={i} className="h-[64px] rounded-card" />
+          // same height as a loaded tile (context line + numeral): the tabs and the queue do not move when stats arrive
+          <Skeleton key={i} className="h-20 rounded-card" />
         ))}
       </OpsKpiStrip>
     );
@@ -251,8 +252,9 @@ function Queue({ canWrite }: { canWrite: boolean }) {
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,520px)]">
         <div className="min-w-0">
           {source.isPending ? (
-            <Card>
-              <ListSkeleton rows={5} columns={4} label={t('common.loading')} />
+            // reserves the queue's usual height so the legend under it does not jump up then down while loading
+            <Card className="min-h-[70dvh]">
+              <ListSkeleton rows={8} columns={4} label={t('common.loading')} />
             </Card>
           ) : source.isError && !source.data ? (
             <AdminQueryError error={source.error} onRetry={() => void source.refetch()} />
@@ -311,7 +313,9 @@ function Queue({ canWrite }: { canWrite: boolean }) {
             </Card>
           )}
         </div>
-        <div className="min-w-0 lg:sticky lg:top-4">
+        {/* the review panel stays in view next to a long queue and scrolls on its own when taller than the screen,
+            so its decision buttons are always reachable (M11 layout pass) */}
+        <div className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-6.5rem)] lg:overflow-y-auto lg:overscroll-contain lg:rounded-card">
           {tab === 'appeals' ? (
             activeAppeal ? <AppealPanel key={activeAppeal.id} appeal={activeAppeal} canWrite={canWrite} /> : null
           ) : activeId ? (

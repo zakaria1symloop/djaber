@@ -5,7 +5,7 @@
 // = the status filter (with counts), search, quick filters, filter panel, sort, density, columns, pagination 25/50/100,
 // selection + bulk bar with per-item results, row `Actions ⌄` from the server descriptors — all of it in the URL.
 import { formatDate, formatMoney, formatNumber, type AppLocale } from '@djaber/shared';
-import { ActionsMenu, Button, buttonClass, Card, cn, DataTable, KpiTile, Ltr, OrderNumber, TableViewMenu, type Column } from '@djaber/ui';
+import { ActionsMenu, Button, buttonClass, Card, cn, DataTable, KpiTile, KpiTileSkeleton, Ltr, OrderNumber, TableViewMenu, type Column } from '@djaber/ui';
 import { ShoppingBag } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { AppPage } from '@/components/app-page';
@@ -181,7 +181,7 @@ export function OrdersList() {
             <KpiTile value={st.revenue30d < 1_000_000 ? formatNumber(st.revenue30d) : compactAmount(st.revenue30d, locale)} label={t('orders.kpi.revenue')} meta={split ? t('orders.kpi.split', { ai: split.aiPct, manual: split.manualPct }) : undefined} data-kpi="revenue" />
           </>
         ) : stats.isError ? null : (
-          Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-[66px] animate-pulse rounded-card border border-line-edge bg-ink-surface" />)
+          Array.from({ length: 5 }).map((_, i) => <KpiTileSkeleton key={i} />)
         )}
       </section>
 

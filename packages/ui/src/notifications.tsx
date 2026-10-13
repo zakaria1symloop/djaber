@@ -112,7 +112,8 @@ export function QueueCard({
       </div>
       {meta || actions ? (
         <div className="flex flex-wrap items-center gap-2 rounded-b-card bg-ink-raised px-3 py-2">
-          <span className="min-w-0 flex-1 truncate ts-label-meta uppercase text-text-muted">{meta}</span>
+          {/* basis: on a phone the buttons wrap under the assignee line instead of cutting it to one letter */}
+          <span className="min-w-0 flex-1 basis-32 truncate ts-label-meta uppercase text-text-muted">{meta}</span>
           {actions}
         </div>
       ) : null}

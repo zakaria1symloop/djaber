@@ -8,10 +8,10 @@ import { StatusSubscribeSchema, type AppLocale } from '@djaber/shared';
 import { Banner, Button, Card, Dialog, ErrorState, Field, FormAlert, IncidentEntry, Input, Skeleton, StatusComponentRow, buttonClass } from '@djaber/ui';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
-import { Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
-import { LocaleSwitch } from '@/components/auth/auth-card';
+import { PublicHeader } from '@/components/public-header';
 import { Logo } from '@/components/shell/sidebar';
 import { Link } from '@/i18n/navigation';
 import { ApiError } from '@/lib/api';
@@ -38,24 +38,21 @@ export function PublicStatusPage() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="border-b border-line-hairline">
-        <div className="mx-auto flex h-[88px] max-w-[1344px] items-center gap-6 px-4 md:px-12">
-          <Link href="/status" aria-label="Djaber.ai" className="shrink-0">
-            <Logo />
-          </Link>
-          <div className="ms-auto flex items-center gap-4 md:gap-8">
-            <Suspense>
-              <LocaleSwitch className="max-sm:hidden" />
-            </Suspense>
-            <button type="button" onClick={() => setSubscribing(true)} className="text-[15px] text-text-secondary hover:text-text-primary" data-testid="status-subscribe-open">
+      {/* PublicLayout header (M11): marketing links Fonctionnalités · Tarifs · Aide · Statut + the status page's own actions */}
+      <PublicHeader
+        wideActions
+        actions={
+          <>
+            {/* on phones the link wraps on two short lines inside the 88 px header instead of four lines spilling out of it */}
+            <button type="button" onClick={() => setSubscribing(true)} className="min-w-0 text-end text-[13px] leading-tight text-text-secondary hover:text-text-primary sm:text-start sm:text-[15px]" data-testid="status-subscribe-open">
               {t('status.subscribe.open')}
             </button>
-            <Link href="/login" className={buttonClass({ variant: 'primary' })}>
+            <Link href="/login" className={buttonClass({ variant: 'primary', className: 'shrink-0 !whitespace-nowrap' })}>
               {t('status.openApp')}
             </Link>
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
       <main id="main" className="flex flex-1 justify-center px-4 py-10">
         <div className="flex w-full max-w-[880px] flex-col gap-4" data-testid="status-page" data-state={q.isPending ? 'loading' : q.isError ? 'error' : d?.overall}>
           <h1 className="sr-only">{t('status.title')}</h1>

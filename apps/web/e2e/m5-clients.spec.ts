@@ -154,7 +154,10 @@ test('sheet: ‹ › walks the rows, "Nouvelle commande pour Amina" prefills the
   await sheet.getByRole('button', { name: 'Suivant' }).click();
   await expect(page.getByRole('dialog', { name: 'Amina B.' })).toBeVisible();
   await page.getByRole('dialog', { name: 'Amina B.' }).getByRole('button', { name: 'Précédent' }).click();
-  await page.getByTestId('client-new-order').click();
+  // back on Amina Belkacem's sheet before ordering for her
+  await expect(page).toHaveURL(new RegExp(`sheet=${amina.id}`));
+  await expect(page.getByRole('dialog', { name: 'Amina Belkacem' }).getByTestId('client-detail')).toBeVisible();
+  await page.getByRole('dialog', { name: 'Amina Belkacem' }).getByTestId('client-new-order').click();
   await expectUrl(page, new RegExp(`/orders/new\\?clientId=${amina.id}`));
 });
 

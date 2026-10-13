@@ -24,6 +24,7 @@ import type {
   WsMessageUpdated,
 } from './contracts';
 import { applyMessageUpdate, isOptimistic, mergeIncoming, patchConversation, previewOf, type InboxApiQuery } from './logic';
+import { useTypingEvents } from './typing';
 
 export type CursorPage<T> = { rows: T[]; nextCursor: string | null; hasMore: boolean };
 const cursorPage = async <T>(path: string, query: InboxApiQuery): Promise<CursorPage<T>> => {
@@ -188,6 +189,8 @@ export function useInboxEvents() {
   const qc = useQueryClient();
   const { me } = useSession();
   const meId = me?.id ?? null;
+  // "IA répond…" / "Sara écrit…" (M11): `conversation.typing` → typing store
+  useTypingEvents();
 
   const refreshDerived = () => {
     void qc.invalidateQueries({ queryKey: inboxKeys.lists(ws) });

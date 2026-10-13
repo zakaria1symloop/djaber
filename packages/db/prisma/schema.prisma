@@ -3203,7 +3203,10 @@ model SheetsConnection {
   workspaceId   String       @unique @db.Uuid
   googleEmail   String
   refreshToken  Bytes
-  spreadsheetId String
+  /// null between the Google consent and the sheet choice (GSH-02: Picker / URL / create) — M11
+  spreadsheetId String?
+  /// title shown on the integration card ("Djaber · Commandes <workspace>") — M11
+  spreadsheetTitle String?
   sheetName     String       @default("Commandes")
   filters       Json         @default("{}")
   status        SheetsStatus @default(active)
@@ -3220,6 +3223,8 @@ model SheetsRow {
   id           String   @id @default(dbgenerated("uuid_generate_v7()")) @db.Uuid
   connectionId String   @db.Uuid
   orderId      String   @unique @db.Uuid
+  /// 1-based row of the last write: a hint only, the row is always re-located by `djaber_id` (GSH-04) — M11
+  rowIndex     Int?
   syncedAt     DateTime @default(now())
 
   connection SheetsConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)

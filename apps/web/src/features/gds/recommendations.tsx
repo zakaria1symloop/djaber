@@ -23,6 +23,7 @@ import {
   Input,
   JobBanner,
   KpiTile,
+  KpiTileSkeleton,
   Ltr,
   NumberInput,
   Pill,
@@ -234,7 +235,9 @@ function Cards({ list, offline, simple }: { list: ReturnType<typeof useListState
             <KpiTile value={formatNumber(k.promote.count)} label={t('recos.kpi.promote')} meta={t('recos.kpi.dormant')} data-kpi="promote" />
             <KpiTile value={k.last30d.applicationRatePct === null ? '—' : `${k.last30d.applicationRatePct} %`} label={t('recos.kpi.rate')} meta={t('recos.kpi.rateMeta', { applied: k.last30d.applied, dismissed: k.last30d.dismissed, expired: k.last30d.expired })} data-kpi="rate" />
           </>
-        ) : null}
+        ) : (
+          [0, 1, 2, 3].map((i) => <KpiTileSkeleton key={i} />)
+        )}
       </section>
       <div className="flex flex-wrap items-center gap-2">
         <nav aria-label={t('recos.tabs')} className="flex flex-1 flex-wrap gap-1.5">
@@ -506,7 +509,9 @@ function CrossSell({ list, offline }: { list: ReturnType<typeof useListState>; o
             <KpiTile value={formatNumber(k.conversions30d)} label={t('recos.cross.kpi.conversions')} meta={k.conversionRatePct30d === null ? '—' : `${k.conversionRatePct30d} %`} />
             <KpiTile value={formatNumber(k.revenue30d)} label={t('recos.cross.kpi.revenue')} meta={k.lastRun.at ? t('recos.cross.kpi.lastRun', { date: day(k.lastRun.at.slice(0, 10)) }) : t('recos.cross.kpi.neverRun')} />
           </>
-        ) : null}
+        ) : (
+          [0, 1, 2, 3].map((i) => <KpiTileSkeleton key={i} />)
+        )}
       </section>
       {q.isPending ? (
         <Card>

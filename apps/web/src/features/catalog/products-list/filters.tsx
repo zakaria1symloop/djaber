@@ -20,6 +20,7 @@ import {
 import { LayoutGrid, List, SlidersHorizontal, TriangleAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useAgents } from '@/features/agents/api';
+import { useSupplier } from '@/features/gds/api';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { filterBool, filterList, filterText, formatSort, parseSort } from '@/lib/list-state';
 import type { ListController } from '@/lib/use-list-state';
@@ -67,7 +68,11 @@ export function ProductsActiveFilters({ list, categories }: { list: ListControll
   const t = useT();
   const locale = useLocaleCode() as AppLocale;
   const agents = useAgents(undefined, filterList(list.state, 'agentId').length > 0);
+  // `?supplierId=` comes from the supplier sheet "Voir les produits (n)" (M11): the chip shows the supplier's name
+  const supplier = useSupplier(filterText(list.state, 'supplierId') || null);
   const chips = activeChips(list.state, {
+    supplier: (name) => t('carry.products.chip.supplier', { name }),
+    supplierName: (id) => (supplier.data?.id === id ? supplier.data.name : '…'),
     search: (q) => t('products.chip.search', { q }),
     category: (names) => t('products.chip.category', { names }),
     categoryName: (id) => categories.find((c) => c.value === id)?.label ?? '…',

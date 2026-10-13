@@ -77,6 +77,19 @@ export const ConfigSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   SHEETS_DRIVER: z.enum(['fake', 'google']).default('fake'),
+  // safety guard (M11): the Google Sheets driver refuses to start in development / test unless this is true
+  SHEETS_ALLOW_LIVE: bool.default(false),
+  // 05-integrations §3: while the Google OAuth app is in "testing" status the Sheets card shows "≤ 100 utilisateurs test"
+  GOOGLE_OAUTH_VERIFIED: bool.default(false),
+  GOOGLE_PICKER_KEY: z.string().optional(),
+  GOOGLE_PICKER_APP_ID: z.string().optional(),
+  // outbound merchant webhooks (M11): in development / test only local / LAN receivers are called unless this is true
+  WEBHOOKS_ALLOW_LIVE: bool.default(false),
+  // captcha of the public forms (M11): none | fake (token `fake-pass`) | turnstile (refused in development / test unless CAPTCHA_ALLOW_LIVE)
+  CAPTCHA_DRIVER: z.enum(['none', 'fake', 'turnstile']).default('fake'),
+  CAPTCHA_ALLOW_LIVE: bool.default(false),
+  CAPTCHA_SITE_KEY: z.string().optional(),
+  CAPTCHA_SECRET: z.string().optional(),
   PUSH_DRIVER: z.enum(['fake', 'fcm']).default('fake'),
   // SMS port (M10, PlatformProvider `sms`): `fake` writes the messages to SMS_LOCAL_DIR (no live SMS), `none` drops them
   SMS_DRIVER: z.enum(['fake', 'none']).default('fake'),

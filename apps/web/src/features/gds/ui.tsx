@@ -3,7 +3,7 @@
 // dropdown of the lists ("Période : 30 j ⌄"), the advanced-mode gate (simple mode keeps these pages out of the
 // sidebar, a direct link explains it) and the KPI skeleton row.
 import { formatDate, formatMoney, type AppLocale } from '@djaber/shared';
-import { buttonClass, cn, EmptyState, FilterChips, FilterDateRange, FilterDropdown, Ltr, StatusPill } from '@djaber/ui';
+import { buttonClass, EmptyState, FilterChips, FilterDateRange, FilterDropdown, KpiTileSkeleton, Ltr, StatusPill } from '@djaber/ui';
 import { Boxes } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { AppPage } from '@/components/app-page';
@@ -107,12 +107,12 @@ export function AdvancedOnly({ title, children }: { title: string; children: Rea
   return <>{children}</>;
 }
 
-/** Four KPI tiles while the stats load (same height as `KpiTile`). */
+/** Four KPI tiles while the stats load (`KpiTileSkeleton`: same line boxes as `KpiTile` in every script). */
 export function KpiSkeleton({ count = 4, className }: { count?: number; className?: string }) {
   return (
     <>
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className={cn('h-[66px] animate-pulse rounded-card border border-line-edge bg-ink-surface', className)} />
+        <KpiTileSkeleton key={i} className={className} />
       ))}
     </>
   );

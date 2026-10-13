@@ -115,7 +115,7 @@ export function HealthPage() {
               onAction={(queue, action) => (action === 'drain-failed' || action === 'replay-failed' || action === 'pause' ? setConfirm({ queue, action }) : action === 'run-now' ? setSchedulers(true) : void runQueue(queue, action))}
             />
           </OpsPanel>
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <OpsPanel title={t('adminHealth.dlq.title')} sub={t('adminHealth.dlq.sub')} data-testid="dlq">
               <FailedList jobs={failed.data} error={failed.error} pending={failed.isPending} onRetry={() => void failed.refetch()} onOpen={setOpenJob} />
             </OpsPanel>

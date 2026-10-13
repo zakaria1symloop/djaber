@@ -9,6 +9,8 @@ export type MailTemplateName =
   | 'auth/email-change'
   | 'auth/email-change-notice'
   | 'auth/account-deletion-confirm'
+  /** PUB-06 / FL-22 1b (M11): confirmation link of the public deletion page, 24 h */
+  | 'auth/account-deletion-request'
   | 'workspace/invitation'
   | 'workspace/ownership-transferred'
   | 'workspace/deletion-scheduled'
@@ -96,6 +98,16 @@ const COPY: Record<MailTemplateName, Copy> = {
       'تم طلب تغيير بريد حسابك إلى {newEmail}. إن لم تكن أنت فغيّر كلمة المرور فورًا.',
       'A change to {newEmail} was requested on your account. If this was not you, change your password immediately.',
     ),
+  },
+  'auth/account-deletion-request': {
+    subject: l('Confirmez la suppression de votre compte Djaber', 'أكّد حذف حسابك على جابر', 'Confirm the deletion of your Djaber account'),
+    title: l('Suppression du compte', 'حذف الحساب', 'Account deletion'),
+    body: l(
+      'Vous avez demandé la suppression de votre compte. Confirmez avec le bouton ci-dessous (lien valable 24 heures). Si vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail.',
+      'طلبت حذف حسابك. أكّد بالزر أدناه (الرابط صالح 24 ساعة). إذا لم تكن صاحب هذا الطلب، تجاهل هذه الرسالة.',
+      'You asked to delete your account. Confirm with the button below (link valid 24 hours). If you did not make this request, ignore this e-mail.',
+    ),
+    cta: l('Confirmer la suppression', 'تأكيد الحذف', 'Confirm the deletion'),
   },
   'auth/account-deletion-confirm': {
     subject: l('Suppression de votre compte programmée', 'تمت برمجة حذف حسابك', 'Your account deletion is scheduled'),

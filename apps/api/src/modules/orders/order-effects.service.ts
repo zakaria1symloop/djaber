@@ -34,7 +34,8 @@ export class OrderEffects implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    // TODO(M11): the Google Sheets consumer (`sheets-upsert`, 03-events §1) — rows are produced now, acknowledged until then
+    // the Google Sheets consumer is `SheetsSyncService` (integrations module, M11); this no-op only covers a process built
+    // without that module (rows are then acknowledged without a write)
     if (!this.registry.outbox.has('sheets')) this.registry.onOutbox('sheets', async () => undefined);
   }
 
@@ -165,14 +166,19 @@ export class OrderEffects implements OnModuleInit {
     await this.outbox.ws(tx, `ws:${order.workspaceId}`, 'order.deleted', { id: order.id }, `order.deleted:${order.id}`);
   }
 
-  /** Outbound webhook row (api-contract §6 / 03-events §6); delivered by the integrations module (M11). */
+  /** Outbound webhook row with a free payload (`payment.failed { orderId, paymentId, reason }`, 03-events §6). */
+  async webhookData(tx: Tx, event: string, key: string, workspaceId: string, data: Record<string, unknown>) {
+    await this.outbox.enqueue(tx, { topic: 'webhook', key: `${event}:${key}`, workspaceId, payload: { event, workspaceId, data } });
+  }
+
+  /** Outbound webhook row (api-contract §6 / 03-events §6); delivered by the integrations module (`WebhookDispatchService`). */
   async webhook(tx: Tx, event: string, orderId: string, extra: Record<string, unknown> = {}, keySuffix = '') {
     const o = await tx.order.findUniqueOrThrow({ where: { id: orderId }, include: { items: true, commune: { select: { nameFr: true } } } });
     const data = event === 'order.created' ? orderPublic(o) : { order: orderPublic(o), ...extra };
     await this.outbox.enqueue(tx, { topic: 'webhook', key: `${event}:${o.id}:${o.version}${keySuffix}`, workspaceId: o.workspaceId, payload: { event, workspaceId: o.workspaceId, data } });
   }
 
-  /** Google Sheets row of the order (03-events §1 `sheets` → `sheets-upsert`, job id `sheets:<orderId>`); consumer in M11. */
+  /** Google Sheets row of the order (03-events §1 `sheets` → `sheets-upsert`, job id `sheets:<orderId>`); consumer `SheetsSyncService`. */
   async sheets(tx: Tx, order: Pick<Order, 'id' | 'workspaceId' | 'version'>) {
     await this.outbox.enqueue(tx, { topic: 'sheets', key: `sheets:${order.id}:${order.version}`, workspaceId: order.workspaceId, payload: { orderId: order.id, jobId: `sheets:${order.id}` } });
   }

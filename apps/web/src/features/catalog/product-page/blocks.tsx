@@ -2,6 +2,7 @@
 // Blocks of the product page — Figma "CAT-09 — Product page — full (gallery, variants, stock, margins, agents,
 // movements, archived)": Galerie, Mouvements récents, Prix & marge, Stock, Agents & canaux. Read-only: images are
 // managed in the edit form, stock moves only through "Ajuster", expenses are edited under "Prix & marge" (M7).
+import { useAgents } from '@/features/agents/api';
 import { ExpensesEditor } from '@/features/gds/product-expenses';
 import { formatDate, formatDateTime, formatNumber, PRODUCT_IMAGE_MAX_BYTES, PRODUCT_IMAGE_MIN_PX, PRODUCT_IMAGES_MAX } from '@djaber/shared';
 import { cn, Dialog, Ltr, Pill, Skeleton } from '@djaber/ui';
@@ -259,12 +260,16 @@ export function StockBlock({ product, advanced }: { product: Product; advanced: 
 }
 
 /* ---------- Agents & canaux ---------- */
-export function AgentsBlock({ product, onAdd }: { product: Pick<Product, 'agents' | 'mentions30d' | 'aiState'>; /** "Ajouter à un agent" (catalog.write, live product) */ onAdd?: () => void }) {
+export function AgentsBlock({ product, onAdd }: { product: Pick<Product, 'agents' | 'mentions30d' | 'aiState'> & { id?: string }; /** "Ajouter à un agent" (catalog.write, live product) */ onAdd?: () => void }) {
   const t = useT();
+  const productId = product.id;
   const { can } = useSession();
-  const agents = product.agents ?? [];
-  const m = product.mentions30d;
   const linked = can('agents.read');
+  // "Agents qui le vendent" (M11): `GET /agents?productId=` also counts the agents selling the whole catalogue or the
+  // product's category; the product's own `agents` (explicit links only) is the fallback for members without agents.read
+  const selling = useAgents(productId ? { productId } : {}, linked && !!productId);
+  const agents = linked && selling.data ? selling.data.rows.map((a) => ({ id: a.id, name: a.name, status: a.status })) : (product.agents ?? []);
+  const m = product.mentions30d;
   return (
     <Block
       title={t('products.page.agents.title')}
@@ -294,6 +299,12 @@ export function AgentsBlock({ product, onAdd }: { product: Pick<Product, 'agents
                   {i < agents.length - 1 ? <span aria-hidden> ·</span> : null}
                 </span>
               ))}
+              {/* M11: the agents list filtered on this product (`GET /agents?productId=`) */}
+              {linked && productId ? (
+                <Link href={`/agents?productId=${productId}`} className="ts-label-meta uppercase text-accent-inbound hover:underline" data-testid="agents-of-product">
+                  {t('carry.products.agents.viewList')}
+                </Link>
+              ) : null}
             </span>
           ) : (
             <span className="text-text-muted">{t(product.aiState === 'excluded' ? 'products.page.agents.excluded' : 'products.page.agents.none')}</span>

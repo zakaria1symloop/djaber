@@ -12,9 +12,9 @@ import { useSession } from './session';
 
 export type WsStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting';
 type Handler = (payload: unknown) => void;
-type Bus = { on: (event: string, handler: Handler) => () => void };
+type Bus = { on: (event: string, handler: Handler) => () => void; /** client → server event (`typing`), dropped while disconnected */ emit: (event: string, payload: unknown) => void };
 
-const Ctx = createContext<{ status: WsStatus; bus: Bus }>({ status: 'idle', bus: { on: () => () => {} } });
+const Ctx = createContext<{ status: WsStatus; bus: Bus }>({ status: 'idle', bus: { on: () => () => {}, emit: () => {} } });
 export const POLL_FALLBACK_MS = 15_000;
 const HANDSHAKE_RETRY_MS = 30_000;
 
@@ -37,6 +37,9 @@ export function WsProvider({ children, admin }: { children: ReactNode; /** admin
         }
         set.add(handler);
         return () => void set.delete(handler);
+      },
+      emit(event, payload) {
+        if (socketRef.current?.connected) socketRef.current.emit(event, payload);
       },
     };
   }, []);
@@ -114,6 +117,9 @@ export function WsProvider({ children, admin }: { children: ReactNode; /** admin
 }
 
 export const useWsStatus = (): WsStatus => useContext(Ctx).status;
+
+/** Sends a client event (`typing { conversationId }`); a no-op while the socket is down. */
+export const useWsEmit = () => useContext(Ctx).bus.emit;
 
 /** Subscribes to a server event for the lifetime of the component (`product.updated`, `job.updated`, …). */
 export function useWsEvent<T = unknown>(event: string, handler: (payload: T) => void) {

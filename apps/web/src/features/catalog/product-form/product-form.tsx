@@ -15,7 +15,8 @@ import { AppPage } from '@/components/app-page';
 import { ConflictDialog } from '@/components/global-states';
 import { Link, useRouter } from '@/i18n/navigation';
 import { actionState } from '@/lib/actions';
-import { ApiError, apiSession, msSinceOwnWrite } from '@/lib/api';
+import { ApiError, apiSession } from '@/lib/api';
+import { isOwnChange } from '@/lib/origin';
 import { conflictOf } from '@/lib/conflict';
 import { errorMessage, fieldError, useLeaveGuard } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
@@ -78,8 +79,6 @@ function WithLtr({ text, value }: { text: string; value: string }) {
   );
 }
 const SLOT = '@@';
-/** A product refresh this soon after a write of this tab is our own change (save, adjustment, image, variant), not someone else's. */
-const OWN_WRITE_WINDOW_MS = 5_000;
 
 function Section({ title, name, children }: { title: string; name: string; children: ReactNode }) {
   return (
@@ -137,7 +136,8 @@ export function ProductForm(props: Props) {
   useEffect(() => {
     if (!serverForm) return;
     const untouched = dirtyItems(baseRef.current, form.getValues(), mode).length === 0;
-    if (!untouched && serverVersion !== versionRef.current && msSinceOwnWrite() > OWN_WRITE_WINDOW_MS) return;
+    // M11: `product.updated.originSessionId` vs this tab's JWT `sid` (the 5 s window only for events without an origin)
+    if (!untouched && serverVersion !== versionRef.current && !isOwnChange(product?.id)) return;
     versionRef.current = serverVersion;
     if (JSON.stringify(baseRef.current) === signature) return;
     const merged = rebaseForm(baseRef.current, serverForm, form.getValues());
@@ -648,7 +648,7 @@ export function ProductForm(props: Props) {
       {formError ? <FormAlert>{formError}</FormAlert> : null}
 
       {archived ? null : (
-        <div className="sticky bottom-0 z-20 -mx-4 -mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line-hairline bg-ink-base px-4 py-3 md:-mx-8 md:px-8" data-testid="form-footer">
+        <div className="sticky -bottom-6 z-20 -mx-4 -mb-6 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line-hairline bg-ink-base px-4 py-3 md:-mx-8 md:px-8" data-testid="form-footer">
           <p className={cn('min-w-0 flex-1 ts-label-meta', dirty ? 'text-accent-starred' : 'text-text-muted')} aria-live="polite" data-testid="dirty-note">
             {dirty ? `● ${t('products.form.unsaved', { list: changeLabels.join(', ') })}` : ''}
           </p>

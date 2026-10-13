@@ -24,6 +24,12 @@ export function useNotificationEvents() {
     else void qc.invalidateQueries({ queryKey: notificationKeys.unread(ws) });
     void qc.invalidateQueries({ queryKey: notificationKeys.lists(ws) });
   });
+  // reconnect (M11): `resync { notificationsUnread }` = the count after the notifications missed while offline
+  useWsEvent<{ notificationsUnread?: number }>('resync', (p) => {
+    if (typeof p?.notificationsUnread !== 'number') return;
+    qc.setQueryData(notificationKeys.unread(ws), p.notificationsUnread);
+    void qc.invalidateQueries({ queryKey: notificationKeys.lists(ws) });
+  });
   useWsEvent<Partial<NotificationReadEvent>>('notification.read', (p) => {
     if (typeof p?.unreadCount === 'number') qc.setQueryData(notificationKeys.unread(ws), p.unreadCount);
     else void qc.invalidateQueries({ queryKey: notificationKeys.unread(ws) });

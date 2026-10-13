@@ -18,3 +18,5 @@ export * from './billing';
 export * from './admin-ops';
 export * from './support';
 export * from './admin';
+export * from './integrations';
+export * from './public-pages';

@@ -158,10 +158,10 @@ export function orderChipsPatch(next: OrderChip[], prev: OrderChip[]): Record<st
   return patch;
 }
 
-/** Tag options of the filters: the tags seen on the loaded rows + the selected ones (no tag catalogue endpoint). */
-export function tagOptions(rows: readonly Pick<ClientListItem, 'tags'>[], selected: readonly string[]): string[] {
+/** Tag options of the filters: the selected ones + the workspace's tags (`GET /clients/tags`, M11) + the tags of the loaded rows. */
+export function tagOptions(rows: readonly Pick<ClientListItem, 'tags'>[], selected: readonly string[], workspace: readonly string[] = []): string[] {
   const seen = new Map<string, string>();
-  for (const t of [...selected, ...rows.flatMap((r) => r.tags)]) {
+  for (const t of [...selected, ...workspace, ...rows.flatMap((r) => r.tags)]) {
     const k = t.toLowerCase();
     if (!seen.has(k)) seen.set(k, t);
   }

@@ -75,6 +75,8 @@ export function AgentShell({ id, children }: { id: string; children: ReactNode }
     <AgentCtx.Provider value={{ agent: a, actions }}>
       <AppPage
         wide
+        // the playground chat fills the height left under the header (composer always on screen)
+        fill={pathname === `${base}/playground`}
         permission="agents.read"
         back={back}
         title={a.name}

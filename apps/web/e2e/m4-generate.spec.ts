@@ -178,10 +178,11 @@ test('AT-AGT-03 running (progress, cancellable) ⇒ review ⇒ "Créer un nouvel
   await expect(review).toContainText('LANGUES & TON DÉTECTÉS');
   await expect(review).toContainText(`${r.languages.map((l) => `${LANG[l.code] ?? l.code} ${Math.round(l.pct)} %`).join(' · ')} · ton ${r.tone}`);
   await expect(review).toContainText('QUESTIONS FRÉQUENTES');
-  await expect(review.getByRole('listitem')).toHaveText(['Vous livrez à Sétif ? (2)', 'Kayen taille L ? (1)']);
+  await expect(page.getByTestId('generate-questions').getByRole('listitem')).toHaveText(['Vous livrez à Sétif ? (2)', 'Kayen taille L ? (1)']);
   await expect(review).toContainText('INSTRUCTIONS PROPOSÉES');
-  await expect(page.getByTestId('generate-instructions')).toHaveText(r.proposedInstructions, { useInnerText: true });
-  await expect(page.getByTestId('generate-instructions')).toContainText('- Vous livrez à Sétif ?');
+  // M11: the proposal is editable before applying (textarea)
+  await expect(page.getByTestId('generate-instructions')).toHaveValue(r.proposedInstructions);
+  expect(await page.getByTestId('generate-instructions').inputValue()).toContain('- Vous livrez à Sétif ?');
   await expect(review).toContainText("2 FAQ proposées · tout reste modifiable dans la configuration de l'agent après application.");
   await expect(steps(page).nth(2)).toHaveAttribute('aria-current', 'step');
   await expect(page.getByTestId('generate-apply-new')).toHaveText('Créer un nouvel agent');
@@ -244,14 +245,14 @@ test('a page without linked agent only offers "Créer un nouvel agent"; a reload
   const review = page.getByTestId('generate-review');
   await expect(review).toContainText(`${shop.facebook2.name} · 0 conversations · 0 messages lus`);
   await expect(review).toContainText(`— · ton ${empty.result.tone}`);
-  await expect(review.getByRole('listitem')).toHaveText(['—']);
+  await expect(page.getByTestId('generate-questions').getByRole('listitem')).toHaveText(['—']);
   await expect(review).toContainText('Aucune FAQ proposée');
 
   await load(page, () => page.reload());
   await expect(root(page)).toHaveAttribute('data-phase', 'review', FIRST);
   // nothing to read ⇒ nothing proposed (no AI call)
   expect(empty.result.proposedInstructions).toBe('');
-  await expect(page.getByTestId('generate-instructions')).toHaveText('—');
+  await expect(page.getByTestId('generate-instructions')).toHaveValue('');
   await expect(page).toHaveURL(new RegExp(`[?&]job=${empty.id}`));
   // nothing was started again
   expect(starts).toHaveLength(0);
@@ -388,7 +389,7 @@ test('a refused apply is shown inline and the review stays', async ({ page, requ
     await expect(page.getByTestId('generate-error')).toHaveText('Introuvable ou accès refusé. (NOT_FOUND)');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(root(page)).toHaveAttribute('data-phase', 'review');
-    await expect(page.getByTestId('generate-instructions')).toContainText('- Vous livrez à Sétif ?');
+    expect(await page.getByTestId('generate-instructions').inputValue()).toContain('- Vous livrez à Sétif ?');
     await expect(page.getByTestId('generate-apply-new')).toBeEnabled();
   } finally {
     await linkPage(request, owner, shop.facebook.id, linkedId);

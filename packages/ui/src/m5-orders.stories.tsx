@@ -2,7 +2,7 @@
 // (blocks, label/value rows, totals, timeline), "ORD-07 — Confirm order dialog" (step chips, checks note, phone input)
 // and "DLV-06 / ORD-09 … order print preview A5" (A5 slip).
 import type { Meta, StoryObj } from '@storybook/react';
-import { A5OrderSlip, Button, ChecksNote, DetailRows, KpiTile, OrderBlock, OrderNumber, OrderTimeline, PhoneInput, SourceTag, StatusPill, StepChips, TotalsRows } from './index';
+import { A5OrderSlip, Button, ChecksNote, DetailRows, KpiTile, KpiTileSkeleton, OrderBlock, OrderNumber, OrderTimeline, PhoneInput, SourceTag, StatusPill, StepChips, TotalsRows } from './index';
 
 const meta: Meta = { title: 'M5/Orders' };
 export default meta;
@@ -13,6 +13,26 @@ const Frame = ({ children }: { children: React.ReactNode }) => <div className="m
 export const KpiStrip: Story = {
   render: () => (
     <Frame>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <KpiTile value="31" label="à confirmer" meta="8 sans appel depuis > 2 h" tone="warning" />
+        <KpiTile value="12" label="à expédier" meta="confirmées non envoyées" />
+        <KpiTile value="27" label="en transit" meta="3 sans mouvement > 5 j" tone="warning" />
+        <KpiTile value="68 %" label="livrées · 30 j" meta="12 retours" />
+        <KpiTile value="412 300" label="DA · 30 j" meta="IA 76 % · manuel 24 %" />
+      </div>
+    </Frame>
+  ),
+};
+
+/** Loading state of the strip (M11 layout pass): `KpiTileSkeleton` has the line boxes of `KpiTile`, the row keeps its height. */
+export const KpiStripLoading: Story = {
+  render: () => (
+    <Frame>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <KpiTileSkeleton key={i} />
+        ))}
+      </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <KpiTile value="31" label="à confirmer" meta="8 sans appel depuis > 2 h" tone="warning" />
         <KpiTile value="12" label="à expédier" meta="confirmées non envoyées" />

@@ -4,7 +4,7 @@
 // pagination and scroll anchoring, composer with optimistic send (cancellable 2 s) reconciled on the HTTP answer and
 // on WS `message.created` / `message.updated`. The conversation is marked read when it is opened.
 import { REPLY_MAX_CHARS } from '@djaber/shared';
-import { ActionsMenu, Button, Composer, DaySeparator, Dialog, EmptyState, FormAlert, IconButton, Lightbox, Menu, MenuItem, MenuLabel, MenuSeparator, Pill, Skeleton, StatusPill, ThreadBanner, Tooltip, toast } from '@djaber/ui';
+import { ActionsMenu, Button, Composer, DaySeparator, Dialog, EmptyState, FormAlert, IconButton, Lightbox, Menu, MenuItem, MenuLabel, MenuSeparator, Pill, Skeleton, StatusPill, ThreadBanner, Tooltip, toast, TypingChip } from '@djaber/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Check, ChevronDown, MessageSquare, PanelRight } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -37,6 +37,7 @@ import {
 } from './logic';
 import { MessageView } from './message-view';
 import { dayLabel, handoffLabel, isolate, shortUserName, useLocale, useNow, userName } from './ui';
+import { useTyping, useTypingSignal } from './typing';
 import type { ConversationActions } from './use-conversation-actions';
 import { uuid } from '@/lib/uuid';
 
@@ -176,6 +177,7 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
   const input = useRef<HTMLTextAreaElement>(null);
   const outbox = useRef(new Map<string, Outgoing>());
   const check = checkDraft(draft, !!file && !fileError);
+  const signalTyping = useTypingSignal(c.id);
 
   useEffect(() => () => void (preview && URL.revokeObjectURL(preview)), [preview]);
 
@@ -536,6 +538,9 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
         )}
       </div>
 
+      {/* M11: "IA répond…" (AI reply job running) / "Sara écrit…" (another member in this thread) */}
+      <TypingLine conversationId={c.id} agentName={c.agent?.name ?? null} members={members.data ?? []} />
+
       {/* composer */}
       {state.mode === 'hidden' ? (
         <div className="border-t border-line-hairline px-5 py-3 ts-label-meta text-text-muted" data-composer="hidden">
@@ -581,6 +586,7 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
           value={draft}
           onChange={(v) => {
             setDraft(v);
+            if (v.trim()) signalTyping();
             if (inlineError) setInlineError(null);
           }}
           onSend={submit}
@@ -639,6 +645,23 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
 
       <Lightbox src={lightbox} alt={t('inbox.media.image')} onClose={() => setLightbox(null)} closeLabel={t('action.close')} />
       <TemplateDialog open={templateOpen} onClose={() => setTemplateOpen(false)} conversation={c} />
+    </div>
+  );
+}
+
+/** Who is replying in this thread right now (`conversation.typing`); nothing is rendered when nobody is. */
+function TypingLine({ conversationId, agentName, members }: { conversationId: string; agentName: string | null; members: { user: { id: string; firstName: string; lastName: string } }[] }) {
+  const t = useT();
+  const typing = useTyping(conversationId);
+  const names = typing.userIds.map((id) => {
+    const m = members.find((x) => x.user.id === id);
+    return m ? shortUserName(m.user) : t('carry.inbox.typing.someone');
+  });
+  if (!typing.ai && !names.length) return null;
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1 px-5 pb-2" data-testid="thread-typing">
+      {typing.ai ? <TypingChip label={agentName ? t('agents.playground.typing', { name: agentName }) : t('carry.inbox.typing.ai')} /> : null}
+      {names.length ? <TypingChip label={names.length === 1 ? t('carry.inbox.typing.member', { name: names[0]! }) : t('carry.inbox.typing.members', { count: names.length })} /> : null}
     </div>
   );
 }

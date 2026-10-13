@@ -29,6 +29,8 @@ export const PRODUCTS_LIST: ListSpec = {
     createdTo: 'date',
     updatedFrom: 'date',
     updatedTo: 'date',
+    // M11 — supplier sheet "Voir les produits (n)": products bought from this supplier (purchases not cancelled)
+    supplierId: 'text',
   },
   sorts: PRODUCT_SORTS,
   defaultSort: 'name',
@@ -102,6 +104,9 @@ export type ChipLabels = {
   search: (q: string) => string;
   categoryName: (id: string) => string;
   date: (day: string) => string;
+  /** "Fournisseur : {name}" (supplier sheet link) */
+  supplier?: (name: string) => string;
+  supplierName?: (id: string) => string;
 };
 export type Chip = { key: string; label: string; clear: Record<string, null> | 'q' };
 
@@ -135,6 +140,11 @@ export function activeChips(s: ListState, l: ChipLabels): Chip[] {
   if (agents.length) chips.push({ key: 'agentId', label: l.agent(agents.map(l.agentName).join(', ')), clear: { agentId: null } });
   if (filterBool(s, 'noAgent')) chips.push({ key: 'noAgent', label: l.noAgent, clear: { noAgent: null } });
   for (const v of filterList(s, 'moderationStatus')) chips.push({ key: `moderationStatus:${v}`, label: l.moderation[v] ?? v, clear: { moderationStatus: null } });
+  const supplier = filterText(s, 'supplierId');
+  if (supplier) {
+    const name = l.supplierName?.(supplier) ?? supplier;
+    chips.push({ key: 'supplierId', label: l.supplier ? l.supplier(name) : name, clear: { supplierId: null } });
+  }
   const dates: [string, string, (r: string) => string][] = [
     ['createdFrom', 'createdTo', l.created],
     ['updatedFrom', 'updatedTo', l.updated],

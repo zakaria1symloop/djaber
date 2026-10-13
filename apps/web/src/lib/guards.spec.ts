@@ -52,6 +52,13 @@ describe('(app) guard', () => {
   it('redirects visitors to /login with returnTo', () => {
     expect(decideApp({ ...base, status: 'anonymous', pathname: '/settings/members' })).toEqual({ kind: 'redirect', to: '/login?returnTo=%2Fsettings%2Fmembers' });
   });
+  it('sends anonymous visitors of /help to the public help centre (12 §1b), not the ticket pages', () => {
+    expect(decideApp({ ...base, status: 'anonymous', pathname: '/help' })).toEqual({ kind: 'redirect', to: '/help-center' });
+    expect(decideApp({ ...base, status: 'anonymous', pathname: '/help', search: '?q=cr%C3%A9dits&category=stock&x=1' })).toEqual({ kind: 'redirect', to: '/help-center?q=cr%C3%A9dits&category=stock' });
+    expect(decideApp({ ...base, status: 'anonymous', pathname: '/help', search: '?article=reconnect-ig' })).toEqual({ kind: 'redirect', to: '/help/reconnect-ig' });
+    expect(decideApp({ ...base, status: 'anonymous', pathname: '/help/contact' })).toEqual({ kind: 'redirect', to: '/login?returnTo=%2Fhelp%2Fcontact' });
+    expect(decideApp({ ...base, pathname: '/help' })).toEqual({ kind: 'render' });
+  });
   it('shows the session-expired state instead of redirecting', () => {
     expect(decideApp({ ...base, status: 'expired' })).toEqual({ kind: 'state', state: 'session-expired' });
   });

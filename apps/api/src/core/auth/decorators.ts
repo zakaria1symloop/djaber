@@ -1,5 +1,6 @@
 // 09-code-conventions §2.4
 import { createParamDecorator, ExecutionContext, SetMetadata } from '@nestjs/common';
+import type { ApiScope as ApiScopeName } from '@djaber/shared';
 import type { MerchantPermission, PlatformPermission } from '../rbac/permission-matrix';
 
 /** No authentication at all (webhooks, public pages, login). */
@@ -20,8 +21,16 @@ export const RequirePermission = (key: MerchantPermission) => SetMetadata(PERMIS
 export const PLATFORM_PERMISSION = 'platformPermission';
 export const RequirePlatformRole = (key: PlatformPermission) => SetMetadata(PLATFORM_PERMISSION, key);
 
+/**
+ * 06 §5 — API-key whitelist. `@ApiScope('orders:write')` on a handler (wins), or `@ApiScopes({ read, write })` on a controller:
+ * GET/HEAD need `read`, every other method `write` (absent ⇒ refused). A route with neither answers `403 API_SCOPE_FORBIDDEN`
+ * to an API key.
+ */
 export const API_SCOPE = 'apiScope';
-export const ApiScope = (scope: string) => SetMetadata(API_SCOPE, scope);
+export const ApiScope = (scope: ApiScopeName) => SetMetadata(API_SCOPE, scope);
+export const API_SCOPES_BY_METHOD = 'apiScopesByMethod';
+export type ApiScopesByMethod = { read?: ApiScopeName; write?: ApiScopeName };
+export const ApiScopes = (s: ApiScopesByMethod) => SetMetadata(API_SCOPES_BY_METHOD, s);
 
 export const VERIFIED_EMAIL = 'verifiedEmail';
 export const RequireVerifiedEmail = () => SetMetadata(VERIFIED_EMAIL, true);

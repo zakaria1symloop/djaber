@@ -65,8 +65,8 @@ export default function AdminAuditPage() {
     { key: 'at', header: t('admin.audit.col.at'), sortKey: 'at', hideable: false, cell: (r) => <span className="whitespace-nowrap">{f.shortTime(r.at)}</span> },
     { key: 'actor', header: t('admin.audit.col.actor'), cell: (r) => (r.actor.type === 'system' ? t('admin.audit.system') : `${r.actor.name}${r.actor.role ? ` (${t.has(`enum.PlatformRole.${r.actor.role}`) ? t(`enum.PlatformRole.${r.actor.role}`).toLowerCase() : r.actor.role})` : ''}`) },
     { key: 'action', header: t('admin.audit.col.action'), cell: (r) => <MonoChip tone={tone(r.action)}>{r.action.toUpperCase()}</MonoChip> },
-    { key: 'target', header: t('admin.audit.col.target'), className: 'max-w-[260px]', cell: (r) => <span className="line-clamp-2">{r.target.label}</span> },
-    { key: 'reason', header: t('admin.audit.col.reason'), hideBelow: 'lg', className: 'max-w-[260px]', cell: (r) => <span className="line-clamp-2">{r.reason ?? '—'}</span> },
+    { key: 'target', header: t('admin.audit.col.target'), className: 'max-w-[260px]', cell: (r) => <span className="line-clamp-2" title={r.target.label}>{r.target.label}</span> },
+    { key: 'reason', header: t('admin.audit.col.reason'), hideBelow: 'lg', className: 'max-w-[260px]', cell: (r) => <span className="line-clamp-2" title={r.reason ?? undefined}>{r.reason ?? '—'}</span> },
     { key: 'context', header: t('admin.audit.col.context'), hideBelow: 'xl', cell: (r) => <span dir="ltr">{context(r)}</span> },
   ];
   const d = detail.data;

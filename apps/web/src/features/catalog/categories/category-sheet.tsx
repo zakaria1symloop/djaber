@@ -1,13 +1,16 @@
 'use client';
 // Create / edit sheet of a category — Figma "CAT-04 — Categories & units — list + edit sheet + reassign dialog"
-// (MODIFIER · VÊTEMENTS) and DLG GDS I "Nouvelle catégorie": NOM * (unique), PARENT (2 levels max), DESCRIPTION, COULEUR.
+// (MODIFIER · VÊTEMENTS) and DLG GDS I "Nouvelle catégorie": NOM * (unique), PARENT (2 levels max), DESCRIPTION, COULEUR,
+// + IMAGE (M11, upload kind `category_image`, square crop, ≤ 5 MB — the API stores it at 512 px).
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CreateCategorySchema, UpdateCategorySchema } from '@djaber/shared';
 import { Button, cn, Field, FormAlert, Input, Select, SideSheet, Textarea, toast } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
+import { ImageIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { LeaveGuardDialog } from '@/components/global-states';
+import { useImageUpload } from '@/features/settings/common';
 import { applyServerErrors, fieldError, useLeaveGuard } from '@/lib/forms';
 import { useT } from '@/lib/i18n';
 import { catalogApi, useCatalogRefresh } from '../api';
@@ -42,10 +45,17 @@ export function CategorySheet({
   });
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
+  // M11 (M2 carry-over): category image — `undefined` = unchanged, an upload id = new image, null = removed
+  const [image, setImage] = useState<{ uploadId: string | null; url: string | null } | undefined>(undefined);
+  const imageUpload = useImageUpload('category_image', (uploadId, up) => setImage({ uploadId, url: up.url }));
+  const imageUrl = image === undefined ? (category?.imageUrl ?? null) : image.url;
   const save = useMutation({
-    mutationFn: (v: Values) => (category ? catalogApi.updateCategory(category.id, UpdateCategorySchema.parse(v)) : catalogApi.createCategory(CreateCategorySchema.parse(v))),
+    mutationFn: (v: Values) => {
+      const body = { ...v, ...(image !== undefined ? { imageUploadId: image.uploadId } : {}) };
+      return category ? catalogApi.updateCategory(category.id, UpdateCategorySchema.parse(body)) : catalogApi.createCategory(CreateCategorySchema.parse(body));
+    },
   });
-  const dirty = form.formState.isDirty;
+  const dirty = form.formState.isDirty || image !== undefined;
   const { guard } = useLeaveGuard(dirty, category?.name ?? t('dialog.newCategory.title'));
   const busy = save.isPending;
   const errors = form.formState.errors;
@@ -113,6 +123,29 @@ export function CategorySheet({
           <Field label={t('categories.field.description')} htmlFor="category-description" error={fieldError(t, errors.description?.message, { max: 500 })}>
             <Textarea id="category-description" rows={3} maxLength={500} disabled={busy} aria-invalid={!!errors.description} {...form.register('description')} />
           </Field>
+          <div className="flex flex-col gap-2" data-testid="category-image">
+            <span className="ts-label-meta uppercase text-text-secondary">{t('carry.categories.image')}</span>
+            <div className="flex flex-wrap items-center gap-3">
+              {imageUrl ? (
+                <img src={imageUrl} alt={t('carry.categories.image')} className="size-16 rounded-card border border-line-edge object-cover" data-testid="category-image-preview" />
+              ) : (
+                <span aria-hidden className="flex size-16 items-center justify-center rounded-card border border-dashed border-line-edge text-text-muted">
+                  <ImageIcon className="size-5" />
+                </span>
+              )}
+              {imageUpload.input}
+              <Button size="sm" onClick={imageUpload.open} loading={imageUpload.uploading} disabled={busy} data-testid="category-image-upload">
+                {imageUpload.uploading ? t('settings.upload.uploading') : imageUrl ? t('carry.categories.imageChange') : t('carry.categories.imageAdd')}
+              </Button>
+              {imageUrl ? (
+                <Button size="sm" variant="ghost" onClick={() => setImage({ uploadId: null, url: null })} disabled={busy} data-testid="category-image-remove">
+                  {t('action.remove')}
+                </Button>
+              ) : null}
+            </div>
+            <span className="ts-label-meta text-text-muted">{t('settings.upload.hint')}</span>
+            {imageUpload.error ? <FormAlert>{imageUpload.error}</FormAlert> : null}
+          </div>
           <fieldset className="flex flex-col gap-2" disabled={busy}>
             <legend className="ts-label-meta mb-2 uppercase text-text-secondary">{t('categories.field.color')}</legend>
             <div role="radiogroup" aria-label={t('categories.field.color')} className="flex flex-wrap gap-2.5">

@@ -8,6 +8,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { prisma, TenantContext, type ModerationItem, type ModerationSource, type Prisma, type Tx } from '@djaber/db';
 import type { ModerationAiFlagView, ModerationDetailView } from '@djaber/shared';
 import { AppException, notFound, validationError } from '../../core/errors/app.exception';
+import { originSessionId } from '../../core/tenancy/tenant.guard';
 import { OutboxService } from '../../core/outbox/outbox.service';
 import { ProcessorRegistry } from '../../core/queue/processor.registry';
 import { QueueOutbox } from '../../core/queue/queue.outbox';
@@ -106,6 +107,8 @@ export class ModerationHookService implements OnModuleInit {
 
   async emitProduct(tx: Tx, workspaceId: string, productId: string, status: string) {
     await this.outbox.ws(tx, `ws:${workspaceId}`, 'moderation.updated', { id: productId, productId, status });
+    // outbound webhook `product.moderation_changed` (api-contract §6, D36)
+    await this.outbox.enqueue(tx, { topic: 'webhook', key: `product.moderation_changed:${productId}:${status}:${Date.now()}`, workspaceId, payload: { event: 'product.moderation_changed', workspaceId, data: { productId, status } } });
     // 03-events §2 full `product.updated` shape (same as StockService.emitProductUpdated)
     const p = await tx.product.findFirst({
       where: { id: productId },
@@ -113,7 +116,7 @@ export class ModerationHookService implements OnModuleInit {
     });
     if (!p) return;
     const lowStock = p.trackStock && ((p.stock ?? 0) <= p.minStock || p.variants.some((v) => v.stock <= v.minStock));
-    await this.outbox.ws(tx, `ws:${workspaceId}`, 'product.updated', { id: p.id, product: { id: p.id, stock: p.stock, isActive: p.isActive, moderationStatus: p.moderationStatus, lowStock, archived: !!p.deletedAt } });
+    await this.outbox.ws(tx, `ws:${workspaceId}`, 'product.updated', { id: p.id, product: { id: p.id, stock: p.stock, isActive: p.isActive, moderationStatus: p.moderationStatus, lowStock, archived: !!p.deletedAt }, originSessionId: originSessionId() });
   }
 
   /** Applies a pre-screen result to a pending item: auto-approve or leave it in the human queue. */

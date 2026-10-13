@@ -36,7 +36,8 @@ import type {
 } from './contracts';
 import { SCENARIO_KEYS } from './contracts';
 
-export type BulkResult = { id: string; ok: boolean; error?: { code: string; message: string } };
+export type GenerationOverride = { instructions?: string; faq?: { q: string; a: string }[]; policies?: Record<string, string> };
+export type BulkResult ={ id: string; ok: boolean; error?: { code: string; message: string } };
 export type BulkOutcome = { results: BulkResult[] };
 export type InsightsPage = { rows: AgentInsight[]; total: number; counts: InsightCounts | null };
 
@@ -56,8 +57,11 @@ export const agentsApi = {
   create: (b: CreateAgentBody) => api<Agent>('/agents', { method: 'POST', body: b }),
   update: (id: string, b: UpdateAgentBody) => api<Agent>(`/agents/${id}`, { method: 'PATCH', body: b }),
   remove: (id: string) => api<null>(`/agents/${id}`, { method: 'DELETE' }),
-  /** `confirm` acknowledges AGENT_PAUSED_WITH_OPEN_THREADS (the dialog already showed the count) */
-  pause: (id: string, b: { confirm?: boolean } = {}) => api<Agent>(`/agents/${id}/pause`, { method: 'POST', body: b }),
+  /**
+   * `confirm` acknowledges AGENT_PAUSED_WITH_OPEN_THREADS (the dialog already showed the count); `sendOutOfHours` sends the
+   * workspace `out_of_hours` system message once to every open thread (AGV-07, M11)
+   */
+  pause: (id: string, b: { confirm?: boolean; sendOutOfHours?: boolean } = {}) => api<Agent>(`/agents/${id}/pause`, { method: 'POST', body: b }),
   resume: (id: string) => api<Agent>(`/agents/${id}/resume`, { method: 'POST', body: {} }),
   duplicate: (id: string) => api<Agent>(`/agents/${id}/duplicate`, { method: 'POST', body: {} }),
   activate: (id: string, b: { at?: string } = {}) => api<Agent>(`/agents/${id}/activate`, { method: 'POST', body: b }),
@@ -76,10 +80,11 @@ export const agentsApi = {
   updateFaq: (id: string, fid: string, b: { question: string; answer: string }) => api<AgentFaq>(`/agents/${id}/faq/${fid}`, { method: 'PATCH', body: b }),
   removeFaq: (id: string, fid: string) => api<null>(`/agents/${id}/faq/${fid}`, { method: 'DELETE' }),
   extractFaq: (id: string, channelId: string) => api<JobRef>(`/agents/${id}/faq/extract`, { method: 'POST', body: { channelId } }),
+  /** `POST /agents/:id/faq/import` (TXT / MD / CSV / DOCX ≤ 5 MB, M11) → `{ created, skipped }` answered at once (no job) */
   importFaq: (id: string, file: File) => {
     const fd = new FormData();
     fd.append('file', file);
-    return api<JobRef>(`/agents/${id}/faq/import`, { method: 'POST', formData: fd });
+    return api<{ created: AgentFaq[]; skipped: number }>(`/agents/${id}/faq/import`, { method: 'POST', formData: fd });
   },
   test: (id: string, b: PlaygroundBody) => api<PlaygroundTurn>(`/agents/${id}/test`, { method: 'POST', body: b }),
   flagTurn: (id: string, b: { turnId: string; note?: string }) => api<null>(`/agents/${id}/test/flag`, { method: 'POST', body: b }),
@@ -94,7 +99,8 @@ export const agentsApi = {
     return api<{ id: string; url: string; mime: string; size: number }>('/uploads', { method: 'POST', formData: fd });
   },
   generate: (b: { channelId: string; days: number }) => api<JobRef>('/agents/generate', { method: 'POST', body: b }),
-  applyGeneration: (jobId: string, b: { agentId?: string; confirm?: boolean }) => api<Agent>(`/agents/generate/${jobId}/apply`, { method: 'POST', body: b }),
+  /** `override` = the review edited before applying (M11): absent fields keep the proposal of the job */
+  applyGeneration: (jobId: string, b: { agentId?: string; confirm?: boolean; override?: GenerationOverride }) => api<Agent>(`/agents/generate/${jobId}/apply`, { method: 'POST', body: b }),
   insights: async (q: ApiQuery): Promise<InsightsPage> => {
     const r = await apiRaw<AgentInsight[]>('/agent-insights', { query: q });
     const rows = Array.isArray(r.data) ? r.data : [];

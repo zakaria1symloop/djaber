@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AiModule } from '../ai/ai.module';
 import { CatalogModule } from '../catalog/catalog.module';
 import { ChannelsModule } from '../channels/channels.module';
+import { MessagingModule } from '../messaging/messaging.module';
 import { AgentService } from './agent.service';
 import { AgentInsightsController, AgentsController, ChannelAgentController, SharedTestController } from './agents.controllers';
 import { KnowledgeService } from './knowledge.service';
@@ -14,7 +15,7 @@ import { TestLinkService } from './test-link.service';
  * test links. The turn itself (prompt, tools, runs, credits) is the `ai` module.
  */
 @Module({
-  imports: [AiModule, ChannelsModule, CatalogModule],
+  imports: [AiModule, ChannelsModule, CatalogModule, MessagingModule],
   controllers: [AgentsController, AgentInsightsController, ChannelAgentController, SharedTestController],
   providers: [AgentService, KnowledgeService, PageService, TestLinkService],
   exports: [AgentService, KnowledgeService],

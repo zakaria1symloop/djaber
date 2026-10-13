@@ -78,7 +78,7 @@ function Kpis({ stats, t }: { stats: ReportStatsDto | undefined; t: TFunction })
     return (
       <OpsKpiStrip label={t('adminSafety.kpi.label')}>
         {[0, 1, 2, 3, 4].map((i) => (
-          <Skeleton key={i} className="h-[64px] rounded-card" />
+          <Skeleton key={i} className="h-20 rounded-card" />
         ))}
       </OpsKpiStrip>
     );

@@ -95,7 +95,7 @@ export default function AdminPresetsPage() {
           <EmptyState title={t('admin.presets.empty')} action={write ? { label: t('admin.presets.new'), onClick: () => setCreate({ copyFrom: null }), variant: 'primary' } : undefined} />
         </Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
           <ul className="flex h-fit flex-col divide-y divide-line-hairline overflow-hidden rounded-card border border-line-edge bg-ink-surface" data-testid="preset-list">
             {rows.map((p) => (
               <li key={p.id} data-preset={p.key} className={`flex items-center gap-2 px-4 py-3 ${p.id === selected ? 'bg-ink-raised' : ''}`}>

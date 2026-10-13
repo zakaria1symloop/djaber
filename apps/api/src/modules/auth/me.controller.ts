@@ -4,6 +4,7 @@ import { Authenticated, CurrentUser, type AuthUser } from '../../core/auth/decor
 import { ImageUploadService, type UploadedFile as Incoming } from '../uploads/image-upload.service';
 import { imageInterceptor } from '../uploads/uploads.controller';
 import { AccountDeletionService } from './account-deletion.service';
+import { DataExportService } from './data-export.service';
 import { ChangePasswordDto, DeletionRequestDto, EmailChangeDto, PrefsDto, UpdateMeDto } from './dto';
 import { MeService } from './me.service';
 import { clientOf } from './session.service';
@@ -14,6 +15,7 @@ export class MeController {
     private readonly me: MeService,
     private readonly deletion: AccountDeletionService,
     private readonly images: ImageUploadService,
+    private readonly exports: DataExportService,
   ) {}
 
   @Get()
@@ -95,5 +97,19 @@ export class MeController {
   @HttpCode(200)
   cancelDeletion(@CurrentUser() user: AuthUser, @Req() req: any) {
     return this.deletion.cancel(user.id, clientOf(req));
+  }
+
+  /** DEL-01 "Exporter mes données" (06 §8.1): 202 { jobId } — an export of the last hour is reused. */
+  @Get('data-export')
+  @Authenticated()
+  @HttpCode(202)
+  dataExport(@CurrentUser() user: AuthUser) {
+    return this.exports.start(user.id);
+  }
+
+  @Get('data-export/:jobId')
+  @Authenticated()
+  dataExportStatus(@CurrentUser() user: AuthUser, @Param('jobId', ParseUUIDPipe) jobId: string) {
+    return this.exports.get(user.id, jobId);
   }
 }

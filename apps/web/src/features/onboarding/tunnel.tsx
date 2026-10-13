@@ -103,7 +103,7 @@ function Welcome() {
         {tiles.map((k) => (
           <li key={k} className="rounded-card bg-ink-raised px-2.5 py-2.5">
             <div className="text-[14px] font-medium">{t(`onboarding.welcome.tile.${k}.title`)}</div>
-            <div className="ts-label-meta mt-1 truncate text-text-muted">{t(`onboarding.welcome.tile.${k}.hint`)}</div>
+            <div className="ts-label-meta mt-1 text-text-muted [overflow-wrap:anywhere]">{t(`onboarding.welcome.tile.${k}.hint`)}</div>
           </li>
         ))}
       </ul>

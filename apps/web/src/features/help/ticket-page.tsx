@@ -15,6 +15,7 @@ import { ApiError } from '@/lib/api';
 import { errorMessage, useLeaveGuard } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { useWorkspaceId } from '@/lib/session';
+import { useStickToBottom } from '@/lib/stick-to-bottom';
 import { useWsEvent } from '@/lib/ws';
 import { helpApi, helpKeys, useTicket, type Ticket } from './api';
 import { canRate, canReply } from './logic';
@@ -34,6 +35,8 @@ export function TicketPage({ id }: { id: string }) {
     void qc.invalidateQueries({ predicate: (x) => x.queryKey[1] === 'support-tickets' });
   };
   const tk = q.data;
+  // the thread scrolls inside its own box (sized to the viewport) so the reply form stays on screen (M11 layout pass)
+  const thread = useStickToBottom<HTMLDivElement>(tk ? `${tk.id}:${tk.messages.length}` : null);
   return (
     <AppPage title={tk ? `#${tk.number.replace(/^#/, '')} — ${tk.subject}` : t('help.ticket.title')} permission="support.write" back={{ href: '/help/tickets', label: t('help.tickets.title') }} badges={tk ? <TicketPill ticket={tk} /> : undefined}>
       {q.isPending ? (
@@ -49,7 +52,7 @@ export function TicketPage({ id }: { id: string }) {
           <p className="ts-label-micro text-text-muted">
             {t(`enum.Ticket.category.${tk.category}`)} · {t(`enum.Ticket.priority.${tk.priority}`)} · {formatDateTime(tk.createdAt, locale)}
           </p>
-          <div className="flex flex-col gap-2">
+          <div ref={thread.ref} onScroll={thread.onScroll} className="-mx-1 flex max-h-[max(16rem,calc(100dvh-30rem))] flex-col gap-2 overflow-y-auto overscroll-contain px-1" data-testid="ticket-messages">
             {tk.messages.map((m) => (
               <TicketMessage
                 key={m.id}
@@ -63,7 +66,13 @@ export function TicketPage({ id }: { id: string }) {
           </div>
           {canRate(tk) ? <RatePanel ticket={tk} onDone={setTicket} /> : tk.satisfaction !== null ? <RatedNote score={tk.satisfaction} /> : null}
           {canReply(tk) ? (
-            <ReplyForm ticket={tk} onDone={setTicket} />
+            <ReplyForm
+              ticket={tk}
+              onDone={(next) => {
+                thread.follow();
+                setTicket(next);
+              }}
+            />
           ) : (
             <Banner tone="neutral" action={{ label: t('help.tickets.new'), href: `/${locale}/help/contact` }}>
               <span data-testid="ticket-closed">{t('error.TICKET_CLOSED')}</span>

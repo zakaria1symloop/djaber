@@ -2,7 +2,7 @@
 // Frame of a merchant page: optional back link, eyebrow (STOCK), title, description, header actions and the permission
 // gate (a role without the key gets the 403 page; the API refuses too). Used by every (app) route outside Settings.
 import { roleCan, type MerchantPermission } from '@djaber/shared';
-import { PageHeader } from '@djaber/ui';
+import { cn, PageHeader } from '@djaber/ui';
 import { ArrowLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Page403 } from '@/components/global-states';
@@ -22,6 +22,7 @@ export function AppPage({
   badges,
   children,
   bare,
+  fill,
 }: {
   eyebrow?: string;
   title: string;
@@ -39,6 +40,9 @@ export function AppPage({
   wide?: boolean;
   /** the page draws its own heading (wizard frame): only the document title, the gate and the trail are kept */
   bare?: boolean;
+  /** ≥ 1280 the page takes exactly the height of the content area so a chat pane (`flex-1`) fills what is left
+   * under the header and keeps its composer on screen instead of growing the page (agent playground) */
+  fill?: boolean;
 }) {
   const t = useT();
   const locale = useLocaleCode();
@@ -47,7 +51,7 @@ export function AppPage({
   const keys = permission ? (Array.isArray(permission) ? permission : [permission]) : [];
   if (keys.some((k) => !roleCan(role, k))) return <Page403 role={role ? t(`enum.Membership.role.${role}`) : '—'} homeHref={`/${locale}/home`} />;
   return (
-    <div className="flex w-full flex-col gap-5">
+    <div className={cn('flex w-full flex-col gap-5', fill && 'xl:h-full')}>
       {back ? (
         <Link href={back.href} className="inline-flex w-fit items-center gap-1.5 ts-label-meta uppercase text-text-muted hover:text-text-primary">
           <ArrowLeft className="size-3 rtl:-scale-x-100" aria-hidden />
@@ -60,7 +64,9 @@ export function AppPage({
           <div className="min-w-0 md:flex-1">
             {eyebrow ? <div className="ts-label-meta mb-2 uppercase text-text-muted">{eyebrow}</div> : null}
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="ts-display-m min-w-0 truncate">{title}</h1>
+              <h1 className="ts-display-m min-w-0 truncate" title={title}>
+                {title}
+              </h1>
               {badges}
             </div>
             {description ? <p className="ts-body mt-2 text-text-secondary">{description}</p> : null}

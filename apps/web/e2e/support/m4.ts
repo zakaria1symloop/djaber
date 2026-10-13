@@ -503,7 +503,9 @@ export async function mockAgents(page: Page, w: World) {
         w.faq.push(row);
         return fulfil(route, row, {}, 201);
       }
-      if (sub === '/faq/extract' || sub === '/faq/import') return fulfil(route, { jobId: uuid(79, 'e') }, {}, 202);
+      if (sub === '/faq/extract') return fulfil(route, { jobId: uuid(79, 'e') }, {}, 202);
+      // the import answers at once (`{ created, skipped }`, M11 contract) — no job
+      if (sub === '/faq/import') return fulfil(route, { created: [], skipped: 0 }, {}, 201);
       const restore = /^\/versions\/(\d+)\/restore$/.exec(sub);
       if (restore) return fulfil(route, refresh(Object.assign(a, { currentVersion: a.currentVersion + 1, version: a.version + 1 })));
       if (sub === '/apply-preset-update') return fulfil(route, refresh(Object.assign(a, { currentVersion: a.currentVersion + 1, version: a.version + 1, preset: { ...(a.preset as Json), updateAvailable: null } })));

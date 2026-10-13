@@ -8,7 +8,7 @@
 // through the Meta port. Every AI call goes through the AI port.
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { z } from 'zod';
-import { ANALYSIS_RUNS_PER_DAY, type AgentDto, type AgentGenerationResult, type AnalysisDto, type AnalysisImportInput, type AnalysisImportResult, type AnalysisItem, type SetChannelAgentInput } from '@djaber/shared';
+import { ANALYSIS_RUNS_PER_DAY, ApplyGenerationSchema, type AgentDto, type AgentGenerationResult, type AnalysisDto, type AnalysisImportInput, type AnalysisImportResult, type AnalysisItem, type SetChannelAgentInput } from '@djaber/shared';
 import { prisma, Prisma, TenantContext, type Channel, type Tx } from '@djaber/db';
 import { AppException, conflict, notFound } from '../../core/errors/app.exception';
 import { addWarning } from '../../core/http/envelope.interceptor';
@@ -28,7 +28,7 @@ import { ChannelEvents, ChannelTokens } from '../channels/channel.util';
 import { JobService } from '../jobs/job.service';
 import { MetaError } from '../meta/meta-errors';
 import { META_GATEWAY, type MetaGateway } from '../meta/meta.gateway';
-import { agentText } from './agent.presenter';
+import { agentTextKey } from './agent.presenter';
 import { AgentService } from './agent.service';
 import { KnowledgeService } from './knowledge.service';
 
@@ -38,6 +38,7 @@ const GENERATION_MESSAGES = 1000;
 /** ~20 k tokens per model call (04-ai-pipeline §14). */
 const CHUNK_CHARS = 60_000;
 const READ_SCOPE = 'pages_read_user_content';
+type ApplyGenerationInput = z.infer<typeof ApplyGenerationSchema>;
 
 const GenerationSchema = z.object({
   summary: z.string().default(''),
@@ -55,6 +56,17 @@ type Conv = { messages: { from: 'customer' | 'page'; text: string }[] };
 const GENERATION_PROMPT = 'You analyse past conversations between a shop page and its customers. Reply as JSON { "summary": string, "languages": [{ "code": string, "pct": number }], "topQuestions": [{ "question": string, "count": number }], "tone": string, "proposedInstructions": string, "proposedFaq": [{ "q": string, "a": string }], "proposedPolicies": { "delivery"?: string, "payment"?: string, "returns"?: string, "hours"?: string } }. Only use facts stated by the page in the conversations; never invent a price or a policy.';
 const FAQ_PROMPT = 'From these conversations between a shop page and its customers, extract the frequent customer questions that the page answered. Reply as JSON { "faq": [{ "q": string, "a": string }] } with the answer the page gave. Never invent an answer.';
 const POST_PROMPT = 'This is a post of a shop page (caption + picture). Is it a product for sale? Reply as JSON { "isProduct": boolean, "name": string, "description": string|null, "price": number|null, "category": string|null }. The price is in Algerian dinars and must be written in the caption; otherwise null.';
+
+/** The generation result with the merchant's review applied (`POST /agents/generate/:jobId/apply { override }`). */
+export const applyOverride = (r: AgentGenerationResult, o: ApplyGenerationInput['override']): AgentGenerationResult => {
+  if (!o) return r;
+  return {
+    ...r,
+    ...(o.instructions !== undefined ? { proposedInstructions: o.instructions } : {}),
+    ...(o.faq !== undefined ? { proposedFaq: o.faq.map((f) => ({ q: f.q.trim(), a: f.a.trim() })) } : {}),
+    ...(o.policies !== undefined ? { proposedPolicies: o.policies as AgentGenerationResult['proposedPolicies'] } : {}),
+  };
+};
 
 @Injectable()
 export class PageService implements OnModuleInit {
@@ -245,13 +257,15 @@ export class PageService implements OnModuleInit {
   /**
    * `POST /agents/generate/:jobId/apply { agentId?, confirm? }` — without `agentId` a NEW agent is created (preset
    * Vendeur Pro + the proposals); with it, the agent already linked to that page is updated after an explicit
-   * confirmation (new version). No other agent is ever touched (V1 overwrote the single agent).
+   * confirmation (new version). No other agent is ever touched (V1 overwrote the single agent). `override` (M11) = the
+   * merchant's edited review: `instructions`, `faq` (the rows kept / edited; `[]` = none) and `policies` replace the proposal.
    */
-  async applyGeneration(jobId: string, input: { agentId?: string; confirm?: boolean }, locale: string): Promise<AgentDto> {
+  async applyGeneration(jobId: string, input: ApplyGenerationInput, locale: string): Promise<AgentDto> {
     const job = await this.jobs.byIdOrNotFound(jobId);
     if (job.kind !== 'generation') throw notFound();
     if (job.status !== 'done' || !job.result) throw conflict({ reason: 'JOB_NOT_DONE', status: job.status });
-    const r = job.result as unknown as AgentGenerationResult;
+    // M11: the review edited by the merchant replaces the matching proposals (an absent field keeps the proposal)
+    const r = applyOverride(job.result as unknown as AgentGenerationResult, input.override);
     const channel = await this.channelOrNotFound(r.channelId);
     const policies = Object.fromEntries(Object.entries(r.proposedPolicies ?? {}).filter(([, v]) => typeof v === 'string' && v.trim()).map(([k, v]) => [k, String(v).slice(0, 500)]));
     if (input.agentId) {
@@ -265,7 +279,7 @@ export class PageService implements OnModuleInit {
       await this.addGeneratedFaq(updated.id, r);
       return this.agents.get(updated.id, locale);
     }
-    const draft = await this.agents.create({ presetKey: 'vendeur-pro', name: agentText(locale, 'generatedName', { page: channel.name }).slice(0, 100), wizard: { policies } }, locale);
+    const draft = await this.agents.create({ presetKey: 'vendeur-pro', name: this.i18n.t(locale, agentTextKey('generatedName'), { page: channel.name }).slice(0, 100), wizard: { policies } }, locale);
     const withText = await this.agents.update(draft.id, { version: draft.version, customInstructions: [draft.customInstructions.trim(), r.proposedInstructions.trim()].filter(Boolean).join('\n').slice(0, 10_000), ...(channel.agentChannels.length ? {} : { channelIds: [channel.id] }), note: `generation:${jobId}` }, locale);
     await this.addGeneratedFaq(withText.id, r);
     return this.agents.get(withText.id, locale);

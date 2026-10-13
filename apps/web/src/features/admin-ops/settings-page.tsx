@@ -124,7 +124,7 @@ export function SettingsPage() {
     >
       {write.offline && settings.data ? <OfflineBanner since={formatDate(new Date(settings.dataUpdatedAt), locale)} onRetry={() => void settings.refetch()} /> : null}
       {settings.isPending ? (
-        <div aria-busy="true" aria-label={t('common.loading')} className="grid gap-5 xl:grid-cols-2">
+        <div aria-busy="true" aria-label={t('common.loading')} className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <Skeleton className="h-72" />
           <Skeleton className="h-72" />
           <Skeleton className="h-56" />
@@ -133,13 +133,14 @@ export function SettingsPage() {
       ) : settings.isError && !settings.data ? (
         <AdminQueryError error={settings.error} onRetry={() => void settings.refetch()} />
       ) : settings.data && formLimits && formContacts ? (
-        <div className="grid items-start gap-5 xl:grid-cols-2">
-          <div className="flex flex-col gap-5">
+        // grid-cols-1 / min-w-0: the panels' tables scroll inside their card instead of widening the page on phones
+        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
+          <div className="flex min-w-0 flex-col gap-5">
             <AppVersionsPanel versions={settings.data.appVersions} />
             <FlagsPanel flags={settings.data.flags} />
             <MaintenancePanel data={settings.data} />
           </div>
-          <div className="flex flex-col gap-5">
+          <div className="flex min-w-0 flex-col gap-5">
             <LegalPanel docs={settings.data.legal} contacts={formContacts} onContacts={(c) => setContacts(c)} error={errors.contacts} />
             <MetaPanel permissions={settings.data.metaPermissions} />
             <ProvidersPanel providers={settings.data.providers} />

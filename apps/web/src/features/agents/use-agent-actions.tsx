@@ -3,7 +3,7 @@
 // (Figma "MECH — Agents filters + row menu", "AGT-03" actions menu, "DLG — Agents & channels": Supprimer l'agent,
 // Mettre en pause, Lien de test, limite du plan). Items come from the server `actions` descriptors: a forbidden one
 // stays visible, greyed, with its reason; navigation items are local.
-import { Button, buttonClass, Dialog, Field, FormAlert, Input, Ltr, Pill, toast, type MenuAction } from '@djaber/ui';
+import { Button, buttonClass, Checkbox, Dialog, Field, FormAlert, Input, Ltr, Pill, toast, type MenuAction } from '@djaber/ui';
 import { formatDateTime, type ActionDescriptor, type AppLocale } from '@djaber/shared';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useRouter } from '@/i18n/navigation';
@@ -252,9 +252,11 @@ function PauseAgentDialog({ agent, onClose, onDone }: { agent: Agent | null; onC
   const t = useT();
   const [pending, setPending] = useState(false);
   const [openThreads, setOpenThreads] = useState<number | null>(null);
+  const [sendOutOfHours, setSendOutOfHours] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     setOpenThreads(null);
+    setSendOutOfHours(false);
     setError(null);
   }, [agent?.id]);
   const submit = async () => {
@@ -262,7 +264,9 @@ function PauseAgentDialog({ agent, onClose, onDone }: { agent: Agent | null; onC
     setPending(true);
     setError(null);
     try {
-      await agentsApi.pause(agent.id, openThreads !== null ? { confirm: true } : {});
+      // `sendOutOfHours` only when ticked (the default is false on the API side)
+      const extra = sendOutOfHours ? { sendOutOfHours: true } : {};
+      await agentsApi.pause(agent.id, openThreads !== null ? { confirm: true, ...extra } : extra);
       onDone(agent);
     } catch (e) {
       if (e instanceof ApiError && e.code === 'AGENT_PAUSED_WITH_OPEN_THREADS') setOpenThreads(Number(e.body.params.count ?? 0));
@@ -296,7 +300,14 @@ function PauseAgentDialog({ agent, onClose, onDone }: { agent: Agent | null; onC
             <span data-testid="pause-open-threads">{t('error.AGENT_PAUSED_WITH_OPEN_THREADS', { count: openThreads })}</span> <Ltr>(AGENT_PAUSED_WITH_OPEN_THREADS)</Ltr>
           </FormAlert>
         ) : null}
-        {/* API M4: "Envoyer le message « hors horaires » aux clients qui écrivent" needs a field on POST /agents/:id/pause (carry-overs) */}
+        {/* AGV-07: the workspace `out_of_hours` system message is sent once to every open thread moved to « À traiter » */}
+        <label className="flex items-start gap-2 text-[13px]">
+          <Checkbox className="mt-0.5 shrink-0" checked={sendOutOfHours} disabled={pending} onChange={(e) => setSendOutOfHours(e.target.checked)} data-testid="pause-send-out-of-hours" />
+          <span>
+            {t('carry.agents.pause.sendOutOfHours')}
+            <span className="ts-label-meta block text-text-muted">{t('carry.agents.pause.sendOutOfHoursHint')}</span>
+          </span>
+        </label>
         {error ? <FormAlert>{error}</FormAlert> : null}
       </div>
     </Dialog>

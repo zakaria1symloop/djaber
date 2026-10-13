@@ -1,9 +1,8 @@
 // Pipeline step "AuthGuard (JWT | API key | public)" — 01-nest-module-map §3.
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { createHash } from 'node:crypto';
-import { prisma, TenantContext } from '@djaber/db';
 import { AppException } from '../errors/app.exception';
+import { ApiKeyAuthService, rawApiKeyOf } from './api-key-auth.service';
 import { IS_PUBLIC } from './decorators';
 import { TokenService } from './token.service';
 
@@ -12,23 +11,23 @@ export class AuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly tokens: TokenService,
+    private readonly apiKeys: ApiKeyAuthService,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     if (ctx.getType() !== 'http') return true;
     const targets = [ctx.getHandler(), ctx.getClass()];
     const req = ctx.switchToHttp().getRequest();
+    const res = ctx.switchToHttp().getResponse();
     const header: string | undefined = req.headers.authorization;
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, targets);
 
-    if (header?.startsWith('Bearer dj_')) {
-      // API key (06 §5): `dj_live_…` / `dj_test_…`, stored as SHA-256
-      const raw = header.slice('Bearer '.length).trim();
-      const keyHash = createHash('sha256').update(raw).digest('hex');
-      const key = await TenantContext.runSystem(() => prisma.apiKey.findUnique({ where: { keyHash } }));
-      if (!key) throw new AppException('UNAUTHORIZED');
-      if (key.revokedAt) throw new AppException('API_KEY_REVOKED');
-      req.apiKey = key;
+    // API key (06 §5, api-contract §1.2): `X-API-Key: dj_live_…` / `dj_test_…` (or `Authorization: Bearer dj_…`), stored as SHA-256.
+    // A public route ignores a key it does not need.
+    const rawKey = rawApiKeyOf(req.headers);
+    if (rawKey) {
+      if (isPublic) return true;
+      req.apiKey = await this.apiKeys.authenticate(rawKey, typeof req.ip === 'string' ? req.ip : null, (k, v) => res.setHeader?.(k, v));
       return true;
     }
 

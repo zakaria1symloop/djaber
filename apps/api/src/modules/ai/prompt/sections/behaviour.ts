@@ -12,8 +12,27 @@ export const imageRuleSection = (c: PromptContext): string =>
       ].join('\n')
     : '';
 
-export const crossSellSection = (c: PromptContext): string =>
-  c.agent.capabilities.crossSell === false ? '' : 'CROSS-SELL\nSuggest at most 1 complementary product per conversation, only from ALSO lines, only after the customer chose a product.';
+/** REC-01: never more than 3 suggestions in one reply (the `recommendations` output is capped to 3 as well). */
+export const RECOMMENDATIONS_PER_TURN_MAX = 3;
+/** Pairs listed in the section (the catalogue keeps ≤ 2 active rules per product); beyond that the model reads ALSO lines. */
+const RECOMMENDATION_PAIRS_MAX = 30;
+
+/**
+ * §3.9 Cross-sell — the dedicated recommendations section (M11, REC-01): the 04-ai rule, the source → recommended pairs
+ * of the products in the catalogue section (active rules, in the agent's scope), and how to report what was suggested
+ * (`recommendations` = REC-03 impressions).
+ */
+export const crossSellSection = (c: PromptContext): string => {
+  if (c.agent.capabilities.crossSell === false) return '';
+  const pairs = c.catalogue.products.flatMap((p) => p.also.map((a) => `- [ID:${p.id}] ${p.name} → [ID:${a.id}] ${a.name} ${a.price} DA — ${a.reason?.trim() || 'often bought together'}`)).slice(0, RECOMMENDATION_PAIRS_MAX);
+  return [
+    'CROSS-SELL (RECOMMENDATIONS)',
+    'Suggest at most 1 complementary product per conversation, only from ALSO lines, only after the customer chose a product.',
+    pairs.length ? `RECOMMENDATION PAIRS (source → recommended):\n${pairs.join('\n')}` : 'RECOMMENDATION PAIRS: only the ALSO lines returned by search_products / get_product.',
+    `Never more than ${RECOMMENDATIONS_PER_TURN_MAX} suggestions in one reply. Never suggest a product that is out of stock or that the customer already chose.`,
+    'List every product you suggest in "recommendations" as { "sourceId", "recommendedId" } taken from these pairs; an empty list when you suggest nothing.',
+  ].join('\n');
+};
 
 export const cardTemplateSection = (c: PromptContext): string =>
   `PRODUCT CARD\nWhen presenting a product use this template: ${c.agent.productCardTemplate?.trim() || '{name} — {price} DA'}\nList the ids of the products you present in productCards (at most 5); the cards are sent after your text.`;

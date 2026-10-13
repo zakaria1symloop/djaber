@@ -5,6 +5,8 @@ import { TenantContext } from '@djaber/db';
 import { AppException } from '../errors/app.exception';
 import {
   API_SCOPE,
+  API_SCOPES_BY_METHOD,
+  type ApiScopesByMethod,
   IS_AUTHENTICATED_ONLY,
   IS_PLATFORM,
   IS_PUBLIC,
@@ -18,6 +20,16 @@ import {
   type MerchantPermission,
   type PlatformPermission,
 } from './permission-matrix';
+
+/** 06 §5 whitelist: the handler's `@ApiScope` wins, else the controller's `@ApiScopes({ read, write })` by HTTP method. */
+// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type -- Nest reflector targets (handler, class)
+export const apiScopeOf = (reflector: Reflector, targets: Function[], method: string): string | null => {
+  const explicit = reflector.get<string | undefined>(API_SCOPE, targets[0]!);
+  if (explicit) return explicit;
+  const byMethod = reflector.getAllAndOverride<ApiScopesByMethod | undefined>(API_SCOPES_BY_METHOD, targets);
+  if (!byMethod) return reflector.get<string | undefined>(API_SCOPE, targets[1]!) ?? null;
+  return (method === 'GET' || method === 'HEAD' ? byMethod.read : byMethod.write) ?? null;
+};
 
 @Injectable()
 export class PermissionGuard implements CanActivate {
@@ -49,7 +61,7 @@ export class PermissionGuard implements CanActivate {
     const key = this.reflector.getAllAndOverride<MerchantPermission>(PERMISSION, targets);
     if (!key) throw new Error(`Route ${req.method} ${req.path} has no @RequirePermission`); // fail closed at dev time
     if (t.apiKeyId) {
-      const scope = this.reflector.getAllAndOverride<string>(API_SCOPE, targets);
+      const scope = apiScopeOf(this.reflector, targets, req.method);
       if (!scope || !(req.apiKey.scopes as string[]).includes(scope)) {
         throw new AppException('API_SCOPE_FORBIDDEN', { scope: scope ?? '—' });
       }

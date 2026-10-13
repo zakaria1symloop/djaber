@@ -164,4 +164,7 @@ test('AT-PFS-05 legal re-acceptance: blocking interstitial, "Accepter" after the
   await expect(dialog).toBeHidden();
   expect(accepted).toEqual({ key: 'terms', version: 5 });
   await expect(page.getByRole('link', { name: 'Aide', exact: true })).toBeVisible();
+  // the shell refetches `GET /me` after the acceptance: a call still inside the route handler when the test ends made
+  // Playwright fail the test with "route.fetch: Test ended" (about one run in two)
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
 });

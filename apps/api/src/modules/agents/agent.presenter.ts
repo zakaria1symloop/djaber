@@ -101,24 +101,5 @@ export const diffSnapshots = (a: Record<string, unknown>, b: Record<string, unkn
     .map((field) => ({ field, before: b[field] ?? null, after: a[field] ?? null }));
 
 // --- server-side texts ----------------------------------------------------------------------------------------------------------------
-// The i18n message files are owned by the web milestone running in parallel: the few labels the API itself produces for
-// agents (default names, readiness checklist) live here until their keys join the copy deck (`agent.*`).
-type L3 = { fr: string; ar: string; en: string };
-const TEXTS: Record<string, L3> = {
-  defaultName: { fr: 'Nouvel agent', ar: 'وكيل جديد', en: 'New agent' },
-  copySuffix: { fr: '(copie)', ar: '(نسخة)', en: '(copy)' },
-  generatedName: { fr: 'Agent de {page}', ar: 'وكيل {page}', en: '{page} agent' },
-  'readiness.catalog': { fr: 'Produits actifs dans le périmètre de l’agent', ar: 'منتجات نشطة ضمن نطاق الوكيل', en: 'Active products in the agent’s scope' },
-  'readiness.productsWithoutPhoto': { fr: 'Produits sans photo', ar: 'منتجات بدون صورة', en: 'Products without a photo' },
-  'readiness.feeGrid': { fr: 'Grille des frais de livraison', ar: 'جدول رسوم التوصيل', en: 'Delivery fee grid' },
-  'readiness.policies': { fr: 'Politiques de la boutique (livraison, paiement, retours)', ar: 'سياسات المتجر (التوصيل، الدفع، الإرجاع)', en: 'Shop policies (delivery, payment, returns)' },
-  'readiness.channels': { fr: 'Pages rattachées', ar: 'الصفحات المرتبطة', en: 'Linked pages' },
-  'readiness.emailVerified': { fr: 'Adresse e-mail vérifiée', ar: 'البريد الإلكتروني مؤكَّد', en: 'Verified e-mail address' },
-  'readiness.credits': { fr: 'Crédits disponibles', ar: 'الرصيد المتاح', en: 'Credits available' },
-  'readiness.pendingModeration': { fr: 'Produits en attente de validation', ar: 'منتجات في انتظار المراجعة', en: 'Products waiting for review' },
-};
-export const agentText = (locale: string, key: string, params: Record<string, string> = {}): string => {
-  const t = TEXTS[key];
-  const raw = t ? (t[(locale === 'ar' || locale === 'en' ? locale : 'fr') as keyof L3] ?? t.fr) : key;
-  return raw.replace(/\{(\w+)\}/g, (_, k: string) => params[k] ?? '');
-};
+/** i18n key of a server-rendered agents text (`packages/shared/src/i18n/messages/api-agents.*.json`, resolved by `I18nService`). */
+export const agentTextKey = (key: string) => `agent.api.${key}`;

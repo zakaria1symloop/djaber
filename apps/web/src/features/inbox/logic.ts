@@ -254,8 +254,10 @@ export type InboxFilters = {
   language: string[];
   lastMessage: 'lt24h' | 'gt24h' | '7d' | null;
   sort: InboxSort;
+  /** M11: conversations of one agent (Actions ⌄ › Conversations of an agent, ?agentId=): an active chip, not a panel field */
+  agent: string | null;
 };
-export const DEFAULT_FILTERS: InboxFilters = { tab: 'all', channel: null, q: '', ai: null, unread: false, assignee: null, order: null, intent: [], client: [], language: [], lastMessage: null, sort: 'lastMessageAt' };
+export const DEFAULT_FILTERS: InboxFilters = { tab: 'all', channel: null, q: '', ai: null, unread: false, assignee: null, order: null, intent: [], client: [], language: [], lastMessage: null, sort: 'lastMessageAt', agent: null };
 
 const INTENTS = ['sale', 'info', 'tracking', 'complaint', 'greeting', 'other'];
 const CLIENT_FLAGS = ['risk', 'placeholder', 'vip'];
@@ -277,6 +279,7 @@ export const parseInboxParams = (p: Params): InboxFilters => ({
   language: pickList(p.get('language')),
   lastMessage: pick(p.get('lastMessage'), ['lt24h', 'gt24h', '7d'] as const),
   sort: pick(p.get('sort'), INBOX_SORTS) ?? 'lastMessageAt',
+  agent: p.get('agentId')?.trim() || null,
 });
 
 /** Canonical query string (defaults omitted, stable order): the same view always has the same URL. */
@@ -294,6 +297,7 @@ export const inboxQueryString = (f: InboxFilters): string => {
   if (f.language.length) p.set('language', f.language.join(','));
   if (f.lastMessage) p.set('lastMessage', f.lastMessage);
   if (f.sort !== 'lastMessageAt') p.set('sort', f.sort);
+  if (f.agent) p.set('agentId', f.agent);
   return p.toString();
 };
 
@@ -313,13 +317,14 @@ export const inboxApiQuery = (f: InboxFilters, limit = 50): InboxApiQuery => ({
   language: f.language.length ? f.language : undefined,
   lastMessage: f.lastMessage ?? undefined,
   sort: f.sort === 'lastMessageAt' ? undefined : f.sort,
+  agentId: f.agent ?? undefined,
   limit,
 });
 
 /** Filters of the panel that narrow the list (tab, channel and search are shown elsewhere). */
 export const countPanelFilters = (f: InboxFilters): number =>
   (f.ai ? 1 : 0) + (f.unread ? 1 : 0) + (f.assignee ? 1 : 0) + (f.order ? 1 : 0) + f.intent.length + f.client.length + f.language.length + (f.lastMessage ? 1 : 0) + (f.sort !== 'lastMessageAt' ? 1 : 0);
-export const isFiltered = (f: InboxFilters): boolean => f.q.trim().length >= 2 || countPanelFilters(f) - (f.sort !== 'lastMessageAt' ? 1 : 0) > 0;
+export const isFiltered = (f: InboxFilters): boolean => f.q.trim().length >= 2 || !!f.agent || countPanelFilters(f) - (f.sort !== 'lastMessageAt' ? 1 : 0) > 0;
 export const resetPanelFilters = (f: InboxFilters): InboxFilters => ({ ...DEFAULT_FILTERS, tab: f.tab, channel: f.channel });
 
 export const tabCount = (counts: ConversationCounts | undefined, tab: InboxTab): number | null => (counts ? (counts[tab] ?? 0) : null);

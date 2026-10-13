@@ -15,6 +15,10 @@ export const configureApp = (app: INestApplication) => {
     exclude: [
       { path: 'health', method: RequestMethod.GET },
       { path: 'ready', method: RequestMethod.GET },
+      // API-04: published documentation outside the versioned base path
+      { path: 'api/docs', method: RequestMethod.GET },
+      { path: 'api/docs/openapi.json', method: RequestMethod.GET },
+      { path: 'api/docs/postman.json', method: RequestMethod.GET },
     ],
   });
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));

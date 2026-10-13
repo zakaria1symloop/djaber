@@ -3,7 +3,7 @@
 // "Modèle IA". Provider cards (ACTIF · PRINCIPAL / SECOURS / DÉSACTIVÉ, key tested, health with threshold ⚠, bascule),
 // routing per capability (OK / BASCULE ACTIVE), credit pricing calculator (simulate) + new pricing version.
 import type { AiModelAdminDto, AiPricingDto, AiPricingSimulateInput, AiPricingSimulationDto, AiProviderAdminDto, AiProviderTestDto, AiRouteDto } from '@djaber/shared';
-import { ActionsMenu, AdminCard, Button, Card, DataTable, Field, FrameNote, Input, ListSkeleton, MonoChip, OpsKpiTile, OpsPanel, toast, type Column } from '@djaber/ui';
+import { ActionsMenu, AdminCard, Button, Card, DataTable, Field, FrameNote, Input, ListSkeleton, MonoChip, OpsKpiTile, OpsPanel, Skeleton, toast, type Column } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { AdminPage, AdminQueryError } from '@/features/admin/admin-page';
@@ -15,7 +15,10 @@ import { ApiError } from '@/lib/api';
 import { errorMessage } from '@/lib/forms';
 import { useT } from '@/lib/i18n';
 
-const fmtDec = (n: number, locale: string, digits = 2) => n.toLocaleString(locale === 'en' ? 'en-US' : 'fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: digits }).replace(/\s/g, ' ');
+// as many provider cards per row as fit (≥ 260 px each): 3 or 4 providers sit on one row from 1280 px, no orphan card
+const PROVIDER_GRID = 'grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(260px,1fr))]';
+
+const fmtDec =(n: number, locale: string, digits = 2) => n.toLocaleString(locale === 'en' ? 'en-US' : 'fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: digits }).replace(/\s/g, ' ');
 
 export default function AdminAiPage() {
   const t = useT();
@@ -119,11 +122,16 @@ export default function AdminAiPage() {
       }
     >
       {providers.isPending ? (
-        <ListSkeleton rows={3} columns={3} label={t('common.loading')} />
+        // card-shaped placeholders of the provider cards' height: the routing table below does not jump on load
+        <div role="status" aria-label={t('common.loading')} className={PROVIDER_GRID}>
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-[296px] rounded-card" />
+          ))}
+        </div>
       ) : providers.isError ? (
         <AdminQueryError error={providers.error} onRetry={() => void providers.refetch()} />
       ) : (
-        <div className="grid gap-3 md:grid-cols-3" data-testid="provider-cards">
+        <div className={PROVIDER_GRID} data-testid="provider-cards">
           {providers.data.map((p) => {
             const h = health(p);
             return (

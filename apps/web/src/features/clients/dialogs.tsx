@@ -3,7 +3,7 @@
 // Tags) and "DLG — Orders & delivery — dialogs catalogue" (Fusionner les clients). Server errors render inside the open
 // dialog and the typed content is kept (AT-UX-04).
 import { CreateClientSchema, formatNumber, UpdateClientSchema } from '@djaber/shared';
-import { Button, Checkbox, Combobox, Dialog, Field, FormAlert, Input, MergeCard, PhoneInput, TagInput, TagToggle, Textarea, toast, type ComboOption, type TagToggleState } from '@djaber/ui';
+import { Button, Checkbox, Combobox, Dialog, Field, FormAlert, Input, MergeCard, PhoneInput, TagToggle, Textarea, toast, type ComboOption, type TagToggleState } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { CommuneCombobox, WilayaCombobox } from '@/features/delivery/geo';
@@ -11,8 +11,9 @@ import { ApiError } from '@/lib/api';
 import { errorMessage, fieldError } from '@/lib/forms';
 import { useT } from '@/lib/i18n';
 import { phonePreviewLine, searchTerm } from '@/lib/phone';
-import { clientsApi, useClientsRefresh, type BulkResponse } from './api';
-import { CLIENT_TAG_MAX_CHARS, CLIENT_TAGS_MAX, type Client, type ClientListItem, type ClientMergePreview } from './contracts';
+import { clientsApi, useClientsRefresh, useClientTags, type BulkResponse } from './api';
+import { ClientTagInput } from './client-tag-input';
+import { CLIENT_TAG_MAX_CHARS, type Client, type ClientListItem, type ClientMergePreview } from './contracts';
 
 const errText = (e: unknown, t: ReturnType<typeof useT>) => (e instanceof ApiError ? `${errorMessage(e, t)} (${e.code})` : errorMessage(e, t));
 
@@ -146,7 +147,7 @@ export function ClientFormDialog({ open, client, onClose, onSaved, onUseExisting
             <Input id="client-email" type="email" value={v.email} onChange={(e) => set('email', e.target.value)} aria-invalid={!!errors.email || undefined} />
           </Field>
           <Field label={t('common.tags')} htmlFor="client-tags" error={fe('tags')}>
-            <TagInput id="client-tags" value={v.tags} onChange={(x) => set('tags', x)} label={t('common.tags')} placeholder={t('clients.dialog.tagsPlaceholder')} removeLabel={(x) => t('clients.dialog.removeTag', { tag: x })} max={CLIENT_TAGS_MAX} maxLength={CLIENT_TAG_MAX_CHARS} />
+            <ClientTagInput id="client-tags" value={v.tags} onChange={(x) => set('tags', x)} invalid={!!errors.tags} />
           </Field>
           <Field label={t('common.wilaya')} htmlFor="client-wilaya" error={fe('wilayaId')}>
             <WilayaCombobox id="client-wilaya" value={v.wilayaId} onChange={(id) => setV((s) => ({ ...s, wilayaId: id, communeId: null }))} clearable invalid={!!errors.wilayaId} />
@@ -349,7 +350,18 @@ export function TagsDialog({ ids, known, onClose, onDone }: { ids: string[] | nu
     setDraft('');
     setError(null);
   }, [ids]);
-  const tags = useMemo(() => [...new Set([...known, ...extra])], [known, extra]);
+  // the tags of the selected rows + the 30 most used tags of the workspace (`GET /clients/tags`)
+  const workspaceTags = useClientTags('', !!ids);
+  const tags = useMemo(() => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const x of [...known, ...(workspaceTags.data ?? []).slice(0, 30).map((w) => w.tag), ...extra]) {
+      if (seen.has(x.toLowerCase())) continue;
+      seen.add(x.toLowerCase());
+      out.push(x);
+    }
+    return out;
+  }, [known, extra, workspaceTags.data]);
   const add = tags.filter((x) => states[x] === 'add');
   const remove = tags.filter((x) => states[x] === 'remove');
   const m = useMutation({ mutationFn: () => clientsApi.bulkTags({ ids: ids!, add, remove }) });

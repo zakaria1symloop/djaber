@@ -2,8 +2,10 @@
 // after creation, `courier.fetch-label`, stored under `private/ws/<id>/labels/`), else the Djaber label (ZR Express ⇒
 // `LABEL_UNAVAILABLE` warning + fallback). One label: `GET /shipments/:id/label` (signed URL, 24 h). Many: job
 // `labels-merge` (one merged PDF; orders without a created parcel skipped with `SHIPMENT_NOT_CREATED`; optional
-// "bordereau imprimé" stamp on `Order.labelPrintedAt`). Also the M2 product label sheet (`POST /products/bulk/labels`).
+// "bordereau imprimé" stamp on `Order.labelPrintedAt`; M11: `onePdfPerOrder` ⇒ a ZIP of one PDF per order, `includeRecap`
+// ⇒ an internal recap first). Also the M2 product label sheet (`POST /products/bulk/labels`).
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { zipSync } from 'fflate';
 import { PDFDocument } from 'pdf-lib';
 import type { LabelFileView, LabelFormat, LabelQuery, LabelsJobInput, LabelsJobResult, ProductLabelsInput, ProductLabelsJobResult } from '@djaber/shared';
 import { prisma, TenantContext, type Job, type Shipment } from '@djaber/db';
@@ -17,10 +19,13 @@ import { isCourierError, PROVIDER_NAMES, type CourierProvider } from './adapters
 import { CourierAccountService } from './courier-account.service';
 import { CourierLimiter } from './courier-limiter';
 import { renderDjaberLabels, type DjaberLabelData, type LabelLang } from './labels/djaber-label.pdf';
+import { renderLabelsRecap, type LabelRecapRow } from './labels/labels-recap.pdf';
 import { renderProductLabels, PRODUCT_LABELS_PER_PAGE, type ProductLabelData } from './labels/product-labels.pdf';
 
 const URL_TTL_S = 24 * 3600;
 const NOT_CREATED: Shipment['status'][] = ['pending', 'cancelled'];
+/** Order number as a file name inside the ZIP (`#A-1024` → `A-1024`). */
+const fileSafe = (v: string) => v.replace(/^#/, '').replace(/[^\p{L}\p{N}._-]+/gu, '-').slice(0, 80);
 
 @Injectable()
 export class LabelService implements OnModuleInit {
@@ -109,11 +114,12 @@ export class LabelService implements OnModuleInit {
     return prisma.order.findUniqueOrThrow({ where: { id: orderId }, include: { items: { orderBy: { id: 'asc' } }, wilaya: true, commune: true } });
   }
 
-  private async store(body: Buffer, name: string, createdById: string | null | undefined) {
+  private async store(body: Buffer, name: string, createdById: string | null | undefined, type: 'pdf' | 'zip' = 'pdf') {
     const ws = TenantContext.workspaceId();
-    const key = `private/ws/${ws}/labels/${name}.pdf`;
-    await this.storage.put(key, body, 'application/pdf');
-    const upload = createdById ? await prisma.upload.create({ data: { workspaceId: ws, storageKey: key, url: key, mime: 'application/pdf', size: body.length, kind: 'label', createdById } }) : null;
+    const key = `private/ws/${ws}/labels/${name}.${type}`;
+    const mime = type === 'zip' ? 'application/zip' : 'application/pdf';
+    await this.storage.put(key, body, mime);
+    const upload = createdById ? await prisma.upload.create({ data: { workspaceId: ws, storageKey: key, url: key, mime, size: body.length, kind: 'label', createdById } }) : null;
     return { key, upload };
   }
 
@@ -141,13 +147,13 @@ export class LabelService implements OnModuleInit {
   /** `POST /shipments/labels` → 202 `{ jobId }` (Job `labels`, name `labels-merge`). */
   async requestMerge(input: LabelsJobInput) {
     const total = (input.orderIds?.length ?? 0) + (input.shipmentIds?.length ?? 0);
-    const job = await this.jobs.create({ kind: 'labels', name: 'labels-merge', payload: { orderIds: input.orderIds ?? [], shipmentIds: input.shipmentIds ?? [], format: input.format, markPrinted: input.markPrinted, lang: this.lang(input.lang) }, total, expiresAt: new Date(Date.now() + 7 * 86_400_000) });
+    const job = await this.jobs.create({ kind: 'labels', name: 'labels-merge', payload: { orderIds: input.orderIds ?? [], shipmentIds: input.shipmentIds ?? [], format: input.format, markPrinted: input.markPrinted, lang: this.lang(input.lang), onePdfPerOrder: input.onePdfPerOrder === true, includeRecap: input.includeRecap === true }, total, expiresAt: new Date(Date.now() + 7 * 86_400_000) });
     return { jobId: job.id };
   }
 
   async mergeJob(jobId: string) {
     await this.jobs.run(jobId, async (job: Job) => {
-      const p = (job.payload ?? {}) as { orderIds?: string[]; shipmentIds?: string[]; format?: LabelFormat; markPrinted?: boolean; lang?: LabelLang };
+      const p = (job.payload ?? {}) as { orderIds?: string[]; shipmentIds?: string[]; format?: LabelFormat; markPrinted?: boolean; lang?: LabelLang; onePdfPerOrder?: boolean; includeRecap?: boolean };
       const format = p.format ?? 'a6';
       const lang = p.lang ?? 'fr';
       const skipped: LabelsJobResult['skipped'] = [];
@@ -177,10 +183,12 @@ export class LabelService implements OnModuleInit {
       // Djaber labels for the parcels without a stored courier label, rendered one PDF per label then merged in order
       const full = await Promise.all(picked.map(async (x) => ({ ...x.shipment, order: await this.orderFor(x.orderId) })));
       const data = await this.labelData(full, lang);
-      const merged = await PDFDocument.create();
       let courierLabels = 0;
       let djaberLabels = 0;
       let done = 0;
+      // one PDF per parcel, in the requested order (the stored courier label, else the Djaber label)
+      const files: { name: string; bytes: Buffer }[] = [];
+      const used = new Set<string>();
       for (const s of full) {
         let bytes: Buffer | null = null;
         if (s.labelUrl) {
@@ -191,15 +199,53 @@ export class LabelService implements OnModuleInit {
           bytes = await renderDjaberLabels([data.get(s.id)!], format, lang);
           djaberLabels++;
         }
-        const src = await PDFDocument.load(bytes);
-        for (const page of await merged.copyPages(src, src.getPageIndices())) merged.addPage(page);
+        const base = fileSafe(s.order.number) || s.id;
+        let name = `${base}.pdf`;
+        for (let i = 2; used.has(name); i++) name = `${base}-${i}.pdf`;
+        used.add(name);
+        files.push({ name, bytes });
         if (++done % 10 === 0) await this.jobs.progress(jobId, (done / Math.max(1, full.length)) * 100);
       }
-      if (!full.length) merged.addPage();
-      const pdf = Buffer.from(await merged.save());
+      const recapRows: LabelRecapRow[] = full.map((s) => {
+        const d = data.get(s.id)!;
+        return { orderNumber: d.orderNumber, recipientName: d.recipientName, phone: d.phone, wilaya: d.wilaya, courier: d.courier, trackingNumber: d.trackingNumber, codAmount: d.codAmount };
+      });
+      const recap = p.includeRecap ? await renderLabelsRecap(recapRows, lang) : null;
+      const pageCount = async (b: Buffer) => (await PDFDocument.load(b)).getPageCount();
+
+      let body: Buffer;
+      let pages = 0;
+      let type: 'pdf' | 'zip' = 'pdf';
+      let fileName: string;
+      let fileCount = 1;
+      if (p.onePdfPerOrder) {
+        const entries: Record<string, Uint8Array> = {};
+        if (recap) {
+          entries['recapitulatif.pdf'] = new Uint8Array(recap);
+          pages += await pageCount(recap);
+        }
+        for (const f of files) {
+          entries[f.name] = new Uint8Array(f.bytes);
+          pages += await pageCount(f.bytes);
+        }
+        body = Buffer.from(zipSync(entries, { level: 6 }));
+        type = 'zip';
+        fileName = `bordereaux-${full.length}.zip`;
+        fileCount = Object.keys(entries).length;
+      } else {
+        const merged = await PDFDocument.create();
+        for (const b of [...(recap ? [recap] : []), ...files.map((f) => f.bytes)]) {
+          const src = await PDFDocument.load(b);
+          for (const page of await merged.copyPages(src, src.getPageIndices())) merged.addPage(page);
+        }
+        if (!merged.getPageCount()) merged.addPage();
+        body = Buffer.from(await merged.save());
+        pages = merged.getPageCount();
+        fileName = `bordereaux-${full.length}.pdf`;
+      }
       if (p.markPrinted && picked.length) await prisma.order.updateMany({ where: { id: { in: picked.map((x) => x.orderId) } }, data: { labelPrintedAt: new Date() } });
-      const { upload } = await this.store(pdf, `bordereaux-${jobId}`, job.createdById);
-      const result: LabelsJobResult = { kind: 'labels', count: full.length, pages: merged.getPageCount(), format, fileName: `bordereaux-${full.length}.pdf`, size: pdf.length, skipped, courierLabels, djaberLabels };
+      const { upload } = await this.store(body, `bordereaux-${jobId}`, job.createdById, type);
+      const result: LabelsJobResult = { kind: 'labels', count: full.length, pages, format, fileName, size: body.length, skipped, courierLabels, djaberLabels, onePdfPerOrder: p.onePdfPerOrder === true, includeRecap: p.includeRecap === true, files: fileCount };
       return { resultUploadId: upload?.id ?? null, result, status: skipped.length ? 'partial' : 'done' };
     });
   }

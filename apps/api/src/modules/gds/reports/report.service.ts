@@ -34,7 +34,7 @@ import { REPORT_PRODUCERS, type ReportCtx } from './definitions';
 import { ReportScheduleService } from './report-schedule.service';
 
 const FILE_URL_TTL_S = 24 * 3600;
-const FILTER_KEYS: ReportFilterKey[] = ['categoryId', 'productId', 'supplierId', 'clientId', 'days', 'q'];
+const FILTER_KEYS: ReportFilterKey[] = ['categoryId', 'productId', 'supplierId', 'clientId', 'days', 'q', 'source', 'channelId', 'groupBy'];
 /** Export job filters: the period is stored resolved, so a retry exports the same days. */
 export type ReportExportFilters = { key: ReportKey; from: string | null; to: string | null; sort?: string; filters: Partial<Record<ReportFilterKey, string | number>> };
 type Lang = 'fr' | 'ar' | 'en';

@@ -35,4 +35,12 @@ Object.assign(process.env, {
   GOOGLE_PLAY_PUBSUB_TOKEN: '',
   APPLE_IAP_PRIVATE_KEY: '',
   APP_STORE_SHARED_SECRET: '',
+  // M11: simulated Google only, outbound webhooks to local receivers only, fake captcha (token `fake-pass`)
+  SHEETS_DRIVER: 'fake',
+  SHEETS_ALLOW_LIVE: 'false',
+  GOOGLE_CLIENT_ID: '',
+  GOOGLE_CLIENT_SECRET: '',
+  WEBHOOKS_ALLOW_LIVE: 'false',
+  CAPTCHA_DRIVER: 'fake',
+  CAPTCHA_ALLOW_LIVE: 'false',
 });

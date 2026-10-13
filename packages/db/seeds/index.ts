@@ -5,6 +5,7 @@ import { seedAi, seedPresets } from './ai';
 import { seedSafety } from './ops-safety';
 import { seedSettings } from './ops-settings';
 import { seedSupport } from './ops-support';
+import { seedPublicPages } from './public-pages';
 import { resolve } from 'node:path';
 import * as argon2 from 'argon2';
 import { rawPrisma as db } from '../src/client';
@@ -326,6 +327,8 @@ async function main() {
   await seedSupport(a.id);
   await seedSettings(a.id);
   await seedSafety(a.id);
+  // M11 public site CMS pages (landing, features, pricing FAQ, cookies, Meta data deletion)
+  await seedPublicPages(a.id);
   const fees = await feeGrids();
   const maps = await courierCommuneMaps();
    

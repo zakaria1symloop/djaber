@@ -2,12 +2,13 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { createZodDto } from 'nestjs-zod';
 import { ANALYTICS_TABS, AnalyticsQuerySchema, type AnalyticsQuery, type AnalyticsTab } from '@djaber/shared';
-import { RequirePermission } from '../../core/auth/decorators';
+import { RequirePermission, ApiScopes } from '../../core/auth/decorators';
 import { notFound } from '../../core/errors/app.exception';
 import { AnalyticsService } from './analytics.service';
 
 export class AnalyticsQueryDto extends createZodDto(AnalyticsQuerySchema) {}
 
+@ApiScopes({ read: 'analytics:read' })
 @Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly analytics: AnalyticsService) {}

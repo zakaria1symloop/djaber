@@ -232,12 +232,16 @@ describe('public tracking page (`/s/[code]`)', () => {
     expect(text).not.toContain(String(order.total));
     await pub.get('/track/unknown-token-123').expect(404);
     await pub.post(`/track/${token}/report`, { reason: 'robbery' }).expect(422);
-    const rep = await pub.post(`/track/${token}/report`, { reason: 'fraud', details: 'colis jamais reçu' }).expect(201);
+    // M11 (AT-PUB-05 captcha, M6 carry-over): no / wrong captcha token ⇒ 422 with the field, nothing stored
+    expect((await pub.post(`/track/${token}/report`, { reason: 'fraud' }).expect(422)).body.error.fields).toEqual({ captchaToken: 'validation.captcha' });
+    expect((await pub.post(`/track/${token}/report`, { reason: 'fraud', captchaToken: 'bot' }).expect(422)).body.error.fields).toEqual({ captchaToken: 'validation.captcha' });
+    expect((await pub.get('/captcha/config').expect(200)).body.data).toEqual({ provider: 'fake', siteKey: null });
+    const rep = await pub.post(`/track/${token}/report`, { reason: 'fraud', details: 'colis jamais reçu', captchaToken: 'fake-pass' }).expect(201);
     expect(rep.body.data).toMatchObject({ status: 'open' });
     const row = await db.report.findUniqueOrThrow({ where: { id: rep.body.data.id } });
     expect(row).toMatchObject({ type: 'merchant', reporterKind: 'end_customer', targetWorkspaceId: owner.workspaceId, reason: 'fraud' });
-    await pub.post(`/track/${token}/report`, { reason: 'spam' }).expect(201);
-    await pub.post(`/track/${token}/report`, { reason: 'spam' }).expect(201);
-    expect((await pub.post(`/track/${token}/report`, { reason: 'spam' }).expect(429)).body.error.code).toBe('ABUSE_REPORT_RATE_LIMITED');
+    await pub.post(`/track/${token}/report`, { reason: 'spam', captchaToken: 'fake-pass' }).expect(201);
+    await pub.post(`/track/${token}/report`, { reason: 'spam', captchaToken: 'fake-pass' }).expect(201);
+    expect((await pub.post(`/track/${token}/report`, { reason: 'spam', captchaToken: 'fake-pass' }).expect(429)).body.error.code).toBe('ABUSE_REPORT_RATE_LIMITED');
   });
 });

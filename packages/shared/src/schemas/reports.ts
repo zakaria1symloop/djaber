@@ -64,7 +64,18 @@ export type ReportColumnDef = {
   enumKey?: string;
 };
 export type ReportKpiDef = { key: string; unit: AnalyticsUnit; figure?: MoneyFigureName; advanced?: boolean };
-export type ReportFilterKey = 'categoryId' | 'productId' | 'supplierId' | 'clientId' | 'days' | 'q';
+/**
+ * M11 (Figma ANA-04 "Ventes par produit"): `source` = sold lines of counter sales, of delivered orders or both (default);
+ * `channelId` = delivered orders of one page only (counter sales have no channel, so they drop out); `groupBy` = one row per
+ * variant (default) or per product. Offered only by the reports built on the sold lines (sales by product / category, top
+ * products). The period reports read the daily rollups: sales and orders are already separate columns there and the
+ * rollups keep no channel split.
+ */
+export const REPORT_SOURCES = ['all', 'sales', 'orders'] as const;
+export type ReportSource = (typeof REPORT_SOURCES)[number];
+export const REPORT_GROUP_BY = ['variant', 'product'] as const;
+export type ReportGroupBy = (typeof REPORT_GROUP_BY)[number];
+export type ReportFilterKey = 'categoryId' | 'productId' | 'supplierId' | 'clientId' | 'days' | 'q' | 'source' | 'channelId' | 'groupBy';
 export type ReportDefinition = {
   key: ReportKey;
   group: ReportGroup;
@@ -108,7 +119,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     columns: [product, variant, sku, category, c('quantity', 'int', { sum: true }), c('revenue', 'money', { sum: true }), c('cogs', 'money', { sum: true, advanced: true }), c('margin', 'money', { sum: true, advanced: true }), c('marginPct', 'pct', { advanced: true }), c('sharePct', 'pct')],
     kpis: [k('revenue', 'money', { figure: 'revenue' }), k('quantity', 'count'), k('products', 'count'), k('marginPct', 'pct', { advanced: true })],
     chart: { type: 'bar', x: 'product', y: ['revenue'] },
-    filters: ['categoryId', 'productId', 'q'],
+    filters: ['categoryId', 'productId', 'source', 'channelId', 'groupBy', 'q'],
     defaultSort: '-revenue',
   },
   sales_by_category: {
@@ -119,7 +130,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     columns: [category, c('quantity', 'int', { sum: true }), c('revenue', 'money', { sum: true }), c('cogs', 'money', { sum: true, advanced: true }), c('margin', 'money', { sum: true, advanced: true }), c('sharePct', 'pct')],
     kpis: [k('revenue', 'money', { figure: 'revenue' }), k('quantity', 'count'), k('categories', 'count')],
     chart: { type: 'donut', x: 'category', y: ['revenue'] },
-    filters: [],
+    filters: ['source', 'channelId'],
     defaultSort: '-revenue',
   },
   top_products: {
@@ -130,7 +141,7 @@ export const REPORT_DEFINITIONS: Record<ReportKey, ReportDefinition> = {
     columns: [c('rank', 'int'), product, sku, category, c('quantity', 'int', { sum: true }), c('orders', 'int', { sum: true }), c('revenue', 'money', { sum: true })],
     kpis: [k('quantity', 'count'), k('revenue', 'money', { figure: 'revenue' }), k('products', 'count')],
     chart: { type: 'bar', x: 'product', y: ['quantity'] },
-    filters: ['categoryId', 'q'],
+    filters: ['categoryId', 'source', 'channelId', 'q'],
     defaultSort: '-quantity',
   },
   profit_loss: {
@@ -389,6 +400,9 @@ export const ReportQuerySchema = z
     supplierId: id.optional(),
     clientId: id.optional(),
     days: z.coerce.number().int().min(1, 'validation.range').max(730, 'validation.range').optional(),
+    source: z.enum(REPORT_SOURCES, { errorMap: () => ({ message: 'validation.invalid' }) }).optional(),
+    channelId: id.optional(),
+    groupBy: z.enum(REPORT_GROUP_BY, { errorMap: () => ({ message: 'validation.invalid' }) }).optional(),
     lang: z.enum(['fr', 'ar', 'en']).optional(),
   })
   .strict();

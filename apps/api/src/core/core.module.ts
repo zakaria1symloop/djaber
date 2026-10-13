@@ -2,6 +2,8 @@
 import { Global, Module } from '@nestjs/common';
 import { AuditService } from './audit/audit.service';
 import { TokenService } from './auth/token.service';
+import { ApiKeyAuthService } from './auth/api-key-auth.service';
+import { CaptchaService } from './captcha/captcha.service';
 import { ConfigService } from './config/config.service';
 import { CounterService } from './counter/counter.service';
 import { CryptoService } from './crypto/crypto.service';
@@ -27,6 +29,8 @@ const providers = [
   I18nService,
   CryptoService,
   TokenService,
+  ApiKeyAuthService,
+  CaptchaService,
   TenantResolver,
   OutboxService,
   AuditService,

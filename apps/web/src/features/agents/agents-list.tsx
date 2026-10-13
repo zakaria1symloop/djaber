@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react';
 import { AppPage } from '@/components/app-page';
 import { insightDetail } from './insight-detail';
 import { ListFilteredEmpty, QueryError } from '@/components/global-states';
+import { useProduct } from '@/features/catalog/api';
 import { useChannels } from '@/features/channels/api';
 import { Link } from '@/i18n/navigation';
 import { errorMessage } from '@/lib/forms';
@@ -28,7 +29,8 @@ import { useAgentActions, type AgentActions } from './use-agent-actions';
 
 /** `GET /agents` parameters (06 §10 "Agents", api-contract §4 `AgentsQuery`). */
 export const AGENTS_SPEC: ListSpec = {
-  filters: { status: 'list', channelId: 'list', capabilities: 'list', presetKey: 'list', activeDays: 'text', defaultLanguage: 'text', hasPendingInsights: 'bool' },
+  // `productId` (M11): "Agents qui le vendent" of the product page — no dropdown, an active chip only
+  filters: { status: 'list', channelId: 'list', capabilities: 'list', presetKey: 'list', activeDays: 'text', defaultLanguage: 'text', hasPendingInsights: 'bool', productId: 'text' },
   sorts: ['lastActiveAt', 'name'],
   defaultSort: '-lastActiveAt',
 };
@@ -60,6 +62,8 @@ export function AgentsList() {
   const presetKeys = filterList(s, 'presetKey');
   const activeDays = filterText(s, 'activeDays');
   const language = filterText(s, 'defaultLanguage');
+  const productId = filterText(s, 'productId');
+  const product = useProduct(productId || null);
 
   const statusOptions = STATUSES.map((v) => ({ value: v, label: t(`agents.filter.status.${v}`) }));
   const channelOptions = (channels.data?.rows ?? []).map((c) => ({ value: c.id, label: c.name }));
@@ -80,6 +84,7 @@ export function AgentsList() {
   if (presetKeys.length) chip('presetKey', t('agents.filter.preset'), labels(presetKeys, presetOptions));
   if (activeDays) chip('activeDays', t('agents.filter.activity'), labels([activeDays], activityOptions));
   if (language) chip('defaultLanguage', t('agents.filter.language'), labels([language], languageOptions));
+  if (productId) chip('productId', t('carry.agents.filter.product'), product.data?.name ?? (product.isError ? '—' : '…'));
 
   /* ---------- selection ---------- */
   const [selecting, setSelecting] = useState(false);
@@ -165,7 +170,8 @@ export function AgentsList() {
         <FilterDropdown label={t('agents.filter.status')} count={statuses.length}>
           <FilterChips multiple label={t('agents.filter.status')} options={statusOptions} value={statuses} onChange={(v) => list.setFilter('status', v)} />
         </FilterDropdown>
-        {channelOptions.length ? (
+        {/* shown while the options load too: the bar keeps its final width and the list under it does not jump */}
+        {channelOptions.length || channels.isLoading ? (
           <FilterDropdown label={t('agents.filter.channel')} count={channelIds.length}>
             <FilterChips multiple label={t('agents.filter.channel')} options={channelOptions} value={channelIds} onChange={(v) => list.setFilter('channelId', v)} />
           </FilterDropdown>
@@ -173,7 +179,7 @@ export function AgentsList() {
         <FilterDropdown label={t('agents.filter.capabilities')} count={caps.length}>
           <FilterChips multiple label={t('agents.filter.capabilities')} options={capOptions} value={caps} onChange={(v) => list.setFilter('capabilities', v)} />
         </FilterDropdown>
-        {presetOptions.length ? (
+        {presetOptions.length || presets.isLoading ? (
           <FilterDropdown label={t('agents.filter.preset')} count={presetKeys.length}>
             <FilterChips multiple label={t('agents.filter.preset')} options={presetOptions} value={presetKeys} onChange={(v) => list.setFilter('presetKey', v)} />
           </FilterDropdown>

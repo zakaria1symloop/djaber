@@ -5,7 +5,7 @@
 // tâche · PDF page courante + totaux · Copier le lien du rapport), filter chips as query string (Période, Catégorie,
 // Fournisseur, Produit, Client, Jours, search), the > 5 000 rows banner, KPI tiles with the comparison, the chart, the
 // table (sortable, clickable rows, TOTAL row over every row, pagination 25/50/100) and its [S] / [E] / [FE] states.
-import { formatNumber, isReportKey, REPORT_CSV_IMMEDIATE_MAX_ROWS, REPORT_DEFINITIONS, type ReportColumnDef, type ReportDataView, type ReportKey, type ReportRow } from '@djaber/shared';
+import { formatNumber, isReportKey, REPORT_CSV_IMMEDIATE_MAX_ROWS, REPORT_DEFINITIONS, REPORT_GROUP_BY, REPORT_SOURCES, type ReportColumnDef, type ReportDataView, type ReportKey, type ReportRow } from '@djaber/shared';
 import {
   AnaKpiSkeleton,
   Banner,
@@ -46,6 +46,7 @@ import { Kpi } from '@/features/analytics/parts';
 import { ANALYTICS_PRESETS, customRangeError, periodQuery, todayAlgiers, type PeriodState } from '@/features/analytics/period';
 import { ListPagination } from '@/features/catalog/ui';
 import { useCategories } from '@/features/catalog/api';
+import { useChannels } from '@/features/channels/api';
 import { useSuppliers } from '@/features/gds/api';
 import { ProductPicker } from '@/features/gds/product-picker';
 import { ClientPicker } from '@/features/gds/sale-dialogs';
@@ -84,7 +85,7 @@ function ReportView({ reportKey }: { reportKey: ReportKey }) {
   const def0 = REPORT_DEFINITIONS[reportKey];
   const spec: ListSpec = useMemo(
     () => ({
-      filters: { categoryId: 'text', productId: 'text', supplierId: 'text', clientId: 'text', days: 'int' },
+      filters: { categoryId: 'text', productId: 'text', supplierId: 'text', clientId: 'text', days: 'int', source: 'text', channelId: 'text', groupBy: 'text' },
       sorts: def0.columns.filter((c) => c.sortable).map((c) => c.key),
       defaultSort: def0.defaultSort,
     }),
@@ -202,6 +203,28 @@ function ReportView({ reportKey }: { reportKey: ReportKey }) {
         )}
         {def?.filters.includes('categoryId') ? <CategoryFilter value={filterText(s, 'categoryId')} onChange={(v) => list.setFilter('categoryId', v)} /> : null}
         {def?.filters.includes('supplierId') ? <SupplierFilter value={filterText(s, 'supplierId')} onChange={(v) => list.setFilter('supplierId', v)} /> : null}
+        {/* M11 — ANA-04 "Source", "Canal", "Grouper par": rendered only when the definition lists them */}
+        {def?.filters.includes('source') ? (
+          <FilterDropdown label={t('carry.reports.filter.source', { value: t(`carry.reports.source.${filterText(s, 'source') || 'all'}`) })} count={filterText(s, 'source') && filterText(s, 'source') !== 'all' ? 1 : 0}>
+            <FilterChips
+              label={t('carry.reports.filter.sourceTitle')}
+              options={REPORT_SOURCES.map((v) => ({ value: v, label: t(`carry.reports.source.${v}`) }))}
+              value={[filterText(s, 'source') || 'all']}
+              onChange={(v) => list.setFilter('source', v[0] && v[0] !== 'all' ? v[0] : null)}
+            />
+          </FilterDropdown>
+        ) : null}
+        {def?.filters.includes('channelId') ? <ChannelFilter value={filterText(s, 'channelId')} onChange={(v) => list.setFilter('channelId', v)} /> : null}
+        {def?.filters.includes('groupBy') ? (
+          <FilterDropdown label={t('carry.reports.filter.groupBy', { value: t(`carry.reports.groupBy.${filterText(s, 'groupBy') || 'variant'}`) })} count={filterText(s, 'groupBy') === 'product' ? 1 : 0}>
+            <FilterChips
+              label={t('carry.reports.filter.groupByTitle')}
+              options={REPORT_GROUP_BY.map((v) => ({ value: v, label: t(`carry.reports.groupBy.${v}`) }))}
+              value={[filterText(s, 'groupBy') || 'variant']}
+              onChange={(v) => list.setFilter('groupBy', v[0] && v[0] !== 'variant' ? v[0] : null)}
+            />
+          </FilterDropdown>
+        ) : null}
         {def?.filters.includes('productId') ? (
           <FilterDropdown label={t('reports.filter.product', { value: filterText(s, 'productId') ? t('reports.filter.one') : t('reports.filter.all') })} count={filterText(s, 'productId') ? 1 : 0}>
             <div className="flex flex-col gap-2">
@@ -352,6 +375,27 @@ function SupplierFilter({ value, onChange }: { value: string; onChange: (v: stri
   return (
     <FilterDropdown label={t('reports.filter.supplier', { value: value ? (name ?? '…') : t('reports.filter.all') })} count={value ? 1 : 0}>
       <Select aria-label={t('reports.filter.supplierTitle')} value={value} onChange={(e) => onChange(e.target.value || null)}>
+        <option value="">{t('reports.filter.all')}</option>
+        {rows.map((r) => (
+          <option key={r.id} value={r.id}>
+            {r.name}
+          </option>
+        ))}
+      </Select>
+    </FilterDropdown>
+  );
+}
+
+/** "Canal : tous ⌄" — delivered orders of one connected page (counter sales have no channel). */
+function ChannelFilter({ value, onChange }: { value: string; onChange: (v: string | null) => void }) {
+  const t = useT();
+  const { can } = useSession();
+  const channels = useChannels(can('channels.read'));
+  const rows = channels.data?.rows ?? [];
+  const name = rows.find((r) => r.id === value)?.name;
+  return (
+    <FilterDropdown label={t('carry.reports.filter.channel', { value: value ? (name ?? '…') : t('reports.filter.all') })} count={value ? 1 : 0}>
+      <Select aria-label={t('carry.reports.filter.channelTitle')} value={value} onChange={(e) => onChange(e.target.value || null)} data-testid="report-channel">
         <option value="">{t('reports.filter.all')}</option>
         {rows.map((r) => (
           <option key={r.id} value={r.id}>

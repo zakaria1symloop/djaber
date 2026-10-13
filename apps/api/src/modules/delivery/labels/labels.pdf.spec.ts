@@ -3,6 +3,7 @@
 import { PDFDocument } from 'pdf-lib';
 import QRCode from 'qrcode';
 import { LABEL_SIZES, renderDjaberLabels, type DjaberLabelData } from './djaber-label.pdf';
+import { renderLabelsRecap, RECAP_TEXTS } from './labels-recap.pdf';
 import { renderProductLabels } from './product-labels.pdf';
 
 const MM = 72 / 25.4;
@@ -55,5 +56,20 @@ describe('product label sheet (M2 carry-over)', () => {
     const doc = await PDFDocument.load(await renderProductLabels(items));
     expect(doc.getPageCount()).toBe(2);
     expect(Math.round(doc.getPage(0).getWidth() / MM)).toBe(210);
+  });
+});
+
+describe('labels recap (M11, DLG "Imprimer les bordereaux" — Inclure le récapitulatif interne)', () => {
+  it('A4 pages, a new page every ~40 rows, fr / ar / en; nothing to print still gives one page', async () => {
+    const row = (i: number) => ({ orderNumber: `CMD-${1000 + i}`, recipientName: i % 2 ? 'أمين بن علي' : 'Lina Haddad', phone: '0661223344', wilaya: '31 · Oran', courier: 'Yalidine', trackingNumber: i % 3 ? `YAL-${i}` : null, codAmount: 4500 + i });
+    for (const lang of ['fr', 'ar', 'en'] as const) {
+      const one = await PDFDocument.load(await renderLabelsRecap([row(1), row(2)], lang));
+      expect(one.getPageCount()).toBe(1);
+      expect(Math.round(one.getPage(0).getWidth() / MM)).toBe(210);
+    }
+    const many = await PDFDocument.load(await renderLabelsRecap(Array.from({ length: 90 }, (_, i) => row(i))));
+    expect(many.getPageCount()).toBeGreaterThanOrEqual(2);
+    expect((await PDFDocument.load(await renderLabelsRecap([]))).getPageCount()).toBe(1);
+    expect(Object.keys(RECAP_TEXTS.ar)).toEqual(Object.keys(RECAP_TEXTS.fr));
   });
 });

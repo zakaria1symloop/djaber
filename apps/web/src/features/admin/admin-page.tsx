@@ -15,8 +15,14 @@ export function AdminPage({
   actions,
   permission,
   badges,
+  fill,
   children,
 }: {
+  /**
+   * the page takes the full height of the content area on wide screens (xl): one panel inside (a ticket thread) grows
+   * and scrolls on its own while its composer stays on screen. Below xl the page scrolls as usual.
+   */
+  fill?: boolean;
   title: string;
   description?: ReactNode;
   actions?: ReactNode;
@@ -29,7 +35,7 @@ export function AdminPage({
   useDocumentTitle(title);
   if (!can(permission)) return <AdminForbidden role={role} />;
   return (
-    <div className="flex flex-col gap-5">
+    <div className={fill ? 'flex flex-col gap-5 xl:h-full xl:min-h-[34rem]' : 'flex flex-col gap-5'}>
       {badges ? (
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1">

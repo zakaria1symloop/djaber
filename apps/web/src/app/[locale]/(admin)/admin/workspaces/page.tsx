@@ -70,13 +70,13 @@ export default function AdminWorkspacesPage() {
   );
 
   const columns: Column<AdminWorkspaceRowDto>[] = [
-    { key: 'name', header: t('admin.ws.col.workspace'), sortKey: 'name', hideable: false, className: 'max-w-[220px]', cell: (r) => <span className="block truncate text-[14px] font-medium">{r.name}</span> },
+    { key: 'name', header: t('admin.ws.col.workspace'), sortKey: 'name', hideable: false, className: 'max-w-[220px]', cell: (r) => <span className="block truncate text-[14px] font-medium" title={r.name}>{r.name}</span> },
     {
       key: 'owner',
       header: t('admin.ws.col.owner'),
       className: 'max-w-[220px]',
       cell: (r) => (
-        <span className="block min-w-0">
+        <span className="block min-w-0" title={`${fullName(r.owner)} · ${r.owner.email}`}>
           <span className="block truncate">{fullName(r.owner)}</span>
           <span className="block truncate ts-label-micro text-text-muted" dir="ltr">
             {r.owner.email}
