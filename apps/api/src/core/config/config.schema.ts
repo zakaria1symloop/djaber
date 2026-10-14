@@ -48,6 +48,11 @@ export const ConfigSchema = z.object({
   INSTAGRAM_APP_ID: z.string().optional(),
   INSTAGRAM_APP_SECRET: z.string().optional(),
   META_GRAPH_VERSION: z.string().default('v21.0'),
+  // V1 → V2 cutover on the same public host: answer the paths registered in the Meta app (webhook, OAuth return,
+  // data deletion) so nothing changes on Meta's side. Off by default.
+  META_LEGACY_PATHS: bool.default(false),
+  // OAuth `redirect_uri` path (must equal the one registered in Meta); `{platform}` = facebook | instagram
+  META_OAUTH_CALLBACK_PATH: z.string().default('/api/v1/channels/callback/{platform}'),
 
   // Payments (Chargily is the only gateway, D4)
   PAYMENT_PROVIDER: z.literal('chargily').default('chargily'),
