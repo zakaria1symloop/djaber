@@ -138,6 +138,8 @@ const toProviderError = (provider: AiProviderName, error: unknown, aborted: bool
 export class LiveAiGateway implements AiGateway {
   readonly driver = 'live' as const;
   constructor(private readonly options: LiveAiGatewayOptions = {}) {}
+  /** `provider:modelId` of the models that refused `temperature` once: later calls go without it straight away */
+  private readonly noTemperature = new Set<string>();
 
   /** Resolved at call time, so that replacing `globalThis.fetch` (tests) is honoured. */
   private readonly fetch: typeof fetch = (input, init) => (this.options.fetch ?? globalThis.fetch)(input, init);
@@ -178,9 +180,11 @@ export class LiveAiGateway implements AiGateway {
           abortSignal: signal,
         });
       // newer models refuse the sampling setting (Anthropic: "`temperature` is deprecated for this model"): ask again without it
-      const res = await run(false).catch((e: unknown) => {
-        if (rejectsTemperature(e)) return run(true);
-        throw e;
+      const modelKey = `${provider}:${req.model.modelId}`;
+      const res = await run(this.noTemperature.has(modelKey)).catch((e: unknown) => {
+        if (this.noTemperature.has(modelKey) || !rejectsTemperature(e)) throw e;
+        this.noTemperature.add(modelKey);
+        return run(true);
       });
       return {
         text: res.text,

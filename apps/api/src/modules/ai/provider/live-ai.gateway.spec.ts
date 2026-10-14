@@ -326,6 +326,12 @@ describe('failure classes (04 §6)', () => {
     expect(net.calls).toHaveLength(2);
     expect(net.calls[0]!.json).toMatchObject({ temperature: 0.3 });
     expect(net.calls[1]!.json).not.toHaveProperty('temperature');
+    // remembered: the next call to that model goes without temperature at once
+    net.calls.length = 0;
+    expectHost('api.anthropic.com').reply(ok);
+    expect((await gateway.generate(request('anthropic', 'claude-haiku-5-5'))).text).toBe('Salam !');
+    expect(net.calls).toHaveLength(1);
+    expect(net.calls[0]!.json).not.toHaveProperty('temperature');
   });
 
   it('another 400 keeps the error type and the cited parameters for the logs, not the free text', async () => {
