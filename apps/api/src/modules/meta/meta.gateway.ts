@@ -77,7 +77,7 @@ export interface MetaGateway {
   conversations(auth: MetaChannelAuth, opts: { conversations: number; messages: number }): Promise<MetaHistoryConversation[]>;
   pageInfo(auth: MetaChannelAuth): Promise<MetaPageInfo>;
   insights(auth: MetaChannelAuth): Promise<MetaInsight[]>;
-  /** Posts of the page (`/<pageId>/posts`) or media of the Instagram account, newest first; needs `pages_read_user_content`. */
+  /** Posts of the page (`/<pageId>/posts`) or media of the Instagram account, newest first; needs `pages_read_engagement` or `pages_read_user_content`. */
   posts(auth: MetaChannelAuth, opts: { limit: number; after?: string | null }): Promise<MetaPostsPage>;
 
   /** Downloads an inbound attachment from Meta's CDN (only called by the `media` job). */

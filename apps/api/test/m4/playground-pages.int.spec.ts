@@ -253,6 +253,8 @@ describe('generate from page, FAQ extraction, page analysis', () => {
     await db.channel.update({ where: { id: page.id }, data: { grantedScopes: ['pages_show_list', 'pages_messaging'] } });
     expect((await owner.get(`/channels/${page.id}/analysis`).expect(200)).body.data).toMatchObject({ state: 'permission_required', jobId: null, items: [], runsLeftToday: 3 });
     expect((await owner.post(`/channels/${page.id}/analysis`).expect(403)).body.error.code).toBe('PAGE_ANALYSIS_PERMISSION_REQUIRED');
+    await db.channel.update({ where: { id: page.id }, data: { grantedScopes: ['pages_show_list', 'pages_messaging', 'pages_read_engagement'] } });
+    expect((await owner.get(`/channels/${page.id}/analysis`).expect(200)).body.data.state).toBe('none'); // the V1 permission set reads the page's posts too
     await db.channel.update({ where: { id: page.id }, data: { grantedScopes: ['pages_show_list', 'pages_messaging', 'pages_read_user_content'] } });
     expect((await owner.get(`/channels/${page.id}/analysis`).expect(200)).body.data.state).toBe('none');
 

@@ -37,7 +37,8 @@ const GENERATION_CONVERSATIONS = 25;
 const GENERATION_MESSAGES = 1000;
 /** ~20 k tokens per model call (04-ai-pipeline §14). */
 const CHUNK_CHARS = 60_000;
-const READ_SCOPE = 'pages_read_user_content';
+/** either permission reads the page's own posts (`/<pageId>/posts`); V1 read them with `pages_read_engagement` alone */
+const READ_SCOPES = ['pages_read_user_content', 'pages_read_engagement'];
 type ApplyGenerationInput = z.infer<typeof ApplyGenerationSchema>;
 
 const GenerationSchema = z.object({
@@ -340,7 +341,8 @@ export class PageService implements OnModuleInit {
   // --- page analysis (CHN-08, FL-15) -----------------------------------------------------------------------------------------------------
   private hasReadScope(c: Channel & { parent: Channel | null }) {
     const scopes = new Set([...(c.grantedScopes ?? []), ...(c.parent?.grantedScopes ?? [])]);
-    return c.platform === 'instagram' ? scopes.has('instagram_basic') || scopes.has('instagram_business_basic') || scopes.has(READ_SCOPE) : scopes.has(READ_SCOPE);
+    const readsPosts = READ_SCOPES.some((s) => scopes.has(s));
+    return c.platform === 'instagram' ? scopes.has('instagram_basic') || scopes.has('instagram_business_basic') || readsPosts : readsPosts;
   }
   private latestAnalysis(channelId: string) {
     return prisma.job.findFirst({ where: { workspaceId: TenantContext.workspaceId(), kind: 'analysis', payload: { path: ['channelId'], equals: channelId } }, orderBy: { createdAt: 'desc' } });
