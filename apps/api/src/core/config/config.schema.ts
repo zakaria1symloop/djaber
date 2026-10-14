@@ -58,6 +58,8 @@ export const ConfigSchema = z.object({
   // V1 → V2 cutover on the same public host: answer the paths registered in the Meta app (webhook, OAuth return,
   // data deletion) so nothing changes on Meta's side. Off by default.
   META_LEGACY_PATHS: bool.default(false),
+  // Facebook Login permissions requested (comma list) when the Meta app has fewer than the full list; empty = full list
+  META_FACEBOOK_SCOPES: z.string().default(''),
   // OAuth `redirect_uri` path (must equal the one registered in Meta); `{platform}` = facebook | instagram
   META_OAUTH_CALLBACK_PATH: z.string().default('/api/v1/channels/callback/{platform}'),
 

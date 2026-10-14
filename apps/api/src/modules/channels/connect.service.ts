@@ -43,6 +43,12 @@ export class ConnectService {
     @Inject(META_GATEWAY) private readonly meta: MetaGateway,
   ) {}
 
+  /** Facebook Login permissions: META_FACEBOOK_SCOPES (the ones enabled in the Meta app) or the full list of 05 §1. */
+  private facebookScopes(): string[] {
+    const custom = this.config.get('META_FACEBOOK_SCOPES');
+    return custom ? custom.split(',').map((x) => x.trim()).filter(Boolean) : [...FACEBOOK_SCOPES];
+  }
+
   redirectUri(platform: ChannelPlatform) {
     return `${this.config.get('PUBLIC_API_URL').replace(/\/$/, '')}${this.config.get('META_OAUTH_CALLBACK_PATH').replace('{platform}', platform)}`;
   }
@@ -58,7 +64,7 @@ export class ConnectService {
     const state: State = { w: t.workspaceId, u: t.userId!, p: platform, n: randomUUID(), e: Date.now() + OAUTH_STATE_TTL_S * 1000, ...(reconnectChannelId ? { r: reconnectChannelId } : {}) };
     await this.redis.client.set(nonceKey(state.n), '1', 'EX', OAUTH_STATE_TTL_S);
     const args = { state: this.crypto.encryptJson(state), redirectUri: this.redirectUri(platform), hint: t.workspaceId.replace(/-/g, '').slice(-12) };
-    const url = platform === 'facebook' ? this.meta.facebookDialogUrl({ ...args, scopes: [...FACEBOOK_SCOPES] }) : this.meta.instagramDialogUrl({ ...args, scopes: [...INSTAGRAM_SCOPES] });
+    const url = platform === 'facebook' ? this.meta.facebookDialogUrl({ ...args, scopes: this.facebookScopes() }) : this.meta.instagramDialogUrl({ ...args, scopes: [...INSTAGRAM_SCOPES] });
     return { url, expiresAt: new Date(state.e).toISOString() };
   }
 
@@ -174,7 +180,7 @@ export class ConnectService {
         out.push(row('skipped', 'PAGE_MESSAGING_PERMISSION_MISSING'));
         continue;
       }
-      const res = await this.upsert({ platform: 'facebook', externalId: page.id, name: page.name, avatarUrl: page.pictureUrl, followersCount: page.followersCount, token: page.accessToken, tokenExpiresAt: null, scopes: [...FACEBOOK_SCOPES], parentChannelId: null, userId });
+      const res = await this.upsert({ platform: 'facebook', externalId: page.id, name: page.name, avatarUrl: page.pictureUrl, followersCount: page.followersCount, token: page.accessToken, tokenExpiresAt: null, scopes: this.facebookScopes(), parentChannelId: null, userId });
       if ('skipped' in res) {
         out.push(row('skipped', res.skipped));
         continue;
