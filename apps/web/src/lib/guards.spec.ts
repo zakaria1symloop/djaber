@@ -69,6 +69,10 @@ describe('(app) guard', () => {
     expect(decideApp({ ...base, workspace: { onboardingStep: 3, status: 'active' } })).toEqual({ kind: 'redirect', to: '/onboarding/first-product' });
     expect(decideApp({ ...base, workspace: { onboardingStep: 0, status: 'active' } })).toEqual({ kind: 'redirect', to: '/onboarding/welcome' });
   });
+  it('lets the connect return page run during the tunnel (the page step needs it)', () => {
+    expect(decideApp({ ...base, pathname: '/channels/connect/return', workspace: { onboardingStep: 5, status: 'active' } })).toEqual({ kind: 'render' });
+    expect(decideApp({ ...base, pathname: '/channels', workspace: { onboardingStep: 5, status: 'active' } })).toEqual({ kind: 'redirect', to: '/onboarding/connect' });
+  });
   it('lets skipped or finished tunnels and non-owners through', () => {
     expect(decideApp({ ...base, workspace: { onboardingStep: 99, status: 'active' } })).toEqual({ kind: 'render' });
     expect(decideApp({ ...base, role: 'operator', workspace: { onboardingStep: 2, status: 'active' } })).toEqual({ kind: 'render' });

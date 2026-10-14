@@ -73,9 +73,11 @@ export const decideApp = (i: GuardInput): GuardDecision => {
   if (i.workspaceLoading || !i.workspace) return { kind: 'wait' };
   // a suspended workspace keeps Settings and Help reachable (api-contract §1.3: /workspace, /me*, /support/*)
   if (i.workspace.status === 'suspended' && !/^\/(settings|help)(\/|$)/.test(i.pathname)) return { kind: 'state', state: 'suspended' };
-  if (needsOnboarding(i.workspace, i.role)) return { kind: 'redirect', to: onboardingPath(i.workspace.onboardingStep) };
+  // the connect flow's return leg is a transit page: it must run during the tunnel too (step 5 connects a page)
+  if (needsOnboarding(i.workspace, i.role) && i.pathname !== CONNECT_RETURN_PATH) return { kind: 'redirect', to: onboardingPath(i.workspace.onboardingStep) };
   return { kind: 'render' };
 };
+export const CONNECT_RETURN_PATH = '/channels/connect/return';
 
 /** `(onboarding)` layout: session + owner; a finished or skipped tunnel goes home. */
 export const decideOnboarding = (i: GuardInput & { slug: string }): GuardDecision => {

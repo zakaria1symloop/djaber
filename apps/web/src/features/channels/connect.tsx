@@ -3,6 +3,8 @@
 // Meta — issues, Rapport de connexion). The web never calls Meta: it asks our API for a URL, opens it in a pop-up and
 // waits for the callback page to `postMessage` the report. Pop-up blocked ⇒ "Ouvrir dans cet onglet" (the callback
 // then lands on `/channels/connect/return`, which comes back here with `?connectReport=` / `?connectError=`).
+// Meta's login pages cut the pop-up's link to this window (Cross-Origin-Opener-Policy): the pop-up then has no opener,
+// lands on `/channels/connect/return` and hands the result over a BroadcastChannel (`CONNECT_HANDOFF_CHANNEL`).
 import { Button, buttonClass, Dialog, FormAlert, Ltr, Pill, SegmentedControl, Select, Spinner, toast } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -25,8 +27,11 @@ export const CONNECT_RETURN_KEY = 'djaber.connect.returnTo';
 export const CONNECT_REPORT_PARAM = 'connectReport';
 export const CONNECT_ERROR_PARAM = 'connectError';
 const POPUP_FEATURES = 'popup=yes,width=620,height=760';
-/** a pop-up closed without any message = the merchant gave up (FL-05 F-1) */
-const CLOSED_GRACE_MS = 800;
+/** pop-up without opener → the window that started the flow: `{ type: 'handoff', reportId?, error? }`, answered by `{ type: 'ack' }` */
+export const CONNECT_HANDOFF_CHANNEL = 'djaber.connect.handoff';
+export type ConnectHandoff = { type: 'handoff'; reportId: string | null; error: string | null } | { type: 'ack' };
+/** a flow started in this window accepts a hand-off for this long (the merchant may take time on Meta's pages) */
+const HANDOFF_WINDOW_MS = 15 * 60_000;
 
 type Run = () => Promise<ConnectStart>;
 type Phase =
@@ -64,6 +69,8 @@ export function useConnectFlow(o: { planLimit?: PlanLimit | null; onReport?: (re
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const [error, setError] = useState<string | null>(null);
   const popup = useRef<Window | null>(null);
+  /** when this window started a flow (0 = none pending): only that window accepts a hand-off */
+  const started = useRef(0);
   const last = useRef<Run | null>(null);
   const onReport = useRef(o.onReport);
   onReport.current = o.onReport;
@@ -99,6 +106,7 @@ export function useConnectFlow(o: { planLimit?: PlanLimit | null; onReport?: (re
       // opened inside the click, before the request: browsers block a window opened after an await
       const w = window.open('', 'djaber-connect', POPUP_FEATURES);
       popup.current = w;
+      started.current = Date.now();
       const before = phase;
       setPhase({ kind: 'waiting' });
       try {
@@ -109,6 +117,7 @@ export function useConnectFlow(o: { planLimit?: PlanLimit | null; onReport?: (re
       } catch (e) {
         w?.close();
         popup.current = null;
+        started.current = 0;
         if (e instanceof ApiError && e.code === 'AUTH_EMAIL_UNVERIFIED') return setPhase({ kind: 'unverified' });
         if (e instanceof ApiError && e.code === 'OAUTH_STATE_INVALID') return setPhase({ kind: 'invalid' });
         // the explainer stays open with the error inside it (content preserved); elsewhere a toast
@@ -124,37 +133,45 @@ export function useConnectFlow(o: { planLimit?: PlanLimit | null; onReport?: (re
     [me, phase, t],
   );
 
-  // waiting: the callback page posts the report; a window closed without a message is a cancelled connection
+  // waiting: the callback page posts the report. A pop-up that looks closed is not a cancellation: once Meta's pages
+  // have cut the link, `window.closed` reads true while the merchant is still choosing pages; "Annuler" stays available.
   useEffect(() => {
     if (phase.kind !== 'waiting') return;
     const origins = [apiOrigin(), window.location.origin];
-    let done = false;
-    let grace: number | undefined;
     const onMessage = (e: MessageEvent) => {
       const report = parseConnectMessage(e.data, e.origin, origins);
-      if (!report || done) return;
-      done = true;
+      if (!report) return;
+      started.current = 0;
       try {
         popup.current?.close();
       } catch {}
       settle(report);
     };
     window.addEventListener('message', onMessage);
-    const poll = window.setInterval(() => {
-      const w = popup.current;
-      if (done || !w || !w.closed || grace) return;
-      grace = window.setTimeout(() => {
-        if (done) return;
-        done = true;
-        settle(errorReport('OAUTH_CANCELLED'));
-      }, CLOSED_GRACE_MS);
-    }, 400);
-    return () => {
-      window.removeEventListener('message', onMessage);
-      window.clearInterval(poll);
-      window.clearTimeout(grace);
-    };
+    return () => window.removeEventListener('message', onMessage);
   }, [phase.kind, settle]);
+
+  // hand-off from a pop-up that lost its opener (see the header)
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel(CONNECT_HANDOFF_CHANNEL);
+    channel.onmessage = (e: MessageEvent<ConnectHandoff>) => {
+      const m = e.data;
+      if (!m || m.type !== 'handoff' || !started.current || Date.now() - started.current > HANDOFF_WINDOW_MS) return;
+      started.current = 0;
+      popup.current = null;
+      channel.postMessage({ type: 'ack' } satisfies ConnectHandoff);
+      if (m.error || !m.reportId) return settle(errorReport(m.error || 'OAUTH_CANCELLED'));
+      channelsApi
+        .connectReport(m.reportId)
+        .then((r) => settle(normalizeReport(r) ?? errorReport('OAUTH_STATE_INVALID')))
+        .catch((err) => {
+          setPhase({ kind: 'idle' });
+          toast({ tone: 'danger', message: errorMessage(err, t) });
+        });
+    };
+    return () => channel.close();
+  }, [settle, t]);
 
   // same-tab return: `?connectReport=<id>` (report kept by the API) or `?connectError=<CODE>`
   const reportId = params.get(CONNECT_REPORT_PARAM);
@@ -180,6 +197,7 @@ export function useConnectFlow(o: { planLimit?: PlanLimit | null; onReport?: (re
   }, [reportId, errorCode]);
 
   const cancel = () => {
+    started.current = 0;
     try {
       popup.current?.close();
     } catch {}
