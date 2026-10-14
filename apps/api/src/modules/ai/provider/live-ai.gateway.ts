@@ -98,6 +98,23 @@ const isTimeout = (e: unknown) => {
  * 04 §6 failure classes. The message is `<provider> <status|kind>` and nothing else: the SDK errors carry the request
  * body (prompt, customer text) and the response body, none of which may travel further.
  */
+/** the JSON body without its `temperature` field */
+const withoutTemperature = (init?: RequestInit): RequestInit | undefined => {
+  if (typeof init?.body !== 'string') return init;
+  try {
+    const body = JSON.parse(init.body) as Record<string, unknown>;
+    if (!('temperature' in body)) return init;
+    delete body.temperature;
+    return { ...init, body: JSON.stringify(body) };
+  } catch {
+    return init;
+  }
+};
+/** a 400 whose reason names the `temperature` parameter */
+const rejectsTemperature = (error: unknown): boolean => {
+  const last = RetryError.isInstance(error) ? error.lastError : error;
+  return APICallError.isInstance(last) && last.statusCode === 400 && /temperature/i.test(`${last.message} ${last.responseBody ?? ''}`);
+};
 const toProviderError = (provider: AiProviderName, error: unknown, aborted: boolean): AiProviderError => {
   if (error instanceof AiProviderError) return error;
   const last = RetryError.isInstance(error) ? error.lastError : error;
@@ -105,7 +122,15 @@ const toProviderError = (provider: AiProviderName, error: unknown, aborted: bool
   if (APICallError.isInstance(last)) {
     const status = last.statusCode;
     if (status === 401 || status === 403) return new AiProviderError('provider_rejected', provider, `${provider} ${status}`, status);
-    return new AiProviderError('provider_error', provider, `${provider} ${status ?? 'provider_error'}`, status);
+    // for the logs: the provider's error type and the parameter names it cites (`temperature`), never its free text,
+    // which may echo the key, the prompt or a customer message
+    const params = [...last.message.matchAll(/`([\w.]{1,40})`/g)].map((m) => m[1]);
+    let type: unknown;
+    try {
+      type = (JSON.parse(last.responseBody ?? '') as { error?: { type?: unknown } }).error?.type;
+    } catch {}
+    const detail = [typeof type === 'string' ? type.slice(0, 40) : null, params.length ? `params: ${params.join(', ')}` : null].filter(Boolean).join(' · ') || undefined;
+    return new AiProviderError('provider_error', provider, `${provider} ${status ?? 'provider_error'}`, status, detail);
   }
   return new AiProviderError('provider_error', provider, `${provider} provider_error`);
 };
@@ -117,8 +142,9 @@ export class LiveAiGateway implements AiGateway {
   /** Resolved at call time, so that replacing `globalThis.fetch` (tests) is honoured. */
   private readonly fetch: typeof fetch = (input, init) => (this.options.fetch ?? globalThis.fetch)(input, init);
 
-  private languageModel(model: AiModelRef, apiKey: string): LanguageModel {
-    const fetch = this.fetch;
+  private languageModel(model: AiModelRef, apiKey: string, dropTemperature = false): LanguageModel {
+    // the SDK always sends a temperature (0 when none is given): a model that refuses it gets the body without one
+    const fetch: typeof globalThis.fetch = dropTemperature ? (input, init) => this.fetch(input, withoutTemperature(init)) : this.fetch;
     switch (model.provider) {
       case 'openai':
         return createOpenAI({ apiKey, fetch }).chat(model.modelId);
@@ -139,16 +165,22 @@ export class LiveAiGateway implements AiGateway {
     const signal = AbortSignal.timeout(req.timeoutMs);
     try {
       const tools = toTools(req.tools);
-      const res = await generateText({
-        model: this.languageModel(req.model, apiKey),
-        system: req.system,
-        messages: toMessages(req.messages),
-        ...(tools ? { tools } : {}),
-        ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
-        ...(req.maxTokens !== undefined ? { maxTokens: req.maxTokens } : {}),
-        maxSteps: 1,
-        maxRetries: GENERATE_MAX_RETRIES,
-        abortSignal: signal,
+      const run = (dropTemperature: boolean) =>
+        generateText({
+          model: this.languageModel(req.model, apiKey, dropTemperature),
+          system: req.system,
+          messages: toMessages(req.messages),
+          ...(tools ? { tools } : {}),
+          ...(req.temperature !== undefined && !dropTemperature ? { temperature: req.temperature } : {}),
+          ...(req.maxTokens !== undefined ? { maxTokens: req.maxTokens } : {}),
+          maxSteps: 1,
+          maxRetries: GENERATE_MAX_RETRIES,
+          abortSignal: signal,
+        });
+      // newer models refuse the sampling setting (Anthropic: "`temperature` is deprecated for this model"): ask again without it
+      const res = await run(false).catch((e: unknown) => {
+        if (rejectsTemperature(e)) return run(true);
+        throw e;
       });
       return {
         text: res.text,

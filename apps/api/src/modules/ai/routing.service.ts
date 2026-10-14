@@ -160,7 +160,7 @@ export class RoutingService {
         if (!(e instanceof AiProviderError)) throw e;
         last = e;
         await this.record(model, false, route.errorThresholdPct);
-        this.log.warn({ provider: model.provider, model: model.modelId, kind: e.kind, status: e.status }, 'ai provider call failed');
+        this.log.warn({ provider: model.provider, model: model.modelId, kind: e.kind, status: e.status, detail: e.detail }, 'ai provider call failed');
         if (e.kind === 'provider_rejected') this.ws.emit('admin:platform', 'platform.alert', { kind: 'provider_down', payload: { provider: model.provider, code: 'AI_PROVIDER_KEY_REJECTED' } });
       }
     }

@@ -318,6 +318,25 @@ describe('failure classes (04 §6)', () => {
     expect(net.calls).toHaveLength(1);
   });
 
+  it('400 "`temperature` is deprecated for this model" ⇒ asked again once without temperature', async () => {
+    const refused = { status: 400, json: { type: 'error', error: { type: 'invalid_request_error', message: '`temperature` is deprecated for this model.' } } };
+    const ok = { json: { id: 'msg_2', type: 'message', role: 'assistant', model: 'claude-haiku-5-5', content: [{ type: 'text', text: 'Salam !' }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 9, output_tokens: 3 } } };
+    expectHost('api.anthropic.com').reply(refused, ok);
+    expect((await gateway.generate(request('anthropic', 'claude-haiku-5-5'))).text).toBe('Salam !');
+    expect(net.calls).toHaveLength(2);
+    expect(net.calls[0]!.json).toMatchObject({ temperature: 0.3 });
+    expect(net.calls[1]!.json).not.toHaveProperty('temperature');
+  });
+
+  it('another 400 keeps the error type and the cited parameters for the logs, not the free text', async () => {
+    expectHost('api.anthropic.com').reply({ status: 400, json: { type: 'error', error: { type: 'invalid_request_error', message: `\`messages.0.content\`: bad content ${QUESTION}` } } });
+    const error = await failure(gateway.generate(request('anthropic', 'claude-haiku-5-5')));
+    expect(error).toMatchObject({ kind: 'provider_error', status: 400, message: 'anthropic 400' });
+    expect(error.detail).toBe('invalid_request_error · params: messages.0.content');
+    expect(error.detail).not.toContain(QUESTION);
+    expect(net.calls).toHaveLength(1);
+  });
+
   it('network failure (TypeError: fetch failed) ⇒ provider_error', async () => {
     expectHost('api.openai.com').reply({ throws: new TypeError('fetch failed') });
     const error = await failure(gateway.generate(request('openai', 'gpt-4o-mini')));

@@ -55,6 +55,8 @@ export class AiProviderError extends Error {
     public readonly provider: AiProviderName,
     message: string,
     public readonly status?: number,
+    /** the provider's reason, for the logs only */
+    public readonly detail?: string,
   ) {
     super(message);
     this.name = 'AiProviderError';
