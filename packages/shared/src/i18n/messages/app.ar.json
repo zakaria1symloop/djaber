@@ -2161,6 +2161,7 @@
  "channels.connect.invalid.restart": "إعادة المحاولة",
  "channels.connect.invalid.title": "انتهت محاولة الربط",
  "channels.connect.unverified.title": "تحقق من بريدك الإلكتروني",
+ "channels.connect.handedOff": "اكتمل الربط: النتيجة معروضة في Djaber. يمكنك إغلاق هذه النافذة.",
  "channels.connect.waiting.description": "نافذة ميتا مفتوحة: اسمح بصفحاتك ثم عد إلى هنا. يمكنك الإلغاء.",
  "channels.connect.waiting.title": "جارٍ الاتصال بميتا…",
  "channels.disconnect.agent": "الوكيل {name}",

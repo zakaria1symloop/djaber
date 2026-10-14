@@ -2161,6 +2161,7 @@
  "channels.connect.invalid.restart": "Start again",
  "channels.connect.invalid.title": "Connection expired",
  "channels.connect.unverified.title": "Verify your e-mail",
+ "channels.connect.handedOff": "Connection finished: the result is shown in Djaber. You can close this window.",
  "channels.connect.waiting.description": "A Meta window is open: authorise your pages, then come back here. You can cancel.",
  "channels.connect.waiting.title": "Connecting to Meta…",
  "channels.disconnect.agent": "agent {name}",

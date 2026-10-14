@@ -7,7 +7,7 @@
 // Opened in the tab itself (or nobody acknowledged) ⇒ back to the screen that started the flow, which shows the outcome.
 import { Spinner } from '@djaber/ui';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from '@/i18n/navigation';
 import { safeReturnTo } from '@/lib/guards';
 import { useT } from '@/lib/i18n';
@@ -44,6 +44,8 @@ export function ConnectReturn() {
   const reportId = params.get(CONNECT_REPORT_PARAM);
   const error = params.get(CONNECT_ERROR_PARAM);
   const ran = useRef(false);
+  /** the result went to the starting window but this pop-up may not close itself (a browser can refuse it) */
+  const [handedOff, setHandedOff] = useState(false);
 
   useEffect(() => {
     if (ran.current) return;
@@ -62,7 +64,10 @@ export function ConnectReturn() {
       return;
     }
     void handOff(reportId, error).then((taken) => {
-      if (taken) return window.close();
+      if (taken) {
+        setHandedOff(true);
+        return window.close();
+      }
       let target = '/channels';
       try {
         const stored = window.sessionStorage.getItem(CONNECT_RETURN_KEY);
@@ -74,6 +79,12 @@ export function ConnectReturn() {
     });
   }, [reportId, error, router]);
 
+  if (handedOff)
+    return (
+      <div role="status" className="flex min-h-[40vh] items-center justify-center px-4 text-center text-[13px] text-text-secondary">
+        {t('channels.connect.handedOff')}
+      </div>
+    );
   return (
     <div className="flex min-h-[40vh] items-center justify-center gap-3 text-[13px] text-text-secondary">
       <Spinner label={t('common.connecting')} />
