@@ -44,7 +44,7 @@ export class ConnectService {
   ) {}
 
   redirectUri(platform: ChannelPlatform) {
-    return `${this.config.get('PUBLIC_API_URL').replace(/\/$/, '')}/api/v1/channels/callback/${platform}`;
+    return `${this.config.get('PUBLIC_API_URL').replace(/\/$/, '')}${this.config.get('META_OAUTH_CALLBACK_PATH').replace('{platform}', platform)}`;
   }
 
   // --- start ------------------------------------------------------------------------------------------------------------
