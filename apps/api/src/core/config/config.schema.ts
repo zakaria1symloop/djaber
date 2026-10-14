@@ -35,7 +35,12 @@ export const ConfigSchema = z.object({
   S3_PUBLIC_URL: z.string().optional(),
 
   // Mail: `file` (dev/test default) or `resend`
-  MAIL_DRIVER: z.enum(['file', 'resend']).default('file'),
+  MAIL_DRIVER: z.enum(['file', 'resend', 'smtp']).default('file'),
+  // `smtp` driver (the V1 server's mailbox): host, port (465 = implicit TLS), credentials
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
   MAIL_LOCAL_DIR: z.string().default('.local/mail'),
   MAIL_FROM: z.string().default('Djaber <no-reply@djaber.ai>'),
   RESEND_API_KEY: z.string().optional(),
