@@ -32,12 +32,12 @@ export const TOOL_DEFS: Record<ToolName, AiToolDef> = {
   },
   quote_delivery: {
     name: 'quote_delivery',
-    description: "Delivery fee for a wilaya from the merchant's grid (home or stop-desk). Apply free-delivery threshold.",
+    description: "Delivery fee for a wilaya from the merchant's grid (home or stop-desk). Apply free-delivery threshold. Give wilayaId or wilayaName.",
     parameters: {
       type: 'object',
       additionalProperties: false,
       properties: { wilayaId: { type: 'integer', minimum: 1, maximum: 58 }, wilayaName: { type: 'string' }, isStopdesk: { type: 'boolean', default: false }, subtotal: { type: 'integer', minimum: 0 } },
-      anyOf: [{ required: ['wilayaId'] }, { required: ['wilayaName'] }],
+      // no top-level anyOf (Anthropic refuses it): `quote` answers INVALID_ARGS when both are missing
     },
   },
   create_order: {
