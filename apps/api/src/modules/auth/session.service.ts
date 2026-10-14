@@ -182,17 +182,17 @@ export class SessionService {
   }
 
   // --- refresh cookie (web): HttpOnly; Secure (prod only); SameSite=Lax; Path=/api/v1/auth -------------------------
+  // REFRESH_COOKIE_CROSS_SITE=true when the web and the API are on two different sites (e.g. djaber.vercel.app +
+  // the VPS host): SameSite=None; Secure; Partitioned (CHIPS), else the browser drops the cookie and a reload logs out.
+  private cookieOptions() {
+    const cross = this.config.get('REFRESH_COOKIE_CROSS_SITE');
+    return { httpOnly: true, secure: cross || this.config.isProd, sameSite: cross ? ('none' as const) : ('lax' as const), ...(cross ? { partitioned: true } : {}), path: COOKIE_PATH };
+  }
   setCookie(res: any, refreshToken: string) {
-    res.cookie(REFRESH_COOKIE, refreshToken, {
-      httpOnly: true,
-      secure: this.config.isProd,
-      sameSite: 'lax',
-      path: COOKIE_PATH,
-      maxAge: this.refreshTtlMs,
-    });
+    res.cookie(REFRESH_COOKIE, refreshToken, { ...this.cookieOptions(), maxAge: this.refreshTtlMs });
   }
   clearCookie(res: any) {
-    res.clearCookie(REFRESH_COOKIE, { httpOnly: true, secure: this.config.isProd, sameSite: 'lax', path: COOKIE_PATH });
+    res.clearCookie(REFRESH_COOKIE, this.cookieOptions());
   }
   readCookie(req: any): string | undefined {
     const v = req.cookies?.[REFRESH_COOKIE];
