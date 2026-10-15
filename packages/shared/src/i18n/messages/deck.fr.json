@@ -348,7 +348,7 @@
  "enum.Channel.status.paused": "EN PAUSE (PLAN)",
  "enum.Channel.status.pending_review": "EN ATTENTE META",
  "enum.Client.blocked": "BLOQUÉ",
- "enum.Client.placeholder": "PLACEHOLDER",
+ "enum.Client.placeholder": "À compléter",
  "enum.Client.riskLevel.high": "RISQUE",
  "enum.Client.riskLevel.normal": "FIABLE",
  "enum.Conversation.aiPaused": "IA EN PAUSE",

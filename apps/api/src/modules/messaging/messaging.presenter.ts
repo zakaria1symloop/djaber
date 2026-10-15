@@ -5,7 +5,8 @@ import { channelRef } from '../channels/channel.service';
 
 export const userRef = { select: { id: true, firstName: true, lastName: true, avatarUrl: true } } as const;
 export const conversationInclude = {
-  channel: true,
+  // the agent linked to the page (one at most): "Mettre l'IA en pause / Reprendre l'IA" need one (`pageHasAgent`)
+  channel: { include: { agentChannels: { select: { agentId: true }, take: 1 } } },
   client: true,
   agent: { select: { id: true, name: true, status: true } },
   assignee: userRef,
@@ -96,6 +97,7 @@ export const presentConversation = (c: ConversationRow, blocked: boolean, now = 
     status: c.status,
     aiPaused: c.aiPaused,
     agent: c.agent,
+    pageHasAgent: c.channel.agentChannels.length > 0,
     assignee: c.assignee,
     unreadCount: c.unreadCount,
     lastMessageAt: (c.lastMessageAt ?? c.createdAt).toISOString(),

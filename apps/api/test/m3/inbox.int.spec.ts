@@ -79,6 +79,26 @@ describe('INB-07 real time (events leave through the outbox)', () => {
 });
 
 describe('INB-03 / INB-04 composer', () => {
+  it('no agent on the page: "pause / resume the AI" are greyed with CONVERSATION_NO_AGENT (`pageHasAgent` on rows); linking an agent enables them', async () => {
+    const { owner, channel } = await setup();
+    const { conversation } = await receive(app, channel, newSender(), { text: 'Salam' });
+    const row = (await owner.get('/conversations').expect(200)).body.data.find((c: any) => c.id === conversation.id);
+    expect(row).toMatchObject({ pageHasAgent: false, agent: null });
+    const before = await detail(owner, conversation.id);
+    expect(before).toMatchObject({ pageHasAgent: false, agent: null });
+    expect(before.actions.find((a: any) => a.key === 'pauseAi')).toEqual({ key: 'pauseAi', enabled: false, reasonCode: 'CONVERSATION_NO_AGENT' });
+    expect(before.actions.find((a: any) => a.key === 'resumeAi')).toEqual({ key: 'resumeAi', enabled: false, reasonCode: 'CONVERSATION_NO_AGENT' });
+
+    const agent = await testAgent(owner.workspaceId);
+    await db.agentChannel.create({ data: { agentId: agent.id, channelId: channel.id } });
+    const after = await detail(owner, conversation.id);
+    expect(after.pageHasAgent).toBe(true);
+    expect(after.actions.find((a: any) => a.key === 'pauseAi')).toEqual({ key: 'pauseAi', enabled: true });
+    // resuming an AI that is not paused stays a state refusal, without a reason code
+    expect(after.actions.find((a: any) => a.key === 'resumeAi')).toEqual({ key: 'resumeAi', enabled: false });
+    expect((await owner.get('/conversations').expect(200)).body.data.find((c: any) => c.id === conversation.id).pageHasAgent).toBe(true);
+  });
+
   it('AT-INB-02 human reply ⇒ AI paused; customer replies ⇒ AI silent, notification to the assignee; Resume ⇒ AI back on', async () => {
     const { owner, channel } = await setup();
     const agent = await testAgent(owner.workspaceId);

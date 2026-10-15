@@ -3,7 +3,7 @@
 // covered — and fails here — without touching this file.
 import { getMessages, NotificationTypeValues, type AppLocale } from '@djaber/shared';
 import type { NotificationType } from '@djaber/db';
-import { missingNotificationParams, NOTIFICATION_PARAMS, NOTIFICATION_VARIANTS, notificationDeepLink, notificationGroup, notificationSlug, renderNotification } from './notification.catalog';
+import { jobPath, jobRefs, missingNotificationParams, NOTIFICATION_PARAMS, NOTIFICATION_VARIANTS, notificationDeepLink, notificationGroup, notificationSlug, parcelPath, renderNotification } from './notification.catalog';
 
 const LOCALES: AppLocale[] = ['fr', 'ar', 'en'];
 const sample = (keys: readonly string[]) => Object.fromEntries(keys.map((k) => [k, ['stock', 'min', 'minutes', 'failures', 'used', 'limit', 'count', 'credits', 'imported', 'skipped', 'total', 'amount'].includes(k) ? 7 : `<${k}>`]));
@@ -78,5 +78,25 @@ describe('notification catalogue', () => {
       expect(link.web.startsWith('/')).toBe(true);
       expect(link.mobile).toBe(`djaber://${link.web.slice(1)}`);
     }
+  });
+
+  it('job links open the screen that reads `?job=` (orders vs products import by job name; page / agent from the payload)', () => {
+    expect(jobPath({ jobId: 'j1', kind: 'import', name: 'order-import-commit' })).toBe('/orders/import?job=j1');
+    expect(jobPath({ jobId: 'j1', kind: 'import', name: 'product-import-preview' })).toBe('/products/import?job=j1');
+    expect(jobPath({ jobId: 'j1', kind: 'bulk_send' })).toBe('/delivery?job=j1');
+    expect(jobPath({ jobId: 'j1', kind: 'labels' })).toBe('/delivery?job=j1');
+    expect(jobPath({ jobId: 'j1', kind: 'analysis', channelId: 'c1' })).toBe('/channels/c1/analysis');
+    expect(jobPath({ jobId: 'j1', kind: 'analysis' })).toBe('/channels');
+    expect(jobPath({ jobId: 'j1', kind: 'faq_extraction', agentId: 'a1' })).toBe('/agents/a1/configuration');
+    expect(jobPath({ jobId: 'j1', kind: 'report_export' })).toBe('/reports?job=j1');
+    expect(jobRefs({ name: 'history-sync', channelId: 'c1', days: 30, agentId: '' })).toEqual({ name: 'history-sync', channelId: 'c1' });
+    expect(jobRefs(null)).toEqual({});
+    expect(notificationDeepLink('job_failed', { jobId: 'j1', kind: 'import', name: 'order-import-commit' }).web).toBe('/orders/import?job=j1');
+  });
+
+  it('a failed parcel opens the delivery list filtered on its order (`ids`) with its tracking panel', () => {
+    expect(parcelPath({ orderId: 'o1', shipmentId: 's1' })).toBe('/delivery?tab=all&ids=o1&sheet=s1');
+    expect(parcelPath({ orderId: 'o1' })).toBe('/delivery?tab=all&ids=o1');
+    expect(notificationDeepLink('shipment_failed', { orderId: 'o1', shipmentId: 's1' }).web).toBe('/delivery?tab=all&ids=o1&sheet=s1');
   });
 });

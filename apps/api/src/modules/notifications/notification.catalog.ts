@@ -40,14 +40,29 @@ export const typesOfGroup = (group: string, all: readonly string[]) => all.filte
 
 type Data = Record<string, unknown>;
 const s = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v) : '');
+// a job opens the screen that started it, which reads `?job=` and shows its progress / result (`name` = job name of
+// 03 §3: `order-import-*` vs `product-import-*`; `channelId` / `agentId` come from the job payload)
 const JOB_PATH: Record<string, (d: Data) => string> = {
-  import: (d) => `/products/import?job=${s(d.jobId)}`,
-  analysis: (d) => `/channels/${s(d.channelId)}/analysis`,
-  sync_history: (d) => `/channels/${s(d.channelId)}/history`,
+  import: (d) => (s(d.name).startsWith('order-import') ? `/orders/import?job=${s(d.jobId)}` : `/products/import?job=${s(d.jobId)}`),
+  analysis: (d) => (s(d.channelId) ? `/channels/${s(d.channelId)}/analysis` : '/channels'),
+  sync_history: (d) => (s(d.channelId) ? `/channels/${s(d.channelId)}/history` : '/channels'),
   bulk_send: (d) => `/delivery?job=${s(d.jobId)}`,
+  tracking_refresh: (d) => `/delivery?job=${s(d.jobId)}`,
+  labels: (d) => `/delivery?job=${s(d.jobId)}`,
   generation: (d) => `/agents/generate?job=${s(d.jobId)}`,
+  faq_extraction: (d) => (s(d.agentId) ? `/agents/${s(d.agentId)}/configuration` : '/agents'),
 };
-const jobPath = (d: Data) => (JOB_PATH[s(d.kind)] ?? ((x: Data) => `/reports?job=${s(x.jobId)}`))(d);
+/** Web path of a job (notifications `job_finished` / `job_failed`, Home queue "task" cards). */
+export const jobPath = (d: Data) => (JOB_PATH[s(d.kind)] ?? ((x: Data) => `/reports?job=${s(x.jobId)}`))(d);
+/** What `jobPath` reads from a job payload (job name, page, agent). */
+export const jobRefs = (payload: unknown): { name?: string; channelId?: string; agentId?: string } => {
+  const p = (payload && typeof payload === 'object' ? payload : {}) as Record<string, unknown>;
+  const out: { name?: string; channelId?: string; agentId?: string } = {};
+  for (const k of ['name', 'channelId', 'agentId'] as const) if (typeof p[k] === 'string' && p[k]) out[k] = p[k] as string;
+  return out;
+};
+/** A failed parcel: the delivery list filtered on its order (`ids`, api-contract §4 ShipmentsQuery) with its tracking panel open. */
+export const parcelPath = (d: Data) => `/delivery?tab=all&ids=${s(d.orderId)}${s(d.shipmentId) ? `&sheet=${s(d.shipmentId)}` : ''}`;
 
 const PATHS: Partial<Record<NotificationType, (d: Data) => string>> = {
   order_ai_created: (d) => `/orders/${s(d.orderId)}`,
@@ -62,7 +77,7 @@ const PATHS: Partial<Record<NotificationType, (d: Data) => string>> = {
   shipment_created: (d) => `/orders/${s(d.orderId)}#delivery`,
   shipment_out_for_delivery: (d) => `/orders/${s(d.orderId)}#delivery`,
   shipment_delivered: (d) => `/orders/${s(d.orderId)}#delivery`,
-  shipment_failed: (d) => `/delivery?tab=failed&order=${s(d.orderId)}`,
+  shipment_failed: parcelPath,
   shipment_returned: (d) => `/orders/${s(d.orderId)}#delivery`,
   payment_received: (d) => `/orders/${s(d.orderId)}#payment`,
   payment_failed: (d) => `/orders/${s(d.orderId)}#payment`,

@@ -192,9 +192,17 @@ describe('activation, plan limit, pause, delete', () => {
     await patch(owner, a.id, { channelIds: [p1!.id] });
     const at = new Date(Date.now() + 3600_000).toISOString();
     expect((await owner.post(`/agents/${a.id}/activate`, { at }).expect(200)).body.data).toMatchObject({ status: 'draft', scheduledActivateAt: at });
+    // "Annuler la programmation": the draft stays a draft without a date (idempotent), then it is scheduled again
+    const v0 = (await get(owner, a.id)).version;
+    expect((await owner.delete(`/agents/${a.id}/activate`).expect(200)).body.data).toMatchObject({ status: 'draft', scheduledActivateAt: null, version: v0 + 1 });
+    expect((await owner.delete(`/agents/${a.id}/activate`).expect(200)).body.data).toMatchObject({ status: 'draft', scheduledActivateAt: null, version: v0 + 1 });
     const { AgentService } = await import('../../src/modules/agents/agent.service');
+    expect(await app.app.get(AgentService).activateScheduled(new Date(Date.now() + 2 * 3600_000))).toBe(0);
+    expect((await owner.post(`/agents/${a.id}/activate`, { at }).expect(200)).body.data).toMatchObject({ status: 'draft', scheduledActivateAt: at });
     expect(await app.app.get(AgentService).activateScheduled(new Date(Date.now() + 2 * 3600_000))).toBe(1);
     expect(await get(owner, a.id)).toMatchObject({ status: 'active', scheduledActivateAt: null });
+    // an active agent has nothing to unschedule
+    expect((await owner.delete(`/agents/${a.id}/activate`).expect(409)).body.error.code).toBe('CONFLICT');
 
     // a customer is being answered on its page: pausing needs a confirmation
     await receive(app, p1!, newSender(), { text: 'Bonjour' });
@@ -395,6 +403,8 @@ describe('knowledge: FAQ and insights', () => {
     expect(r0.ready).toBe(false);
     expect(Object.fromEntries(r0.checks.map((c: any) => [c.key, c.ok]))).toEqual({ catalog: false, productsWithoutPhoto: true, feeGrid: false, policies: false, channels: false, emailVerified: true, credits: true, pendingModeration: true });
     expect(r0.checks.find((c: any) => c.key === 'channels')).toMatchObject({ label: 'Pages rattachées', count: 0, link: '/channels', blocking: true });
+    // "Voir" of the e-mail row opens the page that shows (and changes) the e-mail: Paramètres › Sécurité
+    expect(r0.checks.find((c: any) => c.key === 'emailVerified')).toMatchObject({ link: '/settings/security', blocking: true });
     const page = await connectedPage(owner, app);
     await createProduct(owner);
     await patch(owner, a.id, { channelIds: [page.id], wizard: { policies: { delivery: 'a', payment: 'b', returns: 'c' } } });
@@ -438,6 +448,7 @@ describe('roles and tenancy', () => {
       ['patch', `/agents/${id}`, { version: 1, name: 'x' }],
       ['delete', `/agents/${id}`],
       ['post', `/agents/${id}/activate`, {}],
+      ['delete', `/agents/${id}/activate`],
       ['post', `/agents/${id}/pause`, {}],
       ['post', `/agents/${id}/resume`],
       ['post', `/agents/${id}/duplicate`],
@@ -494,6 +505,7 @@ describe('roles and tenancy', () => {
       ['patch', `/agents/${id}`, { version, name: 'volé' }],
       ['delete', `/agents/${id}`],
       ['post', `/agents/${id}/activate`, {}],
+      ['delete', `/agents/${id}/activate`],
       ['post', `/agents/${id}/pause`, { confirm: true }],
       ['post', `/agents/${id}/resume`],
       ['post', `/agents/${id}/duplicate`],

@@ -5,6 +5,7 @@
 // api-agents = server-rendered texts of the agents module (`agent.api.*`: default names, readiness checklist — M11)
 // api-integrations = M11 integrations / public forms server texts (`validation.captcha`, …)
 // web-integrations = M11 Settings › Intégrations screens (web-integrations); web-carryovers = M11 web carry-over closures
+// web-gaps = fixes of the 2026-10-15 audit (agents, channels, inbox, orders, home, notifications) — fix/gaps-agents-inbox-orders
 // web-public = M11 public site (landing, pricing, help centre, legal, account deletion, captcha) — web-public
 // error.* = generated from docs/specs/11-error-catalogue.md (tools/gen-errors.mjs)
 import errAr from '../errors/messages.ar.json';
@@ -28,6 +29,9 @@ import wintFr from './messages/web-integrations.fr.json';
 import wcoAr from './messages/web-carryovers.ar.json';
 import wcoEn from './messages/web-carryovers.en.json';
 import wcoFr from './messages/web-carryovers.fr.json';
+import wgapAr from './messages/web-gaps.ar.json';
+import wgapEn from './messages/web-gaps.en.json';
+import wgapFr from './messages/web-gaps.fr.json';
 import wpubAr from './messages/web-public.ar.json';
 import wpubEn from './messages/web-public.en.json';
 import wpubFr from './messages/web-public.fr.json';
@@ -44,9 +48,9 @@ const withErrors = (base: Flat, app: Flat, errors: Flat, admin: Flat = {}): Flat
 };
 
 export const MESSAGES: Record<AppLocale, Flat> = {
-  fr: withErrors(deckFr, appFr, errFr, { ...admFr, ...agtFr, ...intFr, ...wintFr, ...wcoFr, ...wpubFr }),
-  ar: withErrors(deckAr, appAr, errAr, { ...admAr, ...agtAr, ...intAr, ...wintAr, ...wcoAr, ...wpubAr }),
-  en: withErrors(deckEn, appEn, errEn, { ...admEn, ...agtEn, ...intEn, ...wintEn, ...wcoEn, ...wpubEn }),
+  fr: withErrors(deckFr, appFr, errFr, { ...admFr, ...agtFr, ...intFr, ...wintFr, ...wcoFr, ...wpubFr, ...wgapFr }),
+  ar: withErrors(deckAr, appAr, errAr, { ...admAr, ...agtAr, ...intAr, ...wintAr, ...wcoAr, ...wpubAr, ...wgapAr }),
+  en: withErrors(deckEn, appEn, errEn, { ...admEn, ...agtEn, ...intEn, ...wintEn, ...wcoEn, ...wpubEn, ...wgapEn }),
 };
 
 /** Flat `key -> ICU message` map of a locale. */

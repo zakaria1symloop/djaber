@@ -11,6 +11,7 @@ import { StockService } from '../catalog/stock.service';
 import { channelRef } from '../channels/channel.service';
 import { CreditService } from '../credits/credit.service';
 import { contextOf } from '../messaging/messaging.presenter';
+import { jobPath, jobRefs, parcelPath } from '../notifications/notification.catalog';
 import { SafetyService } from '../messaging/safety.service';
 import { OnboardingService } from '../workspace/settings.service';
 
@@ -55,12 +56,12 @@ export class HomeService {
       const ctx = contextOf(c) as { handoff?: { at?: string; reason?: string }; handoffReason?: string };
       items.push({ key: `conversation:${c.id}`, kind: 'conversation', urgency: 0, title: c.client?.name ?? '', subtitle: c.lastMessagePreview, since: ctx.handoff?.at ?? (c.lastMessageAt ?? c.updatedAt).toISOString(), path: `/inbox/${c.id}`, ref: { conversationId: c.id, ...(ctx.handoff?.reason || ctx.handoffReason ? { reason: String(ctx.handoff?.reason ?? ctx.handoffReason) } : {}) } });
     }
-    for (const s of failed) items.push({ key: `parcel:${s.id}`, kind: 'parcel', urgency: 0, title: `${s.order.number} · ${s.order.clientName}`, subtitle: s.failureReason, since: s.updatedAt.toISOString(), path: `/delivery?tab=failed&order=${s.order.id}`, ref: { shipmentId: s.id, orderId: s.order.id } });
+    for (const s of failed) items.push({ key: `parcel:${s.id}`, kind: 'parcel', urgency: 0, title: `${s.order.number} · ${s.order.clientName}`, subtitle: s.failureReason, since: s.updatedAt.toISOString(), path: parcelPath({ orderId: s.order.id, shipmentId: s.id }), ref: { shipmentId: s.id, orderId: s.order.id } });
     for (const l of low) items.push({ key: `stock:${l.productId}:${l.variantId ?? ''}`, kind: 'stock', urgency: l.state === 'out' ? 0 : 1, title: l.variantName ? `${l.name} · ${l.variantName}` : l.name, subtitle: `${l.stock} / ${l.minStock}`, since: now.toISOString(), path: '/products?lowStock=1', ref: { productId: l.productId, ...(l.variantId ? { variantId: l.variantId } : {}) } });
     for (const c of reconnect) items.push({ key: `page:${c.id}`, kind: 'page', urgency: 0, title: c.name, subtitle: c.platform, since: c.updatedAt.toISOString(), path: `/channels/${c.id}`, ref: { channelId: c.id } });
     for (const i of insights) items.push({ key: `insight:${i.id}`, kind: 'insight', urgency: i.type === 'error' ? 1 : 2, title: i.agent.name, subtitle: i.type, since: i.createdAt.toISOString(), path: `/agents/${i.agent.id}/insights`, ref: { insightId: i.id, agentId: i.agent.id, conversationId: i.conversationId } });
     for (const o of callbacks) items.push({ key: `callback:${o.id}`, kind: 'callback', urgency: o.callbackAt!.getTime() <= now.getTime() ? 0 : 2, title: `${o.number} · ${o.clientName}`, subtitle: o.callbackAt!.toISOString(), since: o.callbackAt!.toISOString(), path: `/orders/${o.id}#calls`, ref: { orderId: o.id } });
-    for (const j of jobs) items.push({ key: `task:${j.id}`, kind: 'task', urgency: 1, title: j.kind, subtitle: null, since: j.updatedAt.toISOString(), path: j.kind === 'import' ? `/products/import?job=${j.id}` : `/reports?job=${j.id}`, ref: { jobId: j.id } });
+    for (const j of jobs) items.push({ key: `task:${j.id}`, kind: 'task', urgency: 1, title: j.kind, subtitle: null, since: j.updatedAt.toISOString(), path: jobPath({ jobId: j.id, kind: j.kind, ...jobRefs(j.payload) }), ref: { jobId: j.id } });
     items.sort((a, b) => a.urgency - b.urgency || a.since.localeCompare(b.since));
     const counts = Object.fromEntries(HOME_QUEUE_KINDS.map((k) => [k, 0])) as Record<HomeQueueKind, number>;
     for (const i of items) counts[i.kind]++;
@@ -97,7 +98,7 @@ export class HomeService {
     for (const i of insights) out.push({ key: `insight:${i.id}:handled`, kind: 'insight', urgency: 2, title: i.agent.name, subtitle: i.type, since: i.createdAt.toISOString(), path: `/agents/${i.agent.id}/insights`, ref: { insightId: i.id, agentId: i.agent.id }, handled: { at: i.resolvedAt!.toISOString(), by: by(i.resolvedBy?.id, i.resolvedBy) } });
     for (const h of history) {
       const kind = h.field === 'confirmationStatus' ? 'callback' : 'parcel';
-      out.push({ key: `${kind}:${h.orderId}:handled`, kind, urgency: 2, title: `${h.number} · ${h.clientName}`, subtitle: null, since: h.at.toISOString(), path: kind === 'callback' ? `/orders/${h.orderId}#calls` : `/orders/${h.orderId}`, ref: { orderId: h.orderId }, handled: { at: h.at.toISOString(), by: by(h.actorId, h) } });
+      out.push({ key: `${kind}:${h.orderId}:handled`, kind, urgency: 2, title: `${h.number} · ${h.clientName}`, subtitle: null, since: h.at.toISOString(), path: kind === 'callback' ? `/orders/${h.orderId}#calls` : `/orders/${h.orderId}#delivery`, ref: { orderId: h.orderId }, handled: { at: h.at.toISOString(), by: by(h.actorId, h) } });
     }
     for (const c of convs) out.push({ key: `conversation:${c.id}:handled`, kind: 'conversation', urgency: 2, title: c.client ?? '', subtitle: null, since: c.at.toISOString(), path: `/inbox/${c.id}`, ref: { conversationId: c.id }, handled: { at: c.at.toISOString(), by: by(c.uid, c) } });
     const seen = new Set<string>();

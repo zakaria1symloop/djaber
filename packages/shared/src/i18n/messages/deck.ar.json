@@ -348,7 +348,7 @@
  "enum.Channel.status.paused": "متوقفة مؤقتًا (الخطة)",
  "enum.Channel.status.pending_review": "في انتظار Meta",
  "enum.Client.blocked": "محظور",
- "enum.Client.placeholder": "عميل مؤقت",
+ "enum.Client.placeholder": "بحاجة إلى إكمال",
  "enum.Client.riskLevel.high": "خطر",
  "enum.Client.riskLevel.normal": "موثوق",
  "enum.Conversation.aiPaused": "الذكاء الاصطناعي متوقف مؤقتًا",
