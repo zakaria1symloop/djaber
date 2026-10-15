@@ -1,7 +1,8 @@
 'use client';
 // Quick-edit side sheet of a product — Figma "CAT-01 — Product — quick edit sheet + relations". Opened over the list
 // (`?sheet=<id>`), saved on blur (prices) or immediately (active switch); stock steppers write a traced adjustment
-// (`POST /stock/adjustments`, type `set`, with the chosen reason); ‹ › walk the rows of the list; related tabs show
+// (`POST /stock/adjustments`, type `set`, with the chosen reason); the "+" image tile picks and uploads in place
+// (`useProductImageEditor`, same flow as the product form); ‹ › walk the rows of the list; related tabs show
 // the last orders / movements / agents / recommendations (`GET /products/:id/relations`).
 import { formatDate, formatNumber, PRODUCT_IMAGES_MAX, productCost, productPrice, STOCK_ADJUSTMENT_REASONS, type AppLocale, type StockAdjustmentInput } from '@djaber/shared';
 import { buttonClass, cn, Field, Ltr, MoneyInput, Pill, QtyStepper, Select, SheetSection, SideSheet, Skeleton, StatusPill, Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@djaber/ui';
@@ -15,6 +16,7 @@ import { useLocaleCode, useT } from '@/lib/i18n';
 import { digitsToInt, marginPct, moneyDigits } from '@/lib/money';
 import { useSession, useWorkspaceId } from '@/lib/session';
 import { catalogApi, catalogKeys, useCatalogRefresh, useProduct, useProductRelations } from '../api';
+import { QuickImagesStrip } from '../product-form/images-section';
 import type { Product } from '../contracts';
 import { MovementTypePill, Num, ProductThumb, StockPill, useMovementReason } from '../ui';
 import { uuid } from '@/lib/uuid';
@@ -177,17 +179,8 @@ function Body({ product, setStatus }: { product: Product; setStatus: (s: Status)
       <StockSection product={product} setStatus={setStatus} />
 
       <SheetSection label={t('products.quick.images', { count: product.images.length, max: PRODUCT_IMAGES_MAX })}>
-        <div className="flex flex-wrap gap-2">
-          {product.images.map((i) => (
-            <span key={i.id} className={cn('rounded-[7px] border', i.isPrimary ? 'border-signal-live' : 'border-transparent')}>
-              <ProductThumb src={i.thumbUrl || i.url} name={i.altText ?? product.name} size={56} />
-            </span>
-          ))}
-          {editable ? (
-            <Link href={`/products/${product.id}/edit#images`} aria-label={t('products.quick.manageImages')} title={t('products.quick.manageImages')} className="flex size-14 items-center justify-center rounded-[6px] border border-dashed border-line-lit text-text-secondary hover:text-text-primary">
-              +
-            </Link>
-          ) : null}
+        <div data-testid="quick-images">
+          <QuickImagesStrip product={product} disabled={!editable} />
         </div>
       </SheetSection>
 

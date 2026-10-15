@@ -21,7 +21,7 @@ const localKey = () => `local-${Date.now().toString(36)}-${++seq}`;
 const withCode = (t: TFunction, code: string) => `${t(`error.${code}`)} (${code})`;
 const smallWarning = (t: TFunction, px: number | null | undefined) => (px ? t('error.IMAGE_SMALL', { px }) : undefined);
 
-const useLabels = (): ImageGridLabels => {
+export const useImageGridLabels = (): ImageGridLabels => {
   const t = useT();
   return useMemo(
     () => ({
@@ -123,7 +123,7 @@ export async function uploadLocalImages(productId: string, images: readonly Loca
 
 export function LocalImagesSection({ state, disabled, footer }: { state: LocalImages; disabled?: boolean; footer?: ReactNode }) {
   const t = useT();
-  const labels = useLabels();
+  const labels = useImageGridLabels();
   const firstValid = state.images.find((i) => !i.rejected)?.key;
   const tiles = state.images.map((i) => localTile(t, i, i.key === firstValid));
   return (
@@ -144,12 +144,16 @@ export function LocalImagesSection({ state, disabled, footer }: { state: LocalIm
   );
 }
 
-/* ---------- /products/:id/edit: immediate operations ---------- */
+/* ---------- /products/:id/edit and the quick-edit sheet: immediate operations ---------- */
 type Note = { error?: string; warning?: string };
 
-export function ProductImagesSection({ product, disabled, rejected, footer }: { product: Product; disabled?: boolean; rejected?: boolean; footer?: ReactNode }) {
+/**
+ * Upload / retry / delete / primary / reorder of the pictures of a saved product, each one immediate (CAT-02). Shared
+ * by the product form ("IMAGES · n / 10") and the "+" tile of the quick-edit sheet, so both pick, check (type, weight,
+ * 10-image limit), upload with progress and show the errors under the tile the same way.
+ */
+export function useProductImageEditor(product: Pick<Product, 'id' | 'name' | 'images'>) {
   const t = useT();
-  const labels = useLabels();
   const ws = useWorkspaceId();
   const qc = useQueryClient();
   const refresh = useCatalogRefresh();
@@ -242,6 +246,10 @@ export function ProductImagesSection({ product, disabled, rejected, footer }: { 
       toast({ tone: 'danger', message: errorMessage(e, t) });
     }
   };
+  const retry = (id: string) => {
+    const hit = pendingRef.current.find((i) => i.key === id);
+    if (hit) void upload(hit);
+  };
 
   const tiles: ImageTile[] = [
     ...images.map((i) => ({
@@ -256,25 +264,41 @@ export function ProductImagesSection({ product, disabled, rejected, footer }: { 
     })),
     ...pending.map((i) => localTile(t, i, false)),
   ];
+  return { tiles, count: images.length, add, remove, makePrimary, reorder: (ids: string[]) => void reorder(ids), retry, isLocal };
+}
 
+export function ProductImagesSection({ product, disabled, rejected, footer }: { product: Product; disabled?: boolean; rejected?: boolean; footer?: ReactNode }) {
+  const t = useT();
+  const labels = useImageGridLabels();
+  const editor = useProductImageEditor(product);
   return (
-    <Frame count={images.length} rejected={rejected} footer={footer}>
+    <Frame count={editor.count} rejected={rejected} footer={footer}>
       <ImageTileGrid
-        tiles={tiles}
+        tiles={editor.tiles}
         max={PRODUCT_IMAGES_MAX}
         accept={IMAGE_ACCEPT}
         labels={labels}
         disabled={disabled}
-        onAdd={disabled ? undefined : add}
-        onRemove={remove}
-        onMakePrimary={makePrimary}
-        onReorder={(ids) => void reorder(ids)}
-        onRetry={(id) => {
-          const hit = pendingRef.current.find((i) => i.key === id);
-          if (hit) void upload(hit);
-        }}
+        onAdd={disabled ? undefined : editor.add}
+        onRemove={editor.remove}
+        onMakePrimary={editor.makePrimary}
+        onReorder={editor.reorder}
+        onRetry={editor.retry}
         hint={t('products.form.images.hint')}
       />
     </Frame>
   );
+}
+
+/**
+ * "IMAGES · n / 10" of the quick-edit sheet (Figma "CAT-01 — Product — quick edit sheet"): the "+" tile opens the file
+ * picker right there and uploads through `useProductImageEditor` (same checks, progress and inline errors as the
+ * product form). Saved pictures are only shown here (primary, reorder and delete stay on the product form); a failed
+ * upload can be retried or dismissed.
+ */
+export function QuickImagesStrip({ product, disabled }: { product: Product; disabled?: boolean }) {
+  const labels = useImageGridLabels();
+  const editor = useProductImageEditor(product);
+  const tiles = editor.tiles.map((tile) => (editor.isLocal(tile.id) ? tile : { ...tile, removable: false }));
+  return <ImageTileGrid tiles={tiles} max={PRODUCT_IMAGES_MAX} accept={IMAGE_ACCEPT} labels={labels} disabled={disabled} onAdd={disabled ? undefined : editor.add} onRemove={editor.remove} onRetry={editor.retry} size={56} />;
 }
