@@ -60,9 +60,9 @@ export const DEFAULT_QUICK_REPLIES: { shortcut: string; title: Localized; body: 
     shortcut: 'livraison',
     title: { fr: 'Infos livraison', ar: 'معلومات التوصيل', en: 'Delivery info' },
     body: {
-      fr: 'Nous livrons dans les 58 wilayas, paiement à la livraison. Délai : 24 à 72 h selon la wilaya.',
-      ar: 'نوصل إلى 58 ولاية والدفع عند الاستلام. المدة: من 24 إلى 72 ساعة حسب الولاية.',
-      en: 'We deliver to all 58 wilayas, cash on delivery. Lead time: 24 to 72 h depending on the wilaya.',
+      fr: 'Nous livrons dans les 69 wilayas, paiement à la livraison. Délai : 24 à 72 h selon la wilaya.',
+      ar: 'نوصل إلى 69 ولاية والدفع عند الاستلام. المدة: من 24 إلى 72 ساعة حسب الولاية.',
+      en: 'We deliver to all 69 wilayas, cash on delivery. Lead time: 24 to 72 h depending on the wilaya.',
     },
   },
   {
@@ -89,7 +89,14 @@ type Fee = { home: number; stopdesk: number; return: number };
 const f = (home: number, stopdesk: number, ret: number): Fee => ({ home, stopdesk, return: ret });
 const group = (ids: number[], fee: Fee) => Object.fromEntries(ids.map((id) => [id, fee]));
 
-/** V1 default fee table (DA) per wilaya id; unknown wilaya ⇒ FALLBACK_FEE. */
+/**
+ * The 11 wilayas of loi 26-06 (59–69) → the wilaya they were carved out of. Same map as `WILAYA_PARENT` in
+ * `@djaber/shared` (geo.ts; a unit test keeps both equal), repeated here because this package does not load the
+ * shared build at seed time. A new wilaya starts with its parent's default fee.
+ */
+export const NEW_WILAYA_PARENT: Readonly<Record<number, number>> = { 59: 3, 60: 5, 61: 7, 62: 12, 63: 13, 64: 14, 65: 17, 66: 17, 67: 26, 68: 28, 69: 32 };
+
+/** V1 default fee table (DA) per wilaya id (59–69: their parent's row); unknown wilaya ⇒ FALLBACK_FEE. */
 export const DEFAULT_FEES: Record<number, Fee> = {
   ...group([16], f(400, 250, 200)),
   ...group([9, 35, 42], f(450, 300, 200)),
@@ -108,5 +115,6 @@ export const DEFAULT_FEES: Record<number, Fee> = {
   ...group([33, 50, 53, 56], f(1500, 1000, 700)),
   ...group([54], f(1600, 1100, 700)),
 };
+for (const [id, parent] of Object.entries(NEW_WILAYA_PARENT)) DEFAULT_FEES[Number(id)] = DEFAULT_FEES[parent]!;
 export const FALLBACK_FEE: Fee = f(800, 500, 400);
 export const defaultFeeFor = (wilayaId: number): Fee => DEFAULT_FEES[wilayaId] ?? FALLBACK_FEE;

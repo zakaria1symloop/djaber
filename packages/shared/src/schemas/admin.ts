@@ -4,6 +4,7 @@
 // 03 §19, §28, §29, 06 "Platform admin" + §8.11, api-contract §3.13, D21-bis, D41, D57, D63. Field names = contract names.
 // Every admin write that touches a merchant carries `reason` (≥ 10 chars ⇒ else 422 ADMIN_REASON_REQUIRED, `fields.reason`).
 import { z } from 'zod';
+import { WILAYA_COUNT } from '../geo';
 import {
   AiCapabilityValues,
   AiProviderKeyValues,
@@ -105,7 +106,7 @@ export const AdminWorkspacesQuerySchema = z
     credits: z.enum(['lt20', 'exhausted']).optional(),
     createdFrom: day.optional(),
     createdTo: day.optional(),
-    wilayaId: z.coerce.number().int().min(1).max(69).optional(),
+    wilayaId: z.coerce.number().int().min(1).max(WILAYA_COUNT).optional(),
     withPages: bool.optional(),
     withAgents: bool.optional(),
     inactiveDays: z.coerce.number().int().min(1).max(3650).optional(),

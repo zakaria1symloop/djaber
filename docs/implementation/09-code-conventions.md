@@ -966,4 +966,4 @@ Unit test file next to the unit: `order-state-machine.spec.ts` with `describe('0
 - Don't use `class-validator`; don't duplicate zod schemas between API and web.
 - Don't read `TenantContext` in controllers (services and repositories only).
 - Don't put business transitions in the UI; consume `actions`.
-- Don't write tests that depend on seed order beyond the documented 4 quick replies / 7 units / 58 wilayas.
+- Don't write tests that depend on seed order beyond the documented 4 quick replies / 7 units / 69 wilayas.

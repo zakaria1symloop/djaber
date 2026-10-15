@@ -1,4 +1,4 @@
-// DLV-01 / DLV-02 — the workspace fee grid (58 `DeliveryFeeRule` rows seeded from the V1 default table at workspace
+// DLV-01 / DLV-02 — the workspace fee grid (69 `DeliveryFeeRule` rows seeded from the V1 default table at workspace
 // creation), "fill missing" / "reset all", per-row custom price and reset to default, and the quote used by the order
 // form and the orders service (04 §4: free above the threshold for home delivery; customer price = grid, D15).
 import { Injectable } from '@nestjs/common';
@@ -48,7 +48,7 @@ export const feeExplanation = (q: FeeQuoteView, wilayaName: string | null) => {
 export class FeeService {
   constructor(private readonly audit: AuditService) {}
 
-  /** The 58 default rows of a workspace. Existing rows are kept unless `overwrite`. */
+  /** The 69 default rows of a workspace. Existing rows are kept unless `overwrite`. */
   async seedDefaults(tx: Tx, workspaceId: string, overwrite = false) {
     const rows = await defaultFeeRows(tx, workspaceId);
     if (overwrite) {
@@ -80,7 +80,7 @@ export class FeeService {
     };
   }
 
-  /** `GET /delivery/fees` — 58 rows in wilaya order + `meta`. */
+  /** `GET /delivery/fees` — 69 rows in wilaya order + `meta`. */
   async grid(): Promise<{ data: FeeRuleView[]; meta: FeeGridMeta }> {
     const [wilayas, rules, ws] = await Promise.all([
       prisma.wilaya.findMany({ orderBy: { id: 'asc' } }),

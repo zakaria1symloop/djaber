@@ -1,6 +1,7 @@
 // Clients (03 §9 CLI-01…05, §37 CLI; 04 §2, §13; api-contract §3.6; 06 "Clients", §8.3, §8.5, §10 "Clients").
 // One source for the API (nestjs-zod DTOs) and the web. Field names = contract names. Messages = i18n keys.
 import { z } from 'zod';
+import { WILAYA_COUNT } from '../geo';
 import { ClientSourceValues } from '../enums';
 import { email, fullName, normalizePhoneDz, isPhoneDz } from '../validators';
 import type { ChannelRefView } from './channels';
@@ -39,7 +40,7 @@ const int = z.coerce.number().int('validation.range').min(0, 'validation.range')
 /** An address of the client card (04 §2: commune belongs to the wilaya; address ≥ 10 chars for home delivery). */
 export const ClientAddressSchema = z
   .object({
-    wilayaId: z.coerce.number({ required_error: 'validation.wilaya' }).int('validation.wilaya').min(1, 'validation.wilaya').max(58, 'validation.wilaya'),
+    wilayaId: z.coerce.number({ required_error: 'validation.wilaya' }).int('validation.wilaya').min(1, 'validation.wilaya').max(WILAYA_COUNT, 'validation.wilaya'),
     communeId: z.coerce.number().int('validation.commune').positive('validation.commune').nullable().optional(),
     communeText: emptyToNull(z.string().trim().max(100, 'validation.commune')),
     address: emptyToNull(z.string().trim().max(500, 'validation.address')),
@@ -129,7 +130,7 @@ export const ClientsQuerySchema = z
     minSpent: int.optional(),
     maxSpent: int.optional(),
     lastOrder: z.enum(CLIENT_LAST_ORDER_FILTERS).optional(),
-    wilayaId: csv(z.coerce.number().int().min(1).max(58)).optional(),
+    wilayaId: csv(z.coerce.number().int().min(1).max(WILAYA_COUNT)).optional(),
     createdFrom: day.optional(),
     createdTo: day.optional(),
     /** alias of createdFrom / createdTo (06 §2 `from&to`) */

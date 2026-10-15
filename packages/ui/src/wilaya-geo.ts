@@ -1,12 +1,12 @@
-// Stylised map of the 58 wilayas of Algeria (no geodata dependency): each wilaya is the Voronoi cell of its chef-lieu
+// Stylised map of the 69 wilayas of Algeria (no geodata dependency): each wilaya is the Voronoi cell of its chef-lieu
 // clipped to a simplified national outline, in a projection that stretches the north (latitude ≥ 34° × 3) so the dense
-// coastal wilayas stay readable and clickable. Pure functions, computed once (58 × 57 half-plane clips).
+// coastal wilayas stay readable and clickable. Pure functions, computed once (69 × 68 half-plane clips).
 // Coordinates are approximate (± 0.1°): the map is a choropleth support, not a cadastral map.
 
 type LatLng = readonly [lat: number, lng: number];
 type Pt = readonly [x: number, y: number];
 
-/** chef-lieu of each wilaya, by official code (1–58) */
+/** chef-lieu of each wilaya, by official code (1–69; 59–69: loi 26-06 of 2026) */
 export const WILAYA_SEATS: Record<number, LatLng> = {
   1: [27.87, -0.29],
   2: [36.17, 1.33],
@@ -66,6 +66,17 @@ export const WILAYA_SEATS: Record<number, LatLng> = {
   56: [24.55, 9.48],
   57: [33.95, 5.92],
   58: [30.58, 2.88],
+  59: [34.11, 2.1],
+  60: [35.39, 5.37],
+  61: [35.22, 5.71],
+  62: [34.74, 8.06],
+  63: [34.22, -1.26],
+  64: [35.21, 2.32],
+  65: [35.45, 2.9],
+  66: [34.15, 3.5],
+  67: [35.89, 2.75],
+  68: [35.21, 4.17],
+  69: [32.89, 0.55],
 };
 
 /** simplified national border, clockwise from the Moroccan border on the coast */
@@ -173,7 +184,7 @@ const toPath = (poly: Pt[]) =>
   poly.length ? `M${poly.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('L')}Z` : '';
 
 let cache: WilayaGeometry | null = null;
-/** The 58 cells (computed once). */
+/** The 69 cells (computed once). */
 export function wilayaGeometry(): WilayaGeometry {
   if (cache) return cache;
   const outline = OUTLINE.map(project);

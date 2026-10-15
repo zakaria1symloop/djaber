@@ -1,7 +1,7 @@
 // Request DTOs of the workspace module (zod → nestjs-zod). Shapes follow api-contract §3.2 and 06-api "Workspace & team".
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
-import { email, localeSchema, phoneDz } from '@djaber/shared';
+import { email, localeSchema, phoneDz, WILAYA_COUNT } from '@djaber/shared';
 
 const name = z.string().trim().min(1, 'validation.required').max(120, 'validation.length');
 const currentPassword = z.string().min(1, 'validation.required').max(128, 'validation.length');
@@ -11,7 +11,7 @@ const totpCode = z.string().trim().max(12, 'validation.length').optional().nulla
 export const CreateWorkspaceSchema = z
   .object({
     name,
-    senderWilayaId: z.number().int().min(1, 'validation.wilaya').max(58, 'validation.wilaya').optional().nullable(),
+    senderWilayaId: z.number().int().min(1, 'validation.wilaya').max(WILAYA_COUNT, 'validation.wilaya').optional().nullable(),
     stockMode: z.enum(['simple', 'advanced']).optional(),
     locale: localeSchema.optional(),
   })
@@ -23,7 +23,7 @@ export const UpdateWorkspaceSchema = z
     name: name.optional(),
     phone: phoneDz.nullable().optional(),
     address: z.string().trim().max(500, 'validation.length').nullable().optional(),
-    senderWilayaId: z.number().int().min(1, 'validation.wilaya').max(58, 'validation.wilaya').nullable().optional(),
+    senderWilayaId: z.number().int().min(1, 'validation.wilaya').max(WILAYA_COUNT, 'validation.wilaya').nullable().optional(),
     locale: localeSchema.optional(),
     stockMode: z.enum(['simple', 'advanced']).optional(),
     freeDeliveryThreshold: z.number().int('validation.price').min(0, 'validation.price').max(100_000_000, 'validation.price').nullable().optional(),

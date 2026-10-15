@@ -1,4 +1,4 @@
-// Reference data for address forms (58 wilayas, communes). Public and cacheable. See assumptions-log (M0).
+// Reference data for address forms (69 wilayas, communes). Public and cacheable. See assumptions-log (M0).
 import { Controller, Get, Header, Param, ParseIntPipe } from '@nestjs/common';
 import { prisma } from '@djaber/db';
 import { Public } from '../../core/auth/decorators';

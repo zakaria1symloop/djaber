@@ -76,10 +76,10 @@ describe('analytics figures (rule 11)', () => {
 });
 
 describe('wilaya choropleth geometry', () => {
-  it('draws one non-empty cell per wilaya (58)', () => {
+  it('draws one non-empty cell per wilaya (69)', () => {
     const g = wilayaGeometry();
-    expect(Object.keys(WILAYA_SEATS)).toHaveLength(58);
-    expect(g.shapes).toHaveLength(58);
+    expect(Object.keys(WILAYA_SEATS)).toHaveLength(69);
+    expect(g.shapes).toHaveLength(69);
     expect(g.shapes.every((s) => s.path.startsWith('M') && s.path.endsWith('Z'))).toBe(true);
     // the north is stretched: Alger sits above Tamanrasset and the map is taller than wide
     const seat = (code: number) => g.shapes.find((s) => s.code === code)!.seat;

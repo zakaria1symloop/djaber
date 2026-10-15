@@ -206,7 +206,7 @@ One scenario per rule; IDs `AT-<area>-nn`. Columns: scenario (Given / When / The
 | AT-ORD-20 | Confirm dialog result step: "Prepare" ⇒ preparing; "Send to courier" enabled only when a courier exists (tooltip otherwise) | ORD-07 | E |
 | AT-ORD-21 | IG and FB AI orders identical except channel badge | ORD-11 | I |
 | AT-ORD-22 | Payment: amountPaid 300 of 1000 ⇒ partial; `paymentStatus` sent without amount ⇒ 422 | PAY-01, 04 §1.4 | I |
-| AT-DLV-09 | Fee seed creates 58 rules from the default table; "fill missing" keeps custom; "reset all" overwrites after confirm | DLV-01 | I/E |
+| AT-DLV-09 | Fee seed creates 69 rules from the default table; "fill missing" keeps custom; "reset all" overwrites after confirm | DLV-01 | I/E |
 | AT-DLV-10 | Communes seeded; `validation.commune` rejects a commune from another wilaya | DLV-09, 04 §2 | I |
 | AT-NTF-03 | Notification list filters by each type; unread count equals server count; deep link opens the target screen (web and mobile) | NTF-01 | E |
 | AT-NTF-04 | Member disables email for `stock.low` ⇒ only in-app; push sound setting | NTF-02 | I |

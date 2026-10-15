@@ -1,7 +1,7 @@
 'use client';
 // /delivery/fees body — Figma "DLV-01/03 — Delivery — fee grid + couriers settings" (grid half) and
 // "DLG — Orders, delivery & clients II — dialogs catalogue" (Grille des frais — actions). The client always pays this
-// grid (D15); courier rates feed cost and margin and can be copied into the grid (DLV-07, M6). 58 rows, inline edit saved on blur, ↺ back to the default
+// grid (D15); courier rates feed cost and margin and can be copied into the grid (DLV-07, M6). 69 rows, inline edit saved on blur, ↺ back to the default
 // row, "Compléter les manquants", "Tout réinitialiser" (confirm), free-delivery rule (`Workspace.freeDeliveryThreshold`).
 import { formatMoney, formatNumber } from '@djaber/shared';
 import { Banner, Button, Card, ConfirmDialog, FeeCell, FreeDeliveryBar, IconButton, Ltr, RowSaveState, SearchInput, Skeleton, StatusPill, Switch, Td, Th, Table, Tooltip, toast, type CellState } from '@djaber/ui';

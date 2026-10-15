@@ -14,7 +14,7 @@ Djaber is a **multi-tenant SaaS**: a merchant signs up, connects Facebook/Instag
 |---|---|---|
 | OS1 | Automate sales | ≥ 70 % of conversations resolved without a human |
 | OS2 | Premium customer experience | 24/7, reply in the customer's language & script |
-| OS3 | Local ecosystem | ZR Express, EcoTrack, Yalidine; DZD; Edahabia/CIB via Chargily; 58 wilayas + communes; Google Sheets |
+| OS3 | Local ecosystem | ZR Express, EcoTrack, Yalidine; DZD; Edahabia/CIB via Chargily; 69 wilayas (loi 26-06) + communes; Google Sheets |
 | OS4 | Scalability | ≥ 10 channels per workspace, 10 000+ orders/month, horizontal scaling |
 | OS5 | Business insight | Dashboards, 8 analytics tabs, 23 reports |
 

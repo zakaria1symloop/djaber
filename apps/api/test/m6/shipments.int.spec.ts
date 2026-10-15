@@ -9,7 +9,7 @@ import { createTestApp, type TestApp } from '../support/app';
 import { jobOf } from '../support/m2';
 import { forbidNetwork, wsOf } from '../support/m3';
 import { closeOutbox } from '../support/m4';
-import { cashOf, newOrder, productStock, seedFees } from '../support/m5';
+import { cashOf, newOrder, orderBody, postOrder, productStock, seedFees } from '../support/m5';
 import { addCourier, confirmedOrder, db, drain, fakeCourier, idem, reloadOrder, send, sendAndWork, sendBody, shipmentRow } from '../support/m6';
 
 let app: TestApp;
@@ -57,6 +57,20 @@ describe('send to courier (DLV-05, FL-08)', () => {
     expect(await db.notification.count({ where: { workspaceId: owner.workspaceId, type: 'shipment_created' } })).toBeGreaterThan(0);
     expect((await wsOf(`ws:${owner.workspaceId}`, 'shipment.updated')).some((e) => e.payload.shipment.id === parcel.id && e.payload.shipment.status === 'sent')).toBe(true);
     expect(await db.outbox.count({ where: { topic: 'webhook', key: { startsWith: `order.shipped:${order.id}` } } })).toBe(1);
+  });
+
+  it('loi 26-06: an order in a new wilaya (68 Bou Saâda) reaches the courier under its parent code (28 M’Sila), commune unchanged', async () => {
+    const { owner } = await shop();
+    const bouSaada = { wilayaId: 68, communeId: 1006, isStopdesk: false, address: 'Cité 200 logements, Bt 4' };
+    const { order, product } = await confirmedOrder(owner, { delivery: bouSaada });
+    // a commune of Bou Saâda is refused under its former wilaya
+    expect((await postOrder(owner, orderBody(product.id, { delivery: { ...bouSaada, wilayaId: 28 } }))).status).toBe(422);
+    expect(order.address).toMatchObject({ wilayaId: 68, communeId: 1006 });
+    expect(order.deliveryFee).toBe(650); // the default fee of the parent wilaya
+    await send(owner, order).expect(202);
+    await drain(app, owner.workspaceId);
+    expect(fakeCourier(app).created).toEqual([expect.objectContaining({ provider: 'zrexpress', wilayaId: 28, wilayaName: "M'Sila", communeName: 'Bou Saada' })]);
+    expect((await reloadOrder(owner, order.id)).address).toMatchObject({ wilayaId: 68 });
   });
 
   it('AT-DLV-01 the parcel takes the address of the dialog when it was changed there (written to the order first)', async () => {

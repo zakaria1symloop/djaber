@@ -52,9 +52,11 @@ describe('name, address, email, password', () => {
 });
 
 describe('numbers', () => {
-  it('wilaya 1–58, price > 0 integer DZD, quantity ≥ 1', () => {
+  it('wilaya 1–69, price > 0 integer DZD, quantity ≥ 1', () => {
     expect(ok(wilayaCode, 16)).toBe(true);
-    expect(ok(wilayaCode, 59)).toBe(false);
+    expect(ok(wilayaCode, 59)).toBe(true);
+    expect(ok(wilayaCode, 69)).toBe(true);
+    expect(ok(wilayaCode, 70)).toBe(false);
     expect(ok(wilayaCode, 0)).toBe(false);
     expect(ok(sellingPrice, 4500)).toBe(true);
     expect(ok(sellingPrice, 0)).toBe(false);

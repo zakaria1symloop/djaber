@@ -43,7 +43,7 @@ import type {
   Wilaya,
 } from './contracts';
 
-/** `GET /delivery/fees` and `POST /delivery/fees/seed` answer the whole grid (58 rows) + its counters. */
+/** `GET /delivery/fees` and `POST /delivery/fees/seed` answer the whole grid (69 rows) + its counters. */
 export type FeeGrid = { rows: FeeRule[]; meta: FeeGridMeta & { written?: number } };
 const grid = async (p: Promise<{ data: FeeRule[]; meta: unknown }>): Promise<FeeGrid> => {
   const r = await p;

@@ -159,7 +159,7 @@ V1 has adapter code (Yalidine, ZR Express, Maystro) and a send flow; missing in 
 
 | ID | Requirement | Phase |
 |---|---|---|
-| DLV-01 | Fee grid per wilaya (58): home, stop-desk, return price, active. Seed = V1 default table; "fill missing", "reset all". **Customer price = grid** (D15). `isActive=false` ⇒ wilaya not served (AI and order form inform). | P1 |
+| DLV-01 | Fee grid per wilaya (69): home, stop-desk, return price, active. Seed = V1 default table; "fill missing", "reset all". **Customer price = grid** (D15). `isActive=false` ⇒ wilaya not served (AI and order form inform). | P1 |
 | DLV-02 | Free-delivery rule: free when subtotal ≥ threshold (workspace setting, optional). `[CDC §6.4.3]` | P1 |
 | DLV-03 | Courier accounts: ZR Express (token, key), EcoTrack (instance URL, token), Yalidine (id, token) — required fields validated per provider (**fix**); credentials encrypted; test connection; default; sender info; active toggle (**fix**). Empty state. | P2 |
 | DLV-04 | **Tracking** `[PH2 #07]`: courier webhook when offered, else batch polling (`getStatuses`) every 2 h for the first 3 days after `sent`, then every 12 h; 30 days without any courier event ⇒ `Shipment.status=stale` and polling stops; "Sans mouvement" = no event for more than 5 days while status ∈ {sent, picked_up, in_transit}; per-account rate limiter; raw status → `ShipmentStatus ∈ pending|sent|picked_up|in_transit|out_for_delivery|delivered|failed|returned|cancelled|stale` via the per-provider table (05-integrations §2); unknown raw ⇒ event stored, status unchanged; timeline on order (web + mobile); customer notified per MSG-06 at sent / out_for_delivery / delivered / failed; terminal states drive order `delivered` / `returned`. | P2 |
@@ -167,7 +167,7 @@ V1 has adapter code (Yalidine, ZR Express, Maystro) and a send flow; missing in 
 | DLV-06 | Labels: single / merged PDF; courier without labels (ZR) ⇒ Djaber label (logo, order, client, address, COD). | P2 |
 | DLV-07 | Courier live rates: shown in the send dialog and used for margin analytics only; cached 1 h; "copy courier rates into my grid" action. | P2 |
 | DLV-08 | Delivery overview: parcels by status, failures to act on (reasons: address, unreachable, refused, damaged, other → actions re-attempt / mark returned), returns. | P2 |
-| DLV-09 | Geo: 58 wilayas + communes seeded from the official list; `CourierCommuneMap` per provider (commune codes, stop-desk ids). | P1 seed / P2 map |
+| DLV-09 | Geo: 69 wilayas (loi 26-06; 59–69 shipped to couriers under their parent code) + communes seeded from the official list; `CourierCommuneMap` per provider (commune codes, stop-desk ids). | P1 seed / P2 map |
 | DLV-10 | `CourierAdapter`: `testCredentials, createParcel, cancelParcel?, getLabel?, getStatus, getStatuses?, parseWebhook?, getRates?, retryDelivery?`. N shipments per order, one active. EcoTrack contract verified against provider docs before build. | P2 |
 | DLV-11 | Analytics › Delivery tab: per courier sent / delivered / failed / returned, avg days, COD collected. `[CDC §7.5]` | P2 |
 

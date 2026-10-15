@@ -52,7 +52,7 @@ export type FeeRule = FeeRuleView;
 export type FeeRuleInput = UpdateFeeRuleInput;
 export type FeeQuote = FeeQuoteView;
 export type { FeeGridMeta };
-export const WILAYA_COUNT = 58;
+export { WILAYA_COUNT } from '@djaber/shared';
 
 export type Shipment = ShipmentView;
 export type ShipmentEvent = ShipmentEventView;

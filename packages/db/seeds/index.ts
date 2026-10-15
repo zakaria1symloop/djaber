@@ -9,7 +9,7 @@ import { seedPublicPages } from './public-pages';
 import { resolve } from 'node:path';
 import * as argon2 from 'argon2';
 import { rawPrisma as db } from '../src/client';
-import { defaultFeeFor } from '../src/defaults';
+import { defaultFeeFor, NEW_WILAYA_PARENT } from '../src/defaults';
 
 const loadEnv = () => {
   const file = resolve(__dirname, '../../../.env');
@@ -31,6 +31,11 @@ async function geo() {
   if ((await db.commune.count()) !== communes.length) {
     await db.commune.createMany({ data: communes, skipDuplicates: true });
   }
+  // loi 26-06 (wilayas 59–69): communes seeded under their former wilaya follow the data file (as migration
+  // 20261015120000_wilayas_69 does; a no-op once they are in place).
+  const moved = new Map<number, number[]>();
+  for (const c of communes) if (NEW_WILAYA_PARENT[c.wilayaId]) moved.set(c.wilayaId, [...(moved.get(c.wilayaId) ?? []), c.id]);
+  for (const [wilayaId, ids] of moved) await db.commune.updateMany({ where: { id: { in: ids }, wilayaId: { not: wilayaId } }, data: { wilayaId } });
   return { wilayas: wilayas.length, communes: communes.length };
 }
 
@@ -284,7 +289,7 @@ export async function legal(adminId: string) {
   return Object.keys(docs).length;
 }
 
-/** DLV-01: every workspace has its 58 fee rows (new workspaces get them at creation; older ones are backfilled here, custom rows kept). */
+/** DLV-01: every workspace has its 69 fee rows (new workspaces get them at creation; older ones are backfilled here, custom rows kept). */
 async function feeGrids() {
   const [wilayas, workspaces] = await Promise.all([db.wilaya.findMany({ select: { id: true } }), db.workspace.findMany({ select: { id: true } })]);
   let written = 0;

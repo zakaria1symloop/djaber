@@ -2952,7 +2952,7 @@
  "fees.readOnly": "Réservé aux admins de l'espace (delivery.manage)",
  "fees.resetAll": "Tout réinitialiser",
  "fees.resetAll.confirm": "Réinitialiser la grille",
- "fees.resetAll.description": "Les 58 wilayas reprennent les valeurs Djaber par défaut. Vos tarifs personnalisés seront perdus.",
+ "fees.resetAll.description": "Les 69 wilayas reprennent les valeurs Djaber par défaut. Vos tarifs personnalisés seront perdus.",
  "fees.resetAll.title": "Réinitialiser toute la grille ?",
  "fees.resetRow": "Réinitialiser la ligne (valeurs par défaut)",
  "fees.search": "Rechercher une wilaya…",
