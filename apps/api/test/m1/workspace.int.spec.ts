@@ -56,7 +56,7 @@ describe('GET / PATCH /workspace', () => {
     const admin = await asAdmin(app, owner.workspaceId);
     const operator = await asOperator(app, owner.workspaceId);
 
-    const bad = await owner.patch('/workspace', { name: '', phone: '12', handoffReminderMin: -1, freeDeliveryThreshold: 1.5, targetMarginPct: 101, senderWilayaId: 59, stockMode: 'pro' }).expect(422);
+    const bad = await owner.patch('/workspace', { name: '', phone: '12', handoffReminderMin: -1, freeDeliveryThreshold: 1.5, targetMarginPct: 101, senderWilayaId: 70, stockMode: 'pro' }).expect(422);
     expect(bad.body.error.code).toBe('VALIDATION_ERROR');
     expect(bad.body.error.fields).toMatchObject({ name: 'validation.required', phone: 'validation.phone', handoffReminderMin: 'validation.range', freeDeliveryThreshold: 'validation.price', targetMarginPct: 'validation.range', senderWilayaId: 'validation.wilaya' });
     await owner.patch('/workspace', { status: 'active' }).expect(422); // unknown / forbidden field

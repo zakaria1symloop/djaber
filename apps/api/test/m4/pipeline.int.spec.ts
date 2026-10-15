@@ -250,6 +250,32 @@ describe('tools', () => {
     expect(t.runs[0]!.creditsCharged).toBe(1);
   });
 
+  it('loi 26-06: quote_delivery knows the wilayas 59–69 (official name inside a sentence, darija spelling, Arabic, id 69)', async () => {
+    const s = await shop();
+    await feeRule(s.owner.workspaceId, 68, 650, 400);
+    await feeRule(s.owner.workspaceId, 67, 620, 400);
+    await feeRule(s.owner.workspaceId, 69, 900, 600);
+    await feeRule(s.owner.workspaceId, 26, 600, 400);
+    fakeAi(app).script(
+      'reply',
+      {
+        toolCalls: [
+          { name: 'quote_delivery', args: { wilayaName: 'livraison à Bou Saâda svp' } },
+          { name: 'quote_delivery', args: { wilayaName: 'ksar boukhari' } },
+          { name: 'quote_delivery', args: { wilayaName: 'pour Ksar El Boukhari' } },
+          { name: 'quote_delivery', args: { wilayaId: 69 } },
+          { name: 'quote_delivery', args: { wilayaName: 'بوسعادة' } },
+          { name: 'quote_delivery', args: { wilayaName: 'Médéa' } },
+        ],
+      },
+      { reply: 'Livraison à Bou Saâda : 650 DA.', intent: 'INFO' },
+    );
+    const t = await turn(s, newSender(), { text: 'chhal tawsil l bousaada ?' });
+    const r = t.runs[0]!.toolCalls.map((c) => c.result as any);
+    expect(r.map((x) => [x.wilayaId, x.fee])).toEqual([[68, 650], [67, 620], [67, 620], [69, 900], [68, 650], [26, 600]]);
+    expect(r[0]).toMatchObject({ ok: true, wilayaName: 'Bou Saâda' });
+  });
+
   it('AT-AI-04 order capture up to `create_order`: invalid phone re-asked, phone normalised, fee from the grid, limits, 1 credit for the text and 0 for the order (the order row itself: test/m5/ai-orders)', async () => {
     const s = await shop({ maxQtyPerOrder: 3 });
     await feeRule(s.owner.workspaceId, 16, 400, 300);

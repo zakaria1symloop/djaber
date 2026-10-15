@@ -4,7 +4,7 @@
 // to the run: never returned by the API, not in the error catalogue. Every read is scoped to the agent's catalogue.
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
-import { AGENT_DEFAULT_MAX_AMOUNT, AGENT_DEFAULT_MAX_QTY, HANDOFF_REASONS, isPhoneDz, normalizePhoneDz } from '@djaber/shared';
+import { AGENT_DEFAULT_MAX_AMOUNT, AGENT_DEFAULT_MAX_QTY, HANDOFF_REASONS, isPhoneDz, normalizePhoneDz, WILAYA_COUNT } from '@djaber/shared';
 import { prisma, TenantContext, type Agent } from '@djaber/db';
 import { FAQ_CANDIDATE_INSIGHT_AT } from '../ai.constants';
 import { CatalogueService, type CatalogueProduct } from '../catalogue.service';
@@ -36,7 +36,7 @@ export const TOOL_DEFS: Record<ToolName, AiToolDef> = {
     parameters: {
       type: 'object',
       additionalProperties: false,
-      properties: { wilayaId: { type: 'integer', minimum: 1, maximum: 58 }, wilayaName: { type: 'string' }, isStopdesk: { type: 'boolean', default: false }, subtotal: { type: 'integer', minimum: 0 } },
+      properties: { wilayaId: { type: 'integer', minimum: 1, maximum: WILAYA_COUNT }, wilayaName: { type: 'string' }, isStopdesk: { type: 'boolean', default: false }, subtotal: { type: 'integer', minimum: 0 } },
       // no top-level anyOf (Anthropic refuses it): `quote` answers INVALID_ARGS when both are missing
     },
   },
@@ -51,7 +51,7 @@ export const TOOL_DEFS: Record<ToolName, AiToolDef> = {
         clientName: { type: 'string', minLength: 3, maxLength: 80 },
         clientPhone: { type: 'string', pattern: '^(\\+213|00213|0)?[5-7][0-9]{8}$' },
         secondPhone: { type: 'string' },
-        wilayaId: { type: 'integer', minimum: 1, maximum: 58 },
+        wilayaId: { type: 'integer', minimum: 1, maximum: WILAYA_COUNT },
         communeName: { type: 'string', maxLength: 100 },
         address: { type: 'string', maxLength: 500 },
         isStopdesk: { type: 'boolean', default: false },
@@ -96,12 +96,12 @@ export const RUN_TOOLS: ToolName[] = ['search_products', 'get_product', 'quote_d
 const invalid = (field: string, example?: string | number): ToolResult => ({ ok: false, error: { code: 'VALIDATION', field, ...(example !== undefined ? { example } : {}) } });
 const str = z.string().trim();
 const SearchArgs = z.object({ query: str.min(1).max(200), limit: z.coerce.number().int().min(1).max(30).default(10) });
-const QuoteArgs = z.object({ wilayaId: z.coerce.number().int().min(1).max(58).optional(), wilayaName: str.max(120).optional(), isStopdesk: z.boolean().default(false), subtotal: z.coerce.number().int().min(0).optional() });
+const QuoteArgs = z.object({ wilayaId: z.coerce.number().int().min(1).max(WILAYA_COUNT).optional(), wilayaName: str.max(120).optional(), isStopdesk: z.boolean().default(false), subtotal: z.coerce.number().int().min(0).optional() });
 const OrderArgs = z.object({
   clientName: str.min(3).max(80),
   clientPhone: str.min(1).max(30),
   secondPhone: str.max(30).optional(),
-  wilayaId: z.coerce.number().int().min(1).max(58),
+  wilayaId: z.coerce.number().int().min(1).max(WILAYA_COUNT),
   communeName: str.max(100).optional(),
   address: str.max(500).optional(),
   isStopdesk: z.boolean().default(false),
@@ -204,9 +204,12 @@ export class ToolRegistry {
     if (exact) return exact;
     const alias = WILAYA_ALIASES[wanted];
     if (alias) return all.find((w) => w.id === alias) ?? null;
-    // the name inside a longer answer ("pour Oran svp", "wilaya de Sétif")
-    const tokens = wanted.split(' ');
-    return all.find((w) => tokens.includes(fold(w.nameFr)) || tokens.includes(fold(w.nameAr))) ?? all.find((w) => tokens.some((t) => WILAYA_ALIASES[t] === w.id)) ?? null;
+    // the name inside a longer answer ("pour Oran svp", "wilaya de Sétif", "livraison à Ksar El Boukhari"): official
+    // names first, then the spellings; the longest phrase wins ("Bir El Ater" over a shorter name inside it)
+    const padded = ` ${wanted} `;
+    const longest = (pairs: [string, number][]) => pairs.filter(([n]) => n && padded.includes(` ${n} `)).sort((a, b) => b[0].length - a[0].length)[0]?.[1];
+    const id = longest(all.flatMap((w) => [[fold(w.nameFr), w.id], [fold(w.nameAr), w.id]] as [string, number][])) ?? longest(Object.entries(WILAYA_ALIASES));
+    return id ? (all.find((w) => w.id === id) ?? null) : null;
   }
 
   /** Delivery fee of the merchant's grid; `free` when the subtotal reaches the rule's (or the workspace's) threshold. */

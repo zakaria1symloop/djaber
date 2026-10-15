@@ -220,7 +220,7 @@ export const fixtureReadiness = (over: { ready?: boolean; checks?: Json[] } = {}
   ready: over.ready ?? true,
   checks: over.checks ?? [
     { key: 'catalog', ok: true, label: 'Catalogue : 142 produits actifs · 3 sans photo (l’agent les décrira sans image)', count: 142, link: '/products' },
-    { key: 'feeGrid', ok: true, label: 'Grille de livraison : 58 wilayas renseignées' },
+    { key: 'feeGrid', ok: true, label: 'Grille de livraison : 69 wilayas renseignées' },
     { key: 'policies', ok: true, label: 'Règles de la boutique : 4 / 4' },
     { key: 'channels', ok: true, label: 'Canal : Boutique Amel (Facebook) — libre' },
     { key: 'emailVerified', ok: true, label: 'E-mail vérifié · plan Pro · 1 540 crédits restants' },

@@ -15,7 +15,7 @@ test.beforeAll(async ({ request }) => {
   test.skip(!(await feesReady(request, owner)), 'M5 delivery API not reachable (GET /delivery/fees)');
 });
 
-test('AT-DLV-09 · 58 rows, inline edit saved on blur, fill missing keeps custom, reset all after confirm', async ({ page, request }) => {
+test('AT-DLV-09 · 69 rows, inline edit saved on blur, fill missing keeps custom, reset all after confirm', async ({ page, request }) => {
   await loginHome(page, owner);
   // since M6 `/delivery` is the overview (DLV-08); the grid is its "Grille des frais" tab
   await page.goto('/fr/delivery');
@@ -23,7 +23,7 @@ test('AT-DLV-09 · 58 rows, inline edit saved on blur, fill missing keeps custom
   await expectUrl(page, '**/fr/delivery/fees');
   await expect(page.getByRole('heading', { name: 'Tarifs & transporteurs', level: 1 })).toBeVisible();
   const grid = page.getByTestId('fee-grid');
-  await expect(grid.locator('tbody tr')).toHaveCount(58);
+  await expect(grid.locator('tbody tr')).toHaveCount(69);
 
   // edit Sétif home price: saved on blur, row becomes PERSONNALISÉ
   const setif = grid.locator('tr[data-wilaya="19"]');
@@ -49,7 +49,7 @@ test('AT-DLV-09 · 58 rows, inline edit saved on blur, fill missing keeps custom
   await expect(grid.locator('tr[data-wilaya="16"]')).toHaveAttribute('data-source', 'custom');
   await page.getByTestId('fees-reset-all').click();
   const confirm = page.getByRole('dialog', { name: 'Réinitialiser toute la grille ?' });
-  await expect(confirm).toContainText('58 wilayas');
+  await expect(confirm).toContainText('69 wilayas');
   await confirm.getByRole('button', { name: 'Réinitialiser la grille' }).click();
   await expect(page.getByText('Grille réinitialisée aux valeurs par défaut')).toBeVisible();
   await expect(grid.locator('tr[data-source="custom"]')).toHaveCount(0);
@@ -98,7 +98,7 @@ test('AT-UX-03 · Operator: grid read-only with the reason, API refuses', async 
   const operator = await inviteOperator(request, owner, 'Omar');
   await loginHome(page, operator);
   await page.goto('/fr/delivery/fees');
-  await expect(page.getByTestId('fee-grid').locator('tbody tr')).toHaveCount(58);
+  await expect(page.getByTestId('fee-grid').locator('tbody tr')).toHaveCount(69);
   await expect(page.getByTestId('fees-fill')).toBeDisabled();
   await expect(page.getByTestId('fees-fill')).toHaveAttribute('title', /delivery\.manage/);
   await expect(page.getByTestId('fee-grid').locator('tr[data-wilaya="16"]').getByRole('textbox').first()).toBeDisabled();

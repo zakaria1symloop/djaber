@@ -4,7 +4,7 @@
 // call a courier: they write the Shipment row + an outbox job in one transaction (CLAUDE.md rule 4).
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import { TRACKING_SYNC_COOLDOWN_S, type BulkSendInput, type BulkSendResult, type BulkSendRowResult, type CancelShipmentInput, type CreateShipmentInput, type MarkDeliveredInput, type MarkFailedInput, type MarkReturnedInput, type ShipmentView } from '@djaber/shared';
+import { courierWilayaId, TRACKING_SYNC_COOLDOWN_S, type BulkSendInput, type BulkSendResult, type BulkSendRowResult, type CancelShipmentInput, type CreateShipmentInput, type MarkDeliveredInput, type MarkFailedInput, type MarkReturnedInput, type ShipmentView } from '@djaber/shared';
 import { prisma, TenantContext, type Job, type Prisma, type Shipment, type Tx } from '@djaber/db';
 import { ConfigService } from '../../core/config/config.service';
 import { AppException, notFound } from '../../core/errors/app.exception';
@@ -257,8 +257,14 @@ export class ShipmentService implements OnModuleInit {
     const o = await prisma.order.findUniqueOrThrow({ where: { id: s.orderId }, include: { items: { orderBy: { id: 'asc' } }, wilaya: true, commune: true } });
     const ws = await prisma.workspace.findUniqueOrThrow({ where: { id: s.workspaceId }, select: { name: true, phone: true, address: true, senderWilayaId: true } });
     const account = s.courierAccountId ? await prisma.courierAccount.findFirst({ where: { id: s.courierAccountId } }) : null;
-    const senderWilayaId = account?.senderWilayaId ?? ws.senderWilayaId ?? 16;
-    const senderWilaya = await prisma.wilaya.findUnique({ where: { id: senderWilayaId } });
+    // couriers know the 58 historical wilaya codes: a wilaya of loi 26-06 (59–69) is sent as its parent (the commune
+    // name stays the real one); see `courierWilayaId` and the assumptions log (fix/wilayas-69)
+    const senderWilayaId = courierWilayaId(account?.senderWilayaId ?? ws.senderWilayaId ?? 16);
+    const toWilayaId = o.wilayaId ? courierWilayaId(o.wilayaId) : 0;
+    const [senderWilaya, toWilaya] = await Promise.all([
+      prisma.wilaya.findUnique({ where: { id: senderWilayaId } }),
+      toWilayaId && toWilayaId !== o.wilayaId ? prisma.wilaya.findUnique({ where: { id: toWilayaId } }) : Promise.resolve(o.wilaya),
+    ]);
     const map = o.communeId && s.provider !== 'manual' ? await prisma.courierCommuneMap.findUnique({ where: { provider_communeId: { provider: s.provider as 'zrexpress', communeId: o.communeId } } }) : null;
     const communeName = o.commune?.nameFr ?? o.communeText ?? '';
     const summary = s.contentSummary ?? o.items.map((i) => `${i.productName}${i.variantName ? ` ${i.variantName}` : ''} ×${i.quantity}`).join(', ');
@@ -266,8 +272,8 @@ export class ShipmentService implements OnModuleInit {
       shipmentId: s.id,
       orderNumber: o.number,
       recipient: { name: o.clientName, phone: o.clientPhone, phone2: o.clientPhone2 },
-      wilayaId: o.wilayaId ?? 0,
-      wilayaName: o.wilaya?.nameFr ?? '',
+      wilayaId: toWilayaId,
+      wilayaName: toWilaya?.nameFr ?? '',
       communeName,
       communeCode: map?.externalCode ?? null,
       address: o.address ?? (o.isStopdesk ? `Stop-desk ${s.stopdeskId ?? ''} ${communeName}`.trim() : ''),

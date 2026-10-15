@@ -25,6 +25,8 @@ const CANCEL_RAW: Record<Provider, string> = { zrexpress: 'Annulé', ecotrack: '
 
 export class FakeCourierBackend {
   readonly calls: FakeCall[] = [];
+  /** What `createShipment` received (wilaya code sent to the courier, commune…), in call order. */
+  readonly created: (CreateShipmentInput & { provider: Provider })[] = [];
   private readonly parcels = new Map<string, Parcel>();
   private readonly byShipment = new Map<string, string>();
   private failures: { provider?: Provider; op: FakeOp; kind: CourierErrorKind; field: CourierField | null; message: string; times: number }[] = [];
@@ -82,6 +84,7 @@ export class FakeCourierBackend {
   }
   reset() {
     this.calls.length = 0;
+    this.created.length = 0;
     this.failures = [];
     this.down.clear();
   }
@@ -97,6 +100,7 @@ export class FakeCourierBackend {
 
   create(provider: Provider, c: AnyCredentials, input: CreateShipmentInput) {
     this.record(provider, 'create', c);
+    this.created.push({ ...input, provider });
     const existing = this.byShipment.get(input.shipmentId);
     if (existing) return { trackingNumber: existing, externalId: existing, labelUrl: null, rawStatus: this.parcels.get(existing)!.raw, raw: { replay: true } };
     const commune = normalizeRaw(input.communeCode || input.communeName);

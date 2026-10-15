@@ -2,6 +2,7 @@
 // 06 "Orders", §8.5, §10 "Commandes"). One source for the API (nestjs-zod DTOs), the web and the mobile app.
 // Field names = contract names. Messages = i18n keys. Money = integer DZD.
 import { z } from 'zod';
+import { WILAYA_COUNT } from '../geo';
 import {
   CallResultValues,
   CancelReasonValues,
@@ -86,7 +87,7 @@ const phone = z
   .transform(normalizePhoneDz)
   .refine(isPhoneDz, 'validation.phone');
 const instant = z.string({ invalid_type_error: 'validation.date' }).datetime({ offset: true, message: 'validation.date' });
-const wilayaId = z.coerce.number({ required_error: 'validation.wilaya' }).int('validation.wilaya').min(1, 'validation.wilaya').max(58, 'validation.wilaya');
+const wilayaId = z.coerce.number({ required_error: 'validation.wilaya' }).int('validation.wilaya').min(1, 'validation.wilaya').max(WILAYA_COUNT, 'validation.wilaya');
 const csv = <T extends z.ZodTypeAny>(item: T) =>
   z.preprocess((v) => (typeof v === 'string' ? v.split(',').map((s) => s.trim()).filter(Boolean) : v), z.array(item));
 const flag = z.preprocess((v) => (v === 'true' || v === '1' || v === true ? true : v === 'false' || v === '0' || v === false ? false : v), z.boolean());
@@ -302,7 +303,7 @@ const ordersFilters = {
   agentId: csv(id).optional(),
   /** a member id, `me` or `none` */
   assigneeId: z.union([id, z.literal('me'), z.literal('none')]).optional(),
-  wilayaId: csv(z.coerce.number().int().min(1).max(58)).optional(),
+  wilayaId: csv(z.coerce.number().int().min(1).max(WILAYA_COUNT)).optional(),
   isStopdesk: flag.optional(),
   minTotal: int.optional(),
   maxTotal: int.optional(),

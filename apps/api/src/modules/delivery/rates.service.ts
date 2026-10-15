@@ -3,7 +3,7 @@
 // (`courier.fetch-rates`, no courier call from the HTTP handler). "Copier les tarifs du transporteur dans ma grille"
 // overwrites `homePrice / stopdeskPrice` of the chosen wilayas from the cache and returns the diff (dry run first).
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import type { CopyFeesDiffView, CopyFeesFromCourierInput, CourierRatesView } from '@djaber/shared';
+import { ALL_WILAYA_IDS, COURIER_WILAYA_COUNT, courierWilayaId, WILAYA_COUNT, WILAYA_PARENT, wilayasOfCourierCode, type CopyFeesDiffView, type CopyFeesFromCourierInput, type CourierRatesView } from '@djaber/shared';
 import { prisma, TenantContext, type Tx } from '@djaber/db';
 import { AuditService } from '../../core/audit/audit.service';
 import { notFound } from '../../core/errors/app.exception';
@@ -17,6 +17,20 @@ import { CourierAccountService } from './courier-account.service';
 import { CourierLimiter } from './courier-limiter';
 
 const TTL_MS = 3_600_000;
+
+type Rate = { wilayaId: number; home: number | null; stopdesk: number | null };
+/**
+ * Couriers price the 58 historical wilaya codes: a wilaya of loi 26-06 (59–69) the courier does not list takes the rate
+ * of its parent wilaya (the code it is shipped under, see `courierWilayaId`). A rate the courier gives for 59–69 wins.
+ */
+export const expandCourierRates = (rates: Rate[]): Rate[] => {
+  const by = new Map(rates.map((r) => [r.wilayaId, r]));
+  const extra = Object.entries(WILAYA_PARENT).flatMap(([id, parent]) => {
+    const p = by.get(parent);
+    return by.has(Number(id)) || !p ? [] : [{ wilayaId: Number(id), home: p.home, stopdesk: p.stopdesk }];
+  });
+  return [...rates, ...extra];
+};
 
 @Injectable()
 export class RatesService implements OnModuleInit {
@@ -48,7 +62,8 @@ export class RatesService implements OnModuleInit {
       if (!adapter.listStopdesks) return;
       const creds = this.accounts.open(a);
       const norm = (s: string) => normalizeRaw(s);
-      for (let w = 1; w <= 58; w++) {
+      // the courier lists its centres under the 58 historical codes; a centre may sit in a wilaya carved out of it
+      for (let w = 1; w <= COURIER_WILAYA_COUNT; w++) {
         await this.limiter.take(a.id, 'other');
         let desks;
         try {
@@ -58,7 +73,7 @@ export class RatesService implements OnModuleInit {
           throw e;
         }
         if (!desks.length) continue;
-        const communes = await prisma.commune.findMany({ where: { wilayaId: w }, select: { id: true, nameFr: true } });
+        const communes = await prisma.commune.findMany({ where: { wilayaId: { in: wilayasOfCourierCode(w) } }, select: { id: true, nameFr: true } });
         const byName = new Map(communes.map((c) => [norm(c.nameFr), c.id]));
         for (const d of desks) {
           const communeId = byName.get(norm(d.communeName)) ?? communes[0]?.id;
@@ -85,7 +100,7 @@ export class RatesService implements OnModuleInit {
     const supported = this.adapters.get(a.provider).capabilities.rates;
     const rows = supported ? await prisma.courierRateCache.findMany({ where: { courierAccountId: a.id, ...(q.wilayaId ? { wilayaId: q.wilayaId } : {}) }, orderBy: { wilayaId: 'asc' } }) : [];
     const fetchedAt = rows.length ? new Date(Math.min(...rows.map((r) => r.fetchedAt.getTime()))) : null;
-    const stale = supported && (!fetchedAt || Date.now() - fetchedAt.getTime() > TTL_MS || (!q.wilayaId && rows.length < 58));
+    const stale = supported && (!fetchedAt || Date.now() - fetchedAt.getTime() > TTL_MS || (!q.wilayaId && rows.length < WILAYA_COUNT));
     if (stale) await this.refresh(a.id);
     return {
       courierAccountId: a.id,
@@ -106,14 +121,14 @@ export class RatesService implements OnModuleInit {
       const adapter = this.adapters.get(a.provider);
       const creds = this.accounts.open(a);
       const ws = await prisma.workspace.findUniqueOrThrow({ where: { id: a.workspaceId }, select: { senderWilayaId: true } });
-      const from = a.senderWilayaId ?? ws.senderWilayaId ?? 16;
-      let rates: { wilayaId: number; home: number | null; stopdesk: number | null }[] = [];
+      const from = courierWilayaId(a.senderWilayaId ?? ws.senderWilayaId ?? 16);
+      let rates: Rate[] = [];
       try {
         if (adapter.getAllRates) {
           await this.limiter.take(a.id, 'other');
           rates = await adapter.getAllRates(creds, from);
         } else if (adapter.getRates) {
-          for (let w = 1; w <= 58; w++) {
+          for (let w = 1; w <= COURIER_WILAYA_COUNT; w++) {
             await this.limiter.take(a.id, 'other');
             const r = await adapter.getRates(creds, from, w);
             if (r) rates.push({ wilayaId: w, home: r.home, stopdesk: r.stopdesk });
@@ -123,6 +138,7 @@ export class RatesService implements OnModuleInit {
         if (isCourierError(e) && e.kind !== 'unavailable') return;
         throw e;
       }
+      rates = expandCourierRates(rates);
       const now = new Date();
       await prisma.$transaction(async (db) => {
         const tx = db as Tx;
@@ -142,7 +158,7 @@ export class RatesService implements OnModuleInit {
   async copyToGrid(input: CopyFeesFromCourierInput): Promise<CopyFeesDiffView> {
     const a = await prisma.courierAccount.findFirst({ where: { id: input.courierAccountId } });
     if (!a) throw notFound();
-    const wanted = input.wilayaIds?.length ? input.wilayaIds : Array.from({ length: 58 }, (_, i) => i + 1);
+    const wanted = input.wilayaIds?.length ? input.wilayaIds : [...ALL_WILAYA_IDS];
     const [cache, rules, wilayas] = await Promise.all([
       prisma.courierRateCache.findMany({ where: { courierAccountId: a.id, wilayaId: { in: wanted } } }),
       prisma.deliveryFeeRule.findMany({ where: { wilayaId: { in: wanted } } }),

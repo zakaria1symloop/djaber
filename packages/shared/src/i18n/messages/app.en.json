@@ -2952,7 +2952,7 @@
  "fees.readOnly": "Reserved to workspace admins (delivery.manage)",
  "fees.resetAll": "Reset everything",
  "fees.resetAll.confirm": "Reset the grid",
- "fees.resetAll.description": "The 58 wilayas go back to the Djaber default values. Your custom rates will be lost.",
+ "fees.resetAll.description": "The 69 wilayas go back to the Djaber default values. Your custom rates will be lost.",
  "fees.resetAll.title": "Reset the whole grid?",
  "fees.resetRow": "Reset the row (default values)",
  "fees.search": "Search a wilaya…",

@@ -1,10 +1,11 @@
 // Workspace, members and settings forms (03 §20 SET, api-contract §3.2).
 import { z } from 'zod';
+import { WILAYA_COUNT } from '../geo';
 import { email, isPhoneDz, normalizePhoneDz } from '../validators';
 
 export const workspaceName = z.string().trim().min(2, 'validation.required').max(80, 'validation.length');
-/** Select value: '' = none, otherwise the wilaya id (1–58). */
-const wilayaSelect = z.string().refine((v) => v === '' || (/^\d{1,2}$/.test(v) && Number(v) >= 1 && Number(v) <= 58), 'validation.wilaya');
+/** Select value: '' = none, otherwise the wilaya id (1–69). */
+const wilayaSelect = z.string().refine((v) => v === '' || (/^\d{1,2}$/.test(v) && Number(v) >= 1 && Number(v) <= WILAYA_COUNT), 'validation.wilaya');
 
 /** `POST /workspaces` form — invited-only user creating the single workspace they may own (D30). */
 export const CreateWorkspaceSchema = z.object({

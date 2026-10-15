@@ -1,5 +1,6 @@
 // 04-business-rules §2 — shared validators (API, web, mobile, AI tools). Messages are i18n keys.
 import { z } from 'zod';
+import { WILAYA_COUNT } from '../geo';
 
 /** Normalises +213 / 00213 / spaces / dots / dashes to the national form `0XXXXXXXXX`. */
 export const normalizePhoneDz = (raw: string): string => {
@@ -27,7 +28,7 @@ export const wilayaCode = z.coerce
   .number()
   .int()
   .min(1, 'validation.wilaya')
-  .max(58, 'validation.wilaya');
+  .max(WILAYA_COUNT, 'validation.wilaya');
 export const communeText = z.string().trim().min(1, 'validation.commune').max(100, 'validation.commune');
 export const addressHome = z.string().trim().min(10, 'validation.address').max(500, 'validation.address');
 export const email = z

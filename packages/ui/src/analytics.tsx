@@ -629,7 +629,7 @@ export function WilayaMap({
   labels,
   className,
 }: {
-  /** wilaya code (1–58) → value */
+  /** wilaya code (1–69) → value */
   values: Record<number, number>;
   names: Record<number, string>;
   format: (n: number) => string;

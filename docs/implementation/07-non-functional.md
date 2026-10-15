@@ -220,7 +220,7 @@ Restore runbook: `docs/runbook/restore.md` (written in M0): restore DB to point 
 
 | Seed | Content | Env |
 |---|---|---|
-| `geo` | 58 wilayas (`id, code, nameFr, nameAr`), communes from the official list with `postalCode` | all |
+| `geo` | 69 wilayas (`id, code, nameFr, nameAr`), communes from the official list with `postalCode` | all |
 | `units` | Pièce (pc), Kilogramme (kg), Gramme (g), Litre (L), Millilitre (ml), Mètre (m), Boîte (bt) — `isSystem=true` | all |
 | `plans` | D68 values exactly (R-O), `trialDays=14` on each, `maxApiKeys` 0 / 0 / 5, `maxWebhooks` 0 / 0 / 5, `syncHistoryDays` 7 / 30 / 90, `isVisible=true`, `isFeatured` on `pro`: `free` (0 / 0 DA, 100 credits, 1 page, 1 agent, 1 member, 50 products, 200 conv/month, features `[]`) · `starter` (1 900 / 19 000 DA, 1 500 credits, 2 pages, 2 agents, 3 members, 500 products, 2 000 conv/month, `[voice_notes, image_recognition, couriers, google_sheets]`) · `pro` (4 900 / 49 000 DA, 5 000 credits, 5 pages, 5 agents, 10 members, products −1, conv/month −1, `[voice_notes, image_recognition, couriers, google_sheets, api_keys, webhooks, advanced_stock, scheduled_reports, instagram, priority_support]`). No `business` plan. | all |
 | `credit-packs` | `pack-500` (500 credits, `priceWebDzd` 450), `pack-2000` (2 000 credits, 1 500), `pack-6000` (6 000 credits, 3 900, `isFeatured=true`); `googleProductId` / `appleProductId` = `djaber.credits.<slug>` set in the store consoles; `storeTier` null until published | all |

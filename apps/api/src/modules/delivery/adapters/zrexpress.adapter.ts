@@ -1,5 +1,6 @@
 // 05-integrations §2.2 — ZR Express (Procolis API v1) live driver [V1 delivery.service.ts]. No cancel, no label
 // (Djaber fallback label), batch tracking ≤ 50, rates from `tarification`.
+import { WILAYA_COUNT } from '@djaber/shared';
 import { courierDate, checkStatus, fieldOfMessage, num, str, type CourierTransport } from './http';
 import { CourierError, PROVIDER_CAPABILITIES, type AnyCredentials, type CourierAdapter, type CreateShipmentInput, type TestResult, type TrackResult } from './courier-adapter';
 import { mapCourierStatus } from './status-maps';
@@ -85,7 +86,7 @@ export class ZrExpressAdapter implements CourierAdapter {
     const rows = (Array.isArray(j) ? j : ((j as { Tarification?: unknown[]; data?: unknown[] } | null)?.Tarification ?? (j as { data?: unknown[] } | null)?.data ?? [])) as Record<string, unknown>[];
     return rows
       .map((r) => ({ wilayaId: num(r.IDWilaya) ?? 0, home: num(r.Domicile ?? r.TarifLivraison), stopdesk: num(r.Stopdesk ?? r.TarifStopdesk) }))
-      .filter((r) => r.wilayaId >= 1 && r.wilayaId <= 58);
+      .filter((r) => r.wilayaId >= 1 && r.wilayaId <= WILAYA_COUNT);
   }
 
   async getRates(c: AnyCredentials, fromWilayaId: number, toWilayaId: number) {

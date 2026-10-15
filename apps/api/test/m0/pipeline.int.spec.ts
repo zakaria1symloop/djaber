@@ -100,11 +100,18 @@ describe('M0 — HTTP pipeline', () => {
     expect(bad.body.error.fields.platform).toBeDefined();
   });
 
-  it('seeds: 58 wilayas, communes, 7 system units, 3 plans, 3 packs, 4 presets', async () => {
+  it('seeds: 69 wilayas (loi 26-06), communes, 7 system units, 3 plans, 3 packs, 4 presets', async () => {
     const w = await anonymous(app).get('/geo/wilayas');
-    expect(w.body.data).toHaveLength(58);
+    expect(w.body.data).toHaveLength(69);
+    expect(w.body.data[67]).toMatchObject({ id: 68, code: '68', nameFr: 'Bou Saâda', nameAr: 'بوسعادة' });
     const c = await anonymous(app).get('/geo/wilayas/16/communes');
     expect(c.body.data.length).toBeGreaterThan(40);
+    // the communes carved out of M'Sila now belong to Bou Saâda (23), M'Sila keeps 24
+    const bs = (await anonymous(app).get('/geo/wilayas/68/communes')).body.data;
+    expect(bs).toHaveLength(23);
+    expect(bs.map((x: { nameFr: string }) => x.nameFr)).toContain('Bou Saada');
+    expect((await anonymous(app).get('/geo/wilayas/28/communes')).body.data).toHaveLength(24);
+    expect(await rawPrisma.commune.count()).toBe(1541);
     expect(await rawPrisma.unit.count({ where: { isSystem: true } })).toBe(7);
     expect(await rawPrisma.plan.count()).toBe(3);
     expect(await rawPrisma.creditPack.count()).toBe(3);

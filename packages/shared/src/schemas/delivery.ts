@@ -4,6 +4,7 @@
 // "Livraison & suivi", §12; 05-integrations §2). One source for the API (nestjs-zod DTOs), the web and the mobile app.
 // Field names = contract names. Messages = i18n keys. Money = integer DZD. Courier credentials are never returned.
 import { z } from 'zod';
+import { WILAYA_COUNT } from '../geo';
 import { CourierProviderValues, FailureReasonValues, OrderStatusValues, ShipmentProviderValues, ShipmentStatusValues } from '../enums';
 import { isPhoneDz, normalizePhoneDz } from '../validators';
 import type { ActionDescriptor } from './common';
@@ -34,7 +35,6 @@ export const TRACKING_SYNC_COOLDOWN_S = 300;
 /** DLV-04 polling cadence. */
 export const TRACKING_CADENCE = { earlyEveryHours: 2, earlyDays: 3, lateEveryHours: 12 } as const;
 export const SHIPMENT_BULK_MAX_IDS = 500;
-export const WILAYA_COUNT = 58;
 
 /**
  * 04 §1.5: `Order.deliveryStatus` written for a courier status. `picked_up` reads as `in_transit`; `cancelled` and
@@ -60,7 +60,7 @@ const id = z.string({ required_error: 'validation.required', invalid_type_error:
 const ids = z.array(id, { required_error: 'validation.required' }).min(1, 'validation.required').max(SHIPMENT_BULK_MAX_IDS, 'validation.length');
 const emptyToNull = <T extends z.ZodTypeAny>(schema: T) => z.preprocess((v) => (v === '' ? null : v), schema.nullable().optional());
 const text = (max: number) => z.string().trim().max(max, 'validation.length');
-const wilayaId = z.coerce.number({ required_error: 'validation.wilaya', invalid_type_error: 'validation.wilaya' }).int('validation.wilaya').min(1, 'validation.wilaya').max(58, 'validation.wilaya');
+const wilayaId = z.coerce.number({ required_error: 'validation.wilaya', invalid_type_error: 'validation.wilaya' }).int('validation.wilaya').min(1, 'validation.wilaya').max(WILAYA_COUNT, 'validation.wilaya');
 const csv = <T extends z.ZodTypeAny>(item: T) => z.preprocess((v) => (typeof v === 'string' ? v.split(',').map((s) => s.trim()).filter(Boolean) : v), z.array(item));
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'validation.date');
 const phone = z
@@ -91,7 +91,7 @@ export type SeedFeesInput = z.infer<typeof SeedFeesSchema>;
 /** `GET /delivery/fees/quote?wilayaId&stopdesk&subtotal`. */
 export const FeeQuoteQuerySchema = z
   .object({
-    wilayaId: z.coerce.number({ required_error: 'validation.wilaya' }).int('validation.wilaya').min(1, 'validation.wilaya').max(58, 'validation.wilaya'),
+    wilayaId: z.coerce.number({ required_error: 'validation.wilaya' }).int('validation.wilaya').min(1, 'validation.wilaya').max(WILAYA_COUNT, 'validation.wilaya'),
     stopdesk: flag.optional(),
     subtotal: z.coerce.number().int('validation.price').min(0, 'validation.price').optional(),
   })
@@ -99,7 +99,7 @@ export const FeeQuoteQuerySchema = z
 export type FeeQuoteQuery = z.infer<typeof FeeQuoteQuerySchema>;
 /** `GET /delivery/stopdesks?provider&communeId`. */
 export const StopdesksQuerySchema = z
-  .object({ provider: z.enum(['zrexpress', 'ecotrack', 'yalidine']).optional(), communeId: z.coerce.number().int().positive().optional(), wilayaId: z.coerce.number().int().min(1).max(58).optional() })
+  .object({ provider: z.enum(['zrexpress', 'ecotrack', 'yalidine']).optional(), communeId: z.coerce.number().int().positive().optional(), wilayaId: z.coerce.number().int().min(1).max(WILAYA_COUNT).optional() })
   .strict();
 
 /** api-contract §3.8 `FeeRuleDto` (+ `freeAbove` of the schema). `courierCost` = cached rate of the default courier, else null. */
@@ -117,7 +117,7 @@ export type FeeRuleView = {
   courierCost: number | null;
   actions: ActionDescriptor[];
 };
-/** `GET /delivery/fees` → `{ data: FeeRuleView[], meta: FeeGridMeta }` (58 rows, wilaya order). */
+/** `GET /delivery/fees` → `{ data: FeeRuleView[], meta: FeeGridMeta }` (69 rows, wilaya order). */
 export type FeeGridMeta = { freeDeliveryThreshold: number | null; custom: number; inactive: number; missing: number };
 /**
  * api-contract §3.8 `FeeQuoteDto`. `reason` ∈ `grid` | `free_threshold` | `override` | `not_served` | `stopdesk_unavailable`;
@@ -431,7 +431,7 @@ const shipmentsFilters = {
   provider: csv(z.enum(ShipmentProviderValues)).optional(),
   courierAccountId: csv(id).optional(),
   deliveryType: z.enum(['home', 'stopdesk']).optional(),
-  wilayaId: csv(z.coerce.number().int().min(1).max(58)).optional(),
+  wilayaId: csv(z.coerce.number().int().min(1).max(WILAYA_COUNT)).optional(),
   communeId: csv(z.coerce.number().int().positive()).optional(),
   orderStatus: csv(z.enum(OrderStatusValues)).optional(),
   lastEvent: z.enum(SHIPMENT_LAST_EVENT).optional(),
@@ -544,7 +544,7 @@ export type RatesQuery = z.infer<typeof RatesQuerySchema>;
 export type CourierRateView = { wilayaId: number; homePrice: number | null; stopdeskPrice: number | null; price: number | null; fetchedAt: string };
 export type CourierRatesView = { courierAccountId: string; provider: CourierProviderName; rates: CourierRateView[]; fetchedAt: string | null; stale: boolean; refreshing: boolean; supported: boolean };
 /** `POST /delivery/fees/copy-from-courier { courierAccountId, wilayaIds?, dryRun? }` ("copier les tarifs du transporteur dans ma grille", diff preview with `dryRun`). */
-export const CopyFeesFromCourierSchema = z.object({ courierAccountId: id, wilayaIds: z.array(z.number().int().min(1).max(58)).max(58).optional(), dryRun: z.boolean().default(false) }).strict();
+export const CopyFeesFromCourierSchema = z.object({ courierAccountId: id, wilayaIds: z.array(z.number().int().min(1).max(WILAYA_COUNT)).max(WILAYA_COUNT).optional(), dryRun: z.boolean().default(false) }).strict();
 export type CopyFeesFromCourierInput = z.infer<typeof CopyFeesFromCourierSchema>;
 export type CopyFeesDiffView = { rows: { wilayaId: number; nameFr: string; before: { homePrice: number; stopdeskPrice: number }; after: { homePrice: number; stopdeskPrice: number }; changed: boolean }[]; missing: number[]; written: number; dryRun: boolean; refreshing: boolean };
 

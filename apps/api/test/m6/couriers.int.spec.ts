@@ -121,7 +121,7 @@ describe('courier accounts (DLV-03)', () => {
 });
 
 describe('courier rates (DLV-07)', () => {
-  it('rates come from the worker (cache 1 h): refreshing first, then 58 rows; copy into the grid with a dry-run diff', async () => {
+  it('rates come from the worker (cache 1 h): refreshing first, then 69 rows (59–69 at the parent rate); copy into the grid with a dry-run diff', async () => {
     const owner = await asOwner(app);
     await seedFees(app, owner.workspaceId);
     const zr = await addCourier(owner, 'zrexpress');
@@ -131,7 +131,11 @@ describe('courier rates (DLV-07)', () => {
     await drain(app, owner.workspaceId);
     const rates = (await owner.get(`/delivery/rates?courierAccountId=${zr.id}`).expect(200)).body.data;
     expect(rates).toMatchObject({ refreshing: false, stale: false });
-    expect(rates.rates).toHaveLength(58);
+    expect(rates.rates).toHaveLength(69);
+    // the courier prices 58 codes: 65 Aïn Oussera and 66 Messaad take the rate of 17 Djelfa
+    const rateOf = (w: number) => rates.rates.find((r: any) => r.wilayaId === w);
+    expect(rateOf(65)).toMatchObject({ homePrice: rateOf(17).homePrice, stopdeskPrice: rateOf(17).stopdeskPrice });
+    expect(rateOf(66)).toMatchObject({ homePrice: rateOf(17).homePrice });
     expect(rates.rates.find((r: any) => r.wilayaId === 16)).toMatchObject({ homePrice: 700, stopdeskPrice: 550, price: 700 });
     const one = (await owner.get(`/delivery/rates?courierAccountId=${zr.id}&wilayaId=16&stopdesk=true`).expect(200)).body.data;
     expect(one.rates).toEqual([expect.objectContaining({ wilayaId: 16, price: 550 })]);

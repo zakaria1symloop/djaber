@@ -22,7 +22,7 @@ export class DeliveryController {
     private readonly geo: GeoService,
   ) {}
 
-  /** `{ data: FeeRuleView[58], meta: { freeDeliveryThreshold, custom, inactive, missing, warnings } }`. */
+  /** `{ data: FeeRuleView[69], meta: { freeDeliveryThreshold, custom, inactive, missing, warnings } }`. */
   @Get('fees')
   @ApiScope('delivery:read')
   @RequirePermission('delivery.send')

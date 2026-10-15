@@ -13,7 +13,7 @@ let phoneSeq = 0;
 /** A valid, unique Algerian mobile number for the run. */
 export const phone = () => `05${String(Date.now()).slice(-6)}${String(++phoneSeq % 100).padStart(2, '0')}`;
 
-/** The 58 default fee rows (what provisioning creates for a real sign-up). */
+/** The 69 default fee rows (what provisioning creates for a real sign-up). */
 export const seedFees = async (app: TestApp, workspaceId: string) =>
   TenantContext.runAs(workspaceId, () => db.$transaction((tx) => app.app.get(FeeService).seedDefaults(tx as unknown as Tx, workspaceId)));
 

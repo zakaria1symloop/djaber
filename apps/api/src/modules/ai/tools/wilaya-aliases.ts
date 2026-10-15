@@ -43,6 +43,18 @@ const RAW: Record<string, number> = {
   'oum el bouaghi': 4, 'ام البواقي': 4,
   'ain defla': 44, 'عين الدفلي': 44,
   'ain temouchent': 46, 'عين تموشنت': 46,
+  // loi 26-06: the 11 wilayas 59–69 (official names are matched from `Wilaya`; these are what customers type)
+  aflou: 59, aflo: 59, 'افلو': 59,
+  barika: 60, brika: 60, bri9a: 60, 'بريكه': 60,
+  kantara: 61, qantara: 61, guentra: 61, '9antra': 61, 'القنطره': 61,
+  'bir el ater': 62, 'bir elater': 62, 'bir later': 62, 'bir al ater': 62, 'bir el atar': 62, 'bir l3ater': 62, 'بير العاتر': 62, 'بئر العاتر': 62,
+  aricha: 63, laricha: 63, '3richa': 63, 'العريشه': 63,
+  'ksar chellala': 64, 'ksar chlala': 64, 'qsar chellala': 64, 'ksar echellala': 64, 'ksar chellal': 64, 'قصر الشلاله': 64, 'قصر شلاله': 64,
+  'ain oussera': 65, 'ain oussara': 65, 'ain ouessara': 65, 'ain wessara': 65, 'ain wassara': 65, '3in wessara': 65, 'عين وساره': 65, 'عين وسارا': 65,
+  messaad: 66, mesaad: 66, mes3ad: 66, messa3d: 66, 'مسعد': 66,
+  'ksar el boukhari': 67, 'ksar boukhari': 67, 'ksar el bokhari': 67, 'qsar el boukhari': 67, boukhari: 67, bokhari: 67, 'قصر البخاري': 67, 'البخاري': 67,
+  'bou saada': 68, boussaada: 68, bousaada: 68, 'bou sa3da': 68, bousa3da: 68, 'bou saâda': 68, 'بوسعاده': 68, 'بو سعاده': 68,
+  'abiodh sidi cheikh': 69, 'el abiodh sidi cheikh': 69, 'labiodh sidi cheikh': 69, 'abiod sidi cheikh': 69, 'labiod sidi cheikh': 69, labiodh: 69, labiod: 69, 'الابيض سيدي الشيخ': 69, 'الأبيض سيدي الشيخ': 69, 'الابيض سيد الشيخ': 69,
 };
 /** Keyed by the folded spelling (what `fold` returns for the customer's text). */
 export const WILAYA_ALIASES: Record<string, number> = Object.fromEntries(Object.entries(RAW).map(([k, v]) => [fold(k), v]));

@@ -173,16 +173,18 @@ describe('clients', () => {
 });
 
 describe('fee grid (DLV-01 / DLV-02 / DLV-09)', () => {
-  it('AT-DLV-09 seed creates 58 rows from the default table; fill missing keeps custom rows; reset all overwrites; row reset', async () => {
+  it('AT-DLV-09 seed creates 69 rows from the default table; fill missing keeps custom rows; reset all overwrites; row reset', async () => {
     const owner = await asOwner(app);
     const op = await asOperator(app, owner.workspaceId);
     const empty = await owner.get('/delivery/fees').expect(200);
-    expect(empty.body.data).toHaveLength(58);
-    expect(empty.body.meta).toMatchObject({ missing: 58, custom: 0 });
+    expect(empty.body.data).toHaveLength(69);
+    expect(empty.body.meta).toMatchObject({ missing: 69, custom: 0 });
+    // loi 26-06: a new wilaya starts with the default fee of its parent (66 Messaad ← 17 Djelfa)
+    expect(empty.body.data[65]).toMatchObject({ wilayaId: 66, code: '66', nameFr: 'Messaad', homePrice: 700, stopdeskPrice: 450, returnPrice: 300 });
     expect(empty.body.data[15]).toMatchObject({ wilayaId: 16, homePrice: 400, stopdeskPrice: 250, returnPrice: 200, isActive: false });
     expect((await op.post('/delivery/fees/seed', { overwrite: false }).expect(403)).body.error.code).toBe('FORBIDDEN');
     const seeded = await owner.post('/delivery/fees/seed', { overwrite: false }).expect(200);
-    expect(seeded.body.meta).toMatchObject({ written: 58, missing: 0 });
+    expect(seeded.body.meta).toMatchObject({ written: 69, missing: 0 });
     await owner.put('/delivery/fees/16', { homePrice: 350, stopdeskPrice: 200, freeAbove: 8000 }).expect(200);
     await db.deliveryFeeRule.deleteMany({ where: { workspaceId: owner.workspaceId, wilayaId: 58 } });
     const filled = await owner.post('/delivery/fees/seed', { overwrite: false }).expect(200);
@@ -197,13 +199,15 @@ describe('fee grid (DLV-01 / DLV-02 / DLV-09)', () => {
     // read + quote for every member
     expect((await op.get('/delivery/fees/quote?wilayaId=16&subtotal=1000').expect(200)).body.data).toMatchObject({ fee: 400, reason: 'grid', wilayaServed: true });
     expect((await op.get('/delivery/fees/quote?wilayaId=16&stopdesk=1').expect(200)).body.data).toMatchObject({ fee: 250, isStopdesk: true });
+    expect((await op.get('/delivery/fees/quote?wilayaId=69').expect(200)).body.data).toMatchObject({ fee: 900, wilayaServed: true });
+    expect((await op.get('/delivery/fees/quote?wilayaId=70').expect(422)).body.error.code).toBe('VALIDATION_ERROR');
     expect((await op.get('/delivery/fees/quote?wilayaId=99').expect(422)).body.error.code).toBe('VALIDATION_ERROR');
   });
 
-  it('a new workspace from sign-up gets its 58 rows (provisioning)', async () => {
+  it('a new workspace from sign-up gets its 69 rows (provisioning)', async () => {
     const { register } = await import('../support/m1');
     const user = await register(app);
-    expect(await db.deliveryFeeRule.count({ where: { workspaceId: user.workspaceId } })).toBe(58);
+    expect(await db.deliveryFeeRule.count({ where: { workspaceId: user.workspaceId } })).toBe(69);
     expect(idem()).toBeTruthy();
   });
 });
