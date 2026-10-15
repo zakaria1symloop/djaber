@@ -3,20 +3,36 @@
 // order number, source tag, section block, label/value rows, totals, timeline, step chips of the confirm dialog and
 // the A5 order slip. All copy comes in through props; logical CSS only (RTL safe).
 import * as React from 'react';
-import { Ltr } from './inputs';
+import { commitInputValue, Ltr } from './inputs';
 import { cn, Input, type Tone } from './primitives';
 
 /* ---------- Phone input + "Normalisé : 0555123456 · mobile DZ valide" ---------- */
 export type PhoneInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> & {
   /** translated preview line under the field; `tone: 'danger'` when the number is not a valid DZ phone */
   preview?: { text: string; tone?: 'muted' | 'danger' | 'success' } | null;
+  /** formatting applied when the field loses focus (the web passes the shared DZ normalisation: `+213 555…` ⇒ `0555…`) */
+  format?: (raw: string) => string;
 };
-export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(function PhoneInput({ preview, className, id, ...rest }, ref) {
+export const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(function PhoneInput({ preview, format, className, id, onBlur, ...rest }, ref) {
   const previewId = React.useId();
   return (
     <div className="flex flex-col gap-1">
       <div dir="ltr">
-        <Input ref={ref} id={id} type="tel" inputMode="tel" autoComplete="tel" aria-describedby={preview ? previewId : undefined} className={cn('tabular-nums', className)} {...rest} />
+        <Input
+          ref={ref}
+          id={id}
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          dir="ltr"
+          aria-describedby={preview ? previewId : undefined}
+          className={cn('tabular-nums', className)}
+          {...rest}
+          onBlur={(e) => {
+            if (format && !e.currentTarget.readOnly && !e.currentTarget.disabled) commitInputValue(e.currentTarget, format(e.currentTarget.value));
+            onBlur?.(e);
+          }}
+        />
       </div>
       {preview ? (
         <p id={previewId} className={cn('ts-label-micro', preview.tone === 'danger' ? 'text-accent-alert' : preview.tone === 'success' ? 'text-accent-money' : 'text-text-muted')}>

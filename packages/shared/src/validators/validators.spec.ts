@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatMoney, formatPhoneDz, roundHalfUp } from '../format';
 import { PageQuery } from '../schemas/common';
-import { addressHome, email, fullName, isPhoneDz, lineQuantity, normalizePhoneDz, password, phoneDz, sellingPrice, wilayaCode } from './index';
+import { addressHome, email, fullName, isPhoneDz, lineQuantity, normalizeEmail, normalizePhoneDz, password, phoneDz, sellingPrice, wilayaCode } from './index';
 
 const ok = (s: { safeParse: (v: unknown) => { success: boolean } }, v: unknown) => s.safeParse(v).success;
 
@@ -41,6 +41,7 @@ describe('name, address, email, password', () => {
   });
   it('email is trimmed and lower-cased', () => {
     expect(email.parse('  Zak@Boutique.DZ ')).toBe('zak@boutique.dz');
+    expect(normalizeEmail('  Zak@Boutique.DZ ')).toBe(email.parse('  Zak@Boutique.DZ '));
     expect(ok(email, 'zak@boutique')).toBe(false);
   });
   it('password: 8 chars min, a letter and a digit', () => {

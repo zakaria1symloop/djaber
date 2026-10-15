@@ -30,6 +30,9 @@ export const wilayaCode = z.coerce
   .max(58, 'validation.wilaya');
 export const communeText = z.string().trim().min(1, 'validation.commune').max(100, 'validation.commune');
 export const addressHome = z.string().trim().min(10, 'validation.address').max(500, 'validation.address');
+/** Email as the API stores it (same transform as `email`): `'  Zak@Boutique.DZ '` ⇒ `'zak@boutique.dz'`. */
+export const normalizeEmail = (raw: string): string => raw.trim().toLowerCase();
+
 export const email = z
   .string()
   .trim()

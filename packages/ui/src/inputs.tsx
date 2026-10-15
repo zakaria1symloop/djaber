@@ -15,6 +15,64 @@ export function Ltr({ children, className }: { children: React.ReactNode; classN
   );
 }
 
+/**
+ * Writes a value into an input as if it had been typed, so the React `onChange` sees it (controlled state as well as
+ * react-hook-form `register`). Used to format a field when it loses focus.
+ */
+export function commitInputValue(el: HTMLInputElement, value: string) {
+  if (el.value === value) return;
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  if (setter) setter.call(el, value);
+  else el.value = value;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/* ---------- Email field: email keyboard + autocomplete, LTR, trimmed and lower-cased on blur ---------- */
+export type EmailInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'>;
+/** `type="email"`, `inputMode="email"`, `autoComplete="email"` (overridable), left-to-right, no spell check or
+ * auto-capitalisation; the value is trimmed and lower-cased when the field loses focus (as the API stores it). */
+export const EmailInput = React.forwardRef<HTMLInputElement, EmailInputProps>(function EmailInput({ onBlur, ...rest }, ref) {
+  return (
+    <Input
+      ref={ref}
+      type="email"
+      inputMode="email"
+      autoComplete="email"
+      dir="ltr"
+      spellCheck={false}
+      autoCapitalize="none"
+      autoCorrect="off"
+      maxLength={254}
+      {...rest}
+      onBlur={(e) => {
+        if (!e.currentTarget.readOnly && !e.currentTarget.disabled) commitInputValue(e.currentTarget, e.currentTarget.value.trim().toLowerCase());
+        onBlur?.(e);
+      }}
+    />
+  );
+});
+
+/* ---------- URL field: url keyboard, LTR, trimmed on blur ---------- */
+export const UrlInput = React.forwardRef<HTMLInputElement, Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'>>(function UrlInput({ onBlur, ...rest }, ref) {
+  return (
+    <Input
+      ref={ref}
+      type="url"
+      inputMode="url"
+      autoComplete="url"
+      dir="ltr"
+      spellCheck={false}
+      autoCapitalize="none"
+      autoCorrect="off"
+      {...rest}
+      onBlur={(e) => {
+        if (!e.currentTarget.readOnly && !e.currentTarget.disabled) commitInputValue(e.currentTarget, e.currentTarget.value.trim());
+        onBlur?.(e);
+      }}
+    />
+  );
+});
+
 const group = (digits: string) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
 /* ---------- Integer field: digits only, grouped by thousands while typing, optional suffix (DA, %, unités) ---------- */
