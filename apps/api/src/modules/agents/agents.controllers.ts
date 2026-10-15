@@ -140,6 +140,15 @@ export class AgentsController {
     return this.agents.activate(id, dto.at, locale(req));
   }
 
+  /** Cancels a scheduled activation (`scheduledActivateAt` → null); the draft stays a draft. */
+  @Delete(':id/activate')
+  @HttpCode(200)
+  @RequirePermission('agents.manage')
+  @Audited({ entity: 'Agent', action: 'agent.unschedule', idFrom: 'params.id' })
+  unschedule(@Id() id: string, @Req() req: any) {
+    return this.agents.unschedule(id, locale(req));
+  }
+
   @Post(':id/pause')
   @HttpCode(200)
   @RequirePermission('agents.manage')

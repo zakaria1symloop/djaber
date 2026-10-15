@@ -51,6 +51,7 @@ import type { ListController } from '@/lib/use-list-state';
 import { useListState } from '@/lib/use-list-state';
 import { uuid } from '@/lib/uuid';
 import { refusal } from '@/features/orders/dialogs/common';
+import { JobParamBanner } from '@/components/job-param-banner';
 import { SHIPMENT_ACTION } from './action-keys';
 import { deliveryApi, useCouriers, useDeliveryOverview, useDeliveryRefresh, useGeoWilayas, useShipments } from './api';
 import { BulkSendDialog, BulkSendResults, type SendTarget } from './bulk-send';
@@ -305,6 +306,7 @@ export function DeliveryOverviewPage() {
   return (
     <div className="flex flex-col gap-5">
       {offline ? <OfflineBanner since={since} onRetry={() => void rowsQ.refetch()} /> : null}
+      <JobParamBanner />
 
       <section aria-label={t('delivery.kpi.label')} className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6" data-testid="delivery-kpis">
         {k ? (

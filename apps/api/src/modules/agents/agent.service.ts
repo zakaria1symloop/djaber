@@ -526,6 +526,22 @@ export class AgentService implements OnModuleInit {
     return this.get(id, locale);
   }
 
+  /**
+   * `DELETE /agents/:id/activate` — cancels a scheduled activation ("Annuler la programmation", AGT-02 step 5): the
+   * draft stays a draft. Idempotent (no schedule ⇒ unchanged); an agent that is no longer a draft ⇒ `409 CONFLICT`.
+   */
+  async unschedule(id: string, locale: string): Promise<AgentDto> {
+    const a = await this.rowOrNotFound(id);
+    if (a.status !== 'draft') throw new AppException('CONFLICT');
+    if (!a.scheduledActivateAt) return this.get(id, locale);
+    await prisma.$transaction(async (db) => {
+      const tx = db as Tx;
+      const updated = await tx.agent.update({ where: { id }, data: { scheduledActivateAt: null, version: { increment: 1 } } });
+      await this.emit(tx, updated);
+    });
+    return this.get(id, locale);
+  }
+
   /** `sched-agent-activation`: drafts whose scheduled time has come. A refusal (plan limit, no channel) clears the schedule. */
   async activateScheduled(now = new Date()): Promise<number> {
     const due = await TenantContext.runSystem(() => prisma.agent.findMany({ where: { status: 'draft', deletedAt: null, scheduledActivateAt: { lte: now } }, select: { id: true, workspaceId: true } }));
@@ -726,7 +742,7 @@ export class AgentService implements OnModuleInit {
       { key: 'feeGrid', ok: fees > 0, label: label('feeGrid'), count: fees, link: '/delivery/fees', blocking: false },
       { key: 'policies', ok: ['delivery', 'payment', 'returns'].every((k) => (policies[k] ?? '').trim().length > 0), label: label('policies'), blocking: false },
       { key: 'channels', ok: a.channels.length > 0, label: label('channels'), count: a.channels.length, link: '/channels', blocking: true },
-      { key: 'emailVerified', ok: !!user?.emailVerifiedAt, label: label('emailVerified'), link: '/settings/account', blocking: true },
+      { key: 'emailVerified', ok: !!user?.emailVerifiedAt, label: label('emailVerified'), link: '/settings/security', blocking: true },
       { key: 'credits', ok: !balance.exhausted, label: label('credits'), count: balance.unlimited ? -1 : balance.total, link: '/settings/credits', blocking: false },
       { key: 'pendingModeration', ok: pendingModeration === 0, label: label('pendingModeration'), count: pendingModeration, link: '/products?moderationStatus=pending', blocking: false },
     ];

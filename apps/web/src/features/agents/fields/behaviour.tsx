@@ -75,6 +75,11 @@ export function BehaviourFields({ draft: d, set, errors, readOnly, badge, inTunn
             </CheckChip>
           ))}
         </div>
+        {!d.capabilities.takeOrders ? (
+          <p className="ts-label-meta text-text-muted" data-testid="order-fields-locked">
+            {t('gaps.agents.order.needsTakeOrders')}
+          </p>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Field label={t('agents.order.maxQty')} htmlFor="agent-max-qty" error={issueText(t, errors.maxQtyPerOrder)} hint={t('agents.order.maxQty.hint')}>
             <NumberInput id="agent-max-qty" maxDigits={4} value={d.maxQtyPerOrder === null ? '' : String(d.maxQtyPerOrder)} disabled={readOnly} aria-invalid={!!errors.maxQtyPerOrder || undefined} onValueChange={(v) => set({ maxQtyPerOrder: v === '' ? null : Number(v) })} />

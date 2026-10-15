@@ -140,6 +140,11 @@ test.describe('channel page — IA & agent tab', () => {
     const sent = agentPut(page, shop.facebook.id);
     await openAi(page);
     await page.getByTestId('agent-detach').click();
+    // asked first: nothing is written before the confirmation
+    const confirm = page.getByRole('dialog');
+    await expect(confirm.getByRole('heading', { name: 'Détacher « Vendeur Pro » ?' })).toBeVisible();
+    expect(sent).toEqual([]);
+    await confirm.getByRole('button', { name: 'Détacher' }).click();
     await expect(toast(page, `Agent détaché de « ${fbName()} »`)).toBeVisible();
     expect(sent).toEqual([{ agentId: null }]);
     expect((await channelOf(page.request, owner, shop.facebook.id)).agent).toBeNull();
@@ -148,7 +153,8 @@ test.describe('channel page — IA & agent tab', () => {
     await expect(card.getByTestId('channel-ai-agent')).toHaveCount(0);
     await expect(card.getByTestId('agent-attach')).toHaveText('Rattacher un agent');
     await expect(card.getByTestId('agent-create')).toHaveText('Créer un agent');
-    await expect(card.getByTestId('agent-create')).toHaveAttribute('href', /\/fr\/agents\/new$/);
+    // the wizard opens with this page: it is linked to the agent as soon as the draft is created
+    await expect(card.getByTestId('agent-create')).toHaveAttribute('href', `/fr/agents/new?channel=${shop.facebook.id}`);
     await expect(card.getByTestId('agent-change')).toHaveCount(0);
     await expect(card.getByTestId('agent-detach')).toHaveCount(0);
     await expect(card.getByTestId('channel-ai-live')).toHaveText("L'IA ne répond pas sur cette page");
@@ -230,7 +236,14 @@ test.describe('channel page — IA & agent tab', () => {
     // kept after a reload, then cleared
     await openFresh(page, page.url(), () => field);
     await expect(field).toHaveValue('Salam ! Une question sur nos robes ?');
+    // "Annuler" puts the saved text back
+    await field.fill('Brouillon');
+    await card.getByTestId('icebreaker-cancel').click();
+    await expect(field).toHaveValue('Salam ! Une question sur nos robes ?');
+    await expect(card.getByTestId('icebreaker-cancel')).toHaveCount(0);
+    // "Effacer" is confirmed first
     await card.getByTestId('icebreaker-clear').click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Effacer' }).click();
     await expect(toast(page, 'Icebreaker supprimé')).toBeVisible();
     expect(sent.at(-1)).toEqual({ text: '' });
     await expect(field).toHaveValue('');

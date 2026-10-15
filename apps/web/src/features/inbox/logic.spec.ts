@@ -41,6 +41,7 @@ const conv = (o: Partial<Conversation> = {}): Conversation => ({
   status: 'active',
   aiPaused: false,
   agent: null,
+  pageHasAgent: true,
   assignee: null,
   unreadCount: 0,
   lastMessageAt: ago(1),

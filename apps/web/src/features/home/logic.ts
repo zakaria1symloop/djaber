@@ -133,5 +133,22 @@ export const aiLive = (card: Pick<HomePageCard, 'status' | 'agent'>): boolean =>
 export const agentState = (card: Pick<HomePageCard, 'agent'>): 'ready' | 'paused' | 'draft' | 'none' =>
   !card.agent ? 'none' : card.agent.status === 'active' ? 'ready' : card.agent.status === 'paused' ? 'paused' : 'draft';
 
+/**
+ * Button of the agent row: none → link one (channel page "IA & agent"); draft → finish it (the agent page resumes the
+ * wizard at its step); paused → resume it (agent page, "Reprendre"); ready → regenerate from the page.
+ */
+export const agentCta = (
+  card: Pick<HomePageCard, 'id' | 'agent'>,
+): { labelKey: string; href: string } => {
+  const state = agentState(card);
+  if (state === 'none')
+    return { labelKey: 'home.pages.agent.link', href: `/channels/${card.id}/ai` };
+  if (state === 'draft')
+    return { labelKey: 'gaps.home.agent.finish', href: `/agents/${card.agent!.id}` };
+  if (state === 'paused')
+    return { labelKey: 'gaps.home.agent.resume', href: `/agents/${card.agent!.id}` };
+  return { labelKey: 'home.pages.agent.regenerate', href: `/agents/generate?channel=${card.id}` };
+};
+
 /* ---------- "DÉMARRER n / 4" ---------- */
 export const checklistDone = (g: Pick<HomeView['getStarted'], 'checklist'>): number => Object.values(g.checklist).filter(Boolean).length;

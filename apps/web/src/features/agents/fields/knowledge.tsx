@@ -3,7 +3,7 @@
 // knowledge": catalogue scope, out-of-stock behaviour, shop rules (policies) and the FAQ (≤ 50 entries / 20 000
 // characters; sources SAISI · EXTRAIT DE LA PAGE FB · SUGGÉRÉ PAR L'IA · FICHIER; extraction from the page is free,
 // 3 per day; file import DOCX / TXT / MD / CSV ≤ 5 MB — PDF refused until a text extractor is chosen). FAQ rows are saved one by one (`/agents/:id/faq`).
-import { Button, CheckChip, Dialog, Field, FormAlert, FormSection, Input, KeyValueList, Ltr, MonoChip, Select, Textarea, toast, ToggleRow } from '@djaber/ui';
+import { Button, CheckChip, ConfirmDialog, Dialog, Field, FormAlert, FormSection, Input, KeyValueList, Ltr, MonoChip, Select, Textarea, toast, ToggleRow } from '@djaber/ui';
 import { formatNumber } from '@djaber/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -31,10 +31,11 @@ export function KnowledgeFields({ draft: d, set, errors, readOnly, badge, inTunn
   const t = useT();
   const categories = useCategories();
   const flat = flattenCategories(categories.data ?? []);
-  // in the tunnel a new shop has no category and no way to create one: the "by category" scope cannot be chosen
-  const noCategories = !!inTunnel && categories.isSuccess && flat.length === 0 && d.catalogScope !== 'categories';
   const toggleCategory = (id: string, on: boolean) => set({ scopeCategoryIds: on ? [...d.scopeCategoryIds, id] : d.scopeCategoryIds.filter((x) => x !== id) });
   const radio = 'mt-0.5 size-4 accent-white';
+  // "Catégories" cannot be chosen while the shop has none (it could never pass validation); an agent already scoped on
+  // categories keeps the option to fix it
+  const noCategory = categories.isSuccess && flat.length === 0 && d.catalogScope !== 'categories';
   return (
     <>
       <FormSection title={t('agents.catalog.title')} description={t('agents.catalog.description')} badge={badge} data-section="catalog">
@@ -48,11 +49,19 @@ export function KnowledgeFields({ draft: d, set, errors, readOnly, badge, inTunn
               <span className="ts-label-meta mt-1 block text-text-muted">{t('agents.catalog.all.hint')}</span>
             </span>
           </label>
-          <label className={noCategories ? 'flex cursor-not-allowed items-start gap-3 opacity-60' : 'flex cursor-pointer items-start gap-3'} title={noCategories ? t('agents.catalog.noCategory') : undefined}>
-            <input type="radio" name="catalogScope" className={radio} checked={d.catalogScope === 'categories'} disabled={readOnly || noCategories} onChange={() => set({ catalogScope: 'categories' })} />
+          <label className={noCategory ? 'flex cursor-not-allowed items-start gap-3 opacity-60' : 'flex cursor-pointer items-start gap-3'} title={noCategory ? t('gaps.agents.catalog.noCategory') : undefined} data-testid="scope-categories-option">
+            <input type="radio" name="catalogScope" className={radio} checked={d.catalogScope === 'categories'} disabled={readOnly || noCategory} onChange={() => set({ catalogScope: 'categories' })} />
             <span>
               <span className="block text-[14px]">{t('agents.catalog.categories')}</span>
-              <span className="ts-label-meta mt-1 block text-text-muted">{noCategories ? t('agents.catalog.noCategory') : t('agents.catalog.categories.hint')}</span>
+              <span className="ts-label-meta mt-1 block text-text-muted">{t('agents.catalog.categories.hint')}</span>
+              {noCategory && !inTunnel ? (
+                <span className="ts-label-meta mt-1 block text-text-muted" data-testid="scope-categories-disabled">
+                  {t('gaps.agents.catalog.noCategory')}{' '}
+                  <Link href="/categories" className="text-accent-inbound hover:underline">
+                    {t('nav.categories')}
+                  </Link>
+                </span>
+              ) : null}
             </span>
           </label>
         </div>
@@ -129,10 +138,15 @@ export function FaqSection({ agentId, readOnly, hasInsights }: { agentId: string
   const [extract, setExtract] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // a FAQ row is deleted at once on the server (not part of "Annuler les modifications"): asked first
+  const [toRemove, setToRemove] = useState<AgentFaq | null>(null);
   const rows = q.data ?? [];
   const chars = rows.reduce((n, r) => n + r.question.length + r.answer.length, 0);
   const full = rows.length >= FAQ_MAX_ENTRIES || chars >= FAQ_MAX_CHARS;
-  const pages = (channels.data?.rows ?? []).filter((c) => c.platform === 'facebook' && c.status !== 'disconnected');
+  // the page is read with its token: only a live page can be read (paused, to reconnect, pending ⇒ not offered)
+  const facebook = (channels.data?.rows ?? []).filter((c) => c.platform === 'facebook' && c.status !== 'disconnected');
+  const pages = facebook.filter((c) => c.status === 'active');
+  const noPageReason = pages.length ? undefined : facebook.length ? t('gaps.agents.faq.extract.noActivePage') : t('agents.faq.extract.noPage');
   const refetch = () => qc.invalidateQueries({ queryKey: agentKeys.sub(ws, agentId ?? '', 'faq') });
 
   const follow = (jobId: string, kind: 'extract' | 'import') =>
@@ -155,8 +169,10 @@ export function FaqSection({ agentId, readOnly, hasInsights }: { agentId: string
     try {
       await agentsApi.removeFaq(agentId, id);
       await refetch();
+      setToRemove(null);
     } catch (e) {
       setError(errorMessage(e, t));
+      setToRemove(null);
     } finally {
       setBusy(null);
     }
@@ -225,7 +241,7 @@ export function FaqSection({ agentId, readOnly, hasInsights }: { agentId: string
           }))}
           disabled={readOnly || busy !== null}
           onEdit={(id) => setEditing(rows.find((r) => r.id === id) ?? null)}
-          onRemove={(id) => void remove(id)}
+          onRemove={(id) => setToRemove(rows.find((r) => r.id === id) ?? null)}
           labels={{ list: t('agents.faq.title'), edit: (k) => t('agents.faq.edit', { question: k }), remove: (k) => t('agents.faq.remove', { question: k }) }}
           empty={q.isPending ? t('common.loading') : t('agents.faq.empty')}
         />
@@ -241,7 +257,7 @@ export function FaqSection({ agentId, readOnly, hasInsights }: { agentId: string
           <Button onClick={() => setEditing('new')} disabledReason={full ? t('error.AGENT_FAQ_LIMIT') : undefined} data-testid="faq-add">
             {t('agents.faq.add')}
           </Button>
-          <Button variant="ghost" onClick={() => (pages.length === 1 ? void startExtract(pages[0]!.id) : setExtract(true))} loading={busy === 'extract'} disabledReason={pages.length === 0 ? t('agents.faq.extract.noPage') : full ? t('error.AGENT_FAQ_LIMIT') : undefined} data-testid="faq-extract">
+          <Button variant="ghost" onClick={() => (pages.length === 1 ? void startExtract(pages[0]!.id) : setExtract(true))} loading={busy === 'extract'} disabledReason={noPageReason ?? (full ? t('error.AGENT_FAQ_LIMIT') : undefined)} data-testid="faq-extract">
             {t('agents.faq.extract')}
           </Button>
           <Button variant="ghost" onClick={() => fileRef.current?.click()} loading={busy === 'import'} disabledReason={full ? t('error.AGENT_FAQ_LIMIT') : undefined} data-testid="faq-import">
@@ -256,6 +272,18 @@ export function FaqSection({ agentId, readOnly, hasInsights }: { agentId: string
         </div>
       ) : null}
       <FaqDialog agentId={agentId} entry={editing} onClose={() => setEditing(null)} onSaved={() => (setEditing(null), void refetch())} />
+      <ConfirmDialog
+        open={toRemove !== null}
+        onOpenChange={(o) => !o && busy === null && setToRemove(null)}
+        title={t('gaps.agents.faq.remove.title')}
+        description={t('gaps.agents.faq.remove.description', { question: toRemove?.question ?? '' })}
+        confirmLabel={t('action.delete')}
+        cancelLabel={t('action.cancel')}
+        destructive
+        loading={toRemove !== null && busy === toRemove.id}
+        closeLabel={t('action.close')}
+        onConfirm={() => toRemove && void remove(toRemove.id)}
+      />
       <ExtractDialog open={extract} pages={pages.map((p) => ({ id: p.id, name: p.name }))} pending={busy === 'extract'} onClose={() => setExtract(false)} onStart={(id) => void startExtract(id)} />
     </FormSection>
   );

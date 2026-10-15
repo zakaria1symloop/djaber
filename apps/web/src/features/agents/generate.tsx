@@ -41,6 +41,8 @@ export function GenerateAgent() {
   const [error, setError] = useState<{ message: string; code: string | null } | null>(null);
   const [applying, setApplying] = useState<'new' | 'update' | null>(null);
   const [confirm, setConfirm] = useState(false);
+  // leaving the review drops an analysis that counted in the daily limit: asked first
+  const [discard, setDiscard] = useState(false);
   const [review, setReview] = useState<Review | null>(null);
   useEffect(() => setReview(null), [jobId]);
   useEffect(() => {
@@ -73,7 +75,23 @@ export function GenerateAgent() {
   const cancel = async () => {
     if (jobId && isJobRunning(job.data)) await api(`/jobs/${jobId}/cancel`, { method: 'POST', body: {} }).catch(() => null);
     setError(null);
+    setDiscard(false);
     setJob(null);
+  };
+  /** "Réessayer" after a failure: the same page and period are analysed again (a failed analysis does not count). */
+  const retry = async () => {
+    setError(null);
+    if (!channelId) return setJob(null);
+    setStarting(true);
+    try {
+      setJob((await agentsApi.generate({ channelId, days })).jobId);
+    } catch (e) {
+      // refused (rate limit, permission): back to the choice with the reason
+      setError({ message: errorMessage(e, t), code: e instanceof ApiError ? e.code : null });
+      setJob(null);
+    } finally {
+      setStarting(false);
+    }
   };
   const apply = async (update: boolean) => {
     if (!jobId) return;
@@ -223,7 +241,7 @@ export function GenerateAgent() {
               <Link href="/agents" className={buttonClass({ variant: 'ghost' })}>
                 {t('action.cancel')}
               </Link>
-              <Button variant="primary" onClick={start} loading={starting} disabled={!channelId} data-testid="generate-start">
+              <Button variant="primary" onClick={start} loading={starting} disabled={!channelId} disabledReason={channelId || channels.isPending ? undefined : pages.length ? t('gaps.agents.generate.pickPage') : t('agents.generate.noPage')} data-testid="generate-start">
                 {t('action.analyze')}
               </Button>
             </>
@@ -236,13 +254,13 @@ export function GenerateAgent() {
               <Link href="/agents" className={buttonClass({ variant: 'ghost' })}>
                 {t('action.cancel')}
               </Link>
-              <Button variant="primary" onClick={() => void cancel()} data-testid="generate-retry">
+              <Button variant="primary" onClick={() => void retry()} loading={starting} data-testid="generate-retry">
                 {t('action.retry')}
               </Button>
             </>
           ) : (
             <>
-              <Button variant="ghost" onClick={() => void cancel()} disabled={applying !== null}>
+              <Button variant="ghost" onClick={() => setDiscard(true)} disabled={applying !== null} data-testid="generate-discard">
                 {t('action.cancel')}
               </Button>
               <Button variant={linked ? 'secondary' : 'primary'} onClick={() => void apply(false)} loading={applying === 'new'} disabled={applying === 'update'} data-testid="generate-apply-new">
@@ -266,6 +284,17 @@ export function GenerateAgent() {
         cancelLabel={t('action.cancel')}
         onConfirm={() => void apply(true)}
         loading={applying === 'update'}
+        closeLabel={t('action.close')}
+      />
+      <ConfirmDialog
+        open={discard}
+        onOpenChange={(o) => !o && setDiscard(false)}
+        title={t('gaps.agents.generate.discard.title')}
+        description={t('gaps.agents.generate.discard.description')}
+        confirmLabel={t('gaps.agents.generate.discard.confirm')}
+        cancelLabel={t('gaps.agents.generate.discard.keep')}
+        destructive
+        onConfirm={() => void cancel()}
         closeLabel={t('action.close')}
       />
     </AppPage>

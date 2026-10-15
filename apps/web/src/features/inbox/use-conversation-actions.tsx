@@ -22,19 +22,24 @@ import type { ActionDescriptor, Conversation, ConversationListItem, Conversation
 type Row = ConversationListItem | Conversation;
 
 /** The rule of `ConversationService.actions` for a list row (no descriptors on rows): same keys, same order. */
-export const localActions = (row: Pick<ConversationListItem, 'status' | 'aiPaused' | 'unreadCount' | 'blocked'>, may: { block: boolean; unblock: boolean; remove: boolean }): ActionDescriptor[] => [
-  { key: 'resolve', enabled: row.status !== 'resolved' },
-  { key: 'reopen', enabled: row.status === 'resolved' || row.status === 'archived' },
-  { key: 'archive', enabled: row.status !== 'archived' },
-  { key: 'pauseAi', enabled: !row.aiPaused },
-  { key: 'resumeAi', enabled: row.aiPaused || row.status === 'needs_human' },
-  { key: 'assign', enabled: true },
-  { key: 'markUnread', enabled: row.unreadCount === 0 },
-  { key: 'block', enabled: !row.blocked && may.block },
-  { key: 'unblock', enabled: row.blocked && may.unblock },
-  { key: 'report', enabled: may.block },
-  { key: 'delete', enabled: may.remove },
-];
+export const localActions = (row: Pick<ConversationListItem, 'status' | 'aiPaused' | 'unreadCount' | 'blocked'> & Partial<Pick<ConversationListItem, 'pageHasAgent' | 'agent'>>, may: { block: boolean; unblock: boolean; remove: boolean }): ActionDescriptor[] => {
+  // no agent on the page and none answered the conversation: no AI to pause or resume (`CONVERSATION_NO_AGENT`)
+  const hasAgent = row.pageHasAgent !== false || !!row.agent;
+  const noAgent = hasAgent ? {} : { reasonCode: 'CONVERSATION_NO_AGENT' };
+  return [
+    { key: 'resolve', enabled: row.status !== 'resolved' },
+    { key: 'reopen', enabled: row.status === 'resolved' || row.status === 'archived' },
+    { key: 'archive', enabled: row.status !== 'archived' },
+    { key: 'pauseAi', enabled: !row.aiPaused && hasAgent, ...noAgent },
+    { key: 'resumeAi', enabled: (row.aiPaused || row.status === 'needs_human') && hasAgent, ...noAgent },
+    { key: 'assign', enabled: true },
+    { key: 'markUnread', enabled: row.unreadCount === 0 },
+    { key: 'block', enabled: !row.blocked && may.block },
+    { key: 'unblock', enabled: row.blocked && may.unblock },
+    { key: 'report', enabled: may.block },
+    { key: 'delete', enabled: may.remove },
+  ];
+};
 type Change = Omit<ConversationPatchBody, 'version'>;
 type Conflict = { name: string; ago: string; current: Conversation | null };
 

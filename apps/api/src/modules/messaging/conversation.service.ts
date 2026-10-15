@@ -200,12 +200,14 @@ export class ConversationService implements OnModuleInit {
     const write = !t.readOnly;
     const a = (key: string, enabled: boolean, reasonCode?: string): ActionDescriptor => ({ key, enabled: write && enabled, ...(!write ? { reasonCode: 'READ_ONLY_MEMBER' } : !enabled && reasonCode ? { reasonCode } : {}) });
     const admin = can(t.role, 'inbox.delete');
+    const hasAgent = c.channel.agentChannels.length > 0 || !!c.agentId;
     return [
       a('resolve', c.status !== 'resolved'),
       a('reopen', c.status === 'resolved' || c.status === 'archived'),
       a('archive', c.status !== 'archived'),
-      a('pauseAi', !c.aiPaused),
-      a('resumeAi', c.aiPaused || c.status === 'needs_human'),
+      // no agent on the page (and none answered this conversation): there is no AI to pause or resume
+      a('pauseAi', !c.aiPaused && hasAgent, hasAgent ? undefined : 'CONVERSATION_NO_AGENT'),
+      a('resumeAi', (c.aiPaused || c.status === 'needs_human') && hasAgent, hasAgent ? undefined : 'CONVERSATION_NO_AGENT'),
       a('assign', true),
       a('markUnread', c.unreadCount === 0),
       a('block', !blocked),

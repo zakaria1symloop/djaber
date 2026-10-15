@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { searchTerm } from '@/lib/phone';
 import { exactPhoneMatch } from './client-section';
 import {
+  cancelHref,
   decodeDraft,
   draftToForm,
   emptyOrderForm,
@@ -244,5 +245,15 @@ describe('client search', () => {
     ] as never[];
     expect(exactPhoneMatch(rows, '+213 555 12 34 56')).toMatchObject({ id: 'c1' });
     expect(exactPhoneMatch(rows, '0555 12')).toBeNull();
+  });
+});
+
+describe('cancelHref — "Annuler" goes back where the order was started', () => {
+  it('conversation, then client, then duplicated order, else the list', () => {
+    expect(cancelHref({ conversationId: 'c1', clientId: 'cl1' })).toBe('/inbox/c1');
+    expect(cancelHref({ clientId: 'cl1' })).toBe('/clients?sheet=cl1');
+    expect(cancelHref({ duplicateId: 'o1' })).toBe('/orders/o1');
+    expect(cancelHref({})).toBe('/orders');
+    expect(cancelHref({ conversationId: null, clientId: null, duplicateId: null })).toBe('/orders');
   });
 });

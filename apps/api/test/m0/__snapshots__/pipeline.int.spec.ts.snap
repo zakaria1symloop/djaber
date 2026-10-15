@@ -60,6 +60,7 @@ exports[`M0 — HTTP pipeline error envelope (11-error-catalogue) statuses of th
   "CMS_SLUG_INVALID": 422,
   "CMS_SLUG_TAKEN": 409,
   "CONFLICT": 409,
+  "CONVERSATION_NO_AGENT": 422,
   "COURIER_ADDRESS_LOCKED": 409,
   "COURIER_CANCEL_NOT_ALLOWED": 409,
   "COURIER_CREDENTIALS_INVALID": 401,

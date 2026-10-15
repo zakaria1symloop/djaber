@@ -344,7 +344,7 @@ Every enum value of `prisma-schema.prisma` has a key `enum.<Model>.<field>.<valu
 | common.risk.unknown | INCONNU | | |
 | enum.Client.riskLevel.high | RISQUE | | |
 | enum.Client.blocked | BLOQUÉ | | |
-| enum.Client.placeholder | PLACEHOLDER | | |
+| enum.Client.placeholder | À compléter | بحاجة إلى إكمال | To complete |
 | enum.Order.deliveryStatus.not_sent | NON ENVOYÉE | | |
 | enum.Order.deliveryStatus.pending | À ENVOYER | | |
 | enum.Shipment.status.pending | ENVOI EN COURS | | |

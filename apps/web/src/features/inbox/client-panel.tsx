@@ -178,12 +178,15 @@ function ClientLinks({ c, clientId, placeholder }: { c: Conversation; clientId: 
   );
 }
 
-/** "Nouvelle commande pour {name}": the order form prefilled with the client and this conversation (`orders.write`). */
+/**
+ * "Nouvelle commande pour {name}": the order form prefilled with the client and this conversation (`orders.write`).
+ * Same rule as the row menu: a placeholder client ("À compléter") is completed first ("Compléter la fiche" above).
+ */
 function NewOrderButton({ c }: { c: Conversation }) {
   const t = useT();
   const { can, readOnly } = useSession();
   const client = c.clientPanel?.client ?? c.client;
-  if (!client || !can('orders.write') || readOnly) return null;
+  if (!client || !client.id || client.isPlaceholder || !can('orders.write') || readOnly) return null;
   const first = (client.name ?? '').trim().split(/\s+/)[0] ?? '';
   return (
     <Link href={`/orders/new?clientId=${client.id}&conversationId=${c.id}`} className={buttonClass({ variant: 'primary', size: 'sm', className: 'w-full' })} data-testid="client-panel-new-order">

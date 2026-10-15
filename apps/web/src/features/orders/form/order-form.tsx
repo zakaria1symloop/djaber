@@ -41,6 +41,7 @@ import { ClientSection } from './client-section';
 import { DeliverySection } from './delivery-section';
 import { ItemsSection, lineFromProduct } from './items-section';
 import {
+  cancelHref,
   clearOrderDraft,
   draftToForm,
   emptyOrderForm,
@@ -564,7 +565,7 @@ export function NewOrderForm() {
             {t('action.cancel')}
           </Button>
         ) : (
-          <Link href="/orders" className={buttonClass({ variant: 'ghost' })} data-testid="form-cancel">
+          <Link href={cancelHref({ conversationId, clientId, duplicateId })} className={buttonClass({ variant: 'ghost' })} data-testid="form-cancel">
             {t('action.cancel')}
           </Link>
         )}

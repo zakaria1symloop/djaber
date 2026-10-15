@@ -58,6 +58,7 @@
   "CMS_SLUG_INVALID": "Slug invalide (lettres, chiffres, tirets).",
   "CMS_SLUG_TAKEN": "Slug déjà utilisé.",
   "CONFLICT": "Modifié entre-temps, rechargez.",
+  "CONVERSATION_NO_AGENT": "Aucun agent sur cette page.",
   "COURIER_ADDRESS_LOCKED": "Adresse verrouillée : annulez le colis d'abord.",
   "COURIER_CANCEL_NOT_ALLOWED": "Colis déjà ramassé : annulation impossible, utilisez « Retournée ».",
   "COURIER_CREDENTIALS_INVALID": "Identifiants transporteur refusés.",

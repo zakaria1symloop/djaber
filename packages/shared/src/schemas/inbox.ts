@@ -354,6 +354,8 @@ export type ConversationListItemView = {
   status: ConversationStatusName;
   aiPaused: boolean;
   agent: InboxAgentRef | null;
+  /** an agent is linked to the page of the conversation (pause / resume the AI need one: `CONVERSATION_NO_AGENT`) */
+  pageHasAgent: boolean;
   assignee: InboxUserRef | null;
   unreadCount: number;
   lastMessageAt: string;

@@ -5,7 +5,7 @@
 // is never rebased by a WS refresh), items quantity edit while the server allows `edit`.
 import { formatDate, type AppLocale } from '@djaber/shared';
 import { ActionsMenu, Banner, Button, buttonClass, Card, Pill, Skeleton, StatusPill, toast } from '@djaber/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AppPage } from '@/components/app-page';
 import { ConflictDialog, QueryError } from '@/components/global-states';
 import { Link, useRouter } from '@/i18n/navigation';
@@ -19,7 +19,7 @@ import { ORDER_ACTION } from '../action-keys';
 import { ordersApi, useOrder, useOrdersRefresh } from '../api';
 import type { Order } from '../contracts';
 import { refusal } from '../dialogs/common';
-import { algiersTime, isReadOnly, shortName, unansweredCalls } from '../logic';
+import { algiersTime, draftChanged, isReadOnly, orderAnchor, shortName, unansweredCalls } from '../logic';
 import { OrderStatusPill } from '../ui';
 import { useOrderActions } from '../use-order-actions';
 import { OrderDeliveryBlock } from '@/features/delivery/order-block';
@@ -56,8 +56,16 @@ export function OrderPage({ id }: { id: string }) {
   const [saving, setSaving] = useState<'contact' | 'items' | null>(null);
   const [error, setError] = useState<{ part: 'contact' | 'items'; message: string } | null>(null);
   const [conflict, setConflict] = useState<{ part: 'contact' | 'items'; c: NonNullable<ReturnType<typeof conflictOf<Order>>> } | null>(null);
-  const dirty = !!contact || !!items;
+  // opening an edit is not a change: the guard arms once the draft differs from the order
+  const dirty = draftChanged(contact, q.data ? contactOf(q.data) : null) || draftChanged(items, q.data ? itemsOf(q.data) : null);
   const { guard } = useLeaveGuard(dirty, q.data ? `#${q.data.number}` : '');
+  // `/orders/:id#delivery|#payment|#calls` (notifications, Home queue): the block is brought into view once loaded
+  const loaded = !!q.data;
+  useEffect(() => {
+    if (!loaded) return;
+    const anchor = orderAnchor(window.location.hash);
+    if (anchor) window.requestAnimationFrame(() => document.getElementById(anchor)?.scrollIntoView({ block: 'start' }));
+  }, [loaded]);
 
   if (q.isPending) {
     return (
@@ -188,13 +196,19 @@ export function OrderPage({ id }: { id: string }) {
             error={error?.part === 'items' ? error.message : null}
           />
           <div className="grid gap-5 md:grid-cols-2">
-            <OrderDeliveryBlock order={order} onSend={() => actions.run('send', order)} onShip={() => actions.run('ship', order)} parcels={parcels} />
-            <PaymentBlock order={order} onRecord={() => actions.run('payment', order)} onLink={() => actions.run('payment_link', order)} onRefund={() => actions.run('refund', order)} />
+            <div id="delivery" className="flex min-w-0 scroll-mt-6 flex-col [&>*]:flex-1">
+              <OrderDeliveryBlock order={order} onSend={() => actions.run('send', order)} onShip={() => actions.run('ship', order)} parcels={parcels} />
+            </div>
+            <div id="payment" className="flex min-w-0 scroll-mt-6 flex-col [&>*]:flex-1">
+              <PaymentBlock order={order} onRecord={() => actions.run('payment', order)} onLink={() => actions.run('payment_link', order)} onRefund={() => actions.run('refund', order)} />
+            </div>
           </div>
         </div>
         <div className="flex min-w-0 flex-col gap-5">
           <HistoryBlock order={order} />
-          <CallsBlock order={order} onLog={actionState(order.actions, ORDER_ACTION.logCall, t).enabled || actionState(order.actions, ORDER_ACTION.call, t).enabled ? () => actions.run('log_call', order) : undefined} />
+          <div id="calls" className="min-w-0 scroll-mt-6">
+            <CallsBlock order={order} onLog={actionState(order.actions, ORDER_ACTION.logCall, t).enabled || actionState(order.actions, ORDER_ACTION.call, t).enabled ? () => actions.run('log_call', order) : undefined} />
+          </div>
           <NotesBlock
             order={order}
             canWrite={canWrite}

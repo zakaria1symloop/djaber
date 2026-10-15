@@ -58,6 +58,7 @@ export const ERROR_CODES = {
   CMS_SLUG_INVALID: { status: 422, params: [] },
   CMS_SLUG_TAKEN: { status: 409, params: [] },
   CONFLICT: { status: 409, params: [] },
+  CONVERSATION_NO_AGENT: { status: 422, params: [] },
   COURIER_ADDRESS_LOCKED: { status: 409, params: [] },
   COURIER_CANCEL_NOT_ALLOWED: { status: 409, params: [] },
   COURIER_CREDENTIALS_INVALID: { status: 401, params: [] },

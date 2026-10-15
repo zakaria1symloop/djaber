@@ -11,6 +11,7 @@ import { QueueOutbox } from '../../core/queue/queue.outbox';
 import { StorageService } from '../../core/storage/storage.service';
 import { TenantResolver } from '../../core/tenancy/tenant.resolver';
 import { WsEmitter } from '../../core/ws/ws.emitter';
+import { jobRefs } from '../notifications/notification.catalog';
 import { NotificationProducer } from '../notifications/notification.producer';
 
 export type JobError = { code: string; params?: Record<string, string | number> };
@@ -178,7 +179,8 @@ export class JobService {
         workspaceId: job.workspaceId,
         userIds: [job.createdById],
         key: `job_finished:${job.id}:${job.updatedAt.getTime()}`,
-        data: { jobId: job.id, kind: job.kind, name: this.nameOf(job), label: this.labelOf(job), ...this.importCounts(job.kind, out.result) },
+        // `channelId` / `agentId` of the payload: the deep link opens the screen of the job (notification.catalog `jobPath`)
+        data: { ...jobRefs(job.payload), jobId: job.id, kind: job.kind, name: this.nameOf(job), label: this.labelOf(job), ...this.importCounts(job.kind, out.result) },
       });
     });
   }
@@ -203,7 +205,7 @@ export class JobService {
         workspaceId: job.workspaceId,
         userIds: [job.createdById],
         key: `job_failed:${job.id}:${job.updatedAt.getTime()}`,
-        data: { jobId: job.id, kind: job.kind, name: this.nameOf(job), label: this.labelOf(job), error: error.code },
+        data: { ...jobRefs(job.payload), jobId: job.id, kind: job.kind, name: this.nameOf(job), label: this.labelOf(job), error: error.code },
       });
     });
   }

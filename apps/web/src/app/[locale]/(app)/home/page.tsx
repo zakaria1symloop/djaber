@@ -43,6 +43,7 @@ import { ChannelStatusPill, PlatformMark } from '@/features/channels/ui';
 import { useHome, useHomeEvents } from '@/features/home/api';
 import { dayMonth, greetingKey, longDate } from '@/features/home/greeting';
 import {
+  agentCta,
   agentState,
   aiLive,
   homeTiles,
@@ -310,6 +311,7 @@ function PageCard({ page: p, products }: { page: HomePageCardView; products: num
   const t = useT();
   const locale = useLocaleCode();
   const state = agentState(p);
+  const cta = agentCta(p);
   const btn = buttonClass({ size: 'sm', className: 'w-full' });
   return (
     <HomePageCard
@@ -354,22 +356,11 @@ function PageCard({ page: p, products }: { page: HomePageCardView; products: num
           ),
         title: t(`home.pages.agent.${state}`, { name: p.agent?.name ?? '' }),
         meta: p.agent ? p.agent.name : t('home.pages.agent.noneHint'),
-        action:
-          state === 'none' ? (
-            <Link
-              href={`/channels/${p.id}/ai`}
-              className={buttonClass({ size: 'sm', variant: 'primary' })}
-            >
-              {t('home.pages.agent.link')}
-            </Link>
-          ) : (
-            <Link
-              href={`/agents/generate?channel=${p.id}`}
-              className={buttonClass({ size: 'sm', variant: 'primary' })}
-            >
-              {t('home.pages.agent.regenerate')}
-            </Link>
-          ),
+        action: (
+          <Link href={cta.href} className={buttonClass({ size: 'sm', variant: 'primary' })} data-testid="home-page-agent-cta">
+            {t(cta.labelKey)}
+          </Link>
+        ),
       }}
       actions={
         <>

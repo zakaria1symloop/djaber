@@ -3,12 +3,12 @@
 // "Détacher" (or none: "Rattacher un agent" / "Créer un agent"), the icebreaker of the page, and the welcome message
 // sent before the first AI reply (workspace system message `welcome`, edited in Settings › Messages système).
 // `PUT /channels/:id/agent` (move confirmation in `link-agent.tsx`), `PUT /channels/:id/icebreaker`.
-import { Button, buttonClass, Card, FormAlert, Ltr, StatusPill, Textarea, toast } from '@djaber/ui';
+import { Button, buttonClass, Card, ConfirmDialog, FormAlert, Ltr, StatusPill, Textarea, toast } from '@djaber/ui';
 import type { AppLocale } from '@djaber/shared';
 import { Bot, ChevronDown } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from '@/i18n/navigation';
-import { errorMessage } from '@/lib/forms';
+import { errorMessage, useLeaveGuard } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { channelsApi, useChannelsRefresh } from '../api';
@@ -29,6 +29,8 @@ export function ChannelAi() {
   const live = c.status === 'active' && c.agent?.status === 'active';
   const gone = c.status === 'disconnected';
   const lockedReason = gone ? t('channels.ai.disconnected') : undefined;
+  // "Détacher" stops the AI on this page for the new conversations: asked first, locked like "Changer"
+  const [detach, setDetach] = useState(false);
   return (
     <div className="grid items-start gap-5 lg:grid-cols-2">
       <div className="flex min-w-0 flex-col gap-5">
@@ -66,7 +68,7 @@ export function ChannelAi() {
                     {t('channels.ai.change')}
                     <ChevronDown className="size-3.5" aria-hidden />
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => void link.link(c, null)} loading={busy} data-testid="agent-detach">
+                  <Button size="sm" variant="ghost" onClick={() => setDetach(true)} loading={busy} disabledReason={lockedReason} data-testid="agent-detach">
                     {t('channels.ai.detach')}
                   </Button>
                 </>
@@ -76,7 +78,7 @@ export function ChannelAi() {
                     {t('channels.ai.attach')}
                   </Button>
                   {can('agents.manage') ? (
-                    <Link href="/agents/new" className={buttonClass({ size: 'sm' })} data-testid="agent-create">
+                    <Link href={`/agents/new?channel=${c.id}`} className={buttonClass({ size: 'sm' })} data-testid="agent-create">
                       {t('channels.ai.createAgent')}
                     </Link>
                   ) : null}
@@ -95,8 +97,20 @@ export function ChannelAi() {
             {t('error.AGENT_CHANNEL_SWITCH_NEXT_THREAD')} <Ltr>(AGENT_CHANNEL_SWITCH_NEXT_THREAD)</Ltr>
           </FormAlert>
         </Card>
-        <IcebreakerCard key={c.id} channelId={c.id} value={c.icebreaker ?? ''} manage={manage} lockedReason={lockedReason} />
+        <IcebreakerCard key={c.id} channelId={c.id} pageName={c.name} value={c.icebreaker ?? ''} manage={manage} lockedReason={lockedReason} />
       </div>
+      <ConfirmDialog
+        open={detach}
+        onOpenChange={(o) => !o && !busy && setDetach(false)}
+        title={t('gaps.channels.detach.title', { agent: c.agent?.name ?? '' })}
+        description={t('gaps.channels.detach.description', { page: c.name })}
+        confirmLabel={t('channels.ai.detach')}
+        cancelLabel={t('action.cancel')}
+        destructive
+        loading={busy}
+        closeLabel={t('action.close')}
+        onConfirm={() => void link.link(c, null).then(() => setDetach(false))}
+      />
 
       <Card className="flex flex-col gap-3 p-4" data-testid="channel-welcome">
         <h2 className="ts-title">{t('channels.ai.welcome.title')}</h2>
@@ -119,14 +133,17 @@ export function ChannelAi() {
 }
 
 /** Icebreaker of the page: the opening line Messenger / Instagram shows before the first message (≤ 300, empty = none). */
-function IcebreakerCard({ channelId, value, manage, lockedReason }: { channelId: string; value: string; manage: boolean; lockedReason?: string }) {
+function IcebreakerCard({ channelId, pageName, value, manage, lockedReason }: { channelId: string; pageName: string; value: string; manage: boolean; lockedReason?: string }) {
   const t = useT();
   const refresh = useChannelsRefresh();
   const [text, setText] = useState(value);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
   useEffect(() => setText(value), [value]);
   const dirty = text.trim() !== value.trim();
+  // an unsaved icebreaker is not lost by leaving the page
+  const { guard } = useLeaveGuard(manage && dirty && !pending, pageName);
   const tooLong = text.trim().length > ICEBREAKER_MAX;
   const save = async (next: string) => {
     setPending(true);
@@ -135,8 +152,10 @@ function IcebreakerCard({ channelId, value, manage, lockedReason }: { channelId:
       await channelsApi.setIcebreaker(channelId, next.trim());
       await refresh(channelId);
       toast(next.trim() ? t('channels.icebreaker.saved') : t('channels.icebreaker.cleared'));
+      setClearing(false);
     } catch (e) {
       setError(errorMessage(e, t));
+      setClearing(false);
     } finally {
       setPending(false);
     }
@@ -165,8 +184,13 @@ function IcebreakerCard({ channelId, value, manage, lockedReason }: { channelId:
               </Ltr>
             </span>
             <span className="flex-1" />
+            {dirty ? (
+              <Button size="sm" variant="ghost" onClick={() => (setText(value), setError(null))} disabled={pending} data-testid="icebreaker-cancel">
+                {t('action.cancel')}
+              </Button>
+            ) : null}
             {value ? (
-              <Button size="sm" variant="ghost" onClick={() => void save('')} disabled={pending} data-testid="icebreaker-clear">
+              <Button size="sm" variant="ghost" onClick={() => setClearing(true)} disabled={pending} disabledReason={lockedReason} data-testid="icebreaker-clear">
                 {t('channels.icebreaker.clear')}
               </Button>
             ) : null}
@@ -183,6 +207,19 @@ function IcebreakerCard({ channelId, value, manage, lockedReason }: { channelId:
             </Button>
           </div>
           {error ? <FormAlert>{error}</FormAlert> : null}
+          <ConfirmDialog
+            open={clearing}
+            onOpenChange={(o) => !o && !pending && setClearing(false)}
+            title={t('gaps.channels.icebreaker.clear.title')}
+            description={t('gaps.channels.icebreaker.clear.description')}
+            confirmLabel={t('channels.icebreaker.clear')}
+            cancelLabel={t('action.cancel')}
+            destructive
+            loading={pending}
+            closeLabel={t('action.close')}
+            onConfirm={() => void save('')}
+          />
+          {guard}
         </>
       ) : value ? (
         <blockquote dir="auto" className="rounded-card border border-line-edge bg-ink-raised px-3.5 py-3 text-[13px]">

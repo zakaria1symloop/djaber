@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Agent, AgentPreset, PlaygroundTurn } from './contracts';
 import {
+  blockingChecks,
+  localDateTimeInput,
   canOpenStep,
   cardState,
   confidenceLabel,
@@ -305,5 +307,22 @@ describe('list helpers', () => {
     expect(missingKeys({ missing: 'channels, policies' }, null)).toEqual(['channels', 'policies']);
     expect(missingKeys({}, { missing: ['catalog'] })).toEqual(['catalog']);
     expect(missingKeys(undefined, null)).toEqual([]);
+  });
+});
+
+describe('activation (AGT-02 step 5)', () => {
+  it('blockingChecks keeps the blocking rows that are not ok (✕), in order', () => {
+    const checks = [
+      { key: 'catalog', ok: false, label: 'Catalogue', blocking: false },
+      { key: 'channels', ok: false, label: 'Pages rattachées', blocking: true },
+      { key: 'emailVerified', ok: true, label: 'E-mail vérifié', blocking: true },
+      { key: 'credits', ok: false, label: 'Crédits' },
+    ];
+    expect(blockingChecks(checks).map((c) => c.key)).toEqual(['channels']);
+    expect(blockingChecks(undefined)).toEqual([]);
+  });
+  it('localDateTimeInput formats a datetime-local value (min of "Activer à une date")', () => {
+    expect(localDateTimeInput(new Date(2031, 0, 5, 9, 7))).toBe('2031-01-05T09:07');
+    expect(localDateTimeInput(new Date(2026, 11, 31, 23, 59))).toBe('2026-12-31T23:59');
   });
 });

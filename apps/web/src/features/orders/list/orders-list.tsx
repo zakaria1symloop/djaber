@@ -152,7 +152,7 @@ export function OrdersList() {
       actions={
         <>
           {can('orders.money') ? (
-            <Button variant="ghost" onClick={() => setExporting(true)} disabled={offline}>
+            <Button variant="ghost" onClick={() => setExporting(true)} disabledReason={offline ? t('banner.offline') : undefined}>
               {t('action.export')}
             </Button>
           ) : null}

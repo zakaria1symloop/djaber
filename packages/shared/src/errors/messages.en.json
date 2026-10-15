@@ -58,6 +58,7 @@
   "CMS_SLUG_INVALID": "Invalid slug (letters, digits, dashes).",
   "CMS_SLUG_TAKEN": "Slug already used.",
   "CONFLICT": "Changed meanwhile, please reload.",
+  "CONVERSATION_NO_AGENT": "No agent on this page.",
   "COURIER_ADDRESS_LOCKED": "Address locked: cancel the parcel first.",
   "COURIER_CANCEL_NOT_ALLOWED": "Parcel already picked up: cannot cancel, use \"Returned\".",
   "COURIER_CREDENTIALS_INVALID": "Courier credentials rejected.",

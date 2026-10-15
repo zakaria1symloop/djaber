@@ -335,7 +335,11 @@ function ExplainerDialog({
   onContinue: (p: Platform) => void;
 }) {
   const t = useT();
+  const { can } = useSession();
   const p = platform ?? 'facebook';
+  // FL-05 F-2: at the page limit Meta still lets the merchant pick pages, but the new ones are skipped with
+  // `PLAN_LIMIT` (a page already connected can still be reconnected): said before leaving for Facebook
+  const atLimit = !!planLimit && planLimit.limit >= 0 && planLimit.current >= planLimit.limit;
   return (
     <Dialog
       open={platform !== null}
@@ -374,6 +378,21 @@ function ExplainerDialog({
           <li key={k}>{t(`channels.connect.explainer.permission.${k}`)}</li>
         ))}
       </ul>
+      {atLimit ? (
+        <FormAlert tone="warning" className="mt-4">
+          <span data-testid="connect-at-limit">
+            {t('gaps.channels.connect.atLimit', { current: planLimit!.current, limit: planLimit!.limit })} <Ltr>(PLAN_LIMIT)</Ltr>
+          </span>
+          {can('billing.read') ? (
+            <>
+              {' '}
+              <Link href="/settings/billing" className="underline">
+                {t('gaps.channels.connect.upgrade')}
+              </Link>
+            </>
+          ) : null}
+        </FormAlert>
+      ) : null}
       {error ? <FormAlert className="mt-4">{error}</FormAlert> : null}
     </Dialog>
   );

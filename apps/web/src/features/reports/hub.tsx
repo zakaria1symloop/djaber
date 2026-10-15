@@ -11,6 +11,7 @@ import { FileText } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { AppPage } from '@/components/app-page';
+import { JobParamBanner } from '@/components/job-param-banner';
 import { OfflineBanner, QueryError } from '@/components/global-states';
 import { refusal } from '@/features/orders/dialogs/common';
 import { useOffline } from '@/features/orders/offline';
@@ -66,6 +67,7 @@ export function ReportsHubPage() {
       actions={<SearchInput value={q} onChange={setQ} label={t('action.search')} placeholder={t('reports.search')} clearLabel={t('list.clearSearch')} className="w-full sm:w-72" />}
     >
       {offline ? <OfflineBanner since="—" onRetry={() => void hub.refetch()} /> : null}
+      <JobParamBanner />
       {hub.isPending ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-testid="reports-skeleton">
           {/* the five groups of the hub at their usual sizes: the "Exports récents" block below does not jump on load */}

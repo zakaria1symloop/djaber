@@ -367,6 +367,13 @@ describe('parcel actions (04 §22, FL-25)', () => {
     expect(failures.map((r: any) => r.id)).toContain(order.id);
     const home = (await owner.get('/dashboard/home').expect(200)).body.data;
     expect(JSON.stringify(home)).toContain(order.number);
+    // the failed-parcel card (and the `shipment_failed` notification) open the delivery list filtered on the order
+    // (`ids`, a real filter of GET /shipments) with the tracking panel of the parcel
+    const link = `/delivery?tab=all&ids=${order.id}&sheet=${parcel.id}`;
+    expect(home.queue.items.find((i: any) => i.key === `parcel:${parcel.id}`)?.path).toBe(link);
+    const notified = (await owner.get('/notifications').expect(200)).body.data.find((n: any) => n.type === 'shipment_failed');
+    expect(notified?.deepLink.web).toBe(link);
+    expect((await owner.get(`/shipments?ids=${order.id}`).expect(200)).body.data.map((r: any) => r.id)).toEqual([order.id]);
 
     // "Relancer" (EcoTrack supports it): attempt 2, parcel out again
     view = (await owner.post(`/shipments/${parcel.id}/retry-delivery`, {}).expect(202)).body.data;

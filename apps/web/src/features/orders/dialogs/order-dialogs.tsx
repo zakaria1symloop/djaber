@@ -105,7 +105,10 @@ export function CallbackDialog({ order, open, onClose, onDone }: Props) {
         </Field>
         <label className="flex items-center gap-2 text-[13px]">
           <Checkbox checked={notify} onChange={(e) => setNotify(e.target.checked)} disabled={!order.conversationId} />
-          {t('orders.callback.notify')}
+          <span>
+            {t('orders.callback.notify')}
+            {!order.conversationId ? <span className="block ts-label-meta text-text-muted">{t('gaps.orders.notify.noConversation')}</span> : null}
+          </span>
         </label>
         {s.error || clear.error ? <FormAlert>{s.error ?? clear.error}</FormAlert> : null}
       </div>
@@ -159,7 +162,10 @@ export function CancelOrderDialog({ order, open, onClose, onDone }: Props) {
         </Field>
         <label className="flex items-center gap-2 text-[13px]">
           <Checkbox checked={notify} onChange={(e) => setNotify(e.target.checked)} disabled={!order.conversationId} />
-          {t('orders.cancel.notify')}
+          <span>
+            {t('orders.cancel.notify')}
+            {!order.conversationId ? <span className="block ts-label-meta text-text-muted">{t('gaps.orders.notify.noConversation')}</span> : null}
+          </span>
         </label>
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}
       </div>

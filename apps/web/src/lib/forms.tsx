@@ -1,7 +1,7 @@
 'use client';
 // Form helpers (02-next-route-map §6): server `fields` → inputs, unknown field ⇒ form-level alert, leave guard.
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FieldValues, Path, UseFormReturn } from 'react-hook-form';
 import { LeaveGuardDialog } from '@/components/global-states';
 import { ApiError } from './api';
@@ -54,11 +54,15 @@ export function applyServerErrors<T extends FieldValues>(
 
 /**
  * Leave guard for dirty forms: warns on tab close / reload and intercepts in-app link clicks with the
- * "Quitter sans enregistrer ?" dialog. Render the returned `guard` element once in the page.
+ * "Quitter sans enregistrer ?" dialog. Render the returned `guard` element once in the page. `onLeave` runs when the
+ * merchant confirms leaving (e.g. a form kept in sessionStorage drops its copy); `ask(href)` opens the same dialog for a
+ * programmatic exit ("Annuler" buttons).
  */
-export function useLeaveGuard(dirty: boolean, name: string) {
+export function useLeaveGuard(dirty: boolean, name: string, onLeave?: () => void) {
   const router = useRouter();
   const [pending, setPending] = useState<string | null>(null);
+  const onLeaveRef = useRef(onLeave);
+  onLeaveRef.current = onLeave;
 
   useEffect(() => {
     if (!dirty) return;
@@ -86,11 +90,21 @@ export function useLeaveGuard(dirty: boolean, name: string) {
     const href = pending;
     setPending(null);
     if (!href) return;
-    const u = new URL(href);
+    onLeaveRef.current?.();
+    const u = new URL(href, window.location.origin);
     // programmatic navigation is not intercepted by the click listener above
     router.push(u.pathname + u.search + u.hash);
   }, [pending, router]);
 
   const guard = <LeaveGuardDialog open={pending !== null} name={name} onStay={() => setPending(null)} onLeave={leave} />;
-  return { guard };
+  /** A programmatic exit to `href` (a full path, locale included): asks first when the form is dirty, else leaves at once (running `onLeave`). */
+  const ask = useCallback(
+    (href: string) => {
+      if (dirty) return setPending(href);
+      onLeaveRef.current?.();
+      router.push(href);
+    },
+    [dirty, router],
+  );
+  return { guard, ask };
 }

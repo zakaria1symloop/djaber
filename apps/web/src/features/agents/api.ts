@@ -65,6 +65,8 @@ export const agentsApi = {
   resume: (id: string) => api<Agent>(`/agents/${id}/resume`, { method: 'POST', body: {} }),
   duplicate: (id: string) => api<Agent>(`/agents/${id}/duplicate`, { method: 'POST', body: {} }),
   activate: (id: string, b: { at?: string } = {}) => api<Agent>(`/agents/${id}/activate`, { method: 'POST', body: b }),
+  /** cancels a scheduled activation (`scheduledActivateAt` → null; the draft stays a draft) */
+  unschedule: (id: string) => api<Agent>(`/agents/${id}/activate`, { method: 'DELETE' }),
   bulk: (action: 'pause' | 'resume' | 'delete', ids: string[]) => api<BulkOutcome>(`/agents/bulk/${action}`, { method: 'POST', body: { ids } }),
   exportConfig: (id: string) => api<Record<string, unknown>>(`/agents/${id}/export`),
   metrics: (id: string, q: ApiQuery) => api<AgentPeriodMetrics>(`/agents/${id}/metrics`, { query: q }),
