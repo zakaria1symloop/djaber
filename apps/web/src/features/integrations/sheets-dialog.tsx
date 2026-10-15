@@ -4,7 +4,7 @@
 // filters (pages, sources) and an optional history export range. The same dialog edits the filters only, or starts a
 // backfill only. Errors inline (SHEETS_SPREADSHEET_NOT_FOUND under the URL), content preserved.
 import { OrderSourceValues, SheetsBackfillSchema, SPREADSHEET_URL_RE, type OrderSource, type SheetsFilters, type SheetsIntegrationDto } from '@djaber/shared';
-import { Button, Checkbox, CheckChip, Dialog, Field, FormAlert, Input, toast } from '@djaber/ui';
+import { Button, Checkbox, CheckChip, Dialog, Field, FormAlert, Input, toast, UrlInput } from '@djaber/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useChannels } from '@/features/channels/api';
@@ -226,7 +226,7 @@ export function SheetsDialog({ mode, data, onClose }: { mode: SheetsDialogMode |
             <SourceOption checked={source === 'url'} onSelect={() => setSource('url')} label={t('settings.integrations.sheets.dialog.url')} hint={t('settings.integrations.sheets.dialog.urlHint')} testId="sheets-option-url">
               {source === 'url' ? (
                 <Field label={t('settings.integrations.sheets.dialog.urlLabel')} htmlFor="sheets-url" error={urlError ?? undefined}>
-                  <Input id="sheets-url" dir="ltr" placeholder="https://docs.google.com/spreadsheets/d/…" value={url} onChange={(e) => setUrl(e.target.value)} aria-invalid={!!urlError} disabled={busy} data-testid="sheets-url" />
+                  <UrlInput id="sheets-url" autoComplete="off" placeholder="https://docs.google.com/spreadsheets/d/…" value={url} onChange={(e) => setUrl(e.target.value)} aria-invalid={!!urlError} disabled={busy} data-testid="sheets-url" />
                 </Field>
               ) : null}
             </SourceOption>

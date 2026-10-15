@@ -130,6 +130,35 @@ test('AT-UX-04 · validation inline before the request, server error inside the 
   await expect(dialog.locator('#client-name')).toHaveValue('Nadia Ferhat');
 });
 
+test('CLI-01 · email: LTR email field, checked on blur with the API rule, sent trimmed + lower-cased; phone normalised on blur', async ({ page }) => {
+  await loginHome(page, owner);
+  await page.goto('/fr/clients');
+  await page.getByTestId('new-client').click();
+  const dialog = page.getByRole('dialog', { name: 'Nouveau client' });
+  const email = dialog.getByTestId('client-email');
+  await expect(email).toHaveAttribute('type', 'email');
+  await expect(email).toHaveAttribute('inputmode', 'email');
+  await expect(email).toHaveAttribute('autocomplete', 'email');
+  await expect(email).toHaveAttribute('dir', 'ltr');
+  await email.fill('nadia@boutique');
+  await email.blur();
+  await expect(dialog).toContainText('E-mail invalide');
+  await expect(email).toHaveAttribute('aria-invalid', 'true');
+  await email.fill('  Nadia.Ferhat@Boutique.DZ ');
+  await expect(dialog).not.toContainText('E-mail invalide');
+  await email.blur();
+  await expect(email).toHaveValue('nadia.ferhat@boutique.dz');
+  const mobile = nextMobile();
+  await dialog.locator('#client-phone').fill(`+213 ${mobile.slice(1, 4)} ${mobile.slice(4, 6)} ${mobile.slice(6, 8)} ${mobile.slice(8)}`);
+  await dialog.locator('#client-phone').blur();
+  await expect(dialog.locator('#client-phone')).toHaveValue(mobile);
+  await dialog.locator('#client-name').fill('Nadia Ferhat');
+  const sent = page.waitForRequest((r) => r.method() === 'POST' && /\/api\/v1\/clients$/.test(r.url()));
+  await dialog.getByTestId('client-save').click();
+  expect((await sent).postDataJSON()).toMatchObject({ email: 'nadia.ferhat@boutique.dz', phone: mobile });
+  await expect(dialog).toBeHidden({ timeout: 20_000 });
+});
+
 test('AT-CLI-05 · aggregates: a delivered order shows in the sheet tiles and the row', async ({ page, request }) => {
   const order = await seedOrderFor(request, owner, amina.id, { price: 4900, status: 'confirmed' });
   await deliverOrder(request, owner, order.id);

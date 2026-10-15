@@ -6,7 +6,7 @@
 // status legend. Prefill from `?supplierId`, the stock "Réapprovisionner" (`?productId&variantId&quantity&unitCost`).
 // Server field errors land on their line; content is kept; leave guard while dirty.
 import { formatMoney, formatNumber } from '@djaber/shared';
-import { Button, Card, Field, FormAlert, Input, Ltr, MoneyInput, QtyStepper, Select, Skeleton, Textarea, toast } from '@djaber/ui';
+import { Button, Card, CodeInput, Field, FormAlert, Input, Ltr, MoneyInput, QtyStepper, Select, Skeleton, Textarea, toast } from '@djaber/ui';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
@@ -221,7 +221,7 @@ function PurchaseForm({ purchase }: { purchase?: Purchase }) {
             <Input id="pf-expected" type="date" value={f.expectedAt} onChange={(e) => set({ expectedAt: e.target.value })} className="[color-scheme:dark]" />
           </Field>
           <Field label={t('purchases.form.invoice')} htmlFor="pf-invoice" error={shown('supplierInvoiceRef')}>
-            <Input id="pf-invoice" value={f.invoice} maxLength={120} onChange={(e) => set({ invoice: e.target.value })} />
+            <CodeInput id="pf-invoice" value={f.invoice} maxLength={120} onChange={(e) => set({ invoice: e.target.value })} />
           </Field>
         </div>
 

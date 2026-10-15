@@ -4,10 +4,10 @@
 // page in the URL), `GET /billing/invoices/:id/pdf`, `POST /billing/invoices/:id/pay → { checkoutUrl }` (`billing.write`),
 // "Infos de facturation" (`GET|PUT /billing/info`, `billing.plan`).
 import { BillingInfoSchema, formatDate, formatMoney, type AppLocale } from '@djaber/shared';
-import { ActionsMenu, ActiveFilters, Button, Card, cn, Dialog, EmptyState, Field, FilterChips, FilterDropdown, FormAlert, Input, Ltr, StatusPill, Table, Td, Textarea, Th, toast, Tr, type ActiveFilter, type MenuAction } from '@djaber/ui';
+import { ActionsMenu, ActiveFilters, Button, Card, cn, CodeInput, Dialog, EmptyState, Field, FilterChips, FilterDropdown, FormAlert, Input, Ltr, StatusPill, Table, Td, Textarea, Th, toast, Tr, type ActiveFilter, type MenuAction } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { FileText } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ListFilteredEmpty, ListLoading, QueryError } from '@/components/global-states';
 import { ListPagination } from '@/features/catalog/ui';
 import { errorMessage } from '@/lib/forms';
@@ -175,13 +175,20 @@ function BillingInfoDialog({ open, owner, onClose }: { open: boolean; owner: boo
   const [fields, setFields] = useState<Partial<Record<keyof InfoForm, string>>>({});
   const [error, setError] = useState<string | null>(null);
   const save = useMutation({ mutationFn: billingApi.saveInfo });
+  // seeded once per opening, when the saved values are there: a background refetch never wipes what is being typed
+  const seeded = useRef(false);
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      seeded.current = false;
+      return;
+    }
+    if (seeded.current || q.isPending) return;
+    seeded.current = true;
     setFields({});
     setError(null);
     const d = q.data;
     setForm({ companyName: d?.companyName ?? '', nif: d?.nif ?? '', address: d?.address ?? '' });
-  }, [open, q.data]);
+  }, [open, q.data, q.isPending]);
 
   const submit = async () => {
     setError(null);
@@ -230,7 +237,7 @@ function BillingInfoDialog({ open, owner, onClose }: { open: boolean; owner: boo
             <Input id="bi-company" value={form.companyName} onChange={(e) => set('companyName')(e.target.value)} maxLength={160} disabled={!owner || q.isPending} dir="auto" />
           </Field>
           <Field label={t('billing.info.nif')} htmlFor="bi-nif" error={fields.nif}>
-            <Input id="bi-nif" value={form.nif} onChange={(e) => set('nif')(e.target.value)} maxLength={40} disabled={!owner || q.isPending} dir="ltr" />
+            <CodeInput id="bi-nif" value={form.nif} onChange={(e) => set('nif')(e.target.value)} maxLength={40} disabled={!owner || q.isPending} inputMode="numeric" pattern="[0-9 ]*" />
           </Field>
           <Field label={t('billing.info.address')} htmlFor="bi-address" error={fields.address}>
             <Textarea id="bi-address" rows={3} value={form.address} onChange={(e) => set('address')(e.target.value)} maxLength={300} disabled={!owner || q.isPending} dir="auto" />

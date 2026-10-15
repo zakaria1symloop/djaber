@@ -3,7 +3,7 @@
 // `POST /track/:publicToken/report { reason, details?, email?, captchaToken }` (no session; 3 / h / IP ⇒ 429 shown
 // inline). M11: the captcha of `GET /captcha/config` is required (fake checkbox in dev, Turnstile when configured);
 // a refused token (`422 fields.captchaToken = validation.captcha`) is shown under the widget, the form is kept.
-import { Dialog, Field, FormAlert, Input, Textarea } from '@djaber/ui';
+import { Dialog, EmailInput, Field, FormAlert, Textarea } from '@djaber/ui';
 import { useState } from 'react';
 import { CaptchaField, captchaNeeded, useCaptchaConfig } from '@/components/captcha';
 import { DialogFooter, RadioList, refusal, useOnOpen } from '@/features/orders/dialogs/common';
@@ -11,6 +11,7 @@ import { ApiError } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { deliveryApi } from '../api';
 import { REPORT_REASONS, type TrackingReportInput } from '../contracts';
+import { emailError } from '@/lib/email';
 
 type Reason = TrackingReportInput['reason'];
 
@@ -34,7 +35,8 @@ export function ReportMerchantDialog({ code, open, onClose, onSent }: { code: st
     setTouched(false);
     setError(null);
   });
-  const emailBad = !!email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  // same rule as the API (shared `email`)
+  const emailBad = !!emailError(email);
   const needToken = captchaNeeded(captcha.data);
   const submit = async () => {
     setTouched(true);
@@ -75,7 +77,7 @@ export function ReportMerchantDialog({ code, open, onClose, onSent }: { code: st
           <Textarea id="rep-details" value={details} maxLength={1000} onChange={(e) => setDetails(e.target.value)} className="min-h-20" />
         </Field>
         <Field label={t('tracking.report.email')} htmlFor="rep-email" error={touched && emailBad ? t('validation.email') : undefined}>
-          <Input id="rep-email" type="email" dir="ltr" value={email} maxLength={200} onChange={(e) => setEmail(e.target.value)} />
+          <EmailInput id="rep-email" value={email} maxLength={200} onChange={(e) => setEmail(e.target.value)} />
         </Field>
         <CaptchaField
           token={token}

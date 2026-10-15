@@ -4,7 +4,7 @@
 // Errors stay inline, content preserved.
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CreateWebhookSchema, type WebhookCreatedDto, type WebhookEndpointDto, type WebhookEvent } from '@djaber/shared';
-import { Button, CheckChip, Dialog, Field, FormAlert, Input } from '@djaber/ui';
+import { Button, CheckChip, Dialog, Field, FormAlert, Input, UrlInput } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -100,7 +100,7 @@ export function WebhookDialog({
           error={fieldError(t, errors.url?.message, { max: '2 048' })}
           hint={t('settings.integrations.webhooks.dialog.urlHint')}
         >
-          <Input id="webhook-url" dir="ltr" placeholder="https://erp.example.dz/hooks/djaber" disabled={busy} aria-invalid={!!errors.url} data-testid="webhook-url" {...form.register('url')} />
+          <UrlInput id="webhook-url" autoComplete="off" placeholder="https://erp.example.dz/hooks/djaber" disabled={busy} aria-invalid={!!errors.url} data-testid="webhook-url" {...form.register('url')} />
         </Field>
         <fieldset className="flex flex-col gap-2">
           <legend className="ts-label-meta mb-1.5 uppercase text-text-secondary">
@@ -113,7 +113,7 @@ export function WebhookDialog({
             render={({ field }) => (
               <div className="flex flex-wrap gap-2" data-testid="webhook-events">
                 {events.map((ev) => (
-                  <CheckChip key={ev} name={ev} checked={field.value.includes(ev)} disabled={busy} onChange={(on) => field.onChange(on ? [...field.value, ev] : field.value.filter((x) => x !== ev))}>
+                  <CheckChip key={ev} name={ev} checked={field.value.includes(ev)} disabled={busy} onChange={(on) => field.onChange(events.filter((x) => (x === ev ? on : field.value.includes(x))))}>
                     <span dir="ltr" className="font-mono text-[12px]">
                       {ev}
                     </span>

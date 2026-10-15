@@ -3,7 +3,7 @@
 // ADMIN_CANNOT_DEMOTE_SELF, TWO_FA_REQUIRED_FOR_ROLE, TWO_FA_CONFIRMATION_REQUIRED) and Inviter un membre plateforme
 // (@djaber.ai only, ADMIN_EMAIL_DOMAIN_INVALID; 2FA mandatory at first login).
 import { ADMIN_EMAIL_DOMAIN } from '@djaber/shared';
-import { Field, Input, MonoChip, Select, toast } from '@djaber/ui';
+import { EmailInput, Field, Input, MonoChip, Select, toast } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useT } from '@/lib/i18n';
@@ -114,7 +114,7 @@ export function InviteMemberDialog({ open, onClose }: { open: boolean; onClose: 
       onSubmit={() => void submit()}
     >
       <Field label={t('admin.team.invite.email')} required htmlFor="f-inv-email" hint={t('admin.team.invite.domain', { domain: ADMIN_EMAIL_DOMAIN })} error={errors.fields.email}>
-        <Input id="f-inv-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={`prenom@${ADMIN_EMAIL_DOMAIN}`} />
+        <EmailInput id="f-inv-email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={`prenom@${ADMIN_EMAIL_DOMAIN}`} />
       </Field>
       <Field label={t('admin.team.invite.role')} htmlFor="f-inv-role">
         <Select id="f-inv-role" value={role} onChange={(e) => setRole(e.target.value as (typeof ROLE_OPTIONS)[number])}>

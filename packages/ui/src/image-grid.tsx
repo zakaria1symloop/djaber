@@ -22,6 +22,8 @@ export type ImageTile = {
   flag?: string;
   /** `false` hides "Réessayer" on an error tile that can never be sent (wrong type, too large, over the limit) */
   retryable?: boolean;
+  /** `false` hides the delete button of this tile (quick-edit sheet: saved pictures are managed on the product form) */
+  removable?: boolean;
 };
 
 export type ImageGridLabels = {
@@ -150,7 +152,7 @@ export function ImageTileGrid({
                         <Star className="size-3.5" aria-hidden />
                       </button>
                     ) : null}
-                    {onRemove && !disabled ? (
+                    {onRemove && !disabled && tile.removable !== false ? (
                       <button type="button" className={action} aria-label={labels.remove} title={labels.remove} onClick={() => onRemove(tile.id)}>
                         <Trash2 className="size-3.5" aria-hidden />
                       </button>

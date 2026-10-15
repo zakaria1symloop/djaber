@@ -3,7 +3,7 @@
 // list · empty · add / edit dialog (title unique, text ≤ 1 000, shortcut) · delete confirm · drag reorder.
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CreateQuickReplySchema, type CreateQuickReply } from '@djaber/shared';
-import { ActionsMenu, Button, Card, cn, ConfirmDialog, Dialog, Field, FormAlert, Input, Pill, Select, Textarea, toast, type MenuAction } from '@djaber/ui';
+import { ActionsMenu, Button, Card, cn, CodeInput, ConfirmDialog, Dialog, Field, FormAlert, Input, Pill, Select, Textarea, toast, type MenuAction } from '@djaber/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { GripVertical } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -231,7 +231,7 @@ function QuickReplyDialog({ target, onClose, onSaved }: { target: QuickReplyView
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label={t('settings.quickReplies.field.shortcut')} htmlFor="qr-shortcut" error={fieldError(t, errors.shortcut?.message)}>
-            <Input id="qr-shortcut" dir="ltr" placeholder="/livr" disabled={busy} aria-invalid={!!errors.shortcut} {...form.register('shortcut')} />
+            <CodeInput id="qr-shortcut" placeholder="/livr" disabled={busy} aria-invalid={!!errors.shortcut} {...form.register('shortcut')} />
           </Field>
           <Field label={t('settings.quickReplies.field.locale')} htmlFor="qr-locale">
             <Select id="qr-locale" disabled={busy} {...form.register('locale')}>

@@ -18,7 +18,7 @@ import {
   type PlatformProviderDto,
   type ProviderTestResultDto,
 } from '@djaber/shared';
-import { ActionsMenu, Button, ConfirmDialog, DataTable, Dialog, Field, Input, Ltr, NumberInput, OpsPanel, Skeleton, StatePill, Switch, toast, type Column, type OpsState } from '@djaber/ui';
+import { ActionsMenu, Button, ConfirmDialog, DataTable, Dialog, EmailInput, Field, Input, Ltr, NumberInput, OpsPanel, Skeleton, StatePill, Switch, toast, UrlInput, type Column, type OpsState } from '@djaber/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState, type ReactNode } from 'react';
 import { OfflineBanner } from '@/components/global-states';
@@ -76,29 +76,31 @@ export function SettingsPage() {
     setSaving(true);
     setErrors({});
     const next: Record<string, string> = {};
+    // each section is its own setting: a saved one leaves the dirty state even when the other one is refused
+    const ok = { limits: false, contacts: false };
     try {
       if (limitsDirty) {
         const value = { ...base.limitsValue, ...Object.fromEntries(LIMIT_FIELDS.map((f) => [f, Number(formLimits[f] || 0)])) };
         try {
           await opsApi.putSetting('limits', value, why);
+          ok.limits = true;
         } catch (e) {
           next.limits = errorMessage(e, t);
         }
       }
       if (contactsDirty) {
         try {
-          await opsApi.putSetting('legal_contacts', { accountDeletionUrl: formContacts.accountDeletionUrl.trim(), dpoEmail: formContacts.dpoEmail.trim() }, why);
+          await opsApi.putSetting('legal_contacts', { accountDeletionUrl: formContacts.accountDeletionUrl.trim(), dpoEmail: formContacts.dpoEmail.trim().toLowerCase() }, why);
+          ok.contacts = true;
         } catch (e) {
           next.contacts = errorMessage(e, t);
         }
       }
       setErrors(next);
-      if (!next.limits && !next.contacts) {
-        toast({ tone: 'success', message: t('adminSettings.saved') });
-        await qc.invalidateQueries({ queryKey: opsKeys.settings });
-        setLimits(null);
-        setContacts(null);
-      }
+      if (ok.limits || ok.contacts) await qc.invalidateQueries({ queryKey: opsKeys.settings });
+      if (ok.limits) setLimits(null);
+      if (ok.contacts) setContacts(null);
+      if (!next.limits && !next.contacts) toast({ tone: 'success', message: t('adminSettings.saved') });
     } finally {
       setSaving(false);
     }
@@ -443,10 +445,10 @@ function LegalPanel({ docs, contacts, onContacts, error }: { docs: LegalDocument
       )}
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <Field label={t('adminSettings.legal.deletionUrl')} htmlFor="legal-url">
-          <Input id="legal-url" dir="ltr" value={contacts.accountDeletionUrl} readOnly={!write.allowed} onChange={(e) => onContacts({ ...contacts, accountDeletionUrl: e.target.value })} />
+          <UrlInput id="legal-url" autoComplete="off" value={contacts.accountDeletionUrl} readOnly={!write.allowed} onChange={(e) => onContacts({ ...contacts, accountDeletionUrl: e.target.value })} />
         </Field>
         <Field label={t('adminSettings.legal.dpo')} htmlFor="legal-dpo">
-          <Input id="legal-dpo" dir="ltr" type="email" value={contacts.dpoEmail} readOnly={!write.allowed} onChange={(e) => onContacts({ ...contacts, dpoEmail: e.target.value })} />
+          <EmailInput id="legal-dpo" autoComplete="off" value={contacts.dpoEmail} readOnly={!write.allowed} onChange={(e) => onContacts({ ...contacts, dpoEmail: e.target.value })} />
         </Field>
       </div>
       {error ? (

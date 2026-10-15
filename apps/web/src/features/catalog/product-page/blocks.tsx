@@ -1,19 +1,22 @@
 'use client';
 // Blocks of the product page — Figma "CAT-09 — Product page — full (gallery, variants, stock, margins, agents,
-// movements, archived)": Galerie, Mouvements récents, Prix & marge, Stock, Agents & canaux. Read-only: images are
-// managed in the edit form, stock moves only through "Ajuster", expenses are edited under "Prix & marge" (M7).
+// movements, archived)": Galerie, Mouvements récents, Prix & marge, Stock, Agents & canaux. Read-only, except the
+// gallery "+ Ajouter" which uploads in place (reorder / primary / delete stay in the edit form); stock moves only
+// through "Ajuster", expenses are edited under "Prix & marge" (M7).
 import { useAgents } from '@/features/agents/api';
 import { ExpensesEditor } from '@/features/gds/product-expenses';
 import { formatDate, formatDateTime, formatNumber, PRODUCT_IMAGE_MAX_BYTES, PRODUCT_IMAGE_MIN_PX, PRODUCT_IMAGES_MAX } from '@djaber/shared';
-import { cn, Dialog, Ltr, Pill, Skeleton } from '@djaber/ui';
+import { cn, Dialog, ImageTileGrid, Ltr, Pill, Skeleton } from '@djaber/ui';
 import { ImageOff } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { QueryError } from '@/components/global-states';
 import { Link } from '@/i18n/navigation';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { useMovements } from '../api';
 import type { Product, ProductImage } from '../contracts';
+import { IMAGE_ACCEPT } from '../product-form/images';
+import { useImageGridLabels, useProductImageEditor } from '../product-form/images-section';
 import { Money, MovementTypePill, Num, Pct, useMovementReason } from '../ui';
 import { stockSummary } from './logic';
 import { Block, Note, Row, Rows } from './parts';
@@ -27,15 +30,44 @@ export function GalleryBlock({ product, canEdit }: { product: Pick<Product, 'id'
   const t = useT();
   const [large, setLarge] = useState<ProductImage | null>(null);
   const images = product.images ?? [];
+  // "+ Ajouter" picks and uploads right here (same checks, progress and inline errors as the product form)
+  const editor = useProductImageEditor(product);
+  const imageLabels = useImageGridLabels();
+  const input = useRef<HTMLInputElement>(null);
+  const uploads = editor.tiles.filter((tile) => editor.isLocal(tile.id));
+  const full = images.length >= PRODUCT_IMAGES_MAX;
+  const fullReason = full ? `${t('error.IMAGES_LIMIT')} (IMAGES_LIMIT)` : undefined;
   return (
     <Block
       title={t('products.page.gallery.title', { max: PRODUCT_IMAGES_MAX })}
       testId="block-gallery"
       action={
         canEdit ? (
-          <Link href={`/products/${product.id}/edit#images`} className={linkClass}>
-            {t('products.page.gallery.add')}
-          </Link>
+          <>
+            <button type="button" className={cn(linkClass, 'disabled:cursor-not-allowed disabled:opacity-50')} disabled={full} title={fullReason} aria-describedby={full ? 'gallery-full' : undefined} onClick={() => input.current?.click()} data-testid="gallery-add">
+              {t('products.page.gallery.add')}
+            </button>
+            {full ? (
+              <span id="gallery-full" className="sr-only">
+                {fullReason}
+              </span>
+            ) : null}
+            <input
+              ref={input}
+              type="file"
+              multiple
+              accept={IMAGE_ACCEPT}
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden
+              data-upload="product-image"
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                e.target.value = '';
+                if (files.length) editor.add(files);
+              }}
+            />
+          </>
         ) : null
       }
     >
@@ -76,6 +108,7 @@ export function GalleryBlock({ product, canEdit }: { product: Pick<Product, 'id'
           })}
         </ul>
       )}
+      {uploads.length ? <ImageTileGrid tiles={uploads} max={PRODUCT_IMAGES_MAX} accept={IMAGE_ACCEPT} labels={imageLabels} onRemove={editor.remove} onRetry={editor.retry} size={108} /> : null}
       <Note>
         <bdi>{t('products.page.gallery.hint', { size: Math.round(PRODUCT_IMAGE_MAX_BYTES / (1024 * 1024)), max: PRODUCT_IMAGES_MAX, px: PRODUCT_IMAGE_MIN_PX })}</bdi>
       </Note>

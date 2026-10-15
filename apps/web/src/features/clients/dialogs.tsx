@@ -3,14 +3,15 @@
 // Tags) and "DLG — Orders & delivery — dialogs catalogue" (Fusionner les clients). Server errors render inside the open
 // dialog and the typed content is kept (AT-UX-04).
 import { CreateClientSchema, formatNumber, UpdateClientSchema } from '@djaber/shared';
-import { Button, Checkbox, Combobox, Dialog, Field, FormAlert, Input, MergeCard, PhoneInput, TagToggle, Textarea, toast, type ComboOption, type TagToggleState } from '@djaber/ui';
+import { Button, Checkbox, Combobox, Dialog, EmailInput, Field, FormAlert, Input, MergeCard, PhoneInput, TagToggle, Textarea, toast, type ComboOption, type TagToggleState } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { CommuneCombobox, WilayaCombobox } from '@/features/delivery/geo';
 import { ApiError } from '@/lib/api';
 import { errorMessage, fieldError } from '@/lib/forms';
 import { useT } from '@/lib/i18n';
-import { phonePreviewLine, searchTerm } from '@/lib/phone';
+import { emailError, emailOrNull } from '@/lib/email';
+import { formatPhoneOnBlur, phonePreviewLine, searchTerm } from '@/lib/phone';
 import { clientsApi, useClientsRefresh, useClientTags, type BulkResponse } from './api';
 import { ClientTagInput } from './client-tag-input';
 import { CLIENT_TAG_MAX_CHARS, type Client, type ClientListItem, type ClientMergePreview } from './contracts';
@@ -51,11 +52,13 @@ export function ClientFormDialog({ open, client, onClose, onSaved, onUseExisting
   }, [open, client]);
   const set = <K extends keyof FormState>(k: K, value: FormState[K]) => {
     setV((s) => ({ ...s, [k]: value }));
+    // a field being corrected loses its error; it is checked again on blur / submit
+    setErrors((e) => (e[k as (typeof FIELDS)[number]] ? { ...e, [k]: undefined } : e));
     if (k === 'phone') setOwner(null);
   };
 
   const address = v.wilayaId ? { wilayaId: v.wilayaId, communeId: v.communeId, address: v.address.trim() || null, isStopdesk: false } : null;
-  const body = { name: v.name, phone: v.phone, phone2: v.phone2 || null, email: v.email || null, notes: v.notes || null, tags: v.tags };
+  const body = { name: v.name, phone: v.phone, phone2: v.phone2.trim() || null, email: emailOrNull(v.email), notes: v.notes || null, tags: v.tags };
   const save = useMutation({
     mutationFn: async () => {
       if (edit) return clientsApi.update(client!.id, { ...body, defaultAddress: address });
@@ -133,7 +136,7 @@ export function ClientFormDialog({ open, client, onClose, onSaved, onUseExisting
             <Input id="client-name" value={v.name} onChange={(e) => set('name', e.target.value)} aria-invalid={!!errors.name || undefined} autoComplete="off" />
           </Field>
           <Field label={t('common.phone')} htmlFor="client-phone" required error={fe('phone')}>
-            <PhoneInput id="client-phone" value={v.phone} onChange={(e) => set('phone', e.target.value)} aria-invalid={!!errors.phone || !!owner || undefined} preview={owner ? null : phonePreviewLine(t, v.phone)} />
+            <PhoneInput id="client-phone" value={v.phone} format={formatPhoneOnBlur} onChange={(e) => set('phone', e.target.value)} aria-invalid={!!errors.phone || !!owner || undefined} preview={owner ? null : phonePreviewLine(t, v.phone)} />
             {owner ? (
               <p role="alert" className="flex flex-wrap items-center gap-2 text-[12px] text-accent-alert" data-testid="phone-conflict">
                 {owner.message}
@@ -144,7 +147,18 @@ export function ClientFormDialog({ open, client, onClose, onSaved, onUseExisting
             ) : null}
           </Field>
           <Field label={t('common.email')} htmlFor="client-email" error={fe('email')}>
-            <Input id="client-email" type="email" value={v.email} onChange={(e) => set('email', e.target.value)} aria-invalid={!!errors.email || undefined} />
+            <EmailInput
+              id="client-email"
+              value={v.email}
+              onChange={(e) => set('email', e.target.value)}
+              // trimmed + lower-cased by the field, then checked with the API rule (shared `email`)
+              onBlur={(e) => {
+                const key = emailError(e.currentTarget.value);
+                setErrors((x) => ({ ...x, email: key ?? undefined }));
+              }}
+              aria-invalid={!!errors.email || undefined}
+              data-testid="client-email"
+            />
           </Field>
           <Field label={t('common.tags')} htmlFor="client-tags" error={fe('tags')}>
             <ClientTagInput id="client-tags" value={v.tags} onChange={(x) => set('tags', x)} invalid={!!errors.tags} />

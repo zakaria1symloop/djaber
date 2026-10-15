@@ -5,7 +5,7 @@
 // are saved by "Enregistrer"; image operations, stock adjustments, generated variants and deletions are immediate.
 import { zodResolver } from '@hookform/resolvers/zod';
 import { formatDate, formatNumber } from '@djaber/shared';
-import { Banner, Button, buttonClass, cn, Combobox, Field, FormAlert, Input, Ltr, MoneyInput, NumberInput, Pill, SectionLabel, Switch, Textarea, toast, Tooltip } from '@djaber/ui';
+import { Banner, Button, buttonClass, cn, CodeInput, Combobox, Field, FormAlert, Input, Ltr, MoneyInput, NumberInput, Pill, SectionLabel, Switch, Textarea, toast, Tooltip } from '@djaber/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
 import { usePathname, useSearchParams } from 'next/navigation';
@@ -297,7 +297,7 @@ export function ProductForm(props: Props) {
     }
     // variant rows: one call per new or changed row; a refused row keeps its values and shows its error
     const saved = new Map(from.variants.map((r) => [r.key, r]));
-    let failed = 0;
+    const refused: { key: string; error: unknown }[] = [];
     for (const [i, row] of v.variants.entries()) {
       try {
         if (!row.id) {
@@ -309,11 +309,29 @@ export function ProductForm(props: Props) {
           if (Object.keys(body).length) await catalogApi.updateVariant(product.id, row.id, body);
         }
       } catch (e) {
-        failed++;
-        applyRowError(i, row, e);
+        refused.push({ key: row.key, error: e });
       }
     }
+    const failed = refused.length;
     await refresh({ productId: product.id });
+    // The saved version becomes the baseline right here (not only through the WS / own-write heuristics of the effect
+    // above): after a successful save the form is clean — no "unsaved" note, "Enregistrer" disabled, no leave guard.
+    // A refused row keeps its values (no id yet, or still different from the server) and stays unsaved.
+    const fresh = qc.getQueryData<Product>(key);
+    if (fresh) {
+      const next = toForm(fresh);
+      const nextValues = failed ? rebaseForm(baseRef.current, next, form.getValues()) : next;
+      baseRef.current = next;
+      versionRef.current = fresh.version;
+      setBase(next);
+      form.reset(nextValues);
+    }
+    // row errors are placed after the rebase: the rows may have moved (saved rows first, unsaved ones at the end)
+    const current = form.getValues('variants');
+    for (const r of refused) {
+      const index = current.findIndex((row) => row.key === r.key);
+      if (index >= 0) applyRowError(index, current[index]!, r.error);
+    }
     setSaving(false);
     if (failed) return setFormError(t('products.form.variants.someFailed', { count: failed }));
     setExpanded(new Set());
@@ -480,7 +498,7 @@ export function ProductForm(props: Props) {
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={t('products.form.sku')} htmlFor="sku" required={mode === 'edit'} error={err('sku')} hint={t(mode === 'create' ? 'products.form.skuHintCreate' : 'products.form.skuHint')}>
-                <Input id="sku" dir="ltr" maxLength={255} autoComplete="off" disabled={locked} aria-invalid={!!errors.sku} {...form.register('sku')} />
+                <CodeInput id="sku" maxLength={255} disabled={locked} aria-invalid={!!errors.sku} {...form.register('sku')} />
               </Field>
               <Field label={t('products.form.keywords')} htmlFor="keywords" error={err('keywords')} hint={t('products.form.keywordsHint')}>
                 <Input id="keywords" dir="auto" disabled={locked} aria-invalid={!!errors.keywords} {...form.register('keywords')} />

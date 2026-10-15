@@ -7,6 +7,8 @@ import { apiReady, createAccount, loginHome, type Account } from './support/m1';
 import { catalogReady, getProduct, seedCategory, seedProduct, setStockMode, sku, type SeedProduct } from './support/m2';
 
 test.describe.configure({ mode: 'serial', timeout: 120_000 });
+/** a valid 1 × 1 PNG (accepted with the IMAGE_SMALL warning) */
+const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 let account: Account;
 let robe: SeedProduct;
 let parfum: SeedProduct;
@@ -159,6 +161,18 @@ test('row Actions ⌄ comes from the server: a service cannot be adjusted (reaso
   await sheet.getByRole('button', { name: /Ajouter 1/ }).click();
   await expect(sheet.getByTestId('quick-status')).toContainText('mouvement enregistré');
   expect((await getProduct(request, account, sac.id)).stock).toBe(41);
+
+  // the "+" image tile opens the file picker right in the sheet and uploads there (no navigation to the edit form)
+  const imagesBefore = ((await getProduct(request, account, sac.id)) as unknown as { images?: unknown[] }).images?.length ?? 0;
+  const chooser = page.waitForEvent('filechooser');
+  await sheet.getByTestId('quick-images').getByRole('button', { name: 'AJOUTER' }).click();
+  await (await chooser).setFiles([{ name: 'sac.png', mimeType: 'image/png', buffer: Buffer.from(PNG_1PX, 'base64') }]);
+  await expect(page).toHaveURL(new RegExp(`sheet=${sac.id}`));
+  await expect(sheet.getByText(`IMAGES · ${imagesBefore + 1} / 10`)).toBeVisible({ timeout: 30_000 });
+  expect(((await getProduct(request, account, sac.id)) as unknown as { images: unknown[] }).images).toHaveLength(imagesBefore + 1);
+  // a file of the wrong type is refused under its tile, inside the sheet
+  await sheet.getByTestId('quick-images').locator('input[data-upload="product-image"]').setInputFiles([{ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('x') }]);
+  await expect(sheet.getByTestId('quick-images').getByRole('alert')).toContainText('IMAGE_TYPE_INVALID');
 
   // ‹ › walk the rows, Esc closes and cleans the URL
   await sheet.getByRole('button', { name: 'Précédent' }).click();

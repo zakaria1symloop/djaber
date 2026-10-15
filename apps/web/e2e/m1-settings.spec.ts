@@ -137,7 +137,9 @@ test('AT-SET-01 handoff reminder 0 disables the owner reminder; auto-pause and f
   await expect(page.getByText('Numéro invalide (ex. 0555123456)')).toBeVisible();
   await expect(page.getByText('Valeur hors limites (0–1440)')).toBeVisible();
 
-  await page.locator('#phone').fill('0550 11 22 33');
+  await page.locator('#phone').fill('+213 550 11 22 33');
+  await page.locator('#phone').blur();
+  await expect(page.locator('#phone')).toHaveValue('0550112233'); // normalised on blur
   await page.locator('#handoffReminderMin').fill('0');
   await page.locator('#freeDeliveryThreshold').fill('8000');
   await page.getByRole('switch', { name: /Répondre manuellement met l’IA en pause/ }).click();
@@ -152,7 +154,7 @@ test('AT-SET-01 handoff reminder 0 disables the owner reminder; auto-pause and f
 
   await page.reload();
   await expect(page.locator('#handoffReminderMin')).toHaveValue('0');
-  await expect(page.locator('#freeDeliveryThreshold')).toHaveValue('8000');
+  await expect(page.locator('#freeDeliveryThreshold')).toHaveValue('8 000'); // MoneyInput groups thousands
   await expect(page.getByRole('switch', { name: /Répondre manuellement met l’IA en pause/ })).toHaveAttribute('aria-checked', 'false');
 
   // leave guard on a dirty form

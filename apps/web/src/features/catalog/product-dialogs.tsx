@@ -3,7 +3,7 @@
 // catalogue" (Supprimer / archiver, Dupliquer le produit) and "DLG — GDS (stock) II" (Limite du plan atteinte,
 // Restaurer). Server errors are shown inside the open dialog; its content is preserved.
 import { DuplicateProductSchema, formatNumber, type ActionDescriptor } from '@djaber/shared';
-import { Button, buttonClass, Checkbox, Dialog, Field, FormAlert, Input, Pill, RadioCards, Skeleton, toast } from '@djaber/ui';
+import { Button, buttonClass, Checkbox, CodeInput, Dialog, Field, FormAlert, Input, Pill, RadioCards, Skeleton, toast } from '@djaber/ui';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { QueryError } from '@/components/global-states';
@@ -314,7 +314,7 @@ export function RestoreProductDialog({ product, onClose, onDone }: { product: Pi
             <>
               <FormAlert tone="warning">{t('products.restore.skuTaken', { sku: product?.sku ?? '' })}</FormAlert>
               <Field label={t('products.restore.newSku')} htmlFor="restore-sku" required error={error ?? undefined}>
-                <Input id="restore-sku" dir="ltr" value={sku} maxLength={255} disabled={busy} aria-invalid={!!error} onChange={(e) => setSku(e.target.value)} />
+                <CodeInput id="restore-sku" value={sku} maxLength={255} disabled={busy} aria-invalid={!!error} onChange={(e) => setSku(e.target.value)} />
               </Field>
             </>
           ) : error ? (

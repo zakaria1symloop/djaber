@@ -85,7 +85,20 @@ export function CmsEditor({ entry, canWrite, onClose }: { entry: CmsEntryAdminDt
       toast({ tone: 'danger', message: errorMessage(e, t) });
     }
   };
-  const translate = (to: Loc) => track(() => adminWrite<{ jobId: string }>(`/admin/cms/${entry.id}/translate`, 'POST', { to: [to] }), { running: t('admin.cms.translating'), done: t('admin.cms.translated') }).then(() => invalidate('/admin/cms'));
+  // the job translates the saved French text and the refetch remounts the editor: unsaved edits are saved first
+  const translate = async (to: Loc) => {
+    if (dirty) {
+      setError(null);
+      try {
+        await m.mutateAsync(save);
+      } catch (e) {
+        setError(errorMessage(e, t));
+        return;
+      }
+    }
+    await track(() => adminWrite<{ jobId: string }>(`/admin/cms/${entry.id}/translate`, 'POST', { to: [to] }), { running: t('admin.cms.translating'), done: t('admin.cms.translated') });
+    await invalidate('/admin/cms');
+  };
   const title = d.locales.fr.title || entry.key;
   return (
     <Card className="flex flex-col gap-4 p-5" data-testid="cms-editor">
@@ -129,7 +142,7 @@ export function CmsEditor({ entry, canWrite, onClose }: { entry: CmsEntryAdminDt
           <div id="cm-channels" className="flex min-h-10 flex-wrap items-center gap-2 rounded-card border border-line-edge px-2 py-1.5">
             {CHANNELS.map((c) => (
               <label key={c} className="flex cursor-pointer items-center gap-1.5 text-[13px]">
-                <Checkbox checked={d.channels.includes(c)} onChange={(e) => setD((x) => ({ ...x, channels: e.target.checked ? [...x.channels, c] : x.channels.filter((y) => y !== c) }))} />
+                <Checkbox checked={d.channels.includes(c)} onChange={(e) => setD((x) => ({ ...x, channels: CHANNELS.filter((y) => (y === c ? e.target.checked : x.channels.includes(y))) }))} />
                 {t(`admin.cms.channel.${c}`)}
               </label>
             ))}
@@ -142,7 +155,7 @@ export function CmsEditor({ entry, canWrite, onClose }: { entry: CmsEntryAdminDt
           <Input id="cm-end" type="datetime-local" value={d.endsAt} onChange={(e) => setD((x) => ({ ...x, endsAt: e.target.value }))} className="[color-scheme:dark]" />
         </Field>
         <Field label={t('admin.cms.field.link')} htmlFor="cm-link">
-          <Input id="cm-link" dir="ltr" value={d.link} onChange={(e) => setD((x) => ({ ...x, link: e.target.value }))} />
+          <Input id="cm-link" dir="ltr" inputMode="url" autoComplete="off" spellCheck={false} autoCapitalize="none" value={d.link} onChange={(e) => setD((x) => ({ ...x, link: e.target.value }))} />
         </Field>
       </fieldset>
       {missing !== null ? (

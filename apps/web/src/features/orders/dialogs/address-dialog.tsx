@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useFeeQuote } from '@/features/delivery/api';
 import { CommuneCombobox, StopdeskCombobox, WilayaCombobox } from '@/features/delivery/geo';
 import { useT } from '@/lib/i18n';
-import { phonePreview, phonePreviewLine } from '@/lib/phone';
+import { formatPhoneOnBlur, phonePreview, phonePreviewLine } from '@/lib/phone';
 import { ordersApi } from '../api';
 import { DialogFooter, orderContext, useDialogSubmit, useOnOpen, type DialogBaseProps } from './common';
 
@@ -100,7 +100,7 @@ export function AddressDialog({ order, open, onClose, onDone }: DialogBaseProps 
           <Input id="ad-address" value={d.address} maxLength={500} onChange={(e) => setD((x) => ({ ...x, address: e.target.value }))} aria-invalid={!!err('address') || undefined} />
         </Field>
         <Field label={t('common.phone2')} htmlFor="ad-phone2" error={err('phone2')}>
-          <PhoneInput id="ad-phone2" value={d.phone2} onChange={(e) => setD((x) => ({ ...x, phone2: e.target.value }))} preview={phonePreviewLine(t, d.phone2)} />
+          <PhoneInput id="ad-phone2" value={d.phone2} format={formatPhoneOnBlur} onChange={(e) => setD((x) => ({ ...x, phone2: e.target.value }))} preview={phonePreviewLine(t, d.phone2)} />
         </Field>
         {feeLine ? <p className="rounded-card border border-line-edge px-3 py-2 ts-label-micro !normal-case text-text-muted" data-testid="address-fee">{feeLine}</p> : null}
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}

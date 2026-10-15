@@ -2,7 +2,7 @@
 // /login — Figma "AUTH — Login — default", "AUTH — Login — 2FA step", "AUTH — States catalogue" (Connexion, Double authentification).
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LoginSchema, type LoginInput } from '@djaber/shared';
-import { Button, Field, FormAlert, Input, OtpInput, PasswordInput } from '@djaber/ui';
+import { Button, EmailInput, Field, FormAlert, Input, OtpInput, PasswordInput } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
@@ -77,11 +77,9 @@ function CredentialsStep({ notice, onMfa }: { notice: string | null; onMfa: (tok
         {expired && !formError && !notice ? <FormAlert tone="info">{t('auth.login.sessionExpired')}</FormAlert> : null}
         {notice ? <FormAlert tone="warning">{notice}</FormAlert> : null}
         <Field label={t('common.email')} htmlFor="email" error={fieldError(t, errors.email?.message)}>
-          <Input
+          <EmailInput
             id="email"
-            type="email"
             autoComplete="username"
-            dir="ltr"
             placeholder={t('auth.placeholder.email')}
             disabled={busy}
             aria-invalid={!!errors.email}

@@ -4,7 +4,7 @@
 // platform blacklist they feed (`GET|POST /admin/blacklist`, `DELETE /admin/blacklist/:id { reason }`) and the monthly
 // compliance export for the stores (`GET /admin/safety/export?month` → 202 job).
 import { formatDateTime, formatNumber, type AppLocale, type BlacklistRowDto, type PlatformBlockedWordDto } from '@djaber/shared';
-import { Button, FormAlert, IconButton, Input, Ltr, SideSheet, Skeleton, toast, updateToast } from '@djaber/ui';
+import { Button, FormAlert, IconButton, Input, Ltr, PhoneInput, SideSheet, Skeleton, toast, updateToast } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -14,6 +14,7 @@ import { errorMessage, useLeaveGuard } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { safetyApi, useAutoRules, useBlacklist, useBlockedWords, useSafetyRefresh } from './api';
 import { previousMonth } from './logic';
+import { formatPhoneOnBlur, phonePreviewLine } from '@/lib/phone';
 
 /* ---------- Mots bloqués ---------- */
 export function BlockedWordsSheet({ open, onClose, canWrite }: { open: boolean; onClose: () => void; canWrite: boolean }) {
@@ -25,9 +26,10 @@ export function BlockedWordsSheet({ open, onClose, canWrite }: { open: boolean; 
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const initial = (q.data ?? []).map((w: PlatformBlockedWordDto) => w.word);
+  // (re)opening the sheet starts from the saved list: closing it drops the unsaved edits
   useEffect(() => {
-    if (q.data) setWords(q.data.map((w) => w.word));
-  }, [q.data]);
+    if (open && q.data) setWords(q.data.map((w) => w.word));
+  }, [open, q.data]);
   const dirty = JSON.stringify([...words].sort()) !== JSON.stringify([...initial].sort());
   const { guard } = useLeaveGuard(open && dirty, t('adminSafety.header.words'));
   const save = useMutation({ mutationFn: () => safetyApi.saveWords({ words: words.map((word) => ({ word })), reason: reason.trim() || undefined }) });
@@ -259,7 +261,7 @@ function BlacklistAddDialog({ open, onClose }: { open: boolean; onClose: () => v
   };
   return (
     <AdminDialog open={open} onClose={onClose} title={t('adminSafety.blacklist.add')} context={t('adminSafety.blacklist.context')} submitLabel={t('adminSafety.blacklist.addSubmit')} onSubmit={() => void submit()} destructive pending={send.isPending} disabled={!phone.trim() || !reasonOk(reason)} error={error} testId="blacklist-add-dialog">
-      <Input aria-label={t('adminSafety.blacklist.phone')} placeholder="0550 12 34 56" dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={30} />
+      <PhoneInput aria-label={t('adminSafety.blacklist.phone')} placeholder="0550 12 34 56" autoComplete="off" value={phone} format={formatPhoneOnBlur} onChange={(e) => setPhone(e.target.value)} maxLength={30} preview={phonePreviewLine(t, phone)} />
       <ReasonField value={reason} onChange={setReason} />
     </AdminDialog>
   );

@@ -10,6 +10,7 @@ import {
   Card,
   ConfirmDialog,
   Dialog,
+  EmailInput,
   Field,
   FormAlert,
   Input,
@@ -312,7 +313,7 @@ function InviteDialog({ open, atLimit, count, max, onClose, onDone }: { open: bo
     >
       <form id="invite-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
         <Field label={t('common.email')} htmlFor="invite-email" required error={fieldError(t, errors.email?.message)}>
-          <Input id="invite-email" type="email" dir="ltr" placeholder={t('settings.members.invite.placeholder')} disabled={busy} aria-invalid={!!errors.email} {...form.register('email')} />
+          <EmailInput id="invite-email" autoComplete="off" placeholder={t('settings.members.invite.placeholder')} disabled={busy} aria-invalid={!!errors.email} {...form.register('email')} />
         </Field>
         <fieldset className="flex flex-col gap-3" disabled={busy}>
           <legend className="sr-only">{t('settings.members.invite.role')}</legend>

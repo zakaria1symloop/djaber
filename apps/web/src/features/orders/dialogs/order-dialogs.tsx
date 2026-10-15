@@ -4,7 +4,7 @@
 // Supprimer la commande (typed number) · Enregistrer un paiement · Assigner (one or many) · Marquer expédiée (manuel).
 // "Envoyer au transporteur" (DLV-05) lives in `features/delivery/send-dialog.tsx`. Server errors render inline in the open dialog; the content is preserved.
 import { formatMoney } from '@djaber/shared';
-import { Checkbox, Dialog, Field, FormAlert, Input, MoneyInput, Pill, Select, Textarea, toast } from '@djaber/ui';
+import { Checkbox, CodeInput, Dialog, Field, FormAlert, Input, MoneyInput, Pill, Select, Textarea, toast } from '@djaber/ui';
 import { useState } from 'react';
 import { ConflictDialog } from '@/components/global-states';
 import { useMembers } from '@/features/workspace/api';
@@ -430,7 +430,7 @@ export function DeleteOrderDialog({ order, open, onClose, onDone }: Props) {
           {t('common.destructive')}
         </Pill>
         <Field label={t('common.typeToConfirm')} htmlFor="del-typed" hint={t('common.mustMatch')}>
-          <Input id="del-typed" value={typed} autoComplete="off" placeholder={expected} onChange={(e) => setTyped(e.target.value)} dir="ltr" />
+          <CodeInput id="del-typed" value={typed} placeholder={expected} onChange={(e) => setTyped(e.target.value)} />
         </Field>
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}
       </div>
@@ -492,7 +492,7 @@ export function PaymentDialog({ order, open, onClose, onDone }: Props) {
         </div>
         <p className="ts-label-micro !normal-case text-text-muted">{t('orders.payment.hint')}</p>
         <Field label={t('orders.payment.reference')} htmlFor="pay-ref">
-          <Input id="pay-ref" value={reference} maxLength={120} onChange={(e) => setReference(e.target.value)} />
+          <CodeInput id="pay-ref" value={reference} maxLength={120} onChange={(e) => setReference(e.target.value)} />
         </Field>
         <Field label={t('common.note')} htmlFor="pay-note">
           <Textarea id="pay-note" value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} className="min-h-14" />
@@ -587,7 +587,7 @@ export function ShipManualDialog({ order, open, onClose, onDone }: Props) {
     >
       <div className="flex flex-col gap-3" data-testid="ship-dialog">
         <Field label={t('orders.ship.tracking')} htmlFor="ship-tracking" hint={t('orders.ship.hint')}>
-          <Input id="ship-tracking" value={tracking} maxLength={80} onChange={(e) => setTracking(e.target.value)} dir="ltr" />
+          <CodeInput id="ship-tracking" value={tracking} maxLength={80} onChange={(e) => setTracking(e.target.value)} />
         </Field>
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}
       </div>

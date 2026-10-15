@@ -8,7 +8,7 @@ import { useMemo, useState } from 'react';
 import type { ClientListItem } from '@/features/clients/contracts';
 import { fieldError } from '@/lib/forms';
 import { useT } from '@/lib/i18n';
-import { looksLikePhone, phonePreview, phonePreviewLine } from '@/lib/phone';
+import { formatPhoneOnBlur, looksLikePhone, phonePreview, phonePreviewLine } from '@/lib/phone';
 import { useClientSearch } from './api';
 import { validPhone, type FormClient, type FormErrors } from './model';
 
@@ -213,6 +213,7 @@ export function ClientSection({
             disabled={locked || !!client.id}
             aria-invalid={!client.id && !!errors['client.phone']}
             value={client.id ? formatPhoneDz(client.phone) : client.phone}
+            format={client.id ? undefined : formatPhoneOnBlur}
             onChange={(e) => onChange({ ...client, phone: e.target.value })}
             preview={client.id ? null : phonePreviewLine(t, client.phone)}
           />

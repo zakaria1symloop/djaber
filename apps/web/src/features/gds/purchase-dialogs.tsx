@@ -5,7 +5,7 @@
 // Paiement verrouillé; Sur-réception accepted with a warning; Produit non suivi refused). The menu items come from the
 // server descriptors (`actions`), greyed with their code.
 import { formatMoney, formatNumber } from '@djaber/shared';
-import { Button, ConfirmDialog, Dialog, Field, FormAlert, Input, Ltr, MoneyInput, NumberInput, Pill, Select, toast, type MenuAction } from '@djaber/ui';
+import { Button, CodeInput, ConfirmDialog, Dialog, Field, FormAlert, Input, Ltr, MoneyInput, NumberInput, Pill, Select, toast, type MenuAction } from '@djaber/ui';
 import { Plus, X } from 'lucide-react';
 import { useState } from 'react';
 import { algiersDay } from '@/features/catalog/stock/logic';
@@ -321,7 +321,7 @@ export function ReceiveDialog({ purchaseId, onClose }: { purchaseId: string | nu
                 <Input id="rcv-date" type="date" value={date} max={algiersDay()} onChange={(e) => setDate(e.target.value || algiersDay())} className="[color-scheme:dark]" />
               </Field>
               <Field label={t('purchases.receive.invoice')} htmlFor="rcv-invoice" error={s.fieldError('supplierInvoiceRef')}>
-                <Input id="rcv-invoice" value={invoice} maxLength={120} onChange={(e) => setInvoice(e.target.value)} placeholder="F-2026-118" />
+                <CodeInput id="rcv-invoice" value={invoice} maxLength={120} onChange={(e) => setInvoice(e.target.value)} placeholder="F-2026-118" />
               </Field>
               <Field label={t('purchases.receive.payNow')} htmlFor="rcv-pay" hint={t('purchases.receive.dueAfter', { amount: formatMoney(remainingAfter) })} error={pay > p.remaining ? t('suppliers.payment.overDue', { amount: formatMoney(p.remaining) }) : s.fieldError('paymentNow.amount')}>
                 <div className="flex gap-2">
@@ -455,7 +455,7 @@ export function PurchasePaymentDialog({ purchaseId, onClose }: { purchaseId: str
             <Input id="pp-date" type="date" value={date} max={algiersDay()} onChange={(e) => setDate(e.target.value || algiersDay())} className="[color-scheme:dark]" />
           </Field>
           <Field label={t('suppliers.payment.reference')} htmlFor="pp-ref">
-            <Input id="pp-ref" value={reference} maxLength={120} onChange={(e) => setReference(e.target.value)} />
+            <CodeInput id="pp-ref" value={reference} maxLength={120} onChange={(e) => setReference(e.target.value)} />
           </Field>
         </div>
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}

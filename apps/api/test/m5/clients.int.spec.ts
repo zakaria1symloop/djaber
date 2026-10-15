@@ -38,6 +38,15 @@ describe('clients', () => {
     expect((await owner.patch(`/clients/${other.body.data.id}`, { phone: '0555 12 34 56' }).expect(409)).body.error.code).toBe('CLIENT_PHONE_EXISTS');
   });
 
+  it('CLI-01 email: stored trimmed + lower-cased, blank means none, malformed ⇒ 422 validation.email (the rule the web form shows inline)', async () => {
+    const owner = await shop();
+    const a = await owner.post('/clients', { name: 'Amina Belkacem', phone: phone(), email: '  Amina.B@Boutique.DZ ' }).expect(201);
+    expect(a.body.data.email).toBe('amina.b@boutique.dz');
+    const b = await owner.post('/clients', { name: 'Nadia Ferhat', phone: phone(), email: '   ', phone2: ' ' }).expect(201);
+    expect(b.body.data).toMatchObject({ email: null, phone2: null });
+    expect((await owner.post('/clients', { name: 'Karim Ziani', phone: phone(), email: 'karim@boutique' }).expect(422)).body.error.fields).toMatchObject({ email: 'validation.email' });
+  });
+
   it('AT-CLI-03 / AT-CLI-06 delete with orders ⇒ CUSTOMER_HAS_ORDERS, archive ⇒ soft; orders keep the name; the list hides the client', async () => {
     const owner = await shop();
     const op = await asOperator(app, owner.workspaceId);

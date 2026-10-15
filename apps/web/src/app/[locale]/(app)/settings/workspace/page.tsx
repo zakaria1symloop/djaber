@@ -4,7 +4,7 @@
 // PAY-02 P2 — saved at once, like the stock mode).
 import { zodResolver } from '@hookform/resolvers/zod';
 import { normalizePhoneDz, WorkspaceProfileSchema, type WorkspaceProfileInput } from '@djaber/shared';
-import { Avatar, Button, Field, FormAlert, Input, Select, Skeleton, Switch, toast } from '@djaber/ui';
+import { Avatar, Button, Field, FormAlert, Input, MoneyInput, NumberInput, PhoneInput, Select, Skeleton, Switch, toast } from '@djaber/ui';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { ConflictDialog } from '@/components/global-states';
@@ -17,6 +17,7 @@ import { applyServerErrors, errorMessage, fieldError, useLeaveGuard } from '@/li
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 import { relativeTime } from '@/lib/time';
+import { formatPhoneOnBlur, phonePreviewLine } from '@/lib/phone';
 
 const toForm = (w: WorkspaceDto): WorkspaceProfileInput => ({
   name: w.name,
@@ -100,7 +101,7 @@ function WorkspaceForm() {
             {logo.uploading ? t('settings.upload.uploading') : t('settings.workspace.changeLogo')}
           </Button>
           {workspace.logoUrl && editable ? (
-            <Button variant="ghost" onClick={() => patch.mutate({ logoUploadId: null })} disabled={busy}>
+            <Button variant="ghost" onClick={() => patch.mutate({ logoUploadId: null }, { onError: (e) => toast({ tone: 'danger', message: errorMessage(e, t) }) })} disabled={busy}>
               {t('action.remove')}
             </Button>
           ) : null}
@@ -114,7 +115,7 @@ function WorkspaceForm() {
               <Input id="name" disabled={locked} aria-invalid={!!errors.name} {...form.register('name')} />
             </Field>
             <Field label={t('common.phone')} htmlFor="phone" error={fieldError(t, errors.phone?.message)}>
-              <Input id="phone" type="tel" dir="ltr" inputMode="tel" disabled={locked} aria-invalid={!!errors.phone} {...form.register('phone')} />
+              <PhoneInput id="phone" format={formatPhoneOnBlur} disabled={locked} aria-invalid={!!errors.phone} preview={phonePreviewLine(t, form.watch('phone'))} {...form.register('phone')} />
             </Field>
             <Field label={t('settings.workspace.locale')} htmlFor="ws-locale">
               <Select id="ws-locale" disabled={locked} {...form.register('locale')}>
@@ -163,7 +164,13 @@ function WorkspaceForm() {
               hint={t('settings.workspace.handoffReminderHint')}
               error={fieldError(t, errors.handoffReminderMin?.message, { min: 0, max: 1440 })}
             >
-              <Input id="handoffReminderMin" form="workspace-form" inputMode="numeric" dir="ltr" disabled={locked} aria-invalid={!!errors.handoffReminderMin} {...form.register('handoffReminderMin')} />
+              <Controller
+                control={form.control}
+                name="handoffReminderMin"
+                render={({ field }) => (
+                  <NumberInput id="handoffReminderMin" form="workspace-form" ref={field.ref} value={field.value} onValueChange={field.onChange} onBlur={field.onBlur} maxDigits={4} disabled={locked} aria-invalid={!!errors.handoffReminderMin} />
+                )}
+              />
             </Field>
             <Field
               label={t('settings.workspace.freeDelivery')}
@@ -171,14 +178,12 @@ function WorkspaceForm() {
               hint={t('settings.workspace.freeDeliveryHint')}
               error={errors.freeDeliveryThreshold ? t('settings.workspace.freeDeliveryInvalid') : undefined}
             >
-              <Input
-                id="freeDeliveryThreshold"
-                form="workspace-form"
-                inputMode="numeric"
-                dir="ltr"
-                disabled={locked}
-                aria-invalid={!!errors.freeDeliveryThreshold}
-                {...form.register('freeDeliveryThreshold')}
+              <Controller
+                control={form.control}
+                name="freeDeliveryThreshold"
+                render={({ field }) => (
+                  <MoneyInput id="freeDeliveryThreshold" form="workspace-form" ref={field.ref} value={field.value} onValueChange={field.onChange} onBlur={field.onBlur} disabled={locked} aria-invalid={!!errors.freeDeliveryThreshold} />
+                )}
               />
             </Field>
           </div>
@@ -204,7 +209,12 @@ function WorkspaceForm() {
           if (conflict?.current) {
             write(conflict.current);
             reset(toForm(conflict.current));
-          } else void refetchWorkspace().then(() => reset());
+          } else
+            void refetchWorkspace().then((r) => {
+              // the refetched version, not the defaults the form was created with
+              const fresh = (r as { data?: WorkspaceDto } | undefined)?.data;
+              if (fresh) reset(toForm(fresh));
+            });
           setConflict(null);
         }}
         onOverwrite={() => {

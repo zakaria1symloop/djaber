@@ -4,7 +4,7 @@
 // details, "Bloquer aussi ce client maintenant", 24 h note) and "Bloquer un numéro" (Settings › Sécurité).
 // Server errors stay inside the dialog and the content is kept (11 §10).
 import { CreateBlockSchema, type BlockReason, type CreateReportInput, type ReportReason } from '@djaber/shared';
-import { Button, Checkbox, Dialog, Field, FormAlert, Input, Select, Textarea, toast } from '@djaber/ui';
+import { Button, Checkbox, Dialog, Field, FormAlert, PhoneInput, Select, Textarea, toast } from '@djaber/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { ApiError } from '@/lib/api';
@@ -13,6 +13,7 @@ import { useT } from '@/lib/i18n';
 import { useWorkspaceId } from '@/lib/session';
 import { safetyApi, safetyKeys } from './api';
 import { BLOCK_REASONS, canBlockAlso, reportReasons } from './logic';
+import { formatPhoneOnBlur, phonePreviewLine } from '@/lib/phone';
 
 const withCode = (e: unknown, text: string) => (e instanceof ApiError ? `${text} (${e.code})` : text);
 
@@ -291,7 +292,18 @@ export function BlockNumberDialog({ open, onClose }: { open: boolean; onClose: (
         }}
       >
         <Field label={t('common.phone')} htmlFor="block-phone" required error={fieldError(t, phoneError)}>
-          <Input id="block-phone" dir="ltr" inputMode="tel" autoComplete="off" maxLength={20} placeholder="0555 12 34 56" value={phone} disabled={busy} aria-invalid={!!phoneError} onChange={(e) => setPhone(e.target.value)} />
+          <PhoneInput
+            id="block-phone"
+            autoComplete="off"
+            maxLength={20}
+            placeholder="0555 12 34 56"
+            value={phone}
+            format={formatPhoneOnBlur}
+            disabled={busy}
+            aria-invalid={!!phoneError}
+            onChange={(e) => setPhone(e.target.value)}
+            preview={phonePreviewLine(t, phone)}
+          />
         </Field>
         <Field label={t('safety.field.reasonOptional')} htmlFor="block-number-reason">
           <ReasonSelect id="block-number-reason" value={reason} onChange={setReason} disabled={busy} />

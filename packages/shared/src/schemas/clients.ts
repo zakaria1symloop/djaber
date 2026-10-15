@@ -23,7 +23,8 @@ export type ClientPill = (typeof CLIENT_PILLS)[number];
 // --- primitives -------------------------------------------------------------------------------------------------------
 const id = z.string({ required_error: 'validation.required', invalid_type_error: 'validation.id' }).uuid('validation.id');
 const ids = z.array(id, { required_error: 'validation.required' }).min(1, 'validation.required').max(CLIENT_BULK_MAX_IDS, 'validation.length');
-const emptyToNull = <T extends z.ZodTypeAny>(schema: T) => z.preprocess((v) => (v === '' ? null : v), schema.nullable().optional());
+/** `''` and blank strings (`'   '`) mean "no value" for an optional field (an email made of spaces is not an invalid email). */
+const emptyToNull = <T extends z.ZodTypeAny>(schema: T) => z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? null : v), schema.nullable().optional());
 /** 04 §2: normalised DZ phone (`+213 555 12 34 56` ⇒ `0555123456`). */
 export const clientPhone = z
   .string({ required_error: 'validation.required', invalid_type_error: 'validation.phone' })

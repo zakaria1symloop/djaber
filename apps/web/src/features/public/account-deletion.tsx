@@ -7,7 +7,7 @@
 // `ACCOUNT_DELETION_PENDING`); partial deletion ⇒ support link. After confirmation the URL carries the cancel token
 // (valid until the date) so a reload keeps the page.
 import { AccountDeletionPublicRequestSchema, formatDate, formatNumber, type AccountDeletionPublicDto, type AppLocale } from '@djaber/shared';
-import { Banner, Button, Card, Checkbox, ErrorState, Field, FormAlert, Input, NumberedSteps, ProgressBar, Skeleton, StateBlock, buttonClass } from '@djaber/ui';
+import { Banner, Button, Card, Checkbox, EmailInput, ErrorState, Field, FormAlert, NumberedSteps, ProgressBar, Skeleton, StateBlock, buttonClass } from '@djaber/ui';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { CheckCircle2, Clock, Lock, MailCheck } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
@@ -112,7 +112,7 @@ function RequestFlow() {
             }}
           >
             <Field label={t('public.deletion.form.email')} htmlFor="del-email" error={errors.email}>
-              <Input id="del-email" type="email" dir="ltr" autoComplete="email" value={email} maxLength={254} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!errors.email || undefined} />
+              <EmailInput id="del-email" value={email} maxLength={254} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!errors.email || undefined} />
             </Field>
             <div className="flex flex-col gap-1">
               <label className="flex items-start gap-2 text-[13px] text-text-secondary">

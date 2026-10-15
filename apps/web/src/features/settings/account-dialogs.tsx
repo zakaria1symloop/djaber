@@ -2,7 +2,7 @@
 // Account dialogs of "DLG — Settings & billing — dialogs catalogue": Changer l'e-mail, Supprimer mon compte.
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ChangeEmailSchema, formatDate, type AppLocale, type ChangeEmailInput } from '@djaber/shared';
-import { Button, buttonClass, Dialog, Field, FormAlert, Input, PasswordInput, Pill, toast } from '@djaber/ui';
+import { Button, buttonClass, Dialog, EmailInput, Field, FormAlert, Input, PasswordInput, Pill, toast } from '@djaber/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -78,7 +78,7 @@ export function ChangeEmailDialog({ open, onClose }: { open: boolean; onClose: (
       ) : (
         <form id="change-email" onSubmit={submit} noValidate className="flex flex-col gap-4">
           <Field label={t('settings.email.new')} htmlFor="newEmail" error={fieldError(t, errors.newEmail?.message)}>
-            <Input id="newEmail" type="email" dir="ltr" autoComplete="email" disabled={busy} aria-invalid={!!errors.newEmail} {...form.register('newEmail')} />
+            <EmailInput id="newEmail" disabled={busy} aria-invalid={!!errors.newEmail} {...form.register('newEmail')} />
           </Field>
           <Field label={t('common.password')} htmlFor="email-password" error={fieldError(t, errors.password?.message)}>
             <PasswordInput

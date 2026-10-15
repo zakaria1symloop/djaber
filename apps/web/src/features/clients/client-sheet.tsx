@@ -56,7 +56,7 @@ export function ClientDetailBody({ client: c }: { client: Client }) {
           </div>
           <div>
             <dt className="ts-label-micro text-text-muted">{t('common.email')}</dt>
-            <dd>{c.email ?? '—'}</dd>
+            <dd>{c.email ? <Ltr className="break-all">{c.email}</Ltr> : '—'}</dd>
           </div>
           <div>
             <dt className="ts-label-micro text-text-muted">{t('clients.sheet.defaultAddress')}</dt>

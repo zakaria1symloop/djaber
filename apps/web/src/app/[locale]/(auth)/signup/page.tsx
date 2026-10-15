@@ -2,7 +2,7 @@
 // /signup — Figma "AUTH — Sign up — field errors" (AUTH-01, FL-04).
 import { zodResolver } from '@hookform/resolvers/zod';
 import { RegisterSchema, type RegisterInput } from '@djaber/shared';
-import { Button, Field, FormAlert, Input, PasswordInput } from '@djaber/ui';
+import { Button, EmailInput, Field, FormAlert, Input, PasswordInput } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -72,11 +72,8 @@ export default function SignupPage() {
         </div>
         <div className="flex flex-col gap-1.5">
           <Field label={t('common.email')} htmlFor="email" required error={fieldError(t, errors.email?.message)}>
-            <Input
+            <EmailInput
               id="email"
-              type="email"
-              dir="ltr"
-              autoComplete="email"
               placeholder={t('auth.placeholder.email')}
               disabled={busy}
               aria-invalid={!!errors.email || emailTaken}

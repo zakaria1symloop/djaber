@@ -7,7 +7,7 @@
 // · courier refusal mapped to its field + banner "rien n'a été créé chez le transporteur" (AT-DLV-02) · no courier.
 import { formatMoney, formatPhoneDz } from '@djaber/shared';
 import { Button, buttonClass, Dialog, Field, FormAlert, Input, Ltr, MoneyInput, RadioCards, SegmentedControl, Skeleton, toast } from '@djaber/ui';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DialogFooter, useOnOpen } from '@/features/orders/dialogs/common';
 import type { Order } from '@/features/orders/contracts';
@@ -16,9 +16,10 @@ import { ApiError } from '@/lib/api';
 import { errorMessage } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { digitsToInt, moneyDigits } from '@/lib/money';
-import { useWorkspaceId } from '@/lib/session';
+import { useSession, useWorkspaceId } from '@/lib/session';
 import { uuid } from '@/lib/uuid';
-import { deliveryApi, deliveryKeys, useCouriers, useDeliveryOverview, useDeliveryRefresh, useShipment } from './api';
+import { deliveryApi, deliveryKeys, useCourierProviders, useCouriers, useDeliveryOverview, useDeliveryRefresh, useShipment } from './api';
+import { CourierDialog } from './couriers';
 import type { ShipmentErrorView } from '@djaber/shared';
 import type { CourierAccount, Shipment } from './contracts';
 import { CommuneCombobox, StopdeskCombobox, WilayaCombobox } from './geo';
@@ -70,6 +71,10 @@ export function SendToCourierDialog({
   const ws = useWorkspaceId();
   const refresh = useDeliveryRefresh();
   const couriers = useCouriers(open);
+  const qc = useQueryClient();
+  const { can } = useSession();
+  const [addCourier, setAddCourier] = useState(false);
+  const providers = useCourierProviders(open && !!couriers.data && !couriers.data.some((c) => c.isActive));
   const overview = useDeliveryOverview(open);
   const active = useMemo(() => (couriers.data ?? []).filter((c) => c.isActive), [couriers.data]);
   const [d, setD] = useState<Draft | null>(null);
@@ -241,9 +246,28 @@ export function SendToCourierDialog({
           <div className="flex flex-col gap-3" data-testid="send-no-courier">
             <FormAlert tone="info">{`${t('error.DELIVERY_NO_COURIER')} (DELIVERY_NO_COURIER)`}</FormAlert>
             <p className="text-[13px] text-text-secondary">{t('delivery.noCourier.description')}</p>
-            <Link href="/delivery/couriers" className={buttonClass({ variant: 'primary', className: 'self-start' })}>
-              {t('delivery.noCourier.cta')}
-            </Link>
+            {/* configured right here (nested dialog): the shipment being prepared is not left behind */}
+            {can('delivery.manage') ? (
+              <Button variant="primary" className="self-start" onClick={() => setAddCourier(true)} data-testid="send-add-courier">
+                {t('delivery.noCourier.cta')}
+              </Button>
+            ) : (
+              <Link href="/delivery/couriers" className={buttonClass({ variant: 'primary', className: 'self-start' })}>
+                {t('delivery.noCourier.cta')}
+              </Link>
+            )}
+            <CourierDialog
+              open={addCourier}
+              account={null}
+              provider="zrexpress"
+              providers={providers.data ?? []}
+              existing={couriers.data ?? []}
+              onClose={() => setAddCourier(false)}
+              onSaved={() => {
+                setAddCourier(false);
+                void Promise.all([qc.invalidateQueries({ queryKey: deliveryKeys.couriers(ws) }), qc.invalidateQueries({ queryKey: deliveryKeys.overview(ws) })]);
+              }}
+            />
           </div>
         ) : d ? (
           <>
