@@ -33,6 +33,7 @@ import {
   type FilterOption,
 } from '@djaber/ui';
 import { PackageCheck, SlidersHorizontal, Truck } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { ListFilteredEmpty, ListLoading, OfflineBanner, QueryError } from '@/components/global-states';
 import { ListPagination } from '@/features/catalog/ui';
@@ -42,7 +43,7 @@ import { Link, useRouter } from '@/i18n/navigation';
 import { actionState } from '@/lib/actions';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { downloadUrl, trackJob } from '@/lib/jobs';
-import { filterList, filterText } from '@/lib/list-state';
+import { filterList, filterText, listQueryString, patchListState } from '@/lib/list-state';
 import { useSession } from '@/lib/session';
 import { relativeTime } from '@/lib/time';
 import type { ListController } from '@/lib/use-list-state';
@@ -51,7 +52,7 @@ import { uuid } from '@/lib/uuid';
 import { refusal } from '@/features/orders/dialogs/common';
 import { SHIPMENT_ACTION } from './action-keys';
 import { deliveryApi, useCouriers, useDeliveryOverview, useDeliveryRefresh, useGeoWilayas, useShipments } from './api';
-import { BulkSendDialog, type SendTarget } from './bulk-send';
+import { BulkSendDialog, BulkSendResults, type SendTarget } from './bulk-send';
 import { COURIER_PROVIDERS, FAILURE_REASONS, type DeliveryRow } from './contracts';
 import { wilayaLabel } from './geo';
 import { PrintLabelsDialog } from './labels';
@@ -71,6 +72,13 @@ export function DeliveryOverviewPage() {
   const { can } = useSession();
   const list = useListState(DELIVERY_LIST);
   const s = list.state;
+  // `?job=<id>`: the "envoi groupé terminé" notification (Job bulk_send) opens its per-order results here
+  const params = useSearchParams();
+  const bulkJob = params.get('job');
+  const withoutJob = (next = s) => {
+    const qs = listQueryString(DELIVERY_LIST, next, [...params.entries()].filter(([key]) => key !== 'job'));
+    router.replace(qs ? `/delivery?${qs}` : '/delivery', { scroll: false });
+  };
   const tab = currentTab(s);
   const query = useMemo(() => shipmentsQuery(list.apiQuery(), tab), [list, tab]);
   const rowsQ = useShipments(query);
@@ -429,6 +437,16 @@ export function DeliveryOverviewPage() {
         })()}
       />
       <BulkSendDialog open={dialog === 'send'} orders={sendTargets} onClose={() => setDialog(null)} onFinished={() => setSelected(new Set())} />
+      <BulkSendResults
+        jobId={bulkJob}
+        open={!!bulkJob}
+        title={t('send.bulk.resultTitle')}
+        names={{}}
+        courierName={null}
+        // the failed orders are listed in "À envoyer" (filtered on them) to be sent again
+        onRetry={(ids) => withoutJob(patchListState(s, { tab: 'to_send', filters: { ids } }))}
+        onClose={() => withoutJob()}
+      />
       <PrintLabelsDialog open={dialog === 'labels'} orders={chosen.map((r) => ({ id: r.orderId, label: `#${r.orderNumber} · ${r.client.name}`, sent: !!r.shipment?.trackingNumber && r.shipment.status !== 'cancelled' }))} onClose={() => setDialog(null)} />
       {parcels.element}
     </div>

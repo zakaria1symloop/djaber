@@ -30,20 +30,21 @@ test.beforeAll(async ({ request }) => {
   orient = await supplier(request, owner, 'Parfumerie Orient');
 });
 
-test('GDS-06b — new purchase: untracked line refused (PURCHASE_UNTRACKED_PRODUCT), Brouillon then Commander; axe', async ({ page }) => {
+test('GDS-06b — new purchase: untracked product greyed in the picker (PURCHASE_UNTRACKED_PRODUCT), Brouillon then Commander; axe', async ({ page }) => {
   await signIn(page, owner);
   await open(page, `/fr/purchases/new?supplierId=${orient.id}`, () => page.getByTestId('purchase-form'));
   await expectNoA11yViolations(page);
   const form = page.getByTestId('purchase-form');
   await expect(form.getByLabel('Fournisseur')).toHaveValue(orient.id);
   const search = form.getByRole('searchbox').first();
+  // a service (untracked) is listed greyed with PURCHASE_UNTRACKED_PRODUCT and cannot be added
   await search.fill('Retouche');
-  await page.getByTestId('gds-product-results').locator(`[data-product="${service.id}"]`).click();
+  const refused = page.getByTestId('gds-product-results').locator(`[data-product="${service.id}"]`);
+  await expect(refused).toBeDisabled();
+  await expect(refused).toHaveAttribute('title', /est un service : non achetable/);
+  await expect(form.locator(`tr[data-line="${service.id}"]`)).toHaveCount(0);
   await search.fill('Parfum Oud');
   await page.getByTestId('gds-product-results').locator(`[data-product="${oud.id}"]`).click();
-  await page.getByTestId('purchase-save-draft').click();
-  await expect(form.locator(`tr[data-line="${service.id}"]`)).toContainText('PURCHASE_UNTRACKED_PRODUCT');
-  await form.locator(`tr[data-line="${service.id}"]`).getByRole('button', { name: /Retirer|Supprimer/ }).click();
   await form.getByLabel(/Coût unitaire — Parfum Oud/).fill('1500');
   await expect(page.getByTestId('purchase-totals')).toContainText(/1\s?500/);
   await page.getByTestId('purchase-save-draft').click();

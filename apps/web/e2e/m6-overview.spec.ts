@@ -138,6 +138,47 @@ test('AT-DLV-11 — failure flow: Échecs row (reason + attempt n/3), "Relancer"
   await expect(page.getByTestId('panel-returned')).toBeVisible();
 });
 
+test('MECH — bulk send results from the notification link (/delivery?job=): per-order outcome, retry lists the failed orders in "À envoyer"', async ({ page }) => {
+  // the job of an "envoi groupé" (kind bulk_send) is served finished, one order created and one refused
+  const jobId = '00000000-0000-7000-8000-00000000b5e1';
+  const failedOrder = '00000000-0000-7000-8000-00000000f001';
+  await page.route(new RegExp(`/api/v1/jobs/${jobId}$`), (route) =>
+    route.fulfill({
+      json: {
+        data: {
+          id: jobId,
+          kind: 'bulk_send',
+          status: 'partial',
+          progress: 100,
+          total: 2,
+          resultUrl: null,
+          error: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          expiresAt: null,
+          result: {
+            ok: 1,
+            failed: 1,
+            queued: 0,
+            results: [
+              { id: '00000000-0000-7000-8000-00000000a001', ok: true, orderNumber: '1201', data: { shipmentId: '00000000-0000-7000-8000-00000000c001', status: 'sent', trackingNumber: 'ZR-E2E-1' } },
+              { id: failedOrder, ok: false, orderNumber: '1202', error: { code: 'ORDER_ADDRESS_REQUIRED', message: 'Adresse requise' } },
+            ],
+          },
+        },
+      },
+    }),
+  );
+  await signIn(page, owner);
+  await open(page, `/fr/delivery?job=${jobId}`, () => page.getByTestId('bulk-send-results'));
+  const results = page.getByTestId('bulk-send-results');
+  await expect(results).toContainText('#1201');
+  await expect(results).toContainText('ORDER_ADDRESS_REQUIRED');
+  await page.getByTestId('bulk-send-retry').click();
+  await expect(page).toHaveURL(new RegExp(`tab=to_send.*ids=${failedOrder}|ids=${failedOrder}.*tab=to_send`));
+  await expect(page).not.toHaveURL(/job=/);
+});
+
 test('RTL — /ar/delivery mirrors the overview; tracking numbers stay left-to-right; axe', async ({ page }) => {
   await signIn(page, owner, 'ar');
   await open(page, '/ar/delivery?tab=all', () => page.getByTestId('delivery-kpis').locator('[data-kpi="toSend"]'));

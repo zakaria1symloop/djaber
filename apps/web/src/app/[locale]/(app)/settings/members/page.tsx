@@ -110,7 +110,7 @@ export default function MembersPage() {
           <Button variant="ghost" onClick={() => setDialog({ kind: 'roles' })}>
             {t('settings.members.seeRoles')}
           </Button>
-          {canWrite && atLimit && can('billing.write') ? (
+          {canWrite && atLimit && can('billing.plan') ? (
             <Link href="/settings/billing" className="text-[13px] text-text-secondary underline-offset-2 hover:text-text-primary hover:underline" data-testid="members-change-plan">
               {t('settings.members.invite.changePlan')}
             </Link>
@@ -178,7 +178,7 @@ export default function MembersPage() {
         </Card>
       )}
 
-      <InviteDialog open={dialog?.kind === 'invite'} atLimit={atLimit} count={count + pending} max={max} canChangePlan={can('billing.write')} onClose={() => setDialog(null)} onDone={refresh} />
+      <InviteDialog open={dialog?.kind === 'invite'} atLimit={atLimit} count={count + pending} max={max} canChangePlan={can('billing.plan')} onClose={() => setDialog(null)} onDone={refresh} />
       <RolesDialog open={dialog?.kind === 'roles'} onClose={() => setDialog(null)} />
       <TransferDialog
         open={dialog?.kind === 'transfer'}
