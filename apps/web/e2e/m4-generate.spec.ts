@@ -256,6 +256,17 @@ test('a page without linked agent only offers "Créer un nouvel agent"; a reload
   await expect(page).toHaveURL(new RegExp(`[?&]job=${empty.id}`));
   // nothing was started again
   expect(starts).toHaveLength(0);
+
+  // "Annuler" in the review asks before dropping the analysis (it counted in the daily limit)
+  await page.getByTestId('generate-discard').click();
+  const ask = page.getByRole('dialog');
+  await expect(ask.getByRole('heading', { name: 'Abandonner cette analyse ?' })).toBeVisible();
+  await ask.getByRole('button', { name: "Garder l'analyse" }).click();
+  await expect(root(page)).toHaveAttribute('data-phase', 'review');
+  await page.getByTestId('generate-discard').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Abandonner' }).click();
+  await expect(root(page)).toHaveAttribute('data-phase', 'choose', FIRST);
+  expect(starts).toHaveLength(0);
 });
 
 test('"Annuler" while running cancels the job and comes back to the choice', async ({ page, request }) => {
@@ -276,7 +287,7 @@ test('"Annuler" while running cancels the job and comes back to the choice', asy
   await expect(page.getByLabel('CANAL')).toHaveValue(shop.facebook.id);
 });
 
-test('failed job: message with its code, "Réessayer" goes back to the choice', async ({ page }) => {
+test('failed job: message with its code, "Réessayer" analyses the same page again (new job in the URL)', async ({ page }) => {
   // mock: a generation only fails on a provider / format error, which the fake AI never produces over HTTP
   await failJob(page, ANY_JOB, { code: 'AI_PROVIDER_ERROR', message: "L'IA ne répond pas ; la conversation passe en file.", params: {}, ref: done.id });
   const cancels = recordRequests(page, 'POST', /\/jobs\/[0-9a-f-]{36}\/cancel$/);
@@ -286,9 +297,13 @@ test('failed job: message with its code, "Réessayer" goes back to the choice', 
   await expect(root(page).getByRole('alert')).toContainText('Réessayez : une analyse échouée ne compte pas et ne coûte rien.');
   await expect(page.getByTestId('generate-review')).toHaveCount(0);
   await expect(page.getByTestId('generate-reconnect')).toHaveCount(0);
-  await clickForUrl(page, page.getByTestId('generate-retry'), /[?&]job=/, false);
-  await expect(root(page)).toHaveAttribute('data-phase', 'choose');
-  await expect(page.getByTestId('generate-start')).toBeEnabled();
+  const starts = recordRequests(page, 'POST', /\/agents\/generate$/);
+  await clearLimits();
+  await page.getByTestId('generate-retry').click();
+  await expect.poll(() => starts.length, POLL).toBe(1);
+  expect(starts.map(bodyOf)).toEqual([{ channelId: shop.facebook.id, days: 30 }]);
+  await expect(page).toHaveURL(/[?&]job=[0-9a-f-]{36}/, POLL);
+  await expect.poll(() => jobInUrl(page), POLL).not.toBe(done.id);
   // a finished job is not cancelled
   expect(cancels).toHaveLength(0);
 });

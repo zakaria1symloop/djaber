@@ -64,6 +64,9 @@ const next = (page: Page) => page.getByTestId('wizard-next');
 const summary = (page: Page) => page.getByTestId('validation-summary');
 const status = (page: Page) => page.getByTestId('wizard-status');
 /** "≈ 1,4 crédit / conversation": 1 per text reply, a photo (5) and a voice note (3) in one conversation out of twenty. */
+/** Label of a readiness row. */
+const label0 = (r: { checks: { key: string; label: string }[] }, key: string) => r.checks.find((c) => c.key === key)!.label;
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const estimate = (o: { imageRecognition: boolean; voiceTranscription: boolean }) => `≈ ${String(Math.round((1 + (o.imageRecognition ? 0.25 : 0) + (o.voiceTranscription ? 0.15 : 0)) * 100) / 100).replace('.', ',')} crédit / conversation`;
 const CAPABILITY_SHORT: [string, string][] = [
   ['replyText', 'Texte'],
@@ -473,8 +476,13 @@ test.describe('step 2 — knowledge', () => {
     await expect(row('Vous faites des coffrets cadeaux ?')).toContainText('SAISI');
     await expect(faq.getByTestId('faq-count')).toHaveText('4 / 50');
 
-    // delete
+    // delete: asked first (the row is removed on the server at once, outside "Annuler les modifications")
     await faq.getByRole('button', { name: 'Supprimer « Vous livrez à Tamanrasset ? »' }).click();
+    const confirmRemove = page.getByRole('dialog');
+    await expect(confirmRemove.getByRole('heading', { name: 'Supprimer cette question ?' })).toBeVisible();
+    expect(rec.writes.filter((x) => x.startsWith(`DELETE /agents/${draft.id}/faq/`))).toHaveLength(0);
+    await confirmRemove.getByRole('button', { name: 'Supprimer' }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(rows).toHaveCount(3);
     await expect(faq).not.toContainText('Vous livrez à Tamanrasset ?');
     await expect(faq).not.toContainText('EXTRAIT DE LA PAGE FB');
@@ -843,18 +851,21 @@ test.describe('step 5 — test & activation', () => {
       const error = page.getByTestId('activation-error');
       const activations = () => writesOf(rec, `POST /agents/${draft.id}/activate`);
 
-      // 1. draft without any page (real 422)
-      await activate.click();
-      await expect(error).toHaveAttribute('data-code', 'AGENT_NO_CHANNEL');
-      await expect(error).toContainText(/Rattachez au moins une page avant d['’]activer\./);
-      await expect(error).toContainText('(AGENT_NO_CHANNEL)');
-      await expect(page.getByTestId('activation-missing')).toHaveCount(0);
-      await expect(page.getByRole('dialog')).toHaveCount(0);
-      expect(activations().map(bodyOf)).toEqual([{}]);
+      // 1. draft without any page: the blocking row (✕) greys "Activer maintenant" and "Activer à une date" with what
+      // to fix — nothing is sent (the API would answer AGENT_NO_CHANNEL)
+      await expect(activate).toBeDisabled();
+      await expect(activate).toHaveAttribute('title', new RegExp(escapeRe(label0(readiness, 'channels'))));
+      await expect(page.getByTestId('activate-later')).toBeDisabled();
+      await expect(page.getByTestId('activation-blocked')).toContainText(label0(readiness, 'channels'));
+      await expect(error).toHaveCount(0);
+      expect(activations()).toEqual([]);
       await expectRoute(page, stepUrl('activate', draft.id));
 
-      // 2. the server lists what is missing
+      // 2. the server lists what is missing (the page is linked meanwhile: the screen reads the readiness again)
       await linkPage(api(page), owner, shop.instagram.id, draft.id);
+      await page.reload();
+      await expect(check(page, 'channels')).toHaveAttribute('data-state', 'ok', { timeout: 30_000 });
+      await expect(activate).toBeEnabled();
       // mock: the API reports AGENT_DRAFT_INCOMPLETE only for a draft without a name, and every write refuses an empty
       // name (VALIDATION_ERROR): the next activation is answered with the error the API would send
       await failOnce(page, new RegExp(`/api/v1/agents/${draft.id}/activate$`), 'POST', 422, 'AGENT_DRAFT_INCOMPLETE', 'Complétez : policies, channels.', { params: { 'missing[]': 'policies, channels' }, details: { missing: ['policies', 'channels'] } });
@@ -889,7 +900,7 @@ test.describe('step 5 — test & activation', () => {
       await deleteAgent(api(page), owner, helpers.pop()!);
       await activate.click();
       await expect(toastOf(page, `Agent « ${DRAFT} » activé : il répond dès le prochain message.`)).toBeVisible(TOAST);
-      expect(activations()).toHaveLength(4);
+      expect(activations()).toHaveLength(3);
       await expectRoute(page, new RegExp(`/fr/agents/${draft.id}$`));
       const saved = await getAgent(api(page), owner, draft.id);
       expect(saved.status).toBe('active');
@@ -937,6 +948,18 @@ test.describe('step 5 — test & activation', () => {
     const saved = (await getAgent(api(page), owner, draft.id)) as unknown as { status: string; scheduledActivateAt: string | null };
     expect(saved.status).toBe('draft');
     expect(saved.scheduledActivateAt).toBe('2031-01-15T09:30:00.000Z');
+
+    // back on step 5: the date input refuses the past (`min` = now) and the schedule can be cancelled
+    const rec2 = await openWizard(page, 'activate', draft.id);
+    await expect(page.getByTestId('activation-scheduled')).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId('activate-later').click();
+    await expect(page.getByRole('dialog').getByLabel('DATE ET HEURE')).toHaveAttribute('min', /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
+    await page.getByTestId('activation-unschedule').click();
+    await expect(toastOf(page, `Activation de « ${DRAFT} » annulée : l'agent reste en brouillon.`)).toBeVisible(TOAST);
+    expect(writesOf(rec2, `DELETE /agents/${draft.id}/activate`)).toHaveLength(1);
+    await expect(page.getByTestId('activation-scheduled')).toHaveCount(0);
+    expect(((await getAgent(api(page), owner, draft.id)) as unknown as { scheduledActivateAt: string | null }).scheduledActivateAt).toBeNull();
   });
 });
 

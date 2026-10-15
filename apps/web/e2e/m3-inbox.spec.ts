@@ -104,7 +104,7 @@ test('AT-INB-10 opening a thread marks it read; the client panel shows the place
 
   const panel = page.getByTestId('client-panel');
   await expect(panel.locator('[data-client-state]')).toHaveAttribute('data-client-state', 'placeholder');
-  await expect(panel).toContainText('PLACEHOLDER');
+  await expect(panel).toContainText('À compléter');
   await expect(panel).toContainText('Complétez le nom et le téléphone');
   await expectNoA11yViolations(page);
 });

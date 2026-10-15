@@ -9,8 +9,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Check, ChevronDown, MessageSquare, PanelRight } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { QueryError } from '@/components/global-states';
+import { useConnectFlow } from '@/features/channels/connect';
 import { useMembers, useQuickReplies } from '@/features/workspace/api';
 import { Link } from '@/i18n/navigation';
+import { actionState } from '@/lib/actions';
 import { ApiError } from '@/lib/api';
 import { errorMessage } from '@/lib/forms';
 import { useT } from '@/lib/i18n';
@@ -166,6 +168,13 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
   /* ---------- composer ---------- */
   const state = composerState(c, { readOnly, now });
   const banner = threadBanner(c, { now });
+  // "Reprendre l'IA" of the banners: greyed with its reason when the server refuses it (no agent on the page)
+  const resume = actionState(c.actions, 'resumeAi', t);
+  const resumeReason = resume.present && !resume.enabled ? resume.reason : undefined;
+  // "Reconnecter" of the banner starts the Meta flow for this page at once (same flow as the channel page)
+  const connect = useConnectFlow();
+  // a read-only member sees the header actions greyed with the reason (same text as the bulk bar)
+  const readOnlyReason = readOnly ? `${t('error.READ_ONLY_MEMBER')} (READ_ONLY_MEMBER)` : undefined;
   const [draft, setDraft] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -352,7 +361,7 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Menu
             trigger={
-              <Button disabled={busy || readOnly} data-testid="assign" className={COMPACT}>
+              <Button disabled={busy} disabledReason={readOnlyReason} data-testid="assign" className={COMPACT}>
                 {t('action.assign')}
                 <ChevronDown className="size-3.5" aria-hidden />
               </Button>
@@ -383,11 +392,11 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
             {t('inbox.note')}
           </Button>
           {closed ? (
-            <Button variant="primary" onClick={() => void actions.reopen(c)} loading={busy} disabled={readOnly} data-testid="reopen" className={COMPACT}>
+            <Button variant="primary" onClick={() => void actions.reopen(c)} loading={busy} disabledReason={readOnlyReason} data-testid="reopen" className={COMPACT}>
               {t('inbox.menu.reopen')}
             </Button>
           ) : (
-            <Button variant="primary" onClick={() => void actions.resolve(c)} loading={busy} disabled={readOnly} data-testid="resolve" className={COMPACT}>
+            <Button variant="primary" onClick={() => void actions.resolve(c)} loading={busy} disabledReason={readOnlyReason} data-testid="resolve" className={COMPACT}>
               {t('action.resolve')}
             </Button>
           )}
@@ -406,7 +415,7 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
           description={t('inbox.banner.aiPaused.description')}
           actions={
             readOnly ? null : (
-              <Button onClick={() => void actions.resumeAi(c)} disabled={busy} data-testid="resume-ai">
+              <Button onClick={() => void actions.resumeAi(c)} disabled={busy} disabledReason={resumeReason} data-testid="resume-ai">
                 {t('action.resumeAi')}
               </Button>
             )
@@ -419,7 +428,7 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
           description={t('inbox.banner.needsHuman.description')}
           actions={
             readOnly ? null : (
-              <Button onClick={() => void actions.resumeAi(c)} disabled={busy} data-testid="resume-ai">
+              <Button onClick={() => void actions.resumeAi(c)} disabled={busy} disabledReason={resumeReason} data-testid="resume-ai">
                 {t('action.resumeAi')}
               </Button>
             )
@@ -433,9 +442,9 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
           description={t('inbox.banner.reconnect.description')}
           actions={
             can('channels.manage') ? (
-              <Link href={`/channels/${c.channel.id}`} className="ts-label-meta uppercase text-accent-inbound hover:underline">
+              <button type="button" onClick={() => void connect.reconnect(c.channel)} disabled={connect.busy} className="ts-label-meta uppercase text-accent-inbound hover:underline disabled:opacity-50" data-testid="thread-reconnect">
                 {t('action.reconnect')}
-              </Link>
+              </button>
             ) : null
           }
         />
@@ -645,6 +654,7 @@ function LiveThread({ c, backHref, actions, onTogglePanel, onFocusNote }: { c: C
 
       <Lightbox src={lightbox} alt={t('inbox.media.image')} onClose={() => setLightbox(null)} closeLabel={t('action.close')} />
       <TemplateDialog open={templateOpen} onClose={() => setTemplateOpen(false)} conversation={c} />
+      {connect.element}
     </div>
   );
 }

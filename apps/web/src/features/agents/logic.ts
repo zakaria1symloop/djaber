@@ -331,6 +331,15 @@ export const previewReply = (sample: string, emojiLevel: AgentDraft['emojiLevel'
 export const previewLanguage = (d: Pick<AgentDraft, 'languages' | 'defaultLanguage'>): AgentLanguage => (d.defaultLanguage && d.languages.includes(d.defaultLanguage) ? d.defaultLanguage : (d.languages[0] ?? 'fr'));
 
 /* ---------- AGENT_DRAFT_INCOMPLETE {missing[]} ---------- */
+/** Readiness rows that block the activation (✕): their labels name what to fix in the disabled reason of "Activer". */
+export const blockingChecks = <C extends { ok: boolean; blocking?: boolean }>(checks: readonly C[] | undefined): C[] => (checks ?? []).filter((c) => !!c.blocking && !c.ok);
+
+/** `datetime-local` value of a date in the browser's time zone (`min` of "Activer à une date"): `2031-01-15T10:30`. */
+export const localDateTimeInput = (d: Date): string => {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
 export const missingKeys = (params: Record<string, unknown> | undefined, details: unknown): string[] => {
   const raw = (details as { missing?: unknown } | null)?.missing ?? params?.missing;
   if (Array.isArray(raw)) return raw.map(String);

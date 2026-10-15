@@ -135,6 +135,9 @@ test.describe('fixtures — statuses, report rows, dialogs', () => {
     await expect(explainer).toContainText('Lire et répondre aux messages de la page (pages_messaging)');
     await expect(explainer).toContainText('Jamais : publier, voir vos amis, vos données personnelles');
     await expect(explainer.getByTestId('connect-plan')).toHaveText('Plan : 3 / 3 pages');
+    // FL-05 F-2: at the limit the new pages will be skipped (PLAN_LIMIT); "Continuer" stays (reconnecting a page works)
+    await expect(explainer.getByTestId('connect-at-limit')).toContainText('(PLAN_LIMIT)');
+    await expect(explainer.getByTestId('connect-continue')).toBeEnabled();
     await explainer.getByRole('radio', { name: 'Instagram (DM)' }).click();
     await expect(explainer.getByTestId('connect-continue')).toHaveText('Continuer avec Instagram');
     await explainer.getByRole('radio', { name: 'Facebook (Messenger)' }).click();

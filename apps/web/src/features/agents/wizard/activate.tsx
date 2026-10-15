@@ -3,19 +3,22 @@
 // the 8 automatic scenarios (each opens the playground), "Tester moi-même", the 24 h test link, and the activation
 // (now · keep as draft · at a date). Activation is checked by the server: `AGENT_DRAFT_INCOMPLETE {missing[]}` lists
 // what to complete, `AGENT_NO_CHANNEL`, `PLAN_LIMIT {resource: agents}` (drafts never count) and
-// `AUTH_EMAIL_UNVERIFIED` block it. Tests are free and never touch customers or orders.
-import { Button, buttonClass, Dialog, Field, FormAlert, FormSection, Input, Ltr, ReadinessRow, Skeleton } from '@djaber/ui';
+// `AUTH_EMAIL_UNVERIFIED` block it. While a readiness row is blocking (✕) "Activer maintenant" / "Activer à une date"
+// are greyed with the list of what to fix; a scheduled activation can be cancelled (`DELETE /agents/:id/activate`).
+// Tests are free and never touch customers or orders.
+import { Button, buttonClass, Dialog, Field, FormAlert, FormSection, Input, Ltr, ReadinessRow, Skeleton, toast } from '@djaber/ui';
 import { formatDateTime, type AppLocale, type TestScenarioKey } from '@djaber/shared';
 import { useCallback, useEffect, useState } from 'react';
 import { QueryError } from '@/components/global-states';
 import { Link } from '@/i18n/navigation';
+import { actionState } from '@/lib/actions';
 import { ApiError } from '@/lib/api';
 import { errorMessage } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { isJobRunning, useJob } from '@/lib/jobs';
 import { agentsApi, useAgentsRefresh, useReadiness, useScenarios } from '../api';
 import type { Agent, ScenarioRun } from '../contracts';
-import { missingKeys } from '../logic';
+import { blockingChecks, localDateTimeInput, missingKeys } from '../logic';
 import { PlaygroundInspector, PlaygroundPane, agentTransport } from '../playground/playground';
 import { usePlayground } from '../playground/chat';
 import { isPlanLimit, PlanLimitDialog, TestLinkDialog } from '../use-agent-actions';
@@ -229,9 +232,27 @@ function EmbeddedBody({ agent, scenario }: { agent: Agent; scenario: TestScenari
 export function ActivationRail({ agent, activation, onSaveDraft }: { agent: Agent; activation: Activation; onSaveDraft: () => void }) {
   const t = useT();
   const locale = useLocaleCode() as AppLocale;
+  const refresh = useAgentsRefresh();
   const [schedule, setSchedule] = useState(false);
   const [at, setAt] = useState('');
   const [atError, setAtError] = useState<string | null>(null);
+  const [unscheduling, setUnscheduling] = useState(false);
+  // blocking readiness rows (✕) first, then the server descriptor of `activate` (role, status, no page)
+  const blocking = blockingChecks(activation.readiness.data?.checks);
+  const descriptor = actionState(agent.actions, 'activate', t);
+  const blockedReason = blocking.length ? t('gaps.agents.activate.blocked', { items: blocking.map((c) => c.label).join(', ') }) : descriptor.present && !descriptor.enabled ? descriptor.reason : undefined;
+  const unschedule = async () => {
+    setUnscheduling(true);
+    try {
+      await agentsApi.unschedule(agent.id);
+      await refresh(agent.id);
+      toast(t('gaps.agents.activate.unscheduled', { name: agent.name }));
+    } catch (e) {
+      toast({ tone: 'danger', message: errorMessage(e, t) });
+    } finally {
+      setUnscheduling(false);
+    }
+  };
   const submitAt = async () => {
     const date = at ? new Date(at) : null;
     if (!date || Number.isNaN(date.getTime()) || date.getTime() <= Date.now()) return setAtError(t('agents.activate.at.future'));
@@ -243,17 +264,25 @@ export function ActivationRail({ agent, activation, onSaveDraft }: { agent: Agen
       {agent.scheduledActivateAt ? (
         <FormAlert tone="info">
           <span data-testid="activation-scheduled">{t('agents.activate.scheduled', { date: formatDateTime(agent.scheduledActivateAt, locale) })}</span>
+          <Button size="sm" variant="ghost" className="mt-2" onClick={() => void unschedule()} loading={unscheduling} disabled={activation.pending !== null} data-testid="activation-unschedule">
+            {t('gaps.agents.activate.unschedule')}
+          </Button>
         </FormAlert>
       ) : null}
-      <Button variant="primary" className="w-full !justify-start" onClick={() => void activation.activate()} loading={activation.pending === 'now'} disabled={activation.pending !== null} data-testid="activate-now">
+      <Button variant="primary" className="w-full !justify-start" onClick={() => void activation.activate()} loading={activation.pending === 'now'} disabled={activation.pending !== null} disabledReason={blockedReason} data-testid="activate-now">
         {t('agents.activate.now')}
       </Button>
       <Button className="w-full !justify-start" onClick={onSaveDraft} disabled={activation.pending !== null} data-testid="activate-save-draft">
         {t('agents.activate.saveDraft')}
       </Button>
-      <Button variant="ghost" className="w-full !justify-start" onClick={() => setSchedule(true)} disabled={activation.pending !== null} data-testid="activate-later">
+      <Button variant="ghost" className="w-full !justify-start" onClick={() => setSchedule(true)} disabled={activation.pending !== null} disabledReason={blockedReason} data-testid="activate-later">
         {t('agents.activate.at')}
       </Button>
+      {blockedReason ? (
+        <p className="ts-label-meta text-accent-alert" data-testid="activation-blocked">
+          {blockedReason}
+        </p>
+      ) : null}
       <p className="ts-label-meta text-text-muted">
         {t('agents.activate.note')} <Ltr>(AGENT_CHANNEL_SWITCH_NEXT_THREAD)</Ltr>
       </p>
@@ -276,7 +305,7 @@ export function ActivationRail({ agent, activation, onSaveDraft }: { agent: Agen
         }
       >
         <Field label={t('agents.activate.at.label')} htmlFor="activate-at" error={atError ?? undefined}>
-          <Input id="activate-at" type="datetime-local" dir="ltr" value={at} onChange={(e) => setAt(e.target.value)} aria-invalid={!!atError || undefined} />
+          <Input id="activate-at" type="datetime-local" dir="ltr" min={localDateTimeInput(new Date())} value={at} onChange={(e) => setAt(e.target.value)} aria-invalid={!!atError || undefined} />
         </Field>
         {activation.error && schedule ? <FormAlert className="mt-3">{activation.error.message}</FormAlert> : null}
       </Dialog>

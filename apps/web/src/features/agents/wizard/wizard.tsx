@@ -4,13 +4,14 @@
 // created at the first save (`POST /agents`, status draft — drafts never count toward `maxAgents`) and auto-saved after
 // every change ("Brouillon enregistré il y a 12 s"); it resumes from the list (`?draft=<id>`). Back is always allowed.
 // Before the draft exists the form is kept in sessionStorage (session-expired recovery, 02-next-route-map §6).
-import { Button, buttonClass, FormAlert, OptionCard, Skeleton, SummaryRail, toast, ValidationSummary, WizardFrame, type WizardStep } from '@djaber/ui';
+import { Button, FormAlert, OptionCard, Skeleton, SummaryRail, toast, ValidationSummary, WizardFrame, type WizardStep } from '@djaber/ui';
 import { formatNumber, PLAYGROUND_TURNS_PER_HOUR } from '@djaber/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppPage } from '@/components/app-page';
+import { channelsApi, useChannels, useChannelsRefresh } from '@/features/channels/api';
 import { ConflictDialog, QueryError } from '@/components/global-states';
 import { Link, useRouter } from '@/i18n/navigation';
 import { conflictOf } from '@/lib/conflict';
@@ -121,8 +122,13 @@ function WizardBody({ step, agent, crumb }: { step: WizardStepKey; agent: Agent 
   const ws = useWorkspaceId();
   const qc = useQueryClient();
   const refresh = useAgentsRefresh();
-  const { workspace } = useSession();
+  const { workspace, can } = useSession();
   const presets = usePresets();
+  // "Créer un agent" of a page without agent (`/agents/new?channel=<id>`): the page is linked to the draft at creation
+  const channelParam = useSearchParams().get('channel');
+  const pages = useChannels(!agent && !!channelParam && can('channels.read'));
+  const refreshChannels = useChannelsRefresh();
+  const forPage = !agent && channelParam ? ((pages.data?.rows ?? []).find((c) => c.id === channelParam && c.status !== 'disconnected' && !c.agent) ?? null) : null;
 
   const [base, setBase] = useState<AgentDraft | null>(() => (agent ? draftFromAgent(agent) : null));
   const [draft, setDraft] = useState<AgentDraft>(() => (agent ? draftFromAgent(agent) : defaultDraft()));
@@ -155,7 +161,10 @@ function WizardBody({ step, agent, crumb }: { step: WizardStepKey; agent: Agent 
   }, []);
 
   const dirty = useMemo(() => (base ? dirtySections(base, draft).length > 0 : draft.name.trim() !== '' || start !== null), [base, draft, start]);
-  const { guard } = useLeaveGuard(dirty && saving === null, draft.name || t('agents.wizard.new'));
+  // leaving a draft that was never created drops its sessionStorage copy (it would come back on the next "Nouvel agent")
+  const { guard, ask } = useLeaveGuard(dirty && saving === null, draft.name || t('agents.wizard.new'), () => {
+    if (!agent) store(null);
+  });
 
   // a newer version of the draft arrived (WS refetch after a save made elsewhere): a form without unsaved changes takes
   // the fresh values; a form with changes is never rebased by an event (its next save meets the 409 and merges)
@@ -225,7 +234,14 @@ function WizardBody({ step, agent, crumb }: { step: WizardStepKey; agent: Agent 
         const created = await agentsApi.create({ ...(start === SCRATCH ? { fromScratch: true } : { presetKey: start }), ...sectionsPatch(draft, ['identity']) } as Parameters<typeof agentsApi.create>[0]);
         store(null);
         qc.setQueryData(agentKeys.one(ws, created.id), created);
-        void refresh();
+        if (forPage) {
+          // a refusal (the page got an agent meanwhile) leaves the draft as it is: step 4 links pages anyway
+          await channelsApi
+            .setAgent(forPage.id, { agentId: created.id })
+            .then(() => (toast(t('channels.link.toast.linked', { page: forPage.name, agent: created.name })), void refreshChannels(forPage.id)))
+            .catch((e) => toast({ tone: 'warning', message: errorMessage(e, t) }));
+        }
+        void refresh(forPage ? created.id : undefined);
         return created;
       }
       const sent = draft;
@@ -299,7 +315,8 @@ function WizardBody({ step, agent, crumb }: { step: WizardStepKey; agent: Agent 
   const errors = issueMap(issues);
   const fields = { draft, set, errors, readOnly: saving === 'next' || saving === 'quit' };
   const presetName = draft.presetKey ? (presets.data?.find((p) => p.key === draft.presetKey)?.name ?? agent?.preset?.name ?? draft.presetKey) : agent || start === SCRATCH ? t('agents.start.scratch') : '';
-  const conversations = workspace?.plan?.usage.conversationsThisMonth || 1_200;
+  // no conversation this month yet: the monthly estimate is not invented ("—"), only the cost per conversation is shown
+  const conversations = workspace?.plan?.usage.conversationsThisMonth ?? 0;
   const perConv = creditsPerConversation(draft);
   const status = saving ? t('common.saving') : !agent ? t('agents.wizard.status.unsaved') : changed ? t('agents.wizard.status.pending') : savedAt ? t('agents.wizard.status.saved', { ago: relativeTime(new Date(savedAt), locale) }) : t('agents.wizard.status.draft');
 
@@ -320,12 +337,17 @@ function WizardBody({ step, agent, crumb }: { step: WizardStepKey; agent: Agent 
         <div className="ts-label-micro text-text-muted">{t('agents.rail.estimate')}</div>
         <p className="ts-label-meta mt-1 text-text-secondary">
           <bdi>
-            {t('agents.rail.estimateValue', {
-              perConv: locale === 'en' ? String(perConv) : String(perConv).replace('.', ','),
-              conversations: formatNumber(conversations),
-              credits: formatNumber(monthlyCreditEstimate(draft, conversations)),
-              limit: formatNumber(workspace?.plan?.limits.monthlyCredits ?? 0),
-            })}
+            {conversations > 0
+              ? t('agents.rail.estimateValue', {
+                  perConv: locale === 'en' ? String(perConv) : String(perConv).replace('.', ','),
+                  conversations: formatNumber(conversations),
+                  credits: formatNumber(monthlyCreditEstimate(draft, conversations)),
+                  limit: formatNumber(workspace?.plan?.limits.monthlyCredits ?? 0),
+                })
+              : t('gaps.agents.rail.estimateNoUsage', {
+                  perConv: locale === 'en' ? String(perConv) : String(perConv).replace('.', ','),
+                  limit: formatNumber(workspace?.plan?.limits.monthlyCredits ?? 0),
+                })}
           </bdi>
         </p>
       </div>
@@ -344,9 +366,9 @@ function WizardBody({ step, agent, crumb }: { step: WizardStepKey; agent: Agent 
         footer={{
           back:
             step === 'identity' ? (
-              <Link href="/agents" className={buttonClass({ variant: 'ghost' })} data-testid="wizard-cancel">
+              <Button variant="ghost" onClick={() => ask(`/${locale}/agents`)} disabled={saving !== null} data-testid="wizard-cancel">
                 {t('action.cancel')}
-              </Link>
+              </Button>
             ) : (
               <Button variant="ghost" onClick={() => void leaveTo(previousStep(step) ?? 'identity')} disabled={saving !== null} data-testid="wizard-back">
                 <ArrowLeft className="size-4 rtl:-scale-x-100" aria-hidden />
@@ -374,6 +396,13 @@ function WizardBody({ step, agent, crumb }: { step: WizardStepKey; agent: Agent 
 
         {step === 'identity' ? (
           <>
+            {forPage ? (
+              <FormAlert tone="info">
+                <span data-testid="wizard-for-page" data-channel={forPage.id}>
+                  {t('gaps.agents.wizard.forPage', { page: forPage.name })}
+                </span>
+              </FormAlert>
+            ) : null}
             <section aria-label={t('agents.start.title')} data-testid="starting-point">
               <div className="ts-label-micro mb-2 text-text-muted">{t('agents.start.title')}</div>
               {agent ? (

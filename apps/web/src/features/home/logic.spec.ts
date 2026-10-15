@@ -1,6 +1,6 @@
 import type { HomeQueueItem, HomeView } from '@djaber/shared';
 import { describe, expect, it } from 'vitest';
-import { agentState, aiLive, checklistDone, homeTiles, QUICK_ACTION_HREF, queueHref, queueLabelKey, queueOverflow, queueText, queueToneKey, quickActionsOf, shortAge, sortQueue } from './logic';
+import { agentCta, agentState, aiLive, checklistDone, homeTiles, QUICK_ACTION_HREF, queueHref, queueLabelKey, queueOverflow, queueText, queueToneKey, quickActionsOf, shortAge, sortQueue } from './logic';
 
 const item = (key: string, kind: HomeQueueItem['kind'], urgency: 0 | 1 | 2, minAgo: number, now = Date.parse('2026-10-12T12:00:00Z')): HomeQueueItem => ({
   key,
@@ -132,5 +132,14 @@ describe('home handled cards (M8 carry-over, 03 §37 ANA-01)', () => {
     expect(sorted.map((i) => i.key)).toEqual(['open', 'h2', 'h1']);
     // handled cards never count in the "+ n autres" line
     expect(queueOverflow({ items: [h1, open, h2], total: 1, counts: { stock: 1 } } as unknown as HomeView['queue'], sorted)).toBeNull();
+  });
+});
+
+describe('agentCta — button of the agent row of a page card', () => {
+  it('none → link one, draft → finish, paused → resume, ready → regenerate', () => {
+    expect(agentCta({ id: 'p1', agent: null })).toEqual({ labelKey: 'home.pages.agent.link', href: '/channels/p1/ai' });
+    expect(agentCta({ id: 'p1', agent: { id: 'a1', name: 'x', status: 'draft' } })).toEqual({ labelKey: 'gaps.home.agent.finish', href: '/agents/a1' });
+    expect(agentCta({ id: 'p1', agent: { id: 'a1', name: 'x', status: 'paused' } })).toEqual({ labelKey: 'gaps.home.agent.resume', href: '/agents/a1' });
+    expect(agentCta({ id: 'p1', agent: { id: 'a1', name: 'x', status: 'active' } })).toEqual({ labelKey: 'home.pages.agent.regenerate', href: '/agents/generate?channel=p1' });
   });
 });

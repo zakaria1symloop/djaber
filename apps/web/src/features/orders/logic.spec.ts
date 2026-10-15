@@ -3,6 +3,8 @@ import { parseListState, serializeListState } from '@/lib/list-state';
 import type { BulkResponse, OrderListItem } from './contracts';
 import { activeChips, ORDERS_LIST, ordersQuery, periodOf, tabCountsQuery } from './list/spec';
 import {
+  draftChanged,
+  orderAnchor,
   actorKind,
   addressMissing,
   algiersInstant,
@@ -184,5 +186,25 @@ describe('KPIs and bulk', () => {
   it('row shape stays assignable to the shared list item', () => {
     const r: Pick<OrderListItem, 'confirmationStatus'> = { confirmationStatus: 'callback' };
     expect(r.confirmationStatus).toBe('callback');
+  });
+});
+
+describe('order page: inline edits and anchors', () => {
+  it('draftChanged: opening an edit is not a change, a typed difference is', () => {
+    const base = { clientName: 'Amina', clientPhone: '0550123456', clientPhone2: '' };
+    expect(draftChanged(null, base)).toBe(false);
+    expect(draftChanged({ ...base }, base)).toBe(false);
+    expect(draftChanged({ ...base, clientName: 'Amina B.' }, base)).toBe(true);
+    expect(draftChanged([{ id: 'i1', quantity: 1 }], [{ id: 'i1', quantity: 1 }])).toBe(false);
+    expect(draftChanged([{ id: 'i1', quantity: 2 }], [{ id: 'i1', quantity: 1 }])).toBe(true);
+    // no order loaded: an open draft counts
+    expect(draftChanged(base, null)).toBe(true);
+  });
+  it('orderAnchor accepts the blocks linked by notifications and the Home queue only', () => {
+    expect(orderAnchor('#delivery')).toBe('delivery');
+    expect(orderAnchor('#payment')).toBe('payment');
+    expect(orderAnchor('calls')).toBe('calls');
+    expect(orderAnchor('#items')).toBeNull();
+    expect(orderAnchor('')).toBeNull();
   });
 });

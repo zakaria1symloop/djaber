@@ -344,3 +344,10 @@ export function clearOrderDraft(route: string) {
 }
 /** True when the merchant typed something worth keeping (an untouched form leaves no draft and no leave guard). */
 export const isFormDirty = (v: OrderFormValues, initial: OrderFormValues): boolean => JSON.stringify(v) !== JSON.stringify(initial);
+
+/**
+ * "Annuler" of the form goes back where the order was started: the conversation (`?conversationId=`), the client
+ * sheet (`?clientId=`), the order being duplicated (`?duplicate=`), else the orders list.
+ */
+export const cancelHref = (o: { conversationId?: string | null; clientId?: string | null; duplicateId?: string | null }): string =>
+  o.conversationId ? `/inbox/${o.conversationId}` : o.clientId ? `/clients?sheet=${o.clientId}` : o.duplicateId ? `/orders/${o.duplicateId}` : '/orders';

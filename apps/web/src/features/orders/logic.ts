@@ -178,4 +178,17 @@ export function effectiveDateError(iso: string | null, now = new Date(), maxDays
   return null;
 }
 
+/**
+ * An inline edit of the order page (contact, items) counts as a change only once its draft differs from the values
+ * it was opened with: "Modifier" alone arms no leave guard.
+ */
+export const draftChanged = <T>(draft: T | null, base: T | null | undefined): boolean => draft !== null && (base === null || base === undefined || JSON.stringify(draft) !== JSON.stringify(base));
+
+/** Blocks of the order page reachable from a link (`/orders/:id#delivery`, notifications and the Home queue). */
+export const ORDER_PAGE_ANCHORS = ['delivery', 'payment', 'calls'] as const;
+export const orderAnchor = (hash: string): (typeof ORDER_PAGE_ANCHORS)[number] | null => {
+  const id = hash.replace(/^#/, '');
+  return (ORDER_PAGE_ANCHORS as readonly string[]).includes(id) ? (id as (typeof ORDER_PAGE_ANCHORS)[number]) : null;
+};
+
 export type { ConfirmationStatus };
