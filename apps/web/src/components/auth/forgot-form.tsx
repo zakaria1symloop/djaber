@@ -2,7 +2,7 @@
 // Forgot-password form: default · envoyé (always the same answer) · cooldown 60 s · mail indisponible.
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ForgotPasswordSchema, type ForgotPasswordInput } from '@djaber/shared';
-import { Button, EmailInput, Field, FormAlert, Input } from '@djaber/ui';
+import { Button, EmailInput, Field, FormAlert } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';

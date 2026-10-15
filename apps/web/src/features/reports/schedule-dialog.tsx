@@ -4,7 +4,7 @@
 // the plan has no `scheduled_reports` (or the API answers `403 PLAN_FEATURE_REQUIRED`): explanation + "Comparer les
 // plans". Errors stay inside the dialog, the typed e-mail is kept.
 import { ReportScheduleSchema, type ReportKey, type ReportScheduleView } from '@djaber/shared';
-import { Button, buttonClass, Dialog, EmailInput, Field, FormAlert, Input, Ltr, Select, toast } from '@djaber/ui';
+import { Button, buttonClass, Dialog, EmailInput, Field, FormAlert, Ltr, Select, toast } from '@djaber/ui';
 import { Lock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { refusal } from '@/features/orders/dialogs/common';

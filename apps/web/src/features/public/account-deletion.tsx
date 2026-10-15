@@ -7,7 +7,7 @@
 // `ACCOUNT_DELETION_PENDING`); partial deletion ⇒ support link. After confirmation the URL carries the cancel token
 // (valid until the date) so a reload keeps the page.
 import { AccountDeletionPublicRequestSchema, formatDate, formatNumber, type AccountDeletionPublicDto, type AppLocale } from '@djaber/shared';
-import { Banner, Button, Card, Checkbox, EmailInput, ErrorState, Field, FormAlert, Input, NumberedSteps, ProgressBar, Skeleton, StateBlock, buttonClass } from '@djaber/ui';
+import { Banner, Button, Card, Checkbox, EmailInput, ErrorState, Field, FormAlert, NumberedSteps, ProgressBar, Skeleton, StateBlock, buttonClass } from '@djaber/ui';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { CheckCircle2, Clock, Lock, MailCheck } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';

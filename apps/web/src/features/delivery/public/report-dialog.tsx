@@ -3,7 +3,7 @@
 // `POST /track/:publicToken/report { reason, details?, email?, captchaToken }` (no session; 3 / h / IP ⇒ 429 shown
 // inline). M11: the captcha of `GET /captcha/config` is required (fake checkbox in dev, Turnstile when configured);
 // a refused token (`422 fields.captchaToken = validation.captcha`) is shown under the widget, the form is kept.
-import { Dialog, EmailInput, Field, FormAlert, Input, Textarea } from '@djaber/ui';
+import { Dialog, EmailInput, Field, FormAlert, Textarea } from '@djaber/ui';
 import { useState } from 'react';
 import { CaptchaField, captchaNeeded, useCaptchaConfig } from '@/components/captcha';
 import { DialogFooter, RadioList, refusal, useOnOpen } from '@/features/orders/dialogs/common';

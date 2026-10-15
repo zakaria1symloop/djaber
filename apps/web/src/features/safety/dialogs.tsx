@@ -4,7 +4,7 @@
 // details, "Bloquer aussi ce client maintenant", 24 h note) and "Bloquer un numéro" (Settings › Sécurité).
 // Server errors stay inside the dialog and the content is kept (11 §10).
 import { CreateBlockSchema, type BlockReason, type CreateReportInput, type ReportReason } from '@djaber/shared';
-import { Button, Checkbox, Dialog, Field, FormAlert, Input, PhoneInput, Select, Textarea, toast } from '@djaber/ui';
+import { Button, Checkbox, Dialog, Field, FormAlert, PhoneInput, Select, Textarea, toast } from '@djaber/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { ApiError } from '@/lib/api';

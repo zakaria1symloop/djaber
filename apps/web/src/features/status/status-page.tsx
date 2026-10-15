@@ -5,7 +5,7 @@
 // EN COURS / RÉSOLU with updates, subscription dialog (`POST /status/subscribe { email, locale }`) → subscribed.
 // States: skeleton · operational · incident open · resolved list · empty history · error (Réessayer) · subscribed.
 import { StatusSubscribeSchema, type AppLocale } from '@djaber/shared';
-import { Banner, Button, Card, Dialog, EmailInput, ErrorState, Field, FormAlert, IncidentEntry, Input, Skeleton, StatusComponentRow, buttonClass } from '@djaber/ui';
+import { Banner, Button, Card, Dialog, EmailInput, ErrorState, Field, FormAlert, IncidentEntry, Skeleton, StatusComponentRow, buttonClass } from '@djaber/ui';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
