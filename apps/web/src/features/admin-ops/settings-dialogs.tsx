@@ -17,7 +17,7 @@ import {
   type PlatformSettingVersionDto,
   type SettingKey,
 } from '@djaber/shared';
-import { Checkbox, Dialog, Field, FormAlert, Input, Ltr, NumberInput, Select, Switch, Textarea, toast } from '@djaber/ui';
+import { Checkbox, Dialog, Field, FormAlert, Input, Ltr, NumberInput, Select, Switch, Textarea, toast, UrlInput } from '@djaber/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { DialogFooter, RadioList, useDialogSubmit, useOnOpen } from '@/features/orders/dialogs/common';
@@ -127,7 +127,7 @@ export function AppVersionDialog({ version, onClose }: { version: AppVersionDto 
           </Field>
         </div>
         <Field label={t('adminSettings.app.field.storeUrl')} htmlFor="av-url" error={s.fieldError('storeUrl')}>
-          <Input id="av-url" dir="ltr" value={storeUrl} onChange={(e) => setUrl(e.target.value)} />
+          <UrlInput id="av-url" autoComplete="off" value={storeUrl} onChange={(e) => setUrl(e.target.value)} aria-invalid={!!s.fieldError('storeUrl') || undefined} />
         </Field>
         <LocalizedFields idPrefix="av-msg" label={t('adminSettings.app.message')} value={message} onChange={setMessage} multiline required error={s.fieldError('updateMessage.fr')} />
         {force ? (

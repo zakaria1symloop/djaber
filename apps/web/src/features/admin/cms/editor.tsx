@@ -142,7 +142,7 @@ export function CmsEditor({ entry, canWrite, onClose }: { entry: CmsEntryAdminDt
           <Input id="cm-end" type="datetime-local" value={d.endsAt} onChange={(e) => setD((x) => ({ ...x, endsAt: e.target.value }))} className="[color-scheme:dark]" />
         </Field>
         <Field label={t('admin.cms.field.link')} htmlFor="cm-link">
-          <Input id="cm-link" dir="ltr" value={d.link} onChange={(e) => setD((x) => ({ ...x, link: e.target.value }))} />
+          <Input id="cm-link" dir="ltr" inputMode="url" autoComplete="off" spellCheck={false} autoCapitalize="none" value={d.link} onChange={(e) => setD((x) => ({ ...x, link: e.target.value }))} />
         </Field>
       </fieldset>
       {missing !== null ? (

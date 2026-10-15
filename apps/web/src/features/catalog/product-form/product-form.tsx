@@ -5,7 +5,7 @@
 // are saved by "Enregistrer"; image operations, stock adjustments, generated variants and deletions are immediate.
 import { zodResolver } from '@hookform/resolvers/zod';
 import { formatDate, formatNumber } from '@djaber/shared';
-import { Banner, Button, buttonClass, cn, Combobox, Field, FormAlert, Input, Ltr, MoneyInput, NumberInput, Pill, SectionLabel, Switch, Textarea, toast, Tooltip } from '@djaber/ui';
+import { Banner, Button, buttonClass, cn, CodeInput, Combobox, Field, FormAlert, Input, Ltr, MoneyInput, NumberInput, Pill, SectionLabel, Switch, Textarea, toast, Tooltip } from '@djaber/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
 import { usePathname, useSearchParams } from 'next/navigation';
@@ -498,7 +498,7 @@ export function ProductForm(props: Props) {
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={t('products.form.sku')} htmlFor="sku" required={mode === 'edit'} error={err('sku')} hint={t(mode === 'create' ? 'products.form.skuHintCreate' : 'products.form.skuHint')}>
-                <Input id="sku" dir="ltr" maxLength={255} autoComplete="off" disabled={locked} aria-invalid={!!errors.sku} {...form.register('sku')} />
+                <CodeInput id="sku" maxLength={255} disabled={locked} aria-invalid={!!errors.sku} {...form.register('sku')} />
               </Field>
               <Field label={t('products.form.keywords')} htmlFor="keywords" error={err('keywords')} hint={t('products.form.keywordsHint')}>
                 <Input id="keywords" dir="auto" disabled={locked} aria-invalid={!!errors.keywords} {...form.register('keywords')} />

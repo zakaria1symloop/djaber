@@ -4,7 +4,7 @@
 // Réactiver, Prolonger l'essai, Changer le plan, Niveau de confiance, Annuler la suppression, Se connecter en tant que.
 // Every write carries the reason (≥ 10 chars → AuditLog.reason); server errors stay inline, content preserved.
 import type { AdminChannelRowDto, AdminWorkspaceDetailDto, AdminWorkspaceRowDto, ImpersonationStartDto, PlanAdminDto } from '@djaber/shared';
-import { Checkbox, Field, Input, MonoChip, NumberInput, Select, toast } from '@djaber/ui';
+import { Checkbox, EmailInput, Field, Input, MonoChip, NumberInput, Select, toast } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useRouter } from '@/i18n/navigation';
@@ -490,7 +490,7 @@ export function CreateWorkspaceDialog({ open, onClose, onCreated }: { open: bool
           <Input id="f-wsname" value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
         <Field label={t('admin.ws.create.email')} required htmlFor="f-wsemail" error={errors.fields.ownerEmail}>
-          <Input id="f-wsemail" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <EmailInput id="f-wsemail" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">

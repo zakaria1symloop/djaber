@@ -5,7 +5,7 @@
 // EN COURS / RÉSOLU with updates, subscription dialog (`POST /status/subscribe { email, locale }`) → subscribed.
 // States: skeleton · operational · incident open · resolved list · empty history · error (Réessayer) · subscribed.
 import { StatusSubscribeSchema, type AppLocale } from '@djaber/shared';
-import { Banner, Button, Card, Dialog, ErrorState, Field, FormAlert, IncidentEntry, Input, Skeleton, StatusComponentRow, buttonClass } from '@djaber/ui';
+import { Banner, Button, Card, Dialog, EmailInput, ErrorState, Field, FormAlert, IncidentEntry, Input, Skeleton, StatusComponentRow, buttonClass } from '@djaber/ui';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -198,7 +198,7 @@ function SubscribeDialog({ open, onClose }: { open: boolean; onClose: () => void
       ) : (
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-3">
           <Field label={t('status.subscribe.email')} htmlFor="status-email" error={fieldError(t, form.formState.errors.email?.message)}>
-            <Input id="status-email" type="email" dir="ltr" autoComplete="email" {...form.register('email')} data-testid="status-subscribe-email" />
+            <EmailInput id="status-email" {...form.register('email')} data-testid="status-subscribe-email" />
           </Field>
           {error ? <FormAlert>{error}</FormAlert> : null}
         </form>

@@ -22,6 +22,7 @@ import {
   KpiTile,
   Ltr,
   MoneyInput,
+  PhoneInput,
   QtyStepper,
   SearchInput,
   SegmentedControl,
@@ -57,6 +58,7 @@ import { ClientPicker, useSaleActions } from './sale-dialogs';
 import { ListExportMenu } from './export-menu';
 import { AdvancedOnly, KpiSkeleton, PeriodDropdown, SaleStatusPill, shortName } from './ui';
 import { withoutYear } from '@/features/catalog/stock/logic';
+import { formatPhoneOnBlur, phoneError, phonePreviewLine } from '@/lib/phone';
 
 export const SALES_SPEC: ListSpec = {
   filters: { paymentStatus: 'list', status: 'list', createdById: 'list', clientId: 'text', productId: 'text', hasRemaining: 'bool', period: 'text', from: 'date', to: 'date' },
@@ -426,7 +428,16 @@ function NewSaleSheet({ draftId, onClose }: { draftId: string | null; onClose: (
           {newClient.open && !client ? (
             <div className="grid grid-cols-2 gap-2" data-testid="sale-new-client">
               <Input aria-label={t('common.name')} placeholder={t('common.name')} value={newClient.name} onChange={(e) => setNewClient((x) => ({ ...x, name: e.target.value }))} />
-              <Input aria-label={t('common.phone')} placeholder="0555 12 34 56" dir="ltr" inputMode="tel" value={newClient.phone} onChange={(e) => setNewClient((x) => ({ ...x, phone: e.target.value }))} />
+              <PhoneInput
+                aria-label={t('common.phone')}
+                placeholder="0555 12 34 56"
+                autoComplete="off"
+                value={newClient.phone}
+                format={formatPhoneOnBlur}
+                onChange={(e) => setNewClient((x) => ({ ...x, phone: e.target.value }))}
+                aria-invalid={!!phoneError(newClient.phone) || undefined}
+                preview={phonePreviewLine(t, newClient.phone)}
+              />
             </div>
           ) : (
             <ClientPicker id="sale-client" value={client} onPick={setClient} />

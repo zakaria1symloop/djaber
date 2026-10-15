@@ -52,6 +52,11 @@ export const EmailInput = React.forwardRef<HTMLInputElement, EmailInputProps>(fu
   );
 });
 
+/* ---------- Code field (SKU, reference, invoice / tracking number, shortcut): LTR, no autofill / spell check ---------- */
+export const CodeInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(function CodeInput(props, ref) {
+  return <Input ref={ref} dir="ltr" autoComplete="off" spellCheck={false} autoCapitalize="none" autoCorrect="off" {...props} />;
+});
+
 /* ---------- URL field: url keyboard, LTR, trimmed on blur ---------- */
 export const UrlInput = React.forwardRef<HTMLInputElement, Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'>>(function UrlInput({ onBlur, ...rest }, ref) {
   return (

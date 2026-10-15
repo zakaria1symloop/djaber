@@ -18,7 +18,7 @@ import {
   type PlatformProviderDto,
   type ProviderTestResultDto,
 } from '@djaber/shared';
-import { ActionsMenu, Button, ConfirmDialog, DataTable, Dialog, Field, Input, Ltr, NumberInput, OpsPanel, Skeleton, StatePill, Switch, toast, type Column, type OpsState } from '@djaber/ui';
+import { ActionsMenu, Button, ConfirmDialog, DataTable, Dialog, EmailInput, Field, Input, Ltr, NumberInput, OpsPanel, Skeleton, StatePill, Switch, toast, UrlInput, type Column, type OpsState } from '@djaber/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState, type ReactNode } from 'react';
 import { OfflineBanner } from '@/components/global-states';
@@ -443,10 +443,10 @@ function LegalPanel({ docs, contacts, onContacts, error }: { docs: LegalDocument
       )}
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <Field label={t('adminSettings.legal.deletionUrl')} htmlFor="legal-url">
-          <Input id="legal-url" dir="ltr" value={contacts.accountDeletionUrl} readOnly={!write.allowed} onChange={(e) => onContacts({ ...contacts, accountDeletionUrl: e.target.value })} />
+          <UrlInput id="legal-url" autoComplete="off" value={contacts.accountDeletionUrl} readOnly={!write.allowed} onChange={(e) => onContacts({ ...contacts, accountDeletionUrl: e.target.value })} />
         </Field>
         <Field label={t('adminSettings.legal.dpo')} htmlFor="legal-dpo">
-          <Input id="legal-dpo" dir="ltr" type="email" value={contacts.dpoEmail} readOnly={!write.allowed} onChange={(e) => onContacts({ ...contacts, dpoEmail: e.target.value })} />
+          <EmailInput id="legal-dpo" autoComplete="off" value={contacts.dpoEmail} readOnly={!write.allowed} onChange={(e) => onContacts({ ...contacts, dpoEmail: e.target.value })} />
         </Field>
       </div>
       {error ? (

@@ -4,7 +4,7 @@
 // the plan has no `scheduled_reports` (or the API answers `403 PLAN_FEATURE_REQUIRED`): explanation + "Comparer les
 // plans". Errors stay inside the dialog, the typed e-mail is kept.
 import { ReportScheduleSchema, type ReportKey, type ReportScheduleView } from '@djaber/shared';
-import { Button, buttonClass, Dialog, Field, FormAlert, Input, Ltr, Select, toast } from '@djaber/ui';
+import { Button, buttonClass, Dialog, EmailInput, Field, FormAlert, Input, Ltr, Select, toast } from '@djaber/ui';
 import { Lock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { refusal } from '@/features/orders/dialogs/common';
@@ -123,7 +123,7 @@ export function ScheduleDialog({ open, reportKey, planFeature, schedules, onClos
         ) : (
           <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
             <Field label={t('reports.schedule.email')} htmlFor="schedule-email" error={fieldErr.email}>
-              <Input id="schedule-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!fieldErr.email || undefined} autoComplete="email" />
+              <EmailInput id="schedule-email" value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!fieldErr.email || undefined} />
             </Field>
             <Field label={t('reports.schedule.day')} htmlFor="schedule-day" error={fieldErr.dayOfMonth}>
               <Select id="schedule-day" value={day} onChange={(e) => setDay(Number(e.target.value))}>

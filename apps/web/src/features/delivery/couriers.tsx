@@ -5,7 +5,7 @@
 // COURIER_UNAVAILABLE — save allowed) and "Supprimer le transporteur" (blocked COURIER_HAS_ACTIVE_SHIPMENTS → Désactiver).
 // States: skeleton · [E] no account (provider cards with "+ Ajouter") · cards · 403 without `delivery.manage`.
 import { formatNumber, formatPhoneDz, type AppLocale } from '@djaber/shared';
-import { Button, Card, Checkbox, CourierCard, CourierTestResult, Dialog, EmptyState, Field, FormAlert, Input, Ltr, SegmentedControl, Skeleton, Switch, toast, type CourierTestState, type Tone } from '@djaber/ui';
+import { Button, Card, Checkbox, CourierCard, CourierTestResult, Dialog, EmptyState, Field, FormAlert, Input, Ltr, PhoneInput, SegmentedControl, Skeleton, Switch, toast, type CourierTestState, type Tone } from '@djaber/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { Truck } from 'lucide-react';
 import { conflictOf, usePatchWorkspace, useWorkspaceCache } from '@/features/workspace/api';
@@ -27,6 +27,7 @@ import { deliveryApi, deliveryKeys, useCourierProviders, useCouriers, useGeoWila
 import type { CourierAccount, CourierInput, CourierPatch, CourierProvider, CourierProviderInfo, CourierTestResult as TestResult } from './contracts';
 import { WilayaCombobox, wilayaLabel } from './geo';
 import { credentialErrors } from './logic';
+import { formatPhoneOnBlur, phonePreviewLine } from '@/lib/phone';
 
 type ProviderKey = CourierProvider | 'manual';
 const PROVIDER_ORDER: ProviderKey[] = ['zrexpress', 'ecotrack', 'yalidine', 'manual'];
@@ -411,7 +412,7 @@ function CourierDialog({ open, account, provider: initial, providers, existing, 
                 <Input id="cr-sname" maxLength={80} value={f.senderName} onChange={(e) => set({ senderName: e.target.value })} />
               </Field>
               <Field label={t('couriers.field.senderPhone')} htmlFor="cr-sphone" error={err('sender_phone')}>
-                <Input id="cr-sphone" type="tel" dir="ltr" value={f.senderPhone} onChange={(e) => set({ senderPhone: e.target.value })} />
+                <PhoneInput id="cr-sphone" value={f.senderPhone} format={formatPhoneOnBlur} onChange={(e) => set({ senderPhone: e.target.value })} preview={phonePreviewLine(t, f.senderPhone)} />
               </Field>
               <Field label={t('couriers.field.senderWilaya')} htmlFor="cr-swilaya" error={err('sender_wilayaId')}>
                 <WilayaCombobox id="cr-swilaya" value={f.senderWilayaId} onChange={(id) => set({ senderWilayaId: id })} clearable />

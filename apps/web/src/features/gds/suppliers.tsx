@@ -13,10 +13,12 @@ import {
   buttonClass,
   Card,
   cn,
+  CodeInput,
   ConfirmDialog,
   DataTable,
   DetailRows,
   Dialog,
+  EmailInput,
   Field,
   FilterChips,
   FilterDropdown,
@@ -26,6 +28,7 @@ import {
   Ltr,
   MoneyInput,
   NumberInput,
+  PhoneInput,
   Pill,
   SearchInput,
   Select,
@@ -57,6 +60,9 @@ import { useListState } from '@/lib/use-list-state';
 import { gdsApi, useGdsRefresh, useSupplier, useSuppliers } from './api';
 import { PAYMENT_METHODS, type CashMethod, type Supplier, type SupplierRow } from './contracts';
 import { AdvancedOnly, PaymentPill, PurchaseStatusPill, useDayLabel } from './ui';
+import { emailError, emailOrNull } from '@/lib/email';
+import { fieldError } from '@/lib/forms';
+import { formatPhoneOnBlur, phoneError, phonePreviewLine } from '@/lib/phone';
 
 export const SUPPLIERS_SPEC: ListSpec = {
   filters: { hasBalance: 'bool', lastPurchase: 'text', isActive: 'text' },
@@ -435,10 +441,12 @@ export function SupplierDialog({ open, supplier, onClose, onCreated }: { open: b
   const source = supplier && 'notes' in supplier ? supplier : (full.data ?? supplier);
   const [f, setF] = useState<SupplierForm>(toForm(null));
   const [touched, setTouched] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   useOnOpen(open, () => {
     setF(toForm(source));
     setTouched(false);
+    setEmailTouched(false);
     setLoadedFor(source && 'notes' in source ? source.id : null);
   });
   if (open && source && 'notes' in source && loadedFor !== source.id) {
@@ -450,7 +458,7 @@ export function SupplierDialog({ open, supplier, onClose, onCreated }: { open: b
   const body = {
     name: f.name.trim(),
     phone: f.phone.trim() || null,
-    email: f.email.trim() || null,
+    email: emailOrNull(f.email),
     address: f.address.trim() || null,
     terms: f.terms.trim() || null,
     paymentTermsDays: f.paymentTermsDays ? Number(f.paymentTermsDays) : null,
@@ -460,7 +468,8 @@ export function SupplierDialog({ open, supplier, onClose, onCreated }: { open: b
   const s = useDialogSubmit(() => (supplier ? gdsApi.updateSupplier(supplier.id, body) : gdsApi.createSupplier(body)));
   const submit = async () => {
     setTouched(true);
-    if (f.name.trim().length < 2) return;
+    // same rules as the API (shared `email` / DZ phone), shown inline before any request
+    if (f.name.trim().length < 2 || emailError(f.email) || phoneError(f.phone)) return;
     const r = await s.submit();
     if (!r) return;
     toast(t(supplier ? 'suppliers.saved' : 'suppliers.created', { name: r.name }));
@@ -483,10 +492,26 @@ export function SupplierDialog({ open, supplier, onClose, onCreated }: { open: b
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t('common.phone')} htmlFor="sup-phone" error={s.fieldError('phone')}>
-            <Input id="sup-phone" dir="ltr" inputMode="tel" value={f.phone} onChange={(e) => set('phone')(e.target.value)} placeholder="0661 98 76 54" />
+            <PhoneInput
+              id="sup-phone"
+              autoComplete="off"
+              value={f.phone}
+              format={formatPhoneOnBlur}
+              onChange={(e) => set('phone')(e.target.value)}
+              placeholder="0661 98 76 54"
+              aria-invalid={(touched && !!phoneError(f.phone)) || !!s.fieldError('phone') || undefined}
+              preview={phonePreviewLine(t, f.phone)}
+            />
           </Field>
-          <Field label={t('common.email')} htmlFor="sup-email" error={s.fieldError('email')}>
-            <Input id="sup-email" dir="ltr" type="email" value={f.email} onChange={(e) => set('email')(e.target.value)} />
+          <Field label={t('common.email')} htmlFor="sup-email" error={(emailTouched || touched) && emailError(f.email) ? fieldError(t, emailError(f.email) ?? undefined) : s.fieldError('email')}>
+            <EmailInput
+              id="sup-email"
+              autoComplete="off"
+              value={f.email}
+              onChange={(e) => set('email')(e.target.value)}
+              onBlur={() => setEmailTouched(true)}
+              aria-invalid={((emailTouched || touched) && !!emailError(f.email)) || undefined}
+            />
           </Field>
         </div>
         <Field label={t('common.address')} htmlFor="sup-address" error={s.fieldError('address')}>
@@ -586,7 +611,7 @@ export function SupplierPaymentDialog({ supplier, onClose, purchaseId }: { suppl
           </Select>
         </Field>
         <Field label={t('suppliers.payment.reference')} htmlFor="sp-ref">
-          <Input id="sp-ref" value={reference} maxLength={120} onChange={(e) => setReference(e.target.value)} />
+          <CodeInput id="sp-ref" value={reference} maxLength={120} onChange={(e) => setReference(e.target.value)} />
         </Field>
         <p className="ts-label-micro !normal-case text-text-muted">{t('suppliers.payment.note', { number: first ? `#${first.number}` : '—' })}</p>
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}

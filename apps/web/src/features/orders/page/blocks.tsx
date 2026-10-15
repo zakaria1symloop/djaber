@@ -9,7 +9,7 @@ import { ProductThumb } from '@/features/catalog/ui';
 import { Link } from '@/i18n/navigation';
 import { actionState } from '@/lib/actions';
 import { useLocaleCode, useT } from '@/lib/i18n';
-import { phonePreview, phonePreviewLine } from '@/lib/phone';
+import { formatPhoneOnBlur, phonePreview, phonePreviewLine } from '@/lib/phone';
 import { relativeTime } from '@/lib/time';
 import { ORDER_ACTION } from '../action-keys';
 import type { Order, OrderItem } from '../contracts';
@@ -84,10 +84,10 @@ export function ClientBlock({
               <Input id="ct-name" value={draft.clientName} maxLength={120} disabled={saving} onChange={(e) => onDraft({ ...draft, clientName: e.target.value })} aria-invalid={!!errors.clientName || undefined} />
             </Field>
             <Field label={t('common.phone')} htmlFor="ct-phone" error={errors.clientPhone && t(errors.clientPhone)}>
-              <PhoneInput id="ct-phone" value={draft.clientPhone} disabled={saving} onChange={(e) => onDraft({ ...draft, clientPhone: e.target.value })} preview={phonePreviewLine(t, draft.clientPhone)} aria-invalid={!!errors.clientPhone || undefined} />
+              <PhoneInput id="ct-phone" value={draft.clientPhone} format={formatPhoneOnBlur} disabled={saving} onChange={(e) => onDraft({ ...draft, clientPhone: e.target.value })} preview={phonePreviewLine(t, draft.clientPhone)} aria-invalid={!!errors.clientPhone || undefined} />
             </Field>
             <Field label={t('common.phone2')} htmlFor="ct-phone2" error={errors.clientPhone2 && t(errors.clientPhone2)}>
-              <PhoneInput id="ct-phone2" value={draft.clientPhone2} disabled={saving} onChange={(e) => onDraft({ ...draft, clientPhone2: e.target.value })} preview={phonePreviewLine(t, draft.clientPhone2)} />
+              <PhoneInput id="ct-phone2" value={draft.clientPhone2} format={formatPhoneOnBlur} disabled={saving} onChange={(e) => onDraft({ ...draft, clientPhone2: e.target.value })} preview={phonePreviewLine(t, draft.clientPhone2)} />
             </Field>
           </div>
           {error ? <FormAlert>{error}</FormAlert> : null}

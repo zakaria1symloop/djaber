@@ -5,7 +5,7 @@
 // rows travel in `POST /products`; on a saved one each changed row is saved through the variant endpoints by
 // "Enregistrer", its stock is read-only and moves through "Ajuster".
 import { formatNumber, VARIANTS_MAX } from '@djaber/shared';
-import { ActionsMenu, Button, cn, ConfirmDialog, Field, FormAlert, Input, Ltr, MoneyInput, NumberInput, Pill, SectionLabel, Switch, type MenuAction } from '@djaber/ui';
+import { ActionsMenu, Button, cn, CodeInput, ConfirmDialog, Field, FormAlert, Input, Ltr, MoneyInput, NumberInput, Pill, SectionLabel, Switch, type MenuAction } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Controller, type UseFieldArrayReturn, type UseFormReturn } from 'react-hook-form';
@@ -202,7 +202,7 @@ export function StockSection({ form, rows, values, mode, product, advanced, lock
                         <Input id={id('name')} dir="auto" maxLength={VARIANT_NAME_MAX} disabled={locked} aria-invalid={!!rowErrors?.name} {...form.register(`variants.${i}.name`)} />
                       </Field>
                       <Field label={t('products.form.sku')} htmlFor={id('sku')} error={fieldError(t, rowErrors?.sku?.message, { max: 255 })}>
-                        <Input id={id('sku')} dir="ltr" maxLength={255} disabled={locked} aria-invalid={!!rowErrors?.sku} {...form.register(`variants.${i}.sku`)} />
+                        <CodeInput id={id('sku')} maxLength={255} disabled={locked} aria-invalid={!!rowErrors?.sku} {...form.register(`variants.${i}.sku`)} />
                       </Field>
                       <Field label={t('common.price')} htmlFor={id('price')} required error={fieldError(t, rowErrors?.price?.message)}>
                         <Controller
