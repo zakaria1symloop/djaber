@@ -21,3 +21,6 @@ playwright-report/
 
 # owner documents kept on the local machine only
 Cahier_des_Charges_*.pdf
+
+# local agent worktrees
+.claude/worktrees/
