@@ -163,3 +163,6 @@ Applied on 2026-10-11 by script to the Figma file: **95 / 95 rows** (Web V2: 86 
 | Web V2 | PUB — Pricing page (plans · FAQ · CTA) | badge `Populaire` on `Starter` | badge on the plan with `Plan.isFeatured` (seed: `Pro`) |
 | Web V2 | DLG — Settings & billing — dialogs catalogue (Google Sheets — choisir la feuille) | `Après OAuth Google (pop-up)` | `Compte Google : {email}` (same-tab redirect of the contract; the dialog opens on return) |
 | Web V2 | AGT-02 — Agent wizard — step 2 knowledge | `Importer un fichier (PDF, DOCX, TXT · 5 Mo)` | `Importer un fichier (DOCX, TXT · 5 Mo)` (PDF import open in carry-overs) |
+| Web V2 | PUB — Legal (CMS) · Landing & help · Meta data-deletion status | `Voir une démo` | `Voir les fonctionnalités` (no demo exists; the button opens `/features`) |
+| Web V2 | HELP — Help & support (merchant) | `Visite guidée` | `Bien démarrer` (opens the getting-started guides; no guided tour exists) |
+| Web V2 | SET — Settings — Members & invitations | `le membre sera créé en lecture seule` | `changez de plan ou retirez un membre pour inviter (PLAN_LIMIT members)` |

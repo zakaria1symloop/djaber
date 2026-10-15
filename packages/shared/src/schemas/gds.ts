@@ -407,13 +407,15 @@ export const CreateSaleSchema = z
 export type CreateSaleInput = z.infer<typeof CreateSaleSchema>;
 
 /**
- * `PATCH /sales/:id` — a draft is fully editable (items, discount, tax, client, payment) and `status=completed`
+ * `PATCH /sales/:id` — a draft is fully editable (items, discount, tax, client — `clientId` or a new `client { name, phone }` —, payment) and `status=completed`
  * validates it; on a completed sale only `notes` and `paymentMethod` change (items / discount / tax ⇒ 422 SALE_IMMUTABLE:
  * cancel + redo). Cancelled ⇒ 422 SALE_IMMUTABLE.
  */
 export const UpdateSaleSchema = z
   .object({
     clientId: emptyToNull(id),
+    /** draft only: a new client typed in the sheet (found by phone or created), like `POST /sales` */
+    client: z.object({ name: fullName, phone }).strict().nullable().optional(),
     items: saleItems.optional(),
     discount: money.optional(),
     tax: money.optional(),
@@ -423,7 +425,10 @@ export const UpdateSaleSchema = z
     soldAt: instant.optional(),
     status: z.literal('completed').optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((v, ctx) => {
+    if (v.clientId && v.client) ctx.addIssue({ code: 'custom', path: ['client'], message: 'validation.invalid' });
+  });
 export type UpdateSaleInput = z.infer<typeof UpdateSaleSchema>;
 /** `POST /sales/:id/payments` (Idempotency-Key required) `[FIG DLG Encaisser le reste]` — ≤ remaining. */
 export const SalePaymentSchema = GdsPaymentSchema;

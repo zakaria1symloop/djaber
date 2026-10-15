@@ -4,7 +4,7 @@
 // pills, "PRÉVU LE" with ✓ / (retard), the cancel reason, `Actions ⌄` from the server descriptors (receive, pay,
 // duplicate, print, cancel, delete) and the receive dialog.
 import { formatDate, formatMoney, formatNumber, type AppLocale } from '@djaber/shared';
-import { ActionsMenu, ActiveFilters, buttonClass, Card, cn, DataTable, FilterCheckList, FilterChips, FilterDropdown, FilterToggle, KpiTile, Ltr, SearchInput, type Column } from '@djaber/ui';
+import { ActionsMenu, ActiveFilters, Button, buttonClass, Card, cn, DataTable, FilterCheckList, FilterChips, FilterDropdown, FilterToggle, KpiTile, Ltr, SearchInput, type Column } from '@djaber/ui';
 import { useMemo } from 'react';
 import { AppPage } from '@/components/app-page';
 import { ListEmpty, ListFilteredEmpty, ListLoading, OfflineBanner, QueryError } from '@/components/global-states';
@@ -103,9 +103,15 @@ function PurchasesList() {
         <>
           <ListExportMenu path="/purchases/export" filters={list.filterQuery()} entity={t('purchases.export.entity')} file={t('purchases.export.file')} disabledReason={offline ? t('banner.offline') : undefined} />
           {canWrite ? (
-            <Link href="/purchases/new" className={buttonClass({ variant: 'primary' })} aria-disabled={offline || undefined} data-testid="purchase-new">
-              {t('purchases.new')}
-            </Link>
+            offline ? (
+              <Button variant="primary" disabled disabledReason={t('banner.offline')} data-testid="purchase-new">
+                {t('purchases.new')}
+              </Button>
+            ) : (
+              <Link href="/purchases/new" className={buttonClass({ variant: 'primary' })} data-testid="purchase-new">
+                {t('purchases.new')}
+              </Link>
+            )
           ) : null}
         </>
       }

@@ -116,18 +116,21 @@ function CashLedger() {
   const panelFiltered = chips.length > 0 || s.q.trim().length > 0;
   const clearPanel = () => list.set({ q: '', filters: { direction: null, category: null, method: null, createdById: null, source: null } });
 
+  // closing gap / reopening rows open their day; a correction row finds the row it corrects (same reference)
   const openReference = (r: CashRow) => {
     const ref = r.reference;
     if (!ref) return;
     if (ref.type === 'order') router.push(`/orders/${ref.id}`);
     else if (ref.type === 'sale') router.push(`/sales/${ref.id}`);
     else if (ref.type === 'purchase') router.push(`/purchases/${ref.id}`);
+    else if (ref.type === 'closing') list.set({ q: '', filters: { day: ref.label, period: null, from: null, to: null } });
+    else if (ref.type === 'cash' && ref.label) list.set({ q: ref.label });
   };
   const menu = (r: CashRow) =>
     toMenuActions(
       r.actions,
       {
-        open_reference: { label: t('cash.action.openReference'), hint: t('gds.hint.page'), onSelect: () => openReference(r) },
+        open_reference: { label: t('cash.action.openReference'), hint: r.reference?.type === 'closing' || r.reference?.type === 'cash' ? undefined : t('gds.hint.page'), onSelect: () => openReference(r), hidden: !r.reference || (r.reference.type === 'cash' && !r.reference.label) },
         edit: { label: t('action.edit'), hint: t('gds.hint.dialog'), onSelect: () => setManual({ kind: 'edit', row: r }) },
         duplicate: { label: t('action.duplicate'), onSelect: () => setManual({ kind: 'duplicate', row: r }) },
         correct: { label: t('cash.action.correct'), hint: t('gds.hint.dialog'), onSelect: () => setManual({ kind: 'correct', row: r }) },

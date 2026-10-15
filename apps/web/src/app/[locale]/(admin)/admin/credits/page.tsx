@@ -6,6 +6,7 @@ import type { AdminPacksKpis, CreditPackAdminDto, PromoCodeDto } from '@djaber/s
 import { ActionsMenu, Button, DataTable, EmptyState, FrameNote, ListSkeleton, MonoChip, OpsKpiStrip, OpsKpiTile, OpsPanel, toast, type Column } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useConfirmAction } from '@/components/confirm-action';
 import { ListPagination } from '@/features/catalog/ui';
 import { AdminPage, AdminQueryError } from '@/features/admin/admin-page';
 import { adminWrite, useAdminInvalidate, useAdminList } from '@/features/admin/api';
@@ -20,6 +21,7 @@ import { useListState } from '@/lib/use-list-state';
 
 export default function AdminCreditsPage() {
   const t = useT();
+  const confirm = useConfirmAction();
   const f = useFormats();
   const { can } = usePlatform();
   const write = can('admin.billing.write');
@@ -73,13 +75,19 @@ export default function AdminCreditsPage() {
                 destructive: true,
                 separated: true,
                 onSelect: () =>
-                  void deactivate
-                    .mutateAsync(p.id)
-                    .then(() => {
-                      void invalidate('/admin/promo-codes');
-                      toast(t('admin.credits.promo.deactivated', { code: p.code }));
-                    })
-                    .catch((e) => toast({ tone: 'danger', message: errorMessage(e, t) })),
+                  confirm.ask({
+                    title: t('admin.credits.promo.deactivateConfirm', { code: p.code }),
+                    confirmLabel: t('admin.credits.promo.deactivate'),
+                    destructive: true,
+                    run: () =>
+                      deactivate
+                        .mutateAsync(p.id)
+                        .then(() => {
+                          void invalidate('/admin/promo-codes');
+                          toast(t('admin.credits.promo.deactivated', { code: p.code }));
+                        })
+                        .catch((e) => toast({ tone: 'danger', message: errorMessage(e, t) })),
+                  }),
               },
             ]
           : []),
@@ -168,6 +176,7 @@ export default function AdminCreditsPage() {
       <PackDialog pack={pack?.pack ?? null} open={!!pack} onClose={() => setPack(null)} />
       <RedemptionsDialog promo={redemptions} onClose={() => setRedemptions(null)} />
       <PricingHistoryDialog open={history} onClose={() => setHistory(false)} />
+      {confirm.element}
     </AdminPage>
   );
 }

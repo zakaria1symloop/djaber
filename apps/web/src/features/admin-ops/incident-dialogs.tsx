@@ -6,6 +6,7 @@ import { formatDateTime, STATUS_COMPONENTS, type IncidentCreateInput, type Incid
 import { Button, Checkbox, Dialog, Field, FormAlert, NumberInput, OrderTimeline, Select, StatePill, Textarea, toast } from '@djaber/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useCloseGuard, useTypedFlag } from '@/components/close-guard';
 import { DialogFooter, RadioList, useDialogSubmit, useOnOpen } from '@/features/orders/dialogs/common';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { opsApi, opsKeys, useIncidents } from './api';
@@ -15,6 +16,7 @@ const SEVERITIES = ['minor', 'major', 'critical'] as const;
 const UPDATE_STATUSES = ['open', 'identified', 'monitoring'] as const;
 
 export function DeclareIncidentDialog({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: (i: IncidentDto) => void }) {
+  const typed = useTypedFlag(open);
   const t = useT();
   const qc = useQueryClient();
   const [title, setTitle] = useState<OpsLocalizedText>(EMPTY_LOCALIZED);
@@ -60,17 +62,19 @@ export function DeclareIncidentDialog({ open, onClose, onDone }: { open: boolean
     onDone(r);
   };
   const toggle = (c: string) => setComponents((cur) => (cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c]));
+  const guard = useCloseGuard(typed.dirty, t('adminHealth.incident.declare'), onClose);
   return (
+    <>
     <Dialog
       open={open}
-      onOpenChange={(o) => !o && onClose()}
+      onOpenChange={(o) => !o && guard.requestClose()}
       title={t('adminHealth.incident.declare')}
       description={t('adminHealth.incident.declare.sub')}
       closeLabel={t('action.close')}
       size="lg"
-      footer={<DialogFooter onClose={onClose} busy={s.busy} onSubmit={() => void submit()} label={t('adminHealth.incident.declare.submit')} danger />}
+      footer={<DialogFooter onClose={guard.requestClose} busy={s.busy} onSubmit={() => void submit()} label={t('adminHealth.incident.declare.submit')} danger />}
     >
-      <div className="flex flex-col gap-4" data-testid="incident-form">
+      <div onChange={typed.onChange} className="flex flex-col gap-4" data-testid="incident-form">
         <LocalizedFields idPrefix="incident-title" label={t('adminHealth.incident.field.title')} value={title} onChange={setTitle} required error={titleError ?? s.fieldError('title.fr')} />
         <div>
           <div className="mb-1.5 ts-label-micro uppercase text-text-muted">{t('adminHealth.incident.field.severity')}</div>
@@ -98,6 +102,8 @@ export function DeclareIncidentDialog({ open, onClose, onDone }: { open: boolean
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}
       </div>
     </Dialog>
+    {guard.element}
+    </>
   );
 }
 

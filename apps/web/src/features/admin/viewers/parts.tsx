@@ -207,7 +207,9 @@ function ProductSheet({ id, onClose }: { id: string | null; onClose: () => void 
             <ul className="mt-1 flex flex-col gap-1">
               {p.moderationHistory.map((h, i) => (
                 <li key={i} className="text-text-secondary">
-                  {f.shortTime(h.at)} · {h.status}{h.decision ? ` · ${h.decision}` : ''}{h.note ? ` · ${h.note}` : ''}
+                  {f.shortTime(h.at)} · {t.has(`adminMod.status.${h.status}`) ? t(`adminMod.status.${h.status}`) : h.status}
+                  {h.decision ? ` · ${t.has(`adminMod.decision.${h.decision}`) ? t(`adminMod.decision.${h.decision}`) : h.decision}` : ''}
+                  {h.note ? ` · ${h.note}` : ''}
                 </li>
               ))}
               {p.moderationHistory.length === 0 ? <li className="text-text-muted">—</li> : null}

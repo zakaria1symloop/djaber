@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { describe as metaDescription, languageAlternates, pageMetadata } from '@/lib/seo';
 import {
+  planIntentHref,
+  planIntentOf,
+  supportMailto,
   bestYearlyDiscount,
   cardPrice,
   cheapestPack,
@@ -152,5 +155,21 @@ describe('seo', () => {
     const long = metaDescription('mot '.repeat(80), 40);
     expect(long.length).toBeLessThanOrEqual(40);
     expect(long.endsWith('…')).toBe(true);
+  });
+});
+
+describe('pricing CTA → sign-up → plan offered later (D60) · public contact', () => {
+  it('keeps a paid plan choice with its cycle, drops free / invalid slugs', () => {
+    expect(planIntentOf('starter', 'yearly')).toEqual({ plan: 'starter', cycle: 'yearly' });
+    expect(planIntentOf(' Pro ', 'weekly')).toEqual({ plan: 'pro', cycle: 'monthly' });
+    expect(planIntentOf('free', 'monthly')).toBeNull();
+    expect(planIntentOf('', 'monthly')).toBeNull();
+    expect(planIntentOf('../admin', 'monthly')).toBeNull();
+    expect(planIntentHref({ plan: 'starter', cycle: 'yearly' })).toBe('/settings/billing?change=starter&cycle=yearly');
+  });
+  it('visitors reach support by e-mail (the /help/contact form needs a session)', () => {
+    expect(supportMailto(undefined, 'support@djaber.ai')).toBe('mailto:support@djaber.ai');
+    expect(supportMailto('Suppression de compte', 'support@djaber.ai')).toBe('mailto:support@djaber.ai?subject=Suppression%20de%20compte');
+    expect(supportMailto()).toMatch(/^mailto:[^@\s]+@[^@\s]+$/);
   });
 });

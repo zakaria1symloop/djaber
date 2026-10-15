@@ -9,7 +9,7 @@ import { formatDate, formatDateTime, formatNumber, type AppLocale } from '@djabe
 import { ActiveFilters, Banner, Button, Card, cn, CreditsMeter, EmptyState, FilterChips, FilterDateRange, FilterDropdown, KpiTile, Ltr, Skeleton, StatusPill, Table, Td, Th, toast, Tr, type ActiveFilter } from '@djaber/ui';
 import { Zap } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ListFilteredEmpty, ListLoading, QueryError } from '@/components/global-states';
 import { useAgents } from '@/features/agents/api';
 import { ListPagination } from '@/features/catalog/ui';
@@ -33,7 +33,7 @@ export const LEDGER_SPEC: ListSpec = { filters: { from: 'date', to: 'date', acti
 
 export function CreditsPage() {
   const t = useT();
-  const { can } = useSession();
+  const { can, workspace } = useSession();
   const q = useCredits();
   const params = useSearchParams();
   const router = useRouter();
@@ -51,6 +51,13 @@ export function CreditsPage() {
     [params, pathname, router],
   );
   const canBuy = can('billing.write');
+  // `?buy=1` (calculator, banners, e-mails) for a member without `billing.write`: said, then dropped from the URL
+  const sessionReady = !!workspace;
+  useEffect(() => {
+    if (!buying || !sessionReady || canBuy) return;
+    toast({ tone: 'warning', message: t('billing.writeOnly') });
+    setBuying(false);
+  }, [buying, sessionReady, canBuy, setBuying, t]);
   return (
     <SettingsPage
       title={t('nav.settings.credits')}

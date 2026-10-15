@@ -183,6 +183,8 @@ test('ADM-13 feature flag create + web switch, AT-PFS-07 provider "Tester" state
   const web = row.getByRole('switch', { name: `${key} sur le web` });
   await expect(web).toHaveAttribute('aria-checked', 'false');
   await web.click();
+  // no percentage on either platform yet: going to 100 % is confirmed
+  await page.getByRole('dialog').getByRole('button', { name: 'Activer pour 100 %' }).click();
   await expect(web).toHaveAttribute('aria-checked', 'true');
   await expect(row).toContainText('100 %');
   await row.getByRole('button', { name: 'Actions' }).click();

@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { authApi } from '@/features/auth/api';
-import { Link } from '@/i18n/navigation';
+import { Link, usePathname } from '@/i18n/navigation';
 import { ApiError } from '@/lib/api';
 import { applyServerErrors, errorMessage, fieldError } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
@@ -150,6 +150,7 @@ export function DeleteAccountSection() {
 }
 
 function DeleteAccountDialog({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
+  const pathname = usePathname();
   const t = useT();
   const { me, membership } = useSession();
   const [password, setPassword] = useState('');
@@ -186,7 +187,8 @@ function DeleteAccountDialog({ open, onClose, onDone }: { open: boolean; onClose
       closeLabel={t('action.close')}
       footer={
         <>
-          {blocked ? (
+          {/* the section is also on the danger zone itself: there, the link would only close the dialog */}
+          {blocked && pathname !== '/settings/danger' ? (
             <Link href="/settings/danger" onClick={onClose} className={buttonClass({ variant: 'ghost' })}>
               {t('settings.deleteAccount.goDanger')}
             </Link>

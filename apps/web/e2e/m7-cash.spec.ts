@@ -104,7 +104,9 @@ test('AT-CSH-01 / AT-DLG-75 — close the day: gap needs a note, CORRECTION row,
   await page.getByRole('dialog').getByTestId('dialog-submit').click();
   await expect(manual).toContainText('CASH_DAY_CLOSED');
   await expect(manual.getByLabel('Libellé')).toHaveValue('Ticket parking');
+  // typed content: closing asks first ("Quitter sans enregistrer ?")
   await page.keyboard.press('Escape');
+  await page.getByRole('dialog', { name: 'Quitter sans enregistrer ?' }).getByRole('button', { name: 'Quitter' }).click();
 
   // reopen (Owner = Admin+): reason required, the day opens again
   await page.getByRole('button', { name: 'Rouvrir la journée' }).click();

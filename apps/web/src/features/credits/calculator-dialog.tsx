@@ -11,6 +11,7 @@ import { CALCULATOR_DEFAULT, estimateCredits, normalizeCalculator, type Calculat
 import { Link } from '@/i18n/navigation';
 import { errorMessage } from '@/lib/forms';
 import { useT } from '@/lib/i18n';
+import { useSession } from '@/lib/session';
 
 type Draft = Record<keyof CalculatorInput, string>;
 const toDraft = (i: CalculatorInput): Draft => ({ conversations: String(i.conversations), photoPct: String(i.photoPct), voicePct: String(i.voicePct), msgsPerConv: String(i.msgsPerConv) });
@@ -18,6 +19,7 @@ const fromDraft = (d: Draft): CalculatorInput => normalizeCalculator({ conversat
 
 export function CalculatorDialog({ open, onClose, onSeePacks }: { open: boolean; onClose: () => void; /** credits page: opens "Acheter un pack"; elsewhere the link goes to the credits page */ onSeePacks?: () => void }) {
   const t = useT();
+  const { can } = useSession();
   const [draft, setDraft] = useState<Draft>(toDraft(CALCULATOR_DEFAULT));
   const [input, setInput] = useState<CalculatorInput>(CALCULATOR_DEFAULT);
   useEffect(() => {
@@ -63,10 +65,14 @@ export function CalculatorDialog({ open, onClose, onSeePacks }: { open: boolean;
             <Button variant="primary" onClick={onSeePacks} data-testid="calc-see-packs">
               {t('credits.calc.seePacks')}
             </Button>
-          ) : (
+          ) : can('billing.write') ? (
             <Link href="/settings/credits?buy=1" className={buttonClass({ variant: 'primary' })} onClick={onClose} data-testid="calc-see-packs">
               {t('credits.calc.seePacks')}
             </Link>
+          ) : (
+            <Button variant="primary" disabledReason={t('billing.writeOnly')} data-testid="calc-see-packs">
+              {t('credits.calc.seePacks')}
+            </Button>
           )}
         </>
       }

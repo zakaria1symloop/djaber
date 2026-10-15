@@ -61,3 +61,12 @@ export function actionState(descriptors: readonly ActionDescriptor[] | undefined
   if (!d) return { present: false, enabled: false };
   return { present: true, enabled: d.enabled, reason: d.enabled ? undefined : reasonText(t, d.reasonCode) };
 }
+
+/**
+ * Offline (banner "Hors ligne"): every write item of a menu is greyed with the offline reason; `readKeys` (open, print,
+ * receipt…) stay usable. Items already greyed keep their own reason.
+ */
+export function offlineMenu(items: MenuAction[], reason: string | undefined, readKeys: readonly string[]): MenuAction[] {
+  if (!reason) return items;
+  return items.map((a) => (readKeys.includes(a.key) || a.disabledReason ? a : { ...a, onSelect: undefined, disabledReason: reason }));
+}

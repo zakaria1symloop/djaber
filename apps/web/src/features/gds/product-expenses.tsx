@@ -6,9 +6,10 @@
 import { EXPENSE_CATEGORIES, formatMoney, formatNumber } from '@djaber/shared';
 import { ActionsMenu, Button, ConfirmDialog, Dialog, Field, FormAlert, Input, Ltr, MoneyInput, Select, toast } from '@djaber/ui';
 import { useState } from 'react';
+import { useCloseGuard, useTypedFlag } from '@/components/close-guard';
 import { DialogFooter, RadioList, refusal, useDialogSubmit, useOnOpen } from '@/features/orders/dialogs/common';
 import { toMenuActions } from '@/lib/actions';
-import { useT } from '@/lib/i18n';
+import { useLocaleCode, useT } from '@/lib/i18n';
 import { digitsToInt, moneyDigits } from '@/lib/money';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWorkspaceId } from '@/lib/session';
@@ -89,7 +90,9 @@ export function ExpensesEditor({ productId, price, pricing, canEdit }: { product
 
 function ExpenseDialog({ productId, expense, price, pricing, onClose, onDone }: { productId: string; expense: ProductExpense | 'new' | null; price: number; pricing: Pricing; onClose: () => void; onDone: () => Promise<unknown> }) {
   const t = useT();
+  const locale = useLocaleCode();
   const editing = expense && expense !== 'new' ? expense : null;
+  const typed = useTypedFlag(!!expense);
   const [category, setCategory] = useState<ProductExpense['category']>('packaging');
   const [amount, setAmount] = useState('');
   const [perUnit, setPerUnit] = useState<'unit' | 'fixed'>('unit');
@@ -117,18 +120,21 @@ function ExpenseDialog({ productId, expense, price, pricing, onClose, onDone }: 
     await onDone();
     onClose();
   };
-  const pct = (n: number | null) => (n === null ? '—' : `${n.toFixed(1).replace('.', ',')} %`);
+  // decimal separator of the interface language (Latin digits everywhere)
+  const pct = (n: number | null) => (n === null ? '—' : `${n.toFixed(1).replace('.', locale === 'en' ? '.' : ',')} %`);
+  const guard = useCloseGuard(typed.dirty, t('expenses.dialog.title'), onClose);
   return (
+    <>
     <Dialog
       open={!!expense}
-      onOpenChange={(o) => !o && !s.busy && onClose()}
+      onOpenChange={(o) => !o && !s.busy && guard.requestClose()}
       title={t('expenses.dialog.title')}
       description={t('expenses.dialog.context', { margin: pct(preview.before) })}
       closeLabel={t('action.close')}
       size="md"
-      footer={<DialogFooter onClose={onClose} busy={s.busy} onSubmit={() => void submit()} label={editing ? t('action.save') : t('action.add')} />}
+      footer={<DialogFooter onClose={guard.requestClose} busy={s.busy} onSubmit={() => void submit()} label={editing ? t('action.save') : t('action.add')} />}
     >
-      <div className="flex flex-col gap-4" data-testid="expense-dialog">
+      <div className="flex flex-col gap-4" data-testid="expense-dialog" onChange={typed.onChange}>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t('expenses.dialog.category')} htmlFor="exp-category" hint={t('expenses.dialog.categoryHint')}>
             <Select id="exp-category" value={category} onChange={(e) => setCategory(e.target.value as ProductExpense['category'])}>
@@ -163,5 +169,7 @@ function ExpenseDialog({ productId, expense, price, pricing, onClose, onDone }: 
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}
       </div>
     </Dialog>
+    {guard.element}
+    </>
   );
 }

@@ -27,7 +27,7 @@ import { CannedDialog, NewTicketDialog } from './support-dialogs';
 import { TicketDetail } from './ticket-detail';
 
 const SPEC: ListSpec = {
-  filters: { category: 'list', planSlug: 'list', channel: 'list', priority: 'list', assigneeId: 'text' },
+  filters: { category: 'list', planSlug: 'list', channel: 'list', priority: 'list', assigneeId: 'text', slaBreached: 'bool' },
   sorts: ['sla'],
   defaultSort: 'sla',
   tabs: TICKET_TABS,
@@ -79,6 +79,8 @@ export function SupportPage() {
     { kind: 'multi', key: 'channel', label: t('adminSupport.filter.channel'), options: TicketChannelValues.map((v) => ({ value: v, label: t(`adminSupport.channel.${v}`) })) },
     { kind: 'multi', key: 'priority', label: t('adminSupport.filter.priority'), options: TicketPriorityValues.map((v) => ({ value: v, label: t(`adminSupport.priority.${v}`) })) },
     { kind: 'single', key: 'assigneeId', label: t('adminSupport.filter.assignee'), options: [{ value: 'me', label: t('adminSupport.filter.assignee.me') }, { value: 'none', label: t('adminSupport.filter.assignee.none') }] },
+    // overview alert "tickets hors SLA" (`?slaBreached=true`, AdminTicketsQuery)
+    { kind: 'toggle', key: 'slaBreached', label: t('adminSupport.filter.slaBreached') },
   ];
 
   const act = async (fn: () => Promise<AdminTicketDto>, okKey: string, number: string) => {

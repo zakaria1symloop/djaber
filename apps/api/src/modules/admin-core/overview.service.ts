@@ -202,7 +202,7 @@ export class AdminOverviewService implements OnModuleInit {
         FROM "CreditLedger" l JOIN p ON p."workspaceId" = l."workspaceId" JOIN "Workspace" w ON w.id = l."workspaceId" WHERE w."deletedAt" IS NULL AND w."status" = 'active' GROUP BY l."workspaceId") t WHERE t.total <= 0`;
     const exhausted = Number(figs[0]?.n ?? 0);
     if (exhausted) out.push({ code: 'credits_exhausted', severity: 'warning', params: { count: exhausted }, link: '/admin/workspaces?credits=exhausted', since: null });
-    if (slaItems) out.push({ code: 'moderation_sla', severity: 'critical', params: { count: slaItems }, link: '/admin/moderation?priority=urgent', since: null });
+    if (slaItems) out.push({ code: 'moderation_sla', severity: 'critical', params: { count: slaItems }, link: '/admin/moderation?tab=urgent', since: null });
     if (slaTickets) out.push({ code: 'ticket_sla', severity: 'warning', params: { count: slaTickets }, link: '/admin/support?slaBreached=true', since: null });
     const failedCouriers = await prisma.courierAccount.groupBy({ by: ['provider'], where: { isActive: true, lastTestOk: false }, _count: { _all: true } });
     for (const c of failedCouriers) out.push({ code: 'courier_key_expired', severity: 'warning', params: { provider: c.provider, count: c._count._all }, link: '/admin/workspaces', since: null });

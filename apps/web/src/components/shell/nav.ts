@@ -23,6 +23,7 @@ import {
   Truck,
   Users,
   Wallet,
+  Wrench,
   Receipt,
   Share2,
 } from 'lucide-react';
@@ -56,6 +57,8 @@ export const MAIN_NAV: NavGroup[] = [
     items: [
       { key: 'nav.stockDashboard', href: '/stock', icon: LayoutDashboard },
       { key: 'nav.products', href: '/products', icon: Package },
+      // 08-web-screens sidebar "Produits · Services" (CAT-11): the services list (trackStock = false)
+      { key: 'nav.services', href: '/services', icon: Wrench },
       { key: 'nav.categories', href: '/categories', icon: FolderTree },
       { key: 'nav.movements', href: '/movements', icon: ArrowLeftRight, advancedOnly: true },
       { key: 'nav.suppliers', href: '/suppliers', icon: Store, advancedOnly: true, permission: 'gds.read' },

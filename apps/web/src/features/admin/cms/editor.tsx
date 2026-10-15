@@ -6,6 +6,7 @@ import type { CmsEntryAdminDto, CmsPreviewLinkDto, CmsVersionDto } from '@djaber
 import { Button, Card, Checkbox, Dialog, Field, FormAlert, FrameNote, Input, MonoChip, Select, Textarea, toast } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
+import { useConfirmAction } from '@/components/confirm-action';
 import { ApiError, api } from '@/lib/api';
 import { errorMessage, useLeaveGuard } from '@/lib/forms';
 import { useT } from '@/lib/i18n';
@@ -33,6 +34,7 @@ const draftOf = (e: CmsEntryAdminDto): Draft => ({
 });
 
 export function CmsEditor({ entry, canWrite, onClose }: { entry: CmsEntryAdminDto; canWrite: boolean; onClose: () => void }) {
+  const confirm = useConfirmAction();
   const t = useT();
   const f = useFormats();
   const invalidate = useAdminInvalidate();
@@ -185,7 +187,11 @@ export function CmsEditor({ entry, canWrite, onClose }: { entry: CmsEntryAdminDt
               {t('admin.cms.editor.saveDraft')}
             </Button>
             {entry.status === 'published' ? (
-              <Button variant="danger" onClick={() => void act(() => adminWrite(`/admin/cms/${entry.id}/unpublish`, 'POST', {}), t('admin.cms.unpublished'))} loading={m.isPending}>
+              <Button
+                variant="danger"
+                onClick={() => confirm.ask({ title: t('admin.cms.unpublishConfirm.title', { key: entry.key }), description: t('admin.cms.unpublishConfirm.description'), confirmLabel: t('admin.cms.action.unpublish'), destructive: true, run: () => act(() => adminWrite(`/admin/cms/${entry.id}/unpublish`, 'POST', {}), t('admin.cms.unpublished')) })}
+                loading={m.isPending}
+              >
                 {t('admin.cms.action.unpublish')}
               </Button>
             ) : null}
@@ -196,6 +202,7 @@ export function CmsEditor({ entry, canWrite, onClose }: { entry: CmsEntryAdminDt
         ) : null}
       </div>
       {guard}
+      {confirm.element}
       <VersionsDialog id={entry.id} open={versions} onClose={() => setVersions(false)} />
       <Dialog open={preview} onOpenChange={setPreview} title={t('admin.cms.editor.previewBanner')} closeLabel={t('action.close')} size="lg">
         <div className="flex flex-col gap-2">

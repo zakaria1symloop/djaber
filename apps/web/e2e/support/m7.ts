@@ -56,9 +56,9 @@ export async function receiveAll(request: APIRequestContext, a: Account, p: Seed
   return ok(await apiCall<SeedPurchase>(request, a, 'POST', `/purchases/${p.id}/receive`, { items: p.items.map((i) => ({ id: i.id, receivedQty: i.quantity - i.receivedQty })) }, idem()), 'POST /purchases/:id/receive');
 }
 
-export async function sale(request: APIRequestContext, a: Account, o: { lines: { productId: string; quantity: number; variantId?: string }[]; amountPaid: number; clientId?: string; client?: { name: string; phone: string }; method?: string }): Promise<SeedSale> {
+export async function sale(request: APIRequestContext, a: Account, o: { lines: { productId: string; quantity: number; variantId?: string }[]; amountPaid: number; clientId?: string; client?: { name: string; phone: string }; method?: string; status?: 'draft' | 'completed' }): Promise<SeedSale> {
   return ok(
-    await apiCall<SeedSale>(request, a, 'POST', '/sales', { items: o.lines, amountPaid: o.amountPaid, paymentMethod: o.method ?? 'cash', ...(o.clientId ? { clientId: o.clientId } : {}), ...(o.client ? { client: o.client } : {}) }, idem()),
+    await apiCall<SeedSale>(request, a, 'POST', '/sales', { items: o.lines, amountPaid: o.amountPaid, paymentMethod: o.method ?? 'cash', ...(o.clientId ? { clientId: o.clientId } : {}), ...(o.client ? { client: o.client } : {}), ...(o.status ? { status: o.status } : {}) }, idem()),
     'POST /sales',
   );
 }

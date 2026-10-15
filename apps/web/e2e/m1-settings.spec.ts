@@ -166,3 +166,32 @@ test('AT-SET-01 handoff reminder 0 disables the owner reminder; auto-pause and f
   await expect(page).toHaveURL(/\/fr\/settings\/workspace$/);
   await expect(page.locator('#name')).toHaveValue('Boutique Amel');
 });
+
+test('members at the plan limit: "Inviter un membre" greyed with PLAN_LIMIT + "Changer de plan"; revoking an invitation is confirmed', async ({ page, request }) => {
+  // one pending invitation, then the plan is served with maxMembers = members + invitations (the API answers 403 PLAN_LIMIT)
+  const invitee = `limit-${Date.now()}@example.dz`;
+  const res = await request.post(`${API}/workspace/invitations`, { headers: authHeaders(account), data: { email: invitee, role: 'operator' } });
+  expect(res.status()).toBeLessThan(300);
+  await page.route(/\/api\/v1\/workspace$/, async (route) => {
+    const r = await route.fetch();
+    const body = (await r.json()) as { data: { plan: { limits: { maxMembers: number } } } };
+    body.data.plan.limits.maxMembers = 2;
+    await route.fulfill({ response: r, json: body });
+  });
+  await loginHome(page, account);
+  await page.goto('/fr/settings/members');
+  const invite = page.getByTestId('members-invite');
+  await expect(invite).toBeDisabled();
+  await expect(invite).toHaveAttribute('title', /PLAN_LIMIT/);
+  await expect(page.getByTestId('members-change-plan')).toHaveAttribute('href', '/fr/settings/billing');
+
+  const row = page.locator(`[data-invitation="${invitee}"]`);
+  await row.getByTestId('invitation-revoke').click();
+  const confirm = page.getByRole('dialog', { name: `Révoquer l’invitation de ${invitee} ?` });
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole('button', { name: 'Annuler' }).click();
+  await expect(row).toBeVisible();
+  await row.getByTestId('invitation-revoke').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Révoquer' }).click();
+  await expect(row).toHaveCount(0);
+});

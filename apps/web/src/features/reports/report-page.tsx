@@ -178,7 +178,7 @@ function ReportView({ reportKey }: { reportKey: ReportKey }) {
           ) : null}
           <Menu
             trigger={
-              <Button variant="primary" loading={busy !== null} disabled={offline || !view} data-testid="report-export">
+              <Button variant="primary" loading={busy !== null} disabled={!view} disabledReason={offline ? offlineReason : undefined} data-testid="report-export">
                 {t('action.export')}
                 <ChevronDown className="size-3.5" aria-hidden />
               </Button>
@@ -239,7 +239,14 @@ function ReportView({ reportKey }: { reportKey: ReportKey }) {
         ) : null}
         {def?.filters.includes('clientId') ? (
           <FilterDropdown label={t('reports.filter.client', { value: filterText(s, 'clientId') ? t('reports.filter.one') : t('reports.filter.all') })} count={filterText(s, 'clientId') ? 1 : 0}>
-            <ClientPicker id="report-client" value={null} onPick={(c) => list.setFilter('clientId', c?.id ?? null)} />
+            <div className="flex flex-col gap-2">
+              <ClientPicker id="report-client" value={null} onPick={(c) => list.setFilter('clientId', c?.id ?? null)} />
+              {filterText(s, 'clientId') ? (
+                <Button size="sm" variant="ghost" onClick={() => list.setFilter('clientId', null)}>
+                  {t('action.clearFilters')}
+                </Button>
+              ) : null}
+            </div>
           </FilterDropdown>
         ) : null}
         {def?.filters.includes('days') ? (

@@ -17,6 +17,8 @@ import { preferencesApi, preferencesKey, prefsOf, usePreferences } from './prefe
 import { applyPatch, familyCell, familyPatch, PREF_FAMILIES, type PrefChannel } from './preferences';
 
 const CHANNELS: PrefChannel[] = ['email', 'push', 'sound'];
+/** No web push and the mobile apps are not published yet ("bientôt disponible"): the PUSH column is shown greyed with its reason. */
+const PUSH_AVAILABLE = false;
 
 export function NotificationPreferencesView() {
   const t = useT();
@@ -95,14 +97,19 @@ function PreferencesTable() {
     }
   };
 
+  const pushReason = PUSH_AVAILABLE ? undefined : t('notifPrefs.pushSoon');
   return (
+    <>
     <Table aria-label={t('notifPrefs.title')} data-testid="notification-preferences">
       <thead>
         <tr>
           <Th>{t('notifPrefs.col.event')}</Th>
           <Th className="w-20 text-center">{t('notifPrefs.col.inApp')}</Th>
           <Th className="w-20 text-center">{t('notifPrefs.col.email')}</Th>
-          <Th className="w-20 text-center">{t('notifPrefs.col.push')}</Th>
+          <Th className="w-20 text-center" title={pushReason}>
+            {t('notifPrefs.col.push')}
+            {pushReason ? <span aria-hidden> *</span> : null}
+          </Th>
           <Th className="w-20 text-center">{t('notifPrefs.col.sound')}</Th>
         </tr>
       </thead>
@@ -118,6 +125,7 @@ function PreferencesTable() {
               {CHANNELS.map((channel) => {
                 const cell = familyCell(prefs, f.group, channel);
                 const name = `${label} — ${t(`notifPrefs.col.${channel}`)}`;
+                const off = channel === 'push' ? pushReason : undefined;
                 return (
                   <Td key={channel} className="text-center" data-channel={channel} data-locked={cell.locked ?? undefined} data-mixed={cell.mixed || undefined}>
                     {cell.locked === 'never' ? (
@@ -125,8 +133,8 @@ function PreferencesTable() {
                         —
                       </span>
                     ) : (
-                      <span className="inline-flex flex-col items-center gap-0.5" title={cell.locked === 'always' ? t('notifPrefs.always') : undefined}>
-                        <Switch checked={cell.value} onCheckedChange={(v) => void change(f.group, channel, v)} label={name} disabled={cell.locked === 'always' || busy === `${f.group}:${channel}`} />
+                      <span className="inline-flex flex-col items-center gap-0.5" title={off ?? (cell.locked === 'always' ? t('notifPrefs.always') : undefined)}>
+                        <Switch checked={cell.value} onCheckedChange={(v) => void change(f.group, channel, v)} label={off ? `${name} (${off})` : name} disabled={!!off || cell.locked === 'always' || busy === `${f.group}:${channel}`} />
                         {cell.mixed ? <span className="ts-label-micro text-text-muted">{t('notifPrefs.mixed')}</span> : null}
                       </span>
                     )}
@@ -138,5 +146,11 @@ function PreferencesTable() {
         })}
       </tbody>
     </Table>
+    {pushReason ? (
+      <p className="ts-label-meta mt-2 !normal-case text-text-muted" data-testid="push-soon">
+        {`* ${pushReason}`}
+      </p>
+    ) : null}
+    </>
   );
 }

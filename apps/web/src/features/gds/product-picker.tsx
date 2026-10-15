@@ -4,7 +4,7 @@
 // variants is read in full so that the caller gets its variants (variant required on purchases and sales).
 import { formatMoney, formatNumber } from '@djaber/shared';
 import { Ltr, PickerSearch } from '@djaber/ui';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { catalogKeys } from '@/features/catalog/api';
 import type { Product, ProductListItem } from '@/features/catalog/contracts';
@@ -26,6 +26,7 @@ export type PickedProduct = {
   variants: PickedVariant[];
 };
 
+const pickedVariants = (variants: Product['variants']): PickedVariant[] => variants.filter((v) => v.isActive).map((v) => ({ id: v.id, name: v.name, sku: v.sku, price: v.price, costPrice: v.costPrice, stock: v.stock }));
 export const toPicked = (p: Pick<ProductListItem, 'id' | 'name' | 'sku' | 'price' | 'costPrice' | 'primaryImageUrl' | 'hasVariants' | 'trackStock' | 'stock'>, variants: Product['variants'] = []): PickedProduct => ({
   id: p.id,
   name: p.name,
@@ -36,8 +37,26 @@ export const toPicked = (p: Pick<ProductListItem, 'id' | 'name' | 'sku' | 'price
   hasVariants: p.hasVariants,
   trackStock: p.trackStock,
   stock: p.hasVariants ? null : p.stock,
-  variants: variants.filter((v) => v.isActive).map((v) => ({ id: v.id, name: v.name, sku: v.sku, price: v.price, costPrice: v.costPrice, stock: v.stock })),
+  variants: pickedVariants(variants),
 });
+
+/**
+ * Active variants of the products of the lines being edited (a saved purchase / draft sale only carries the variant it
+ * was saved with): `productId → variants`, read with the same cache entry as the picker.
+ */
+export function useProductVariants(productIds: readonly string[]): Record<string, PickedVariant[] | undefined> {
+  const ws = useWorkspaceId();
+  const ids = [...new Set(productIds)];
+  const results = useQueries({
+    queries: ids.map((id) => ({ queryKey: catalogKeys.product(ws, id), queryFn: () => orderFormApi.product(id), enabled: !!ws, staleTime: 10_000 })),
+  });
+  const out: Record<string, PickedVariant[] | undefined> = {};
+  ids.forEach((id, i) => {
+    const p = results[i]?.data;
+    out[id] = p ? pickedVariants(p.variants) : undefined;
+  });
+  return out;
+}
 
 export function ProductPicker({
   onPick,
@@ -93,7 +112,7 @@ export function ProductPicker({
             const reason = refuse?.(p) ?? null;
             return (
               <li key={p.id}>
-                <button type="button" onClick={() => void pick(p)} disabled={busy} title={reason ?? undefined} className="flex w-full items-center gap-3 px-3 py-2 text-start hover:bg-ink-raised disabled:opacity-50" data-product={p.id}>
+                <button type="button" onClick={() => void pick(p)} disabled={busy || !!reason} title={reason ?? undefined} className="flex w-full items-center gap-3 px-3 py-2 text-start hover:bg-ink-raised disabled:opacity-50" data-product={p.id}>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] font-medium">{p.name}</span>
                     <span className="block truncate ts-label-micro text-text-muted">

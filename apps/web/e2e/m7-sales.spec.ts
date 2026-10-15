@@ -60,6 +60,35 @@ test('AT-GDS-12 — new sale: partial without client blocked (SALE_PARTIAL_REQUI
   expect(rows.filter((r) => r.isAutomatic).map((r) => r.amount).sort((x, y) => x - y)).toEqual([4900, 5000]);
 });
 
+test('AT-GDS-12 — the sheet asks before dropping a cart; a draft finished with a new client typed in the sheet keeps it (partial)', async ({ page, request }) => {
+  await signIn(page, owner);
+  await open(page, '/fr/sales/new', () => page.getByTestId('new-sale-sheet'));
+  const sheet = page.getByTestId('new-sale-sheet');
+  const search = sheet.getByRole('searchbox').first();
+  await search.fill('Robe');
+  await page.getByTestId('gds-product-results').locator(`[data-product="${robe.id}"]`).click();
+  await page.keyboard.press('Escape');
+  const guard = page.getByRole('dialog', { name: 'Quitter sans enregistrer ?' });
+  await expect(guard).toBeVisible();
+  await guard.getByRole('button', { name: 'Rester' }).click();
+  await expect(sheet.getByTestId('sale-lines')).toContainText('Robe satin');
+  await page.keyboard.press('Escape');
+  await page.getByRole('dialog', { name: 'Quitter sans enregistrer ?' }).getByRole('button', { name: 'Quitter' }).click();
+  await expect(page).toHaveURL(/\/fr\/sales$/);
+
+  // a draft (no client) finished from the sheet with a new client and a partial payment
+  const draft = await sale(request, owner, { lines: [{ productId: robe.id, quantity: 1 }], amountPaid: 0, status: 'draft' });
+  await open(page, `/fr/sales/new?draft=${draft.id}`, () => page.getByTestId('sale-lines'));
+  await sheet.getByLabel('Montant reçu (DA)').fill('1000');
+  await sheet.getByRole('button', { name: 'nouveau client créé si introuvable' }).click();
+  await sheet.getByTestId('sale-new-client').getByLabel('Nom').fill('Karim Draft');
+  await sheet.getByTestId('sale-new-client').getByLabel('Téléphone').fill(uniquePhone());
+  await page.getByTestId('sale-validate').click();
+  await expect(page).toHaveURL(new RegExp(`/fr/sales/${draft.id}$`), { timeout: 30_000 });
+  await expect(page.getByTestId('sale-pills')).toContainText(/Partielle.*3\s?900/);
+  await expect(page.getByTestId('sale-detail')).toContainText('Karim Draft');
+});
+
 test('AT-GDS-12 — cancel a paid sale: delete greyed SALE_DELETE_PAID, cancel restores stock and adds a refund row', async ({ page, request }) => {
   const before = (await getJson<{ stock: number }>(request, owner, `/products/${sac.id}`)).stock;
   const s = await sale(request, owner, { lines: [{ productId: sac.id, quantity: 1 }], amountPaid: 5000 });

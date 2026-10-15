@@ -104,6 +104,11 @@ test('AT-GDS-13 — delete a supplier with purchases ⇒ SUPPLIER_HAS_PURCHASES 
   await menu.locator('[data-action="deactivate"]').click();
   await expect(page.locator('[data-toast]').filter({ hasText: 'Belkacem Import désactivé' })).toBeVisible();
   await expect(row(page, belkacem.id)).toContainText('Inactif');
+  // an inactive supplier is not offered by the purchase form: "Nouvel achat" stays visible, greyed with its reason
+  const inactiveMenu = await openRowMenu(page, belkacem.id);
+  await expect(inactiveMenu.locator('[data-action="new_purchase"]')).toHaveAttribute('data-disabled', '');
+  await expect(inactiveMenu).toContainText('Fournisseur désactivé : réactivez-le pour lui passer un achat.');
+  await page.keyboard.press('Escape');
   await (await openRowMenu(page, belkacem.id)).locator('[data-action="activate"]').click();
   await expect(row(page, belkacem.id)).not.toContainText('Inactif');
 });

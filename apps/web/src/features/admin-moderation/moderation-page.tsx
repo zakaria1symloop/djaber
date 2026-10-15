@@ -69,7 +69,7 @@ export function ModerationPage() {
       permission="admin.moderation.read"
       actions={
         <>
-          <Link href="/admin/cms?type=legal" className={buttonClass({ variant: 'ghost' })} data-testid="mod-link-rules">
+          <Link href="/admin/cms?tab=legal" className={buttonClass({ variant: 'ghost' })} data-testid="mod-link-rules">
             {t('adminMod.header.rules')}
           </Link>
           <Button variant="ghost" onClick={() => setPanel('rules')} data-testid="mod-link-lists">

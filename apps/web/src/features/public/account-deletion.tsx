@@ -15,7 +15,7 @@ import { useState, type ReactNode } from 'react';
 import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import { api, ApiError } from '@/lib/api';
 import { useLocaleCode, useT } from '@/lib/i18n';
-import { deletionView, exportPollMs, isBlockingCode, isDeletionToken } from './logic';
+import { deletionView, exportPollMs, isBlockingCode, isDeletionToken, supportMailto } from './logic';
 
 type Dto = AccountDeletionPublicDto;
 type Blocked = { code: 'ACCOUNT_OWNS_WORKSPACE' | 'WORKSPACE_HAS_DEBT' | 'ACCOUNT_DELETION_PENDING'; params: Record<string, string | number> };
@@ -141,9 +141,9 @@ function PartialLink() {
   const t = useT();
   return (
     <div className="flex flex-col gap-0.5 rounded-card bg-ink-raised px-3 py-2" data-testid="deletion-partial">
-      <Link href="/help/contact" className="text-[13px] text-text-primary underline decoration-line-lit underline-offset-4 hover:decoration-white">
+      <a href={supportMailto(t('public.deletion.partial'))} className="text-[13px] text-text-primary underline decoration-line-lit underline-offset-4 hover:decoration-white">
         {t('public.deletion.partial')}
-      </Link>
+      </a>
       <span className="ts-label-meta text-text-muted">{t('public.deletion.partial.sub')}</span>
     </div>
   );
@@ -325,14 +325,19 @@ function BlockedView({ blocked }: { blocked: Blocked }) {
         className="!border-0 !p-0"
       />
       <div className="flex flex-wrap justify-center gap-2">
-        {kind !== 'pending' ? (
+        {kind === 'owner' ? (
           <Link href="/settings/danger" className={buttonClass({ variant: 'primary' })}>
             {t('public.deletion.blocked.settings')}
           </Link>
+        ) : kind === 'debt' ? (
+          // the unpaid invoice is paid from Plan & facturation ("Payer maintenant"), not from the danger zone
+          <Link href="/settings/billing" className={buttonClass({ variant: 'primary' })} data-testid="deletion-pay-invoice">
+            {t('public.deletion.blocked.billing')}
+          </Link>
         ) : null}
-        <Link href="/help/contact" className={buttonClass({})}>
+        <a href={supportMailto(t('public.contact.subjectDeletion'))} className={buttonClass({})}>
           {t('public.help.contact')}
-        </Link>
+        </a>
       </div>
     </Card>
   );

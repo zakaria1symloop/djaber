@@ -5,7 +5,7 @@
 // COURIER_UNAVAILABLE — save allowed) and "Supprimer le transporteur" (blocked COURIER_HAS_ACTIVE_SHIPMENTS → Désactiver).
 // States: skeleton · [E] no account (provider cards with "+ Ajouter") · cards · 403 without `delivery.manage`.
 import { formatNumber, formatPhoneDz, type AppLocale } from '@djaber/shared';
-import { Button, Card, Checkbox, CourierCard, CourierTestResult, Dialog, EmptyState, Field, FormAlert, Input, Ltr, PhoneInput, SegmentedControl, Skeleton, Switch, toast, type CourierTestState, type Tone } from '@djaber/ui';
+import { Button, Card, Checkbox, ConfirmDialog, CourierCard, CourierTestResult, Dialog, EmptyState, Field, FormAlert, Input, Ltr, PhoneInput, SegmentedControl, Skeleton, Switch, toast, type CourierTestState, type Tone } from '@djaber/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { Truck } from 'lucide-react';
 import { conflictOf, usePatchWorkspace, useWorkspaceCache } from '@/features/workspace/api';
@@ -13,6 +13,7 @@ import type { WorkspaceDto } from '@/lib/contracts';
 import { errorMessage } from '@/lib/forms';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { useCloseGuard, useTypedFlag } from '@/components/close-guard';
 import { AppPage } from '@/components/app-page';
 import { QueryError } from '@/components/global-states';
 import { DialogFooter, refusal, useOnOpen } from '@/features/orders/dialogs/common';
@@ -66,6 +67,8 @@ export function CouriersPage() {
   const wilayas = useGeoWilayas();
   const [edit, setEdit] = useState<{ account: CourierAccount | null; provider: ProviderKey } | null>(null);
   const [remove, setRemove] = useState<CourierAccount | null>(null);
+  // deactivating stops new sends through this courier: confirmed first (delete already has its dialog)
+  const [deactivate, setDeactivate] = useState<CourierAccount | null>(null);
   const [tests, setTests] = useState<Record<string, { state: CourierTestState; label: string; detail?: string }>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const list = useMemo(() => couriers.data ?? [], [couriers.data]);
@@ -163,7 +166,7 @@ export function CouriersPage() {
                             {t('couriers.setDefault')}
                           </Button>
                         ) : null}
-                        <Button variant="ghost" onClick={() => void patch(c, { isActive: !c.isActive }, c.isActive ? t('couriers.toast.deactivated', { name: c.displayName }) : t('couriers.toast.activated', { name: c.displayName }))} loading={busy === c.id} data-testid="courier-toggle">
+                        <Button variant="ghost" onClick={() => (c.isActive ? setDeactivate(c) : void patch(c, { isActive: true }, t('couriers.toast.activated', { name: c.displayName })))} loading={busy === c.id} data-testid="courier-toggle">
                           {c.isActive ? t('couriers.deactivate') : t('couriers.activate')}
                         </Button>
                         {del.present ? (
@@ -224,6 +227,22 @@ export function CouriersPage() {
           void reload();
         }}
       />
+      <ConfirmDialog
+        open={!!deactivate}
+        onOpenChange={(o) => !o && setDeactivate(null)}
+        title={t('couriers.deactivateConfirm.title', { name: deactivate?.displayName ?? '' })}
+        description={t('couriers.deactivateConfirm.description')}
+        confirmLabel={t('couriers.deactivate')}
+        cancelLabel={t('action.cancel')}
+        closeLabel={t('action.close')}
+        destructive
+        loading={!!deactivate && busy === deactivate.id}
+        onConfirm={() => {
+          const c = deactivate;
+          if (!c) return;
+          void patch(c, { isActive: false }, t('couriers.toast.deactivated', { name: c.displayName })).finally(() => setDeactivate(null));
+        }}
+      />
       <DeleteCourierDialog
         account={remove}
         onClose={() => setRemove(null)}
@@ -256,6 +275,7 @@ const formOf = (c: CourierAccount | null, existing: CourierAccount[]): Form => (
 /** Add / edit a courier account; also opened in place from the send dialog when no courier is configured. */
 export function CourierDialog({ open, account, provider: initial, providers, existing, onClose, onSaved }: { open: boolean; account: CourierAccount | null; provider: ProviderKey; providers: CourierProviderInfo[]; existing: CourierAccount[]; onClose: () => void; onSaved: (c: CourierAccount) => void }) {
   const t = useT();
+  const typed = useTypedFlag(open);
   const [provider, setProvider] = useState<ProviderKey>(initial);
   const [f, setF] = useState<Form>(() => formOf(account, existing));
   const [current, setCurrent] = useState<CourierAccount | null>(account);
@@ -297,6 +317,7 @@ export function CourierDialog({ open, account, provider: initial, providers, exi
       setCurrent(saved);
       set({ creds: {} });
       setTouched(false);
+      typed.reset();
       onSaved(saved);
       return saved;
     } catch (e) {
@@ -339,22 +360,26 @@ export function CourierDialog({ open, account, provider: initial, providers, exi
     if (ok) onClose();
   };
 
+  const title = current ? t('couriers.edit.title', { name: current.displayName }) : t('dialog.addCourier.title');
+  // typed credentials are lost on close: asked first
+  const guard = useCloseGuard(typed.dirty, title, onClose);
   return (
+    <>
     <Dialog
       open={open}
-      onOpenChange={(o) => !o && !busy && onClose()}
-      title={current ? t('couriers.edit.title', { name: current.displayName }) : t('dialog.addCourier.title')}
+      onOpenChange={(o) => !o && !busy && guard.requestClose()}
+      title={title}
       description={t('couriers.dialog.context')}
       closeLabel={t('action.close')}
       size="lg"
       footer={
         provider === 'manual' ? (
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={guard.requestClose}>
             {t('action.close')}
           </Button>
         ) : (
           <>
-            <Button variant="ghost" onClick={onClose} disabled={!!busy}>
+            <Button variant="ghost" onClick={guard.requestClose} disabled={!!busy}>
               {t('action.cancel')}
             </Button>
             <Button onClick={() => void onTest()} loading={busy === 'test'} disabled={!!busy || taken} data-testid="courier-dialog-test">
@@ -367,7 +392,7 @@ export function CourierDialog({ open, account, provider: initial, providers, exi
         )
       }
     >
-      <div className="flex flex-col gap-4" data-testid="courier-dialog" data-provider={provider}>
+      <div className="flex flex-col gap-4" data-testid="courier-dialog" data-provider={provider} onChange={typed.onChange}>
         {current ? null : (
           <SegmentedControl<ProviderKey>
             label={t('common.courier')}
@@ -439,6 +464,8 @@ export function CourierDialog({ open, account, provider: initial, providers, exi
         )}
       </div>
     </Dialog>
+    {guard.element}
+    </>
   );
 }
 

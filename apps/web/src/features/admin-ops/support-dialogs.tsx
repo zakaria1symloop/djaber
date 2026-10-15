@@ -5,6 +5,7 @@ import { TicketCategoryValues, TicketPriorityValues, type AdminTicketDto, type A
 import { Dialog, Field, FormAlert, Input, SearchInput, Select, Textarea, toast } from '@djaber/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useCloseGuard, useTypedFlag } from '@/components/close-guard';
 import { adminKey, adminList } from '@/features/admin/api';
 import { DialogFooter, RadioList, useDialogSubmit, useOnOpen } from '@/features/orders/dialogs/common';
 import { api } from '@/lib/api';
@@ -14,6 +15,7 @@ import { cleanLocalized, EMPTY_LOCALIZED, LocalizedFields, useLocalized } from '
 
 /* ---------- + Nouveau ticket ---------- */
 export function NewTicketDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (t: AdminTicketDto) => void }) {
+  const typed = useTypedFlag(open);
   const t = useT();
   const qc = useQueryClient();
   const [q, setQ] = useState('');
@@ -57,17 +59,19 @@ export function NewTicketDialog({ open, onClose, onCreated }: { open: boolean; o
     onCreated(r);
   };
   const missing = !ws ? t('adminSupport.new.pickWorkspace') : !userId ? t('adminSupport.new.pickUser') : subject.trim().length < 3 ? t('adminSupport.new.subjectShort') : undefined;
+  const guard = useCloseGuard(typed.dirty, t('adminSupport.new.title'), onClose);
   return (
+    <>
     <Dialog
       open={open}
-      onOpenChange={(o) => !o && onClose()}
+      onOpenChange={(o) => !o && guard.requestClose()}
       title={t('adminSupport.new.title')}
       description={t('adminSupport.new.sub')}
       closeLabel={t('action.close')}
       size="lg"
-      footer={<DialogFooter onClose={onClose} busy={s.busy} onSubmit={() => void submit()} label={t('adminSupport.new.submit')} disabledReason={missing} />}
+      footer={<DialogFooter onClose={guard.requestClose} busy={s.busy} onSubmit={() => void submit()} label={t('adminSupport.new.submit')} disabledReason={missing} />}
     >
-      <div className="flex flex-col gap-4" data-testid="new-ticket-form">
+      <div onChange={typed.onChange} className="flex flex-col gap-4" data-testid="new-ticket-form">
         {ws ? (
           <div className="flex items-center justify-between gap-3 rounded-card border border-line-edge px-3 py-2.5 text-[13px]">
             <span>{ws.name}</span>
@@ -140,6 +144,8 @@ export function NewTicketDialog({ open, onClose, onCreated }: { open: boolean; o
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}
       </div>
     </Dialog>
+    {guard.element}
+    </>
   );
 }
 
@@ -191,6 +197,7 @@ export function LinkIncidentDialog({ ticket, onClose, onDone }: { ticket: AdminT
 
 /* ---------- Escalader (ingénierie) ---------- */
 export function EscalateDialog({ ticket, onClose, onDone }: { ticket: AdminTicketDto | null; onClose: () => void; onDone: (t: AdminTicketDto) => void }) {
+  const typed = useTypedFlag(!!ticket);
   const t = useT();
   const [note, setNote] = useState('');
   useOnOpen(!!ticket, () => {
@@ -206,27 +213,32 @@ export function EscalateDialog({ ticket, onClose, onDone }: { ticket: AdminTicke
       onClose();
     }
   };
+  const guard = useCloseGuard(typed.dirty, t('adminSupport.escalate.title'), onClose);
   return (
+    <>
     <Dialog
       open={!!ticket}
-      onOpenChange={(o) => !o && onClose()}
+      onOpenChange={(o) => !o && guard.requestClose()}
       title={t('adminSupport.escalate.title')}
       description={ticket ? `#${ticket.number} · ${ticket.subject}` : undefined}
       closeLabel={t('action.close')}
-      footer={<DialogFooter onClose={onClose} busy={s.busy} onSubmit={() => void submit()} label={t('adminSupport.escalate.submit')} disabledReason={note.trim() ? undefined : t('adminSupport.escalate.noteRequired')} />}
+      footer={<DialogFooter onClose={guard.requestClose} busy={s.busy} onSubmit={() => void submit()} label={t('adminSupport.escalate.submit')} disabledReason={note.trim() ? undefined : t('adminSupport.escalate.noteRequired')} />}
     >
-      <div className="flex flex-col gap-3">
+      <div onChange={typed.onChange} className="flex flex-col gap-3">
         <Field label={t('adminSupport.escalate.note')} htmlFor="esc-note" required error={s.fieldError('note')}>
           <Textarea id="esc-note" rows={4} value={note} onChange={(e) => setNote(e.target.value)} />
         </Field>
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}
       </div>
     </Dialog>
+    {guard.element}
+    </>
   );
 }
 
 /* ---------- Réponse type ---------- */
 export function CannedDialog({ open, reply, onClose }: { open: boolean; reply: CannedReplyDto | null; onClose: () => void }) {
+  const typed = useTypedFlag(open);
   const t = useT();
   const qc = useQueryClient();
   const [key, setKey] = useState('/');
@@ -253,17 +265,19 @@ export function CannedDialog({ open, reply, onClose }: { open: boolean; reply: C
       onClose();
     }
   };
+  const guard = useCloseGuard(typed.dirty, reply ? t('adminSupport.canned.edit', { key: reply.key }) : t('adminSupport.canned.new'), onClose);
   return (
+    <>
     <Dialog
       open={open}
-      onOpenChange={(o) => !o && onClose()}
+      onOpenChange={(o) => !o && guard.requestClose()}
       title={reply ? t('adminSupport.canned.edit', { key: reply.key }) : t('adminSupport.canned.new')}
       description={t('adminSupport.canned.sub')}
       closeLabel={t('action.close')}
       size="lg"
-      footer={<DialogFooter onClose={onClose} busy={s.busy} onSubmit={() => void submit()} label={t('action.save')} disabledReason={!title.trim() || !body.fr.trim() ? t('adminSupport.canned.required') : undefined} />}
+      footer={<DialogFooter onClose={guard.requestClose} busy={s.busy} onSubmit={() => void submit()} label={t('action.save')} disabledReason={!title.trim() || !body.fr.trim() ? t('adminSupport.canned.required') : undefined} />}
     >
-      <div className="flex flex-col gap-4" data-testid="canned-form">
+      <div onChange={typed.onChange} className="flex flex-col gap-4" data-testid="canned-form">
         {!reply ? (
           <Field label={t('adminSupport.canned.col.key')} htmlFor="cr-key" required error={s.fieldError('key')} hint={t('adminSupport.canned.key.hint')}>
             <Input id="cr-key" dir="ltr" className="font-mono" value={key} onChange={(e) => setKey(e.target.value)} />
@@ -286,5 +300,7 @@ export function CannedDialog({ open, reply, onClose }: { open: boolean; reply: C
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}
       </div>
     </Dialog>
+    {guard.element}
+    </>
   );
 }

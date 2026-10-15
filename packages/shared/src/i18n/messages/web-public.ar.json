@@ -42,7 +42,7 @@
   "public.meta.accountDeletion": "حذف حسابي في Djaber",
   "public.meta.accountDeletion.description": "اطلب حذف حسابك في Djaber وبياناتك الشخصية دون فتح التطبيق.",
   "public.landing.cta.trial": "تجربة مجانية",
-  "public.landing.cta.demo": "شاهد عرضًا",
+  "public.landing.cta.features": "اكتشف الميزات",
   "public.landing.features.title": "الميزات",
   "public.landing.features.more": "كل الميزات",
   "public.landing.pricing.title": "بائع ذكي لصفحتك، ابتداءً من {price} دج",
@@ -147,6 +147,9 @@
   "public.deletion.blocked.pending.title": "الحذف مبرمج مسبقًا",
   "public.deletion.blocked.pending.text": "سيُحذف حسابك نهائيًا في {date}.",
   "public.deletion.blocked.settings": "فتح المنطقة الخطرة",
+  "public.deletion.blocked.billing": "عرض الفاتورة المستحقة",
   "public.captcha.loading": "التحقق من أنك لست روبوتًا…",
-  "public.captcha.error": "تعذّر تحميل التحقق من الروبوت. أغلق النافذة ثم أعد فتحها."
+  "public.captcha.error": "تعذّر تحميل التحقق من الروبوت. أغلق النافذة ثم أعد فتحها.",
+  "public.contact.subject": "تواصل مع Djaber",
+  "public.contact.subjectDeletion": "حذف الحساب"
 }

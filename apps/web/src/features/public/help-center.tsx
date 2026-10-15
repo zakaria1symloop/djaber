@@ -12,7 +12,7 @@ import { countByCategory } from '@/features/help/logic';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import type { Read } from '@/lib/public-fetch';
-import { helpHref, searchable, type HelpQuery } from './logic';
+import { helpHref, searchable, supportMailto, type HelpQuery } from './logic';
 import { CmsBody, FallbackBanner, PreviewBanner, PublicError, ReadingColumn } from './shared';
 
 function GuideList({ items, testid }: { items: HelpArticleDto[]; testid: string }) {
@@ -144,9 +144,9 @@ function ContactCard() {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-line-edge bg-ink-surface px-4 py-3">
       <p className="min-w-0 flex-1 basis-60 text-[13px] text-text-secondary">{t('public.help.contact.sub')}</p>
-      <Link href="/help/contact" className={buttonClass({})} data-testid="help-contact">
+      <a href={supportMailto(t('public.contact.subject'))} className={buttonClass({})} data-testid="help-contact">
         {t('public.help.contact')}
-      </Link>
+      </a>
     </div>
   );
 }

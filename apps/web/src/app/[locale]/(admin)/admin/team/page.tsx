@@ -7,6 +7,7 @@ import { PLATFORM_PERMISSIONS, type AdminDeletionCounts, type DeletionRequestAdm
 import { ActionsMenu, Button, DataTable, FrameNote, ListSkeleton, MonoChip, OpsPanel, RoleMatrix, toast, type Column } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useConfirmAction } from '@/components/confirm-action';
 import { ListPagination } from '@/features/catalog/ui';
 import { AdminPage, AdminQueryError } from '@/features/admin/admin-page';
 import { adminWrite, useAdminGet, useAdminInvalidate, useAdminList } from '@/features/admin/api';
@@ -40,6 +41,7 @@ type DelAction = 'cancel' | 'resolve' | 'process_now';
 
 export default function AdminTeamPage() {
   const t = useT();
+  const confirm = useConfirmAction();
   const f = useFormats();
   const router = useRouter();
   const { can, userId } = usePlatform();
@@ -149,7 +151,7 @@ export default function AdminTeamPage() {
                       <MonoChip>{t(`admin.shell.role.${i.platformRole}`)}</MonoChip>
                       <span className="ts-label-micro text-text-muted">{t('admin.team.invitation.expires', { date: f.short(i.expiresAt) })}</span>
                       {write ? (
-                        <Button size="sm" variant="ghost" onClick={() => void act(() => adminWrite(`/admin/platform-members/invitations/${i.id}`, 'DELETE'), t('admin.team.invitation.revoked'))}>
+                        <Button size="sm" variant="ghost" onClick={() => confirm.ask({ title: t('admin.team.invitation.revokeConfirm', { email: i.email }), confirmLabel: t('admin.team.invitation.revoke'), destructive: true, run: () => act(() => adminWrite(`/admin/platform-members/invitations/${i.id}`, 'DELETE'), t('admin.team.invitation.revoked')) })}>
                           {t('admin.team.invitation.revoke')}
                         </Button>
                       ) : null}
@@ -192,6 +194,7 @@ export default function AdminTeamPage() {
       <InviteMemberDialog open={invite} onClose={() => setInvite(false)} />
       <ChangeRoleDialog user={role ? { id: role.userId, name: fullName(role), platformRole: role.platformRole } : null} open={!!role} onClose={() => setRole(null)} />
       <DeletionDialog req={del?.req ?? null} action={del?.action ?? null} onClose={() => setDel(null)} />
+      {confirm.element}
     </AdminPage>
   );
 }

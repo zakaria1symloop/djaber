@@ -1,6 +1,6 @@
 'use client';
 // /settings/stock-mode — Figma "SET — Settings — … Stock mode" (D12): two Option Cards · saving.
-import { FormAlert, OptionCard, Skeleton, Spinner, toast } from '@djaber/ui';
+import { ConfirmDialog, FormAlert, OptionCard, Skeleton, Spinner, toast } from '@djaber/ui';
 import { Box } from 'lucide-react';
 import { useState } from 'react';
 import { Section, SettingsPage } from '@/features/settings/common';
@@ -17,6 +17,8 @@ export default function StockModePage() {
   const patch = usePatchWorkspace();
   const write = useWorkspaceCache();
   const [error, setError] = useState<string | null>(null);
+  // advanced → simple hides Mouvements, Fournisseurs, Achats, Ventes, Caisse and Inventaires: asked first
+  const [confirmSimple, setConfirmSimple] = useState(false);
 
   const choose = async (mode: 'simple' | 'advanced', version = workspace?.version) => {
     if (!workspace || mode === workspace.stockMode) return;
@@ -47,7 +49,7 @@ export default function StockModePage() {
                 key={m}
                 name={m}
                 selected={workspace.stockMode === m}
-                onSelect={() => void choose(m)}
+                onSelect={() => (m === 'simple' && workspace.stockMode === 'advanced' ? setConfirmSimple(true) : void choose(m))}
                 disabled={patch.isPending || !editable}
                 icon={<Box className="size-5" aria-hidden />}
                 title={t(`settings.stockMode.${m}.title`)}
@@ -61,6 +63,20 @@ export default function StockModePage() {
         {!editable ? <p className="ts-label-meta mt-3 text-text-muted">{t('error.READ_ONLY_MEMBER')}</p> : null}
         {error ? <FormAlert className="mt-3">{error}</FormAlert> : null}
       </Section>
+      <ConfirmDialog
+        open={confirmSimple}
+        onOpenChange={setConfirmSimple}
+        title={t('settings.stockMode.toSimple.title')}
+        description={t('settings.stockMode.toSimple.description')}
+        confirmLabel={t('settings.stockMode.toSimple.confirm')}
+        cancelLabel={t('action.cancel')}
+        closeLabel={t('action.close')}
+        loading={patch.isPending}
+        onConfirm={() => {
+          setConfirmSimple(false);
+          void choose('simple');
+        }}
+      />
     </SettingsPage>
   );
 }

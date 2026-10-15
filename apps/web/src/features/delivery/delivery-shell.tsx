@@ -7,6 +7,7 @@ import { Button, cn, toast } from '@djaber/ui';
 import { useState, type ReactNode } from 'react';
 import { AppPage } from '@/components/app-page';
 import { refusal } from '@/features/orders/dialogs/common';
+import { useOffline } from '@/features/orders/offline';
 import { Link, usePathname } from '@/i18n/navigation';
 import { actionState } from '@/lib/actions';
 import { useT } from '@/lib/i18n';
@@ -24,6 +25,7 @@ function SendConfirmed() {
   const [targets, setTargets] = useState<SendTarget[] | null>(null);
   const [busy, setBusy] = useState(false);
   const n = overview.data?.kpis.toSend ?? 0;
+  const offline = useOffline();
   const open = async () => {
     setBusy(true);
     try {
@@ -42,7 +44,7 @@ function SendConfirmed() {
   };
   return (
     <>
-      <Button variant="primary" onClick={() => void open()} loading={busy} disabledReason={overview.data && n === 0 ? t('delivery.sendConfirmed.none') : undefined} data-testid="send-confirmed">
+      <Button variant="primary" onClick={() => void open()} loading={busy} disabledReason={offline ? t('banner.offline') : overview.data && n === 0 ? t('delivery.sendConfirmed.none') : undefined} data-testid="send-confirmed">
         {t('delivery.sendConfirmed', { count: formatNumber(n) })}
       </Button>
       <BulkSendDialog open={!!targets} orders={targets ?? []} onClose={() => setTargets(null)} />

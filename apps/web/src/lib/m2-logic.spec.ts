@@ -4,7 +4,7 @@ import { adjustedStock } from '@/features/catalog/adjust-stock-dialog';
 import { productMenuActions } from '@/features/catalog/product-actions';
 import { activeChips, algiersDay, matchPreset, presetRange, productsQuery, PRODUCTS_LIST, tabQuery, type ChipLabels } from '@/features/catalog/products-list/spec';
 import { comboCount, exceedsVariantLimit, formatAttributeLine, normalizeAttributes, parseAttributeLine, splitExisting, totalVariantStock, variantMatrix } from '@/features/catalog/variants';
-import { actionState, reasonText, toMenuActions } from './actions';
+import { actionState, offlineMenu, reasonText, toMenuActions } from './actions';
 import type { TFunction } from './i18n';
 import {
   clearListFilters,
@@ -337,5 +337,23 @@ describe('products list', () => {
     ]);
     expect(chips.find((c) => c.key === 'minPrice')!.clear).toEqual({ minPrice: null, maxPrice: null });
     expect(chips[0]!.clear).toBe('q');
+  });
+});
+
+describe('offline menus (banner "Hors ligne")', () => {
+  const items = [
+    { key: 'open', label: 'Ouvrir', onSelect: () => undefined },
+    { key: 'cancel', label: 'Annuler', onSelect: () => undefined },
+    { key: 'delete', label: 'Supprimer', disabledReason: 'Payée (SALE_DELETE_PAID)' },
+  ];
+  it('greys every write item with the offline reason, keeps reads and the existing reasons', () => {
+    const out = offlineMenu(items, 'Hors ligne', ['open']);
+    expect(out[0]).toBe(items[0]);
+    expect(typeof out[0]!.onSelect).toBe('function');
+    expect(out[1]).toMatchObject({ key: 'cancel', onSelect: undefined, disabledReason: 'Hors ligne' });
+    expect(out[2]).toMatchObject({ key: 'delete', disabledReason: 'Payée (SALE_DELETE_PAID)' });
+  });
+  it('online: the menu is unchanged', () => {
+    expect(offlineMenu(items, undefined, ['open'])).toBe(items);
   });
 });

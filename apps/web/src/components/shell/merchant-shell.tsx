@@ -19,6 +19,9 @@ import { useChannelBanners, useChannelEvents } from '@/features/channels/shell';
 import { CreditsPillLink, useCreditsBanners, useCreditsEvents } from '@/features/credits/shell';
 import { useBillingEvents, usePlanBanners } from '@/features/billing/shell';
 import { useInboxBadge, useInboxEvents } from '@/features/inbox/api';
+import { useWorkspaceCache, workspaceApi } from '@/features/workspace/api';
+import { planIntentHref, type PlanIntent } from '@/features/public/logic';
+import { clearPlanIntent, readPlanIntent } from '@/lib/plan-intent';
 import { useMessageSound } from '@/features/inbox/sound';
 import { NotificationBell, useUnreadNotifications } from '@/features/notifications/shell';
 import { useQueueCount } from '@/features/queue/shell';
@@ -157,8 +160,18 @@ function useShellBanners(): ShellBanner[] {
   const s = useSession();
   const router = useRouter();
   const [offline, setOffline] = useState(false);
+  // plan picked on the pricing page before sign-up (`/signup?plan=&cycle=`): offered once the shell is reached
+  const [planIntent, setPlanIntent] = useState<PlanIntent | null>(null);
+  useEffect(() => setPlanIntent(readPlanIntent()), []);
+  const dropPlanIntent = () => {
+    clearPlanIntent();
+    setPlanIntent(null);
+  };
   const [cooldown, startCooldown] = useCooldown();
   const resend = useMutation({ mutationFn: authApi.resendVerification });
+  const qc = useQueryClient();
+  const writeWorkspace = useWorkspaceCache();
+  const cancelDeletion = useMutation({ mutationFn: workspaceApi.cancelDeletion });
   // `reconnect` (a page lost its Meta token) and `approvalPending` (Instagram waiting for Meta)
   const channelBanners = useChannelBanners();
   // `credits100` / `credits80` / `negativeCredits` (GET /credits, live through WS `credits.updated`)
@@ -182,6 +195,18 @@ function useShellBanners(): ShellBanner[] {
     };
   }, []);
 
+  // "Annuler la suppression" right from the banner (same call as Settings › Zone de danger)
+  const onCancelDeletion = async () => {
+    try {
+      const res = await cancelDeletion.mutateAsync();
+      writeWorkspace({ status: res.status, deletionScheduledAt: res.deletionScheduledAt });
+      void qc.invalidateQueries({ queryKey: meKey });
+      toast(t('settings.danger.cancelled'));
+    } catch (e) {
+      toast({ tone: 'danger', message: errorMessage(e, t) });
+    }
+  };
+
   const onResend = async () => {
     try {
       await resend.mutateAsync();
@@ -203,7 +228,7 @@ function useShellBanners(): ShellBanner[] {
       id: 'deletionScheduled',
       tone: 'danger',
       content: t('shell.deletionScheduled.banner', { date: s.workspace.deletionScheduledAt ? formatDate(s.workspace.deletionScheduledAt, locale) : '—' }),
-      action: s.can('workspace.delete') ? { label: t('action.cancel'), onClick: () => router.push('/settings/danger') } : undefined,
+      action: s.can('workspace.delete') ? { label: t('settings.danger.cancel'), onClick: () => void onCancelDeletion(), disabled: cancelDeletion.isPending } : undefined,
     });
   }
   if (s.me && !s.me.emailVerifiedAt) {
@@ -217,6 +242,22 @@ function useShellBanners(): ShellBanner[] {
   if (s.readOnly) banners.push({ id: 'readOnly', tone: 'warning', content: t('banner.readOnly') });
   if (offline) banners.push({ id: 'offline', tone: 'warning', content: t('banner.offline') });
   if (maintenance) banners.push(maintenance);
+  if (planIntent && s.can('billing.plan') && s.workspace?.status === 'active') {
+    const intent = planIntent;
+    banners.push({
+      id: 'planIntent',
+      tone: 'info',
+      content: t('shell.planIntent.banner'),
+      action: {
+        label: t('shell.planIntent.action'),
+        onClick: () => {
+          dropPlanIntent();
+          router.push(planIntentHref(intent));
+        },
+      },
+      onDismiss: dropPlanIntent,
+    });
+  }
   return banners;
 }
 

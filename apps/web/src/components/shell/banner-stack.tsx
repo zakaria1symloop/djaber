@@ -21,6 +21,8 @@ export const BANNER_PRIORITY = [
   'newVersion',
   'offline',
   'announcement',
+  // plan picked on the pricing page before sign-up: a nudge, shown only when nothing else is
+  'planIntent',
 ] as const;
 export type BannerId = (typeof BANNER_PRIORITY)[number];
 

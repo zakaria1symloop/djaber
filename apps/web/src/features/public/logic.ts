@@ -120,6 +120,23 @@ export function planLines(p: PublicPlan, t: (key: string, params?: Params) => st
 export const signupHref = (p: Pick<PublicPlan, 'slug'>, cycle: Cycle) => `/signup?plan=${encodeURIComponent(p.slug)}&cycle=${cycle}`;
 export const parseCycleParam = (v: string | string[] | undefined): Cycle => (v === 'yearly' ? 'yearly' : 'monthly');
 
+/**
+ * Plan picked on the pricing page, read back on `/signup?plan=&cycle=`. Every sign-up starts with the 14-day Pro trial
+ * (D60), so the choice is only remembered and offered later (Plan & facturation `?change=<slug>&cycle=`); the free plan
+ * and unknown slugs carry nothing.
+ */
+export type PlanIntent = { plan: string; cycle: Cycle };
+export function planIntentOf(plan: string | null | undefined, cycle: string | null | undefined): PlanIntent | null {
+  const slug = (plan ?? '').trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9_-]{0,39}$/.test(slug) || slug === 'free') return null;
+  return { plan: slug, cycle: parseCycleParam(cycle ?? undefined) };
+}
+export const planIntentHref = (i: PlanIntent) => `/settings/billing?change=${encodeURIComponent(i.plan)}&cycle=${i.cycle}`;
+
+/* ---------- public contact (visitors have no access to /help/contact, which needs a session) ---------- */
+export const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@djaber.ai';
+export const supportMailto = (subject?: string, email: string = SUPPORT_EMAIL) => `mailto:${email}${subject ? `?subject=${encodeURIComponent(subject)}` : ''}`;
+
 /* ---------- help centre (PUB-04) ---------- */
 export type HelpQuery = { q: string; category: HelpCategory | null };
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? '';

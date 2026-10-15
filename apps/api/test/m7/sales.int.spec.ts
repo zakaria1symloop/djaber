@@ -70,6 +70,25 @@ describe('sales (GDS-07)', () => {
     expect(again.client.id).toBe(s.client.id);
   });
 
+  it('AT-GDS-12 finishing a draft with a new client typed in the sheet (PATCH `client { name, phone }`) ⇒ client found or created, partial accepted', async () => {
+    const owner = await advancedShop(app);
+    const p = await product(owner, { price: 5000, stock: 10 });
+    const draft = await sale(owner, { items: [{ productId: p.id, quantity: 2 }], status: 'draft' });
+    expect(draft.client).toBeNull();
+    // without the client the partial validation is still refused
+    const refused = await owner.patch(`/sales/${draft.id}`, { status: 'completed', amountPaid: 3000 }).expect(422);
+    expect(refused.body.error.code).toBe('SALE_PARTIAL_REQUIRES_CUSTOMER');
+    // clientId and client together are refused (one or the other)
+    const both = await owner.patch(`/sales/${draft.id}`, { clientId: owner.userId, client: { name: 'Karim Saidi', phone: '0661 22 33 44' } }).expect(422);
+    expect(both.body.error.fields).toMatchObject({ client: 'validation.invalid' });
+    const done = await owner.patch(`/sales/${draft.id}`, { client: { name: 'Karim Saidi', phone: '0661 22 33 44' }, items: [{ productId: p.id, quantity: 2 }], status: 'completed', amountPaid: 3000 }).expect(200);
+    expect(done.body.data).toMatchObject({ status: 'completed', total: 10000, amountPaid: 3000, remaining: 7000, paymentStatus: 'partial', client: { name: 'Karim Saidi', phone: '0661223344' } });
+    expect(await db.client.findUniqueOrThrow({ where: { id: done.body.data.client.id } })).toMatchObject({ orderCount: 1, totalSpent: 10000, source: 'manual' });
+    expect(await stockOf(p.id)).toBe(8);
+    // a completed sale no longer takes a client through PATCH (Lier à un client instead)
+    expect((await owner.patch(`/sales/${draft.id}`, { client: { name: 'Autre', phone: '0770 11 22 33' } }).expect(422)).body.error.code).toBe('SALE_IMMUTABLE');
+  });
+
   it('AT-GDS-12 cancel at day 8 ⇒ SALE_CANNOT_CANCEL_AFTER_7D; at day 2 with refund ⇒ stock restored + refund row; without refund ⇒ income rows removed', async () => {
     const owner = await advancedShop(app);
     const p = await product(owner, { price: 1000, stock: 10 });

@@ -20,7 +20,7 @@ import {
 } from '@djaber/shared';
 import { ActionsMenu, Button, ConfirmDialog, DataTable, Dialog, EmailInput, Field, Input, Ltr, NumberInput, OpsPanel, Skeleton, StatePill, Switch, toast, UrlInput, type Column, type OpsState } from '@djaber/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { OfflineBanner } from '@/components/global-states';
 import { AdminPage, AdminQueryError } from '@/features/admin/admin-page';
 import { ADMIN_KEY } from '@/features/admin/platform';
@@ -253,10 +253,14 @@ function FlagsPanel({ flags }: { flags: FeatureFlagDto[] }) {
   const [remove, setRemove] = useState<FeatureFlagDto | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const planName = (slug: string) => plans.data?.find((p) => p.slug === slug)?.name ?? slug;
-  const toggle = async (f: FeatureFlagDto, field: 'webPct' | 'mobilePct', on: boolean) => {
+  // switching a platform back on: its kept percentage, else the other platform's rollout; never a silent 100 %
+  const [fullOn, setFullOn] = useState<{ flag: FeatureFlagDto; field: 'webPct' | 'mobilePct' } | null>(null);
+  const onPct = (f: FeatureFlagDto, field: 'webPct' | 'mobilePct') => (f[field] > 0 ? f[field] : f[field === 'webPct' ? 'mobilePct' : 'webPct']);
+  const toggle = async (f: FeatureFlagDto, field: 'webPct' | 'mobilePct', on: boolean, pct?: number) => {
+    if (on && !pct && onPct(f, field) <= 0) return setFullOn({ flag: f, field });
     setBusy(`${f.key}:${field}`);
     try {
-      await opsApi.patchFlag(f.key, { [field]: on ? (f[field] > 0 ? f[field] : 100) : 0, ...(on && !f.isActive ? { isActive: true } : {}) });
+      await opsApi.patchFlag(f.key, { [field]: on ? (pct ?? onPct(f, field)) : 0, ...(on && !f.isActive ? { isActive: true } : {}) });
       await qc.invalidateQueries({ queryKey: opsKeys.settings });
     } catch (e) {
       toast({ tone: 'danger', message: errorMessage(e, t) });
@@ -351,6 +355,20 @@ function FlagsPanel({ flags }: { flags: FeatureFlagDto[] }) {
         destructive
         loading={busy === `${remove?.key}:delete`}
         onConfirm={() => void doRemove()}
+      />
+      <ConfirmDialog
+        open={!!fullOn}
+        onOpenChange={(o) => !o && setFullOn(null)}
+        title={t('adminSettings.flag.fullOn.title', { key: fullOn?.flag.key ?? '' })}
+        description={t('adminSettings.flag.fullOn.description')}
+        confirmLabel={t('adminSettings.flag.fullOn.confirm')}
+        cancelLabel={t('action.cancel')}
+        closeLabel={t('action.close')}
+        onConfirm={() => {
+          const x = fullOn;
+          setFullOn(null);
+          if (x) void toggle(x.flag, x.field, true, 100);
+        }}
       />
     </OpsPanel>
   );
@@ -469,6 +487,11 @@ function MetaPanel({ permissions }: { permissions: MetaPermissionDto[] }) {
   const app = useMetaApp();
   const [edit, setEdit] = useState<MetaPermissionDto | null>(null);
   const [appDialog, setAppDialog] = useState(false);
+  // `/admin/settings#meta` (overview alert "Instagram en revue Meta"): the panel renders after the data, so it is
+  // brought into view once mounted
+  useEffect(() => {
+    if (window.location.hash === '#meta') document.getElementById('meta')?.scrollIntoView({ block: 'start' });
+  }, []);
   const columns: Column<MetaPermissionDto>[] = [
     { key: 'scope', header: t('adminSettings.meta.col.permission'), cell: (p) => <span className="font-mono text-[13px]">{p.scope}</span>, hideable: false },
     {
@@ -496,7 +519,7 @@ function MetaPanel({ permissions }: { permissions: MetaPermissionDto[] }) {
     </div>
   );
   return (
-    <OpsPanel title={t('adminSettings.meta.title')} sub={t('adminSettings.meta.sub')} data-testid="meta">
+    <OpsPanel id="meta" title={t('adminSettings.meta.title')} sub={t('adminSettings.meta.sub')} className="scroll-mt-4" data-testid="meta">
       {permissions.length ? (
         <DataTable
           label={t('adminSettings.meta.title')}

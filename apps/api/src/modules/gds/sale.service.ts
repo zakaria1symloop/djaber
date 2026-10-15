@@ -276,13 +276,14 @@ export class SaleService {
       const s = await this.lock(tx, id);
       if (s.status === 'cancelled') throw new AppException('SALE_IMMUTABLE');
       if (s.status === 'completed') {
-        const locked = input.items !== undefined || input.discount !== undefined || input.tax !== undefined || input.clientId !== undefined || input.amountPaid !== undefined || input.soldAt !== undefined;
+        const locked = input.items !== undefined || input.discount !== undefined || input.tax !== undefined || input.clientId !== undefined || !!input.client || input.amountPaid !== undefined || input.soldAt !== undefined;
         if (locked) throw new AppException('SALE_IMMUTABLE');
         await tx.sale.update({ where: { id }, data: { ...(input.notes !== undefined ? { notes: input.notes } : {}), ...(input.paymentMethod ? { paymentMethod: input.paymentMethod } : {}) } });
         return;
       }
       const soldAt = checkBusinessDate(input.soldAt, 'soldAt');
-      const clientId = input.clientId !== undefined ? await this.client(tx, { clientId: input.clientId }) : s.clientId;
+      // a new client typed while finishing a draft is found by phone or created, as on `POST /sales`
+      const clientId = input.client ? await this.client(tx, { client: input.client }) : input.clientId !== undefined ? await this.client(tx, { clientId: input.clientId }) : s.clientId;
       const items: LineIn[] = input.items ?? s.items.map((i) => ({ productId: i.productId, variantId: i.variantId, quantity: i.quantity, unitPrice: i.unitPrice, discount: i.discount }));
       const lines = await this.price(tx, items);
       const discount = input.discount ?? s.discount;
@@ -296,6 +297,7 @@ export class SaleService {
         where: { id },
         data: {
           clientId,
+          ...(input.client ? { customerName: input.client.name, customerPhone: input.client.phone } : {}),
           subtotal: t.subtotal,
           discount,
           tax,

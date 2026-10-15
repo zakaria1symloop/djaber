@@ -39,6 +39,46 @@ export function saleTotals(lines: readonly SaleLineDraft[], o: { discount: strin
 /** "PRIX MODIFIÉ (4 500 → 4 200)" when the line price differs from the catalogue price. */
 export const priceEdited = (l: SaleLineDraft): boolean => int(l.unitPrice) !== l.catalogPrice;
 
+/**
+ * Client part of the sale body (`POST /sales` and `PATCH /sales/:id` alike): the picked client, else the new client typed
+ * in the sheet (found by phone or created by the API) — finishing a draft must not drop it (SALE_PARTIAL_REQUIRES_CUSTOMER).
+ */
+export function saleClientBody(picked: { id: string } | null, typed: { open: boolean; name: string; phone: string }): { clientId: string | null; client: { name: string; phone: string } | null } {
+  if (picked) return { clientId: picked.id, client: null };
+  if (typed.open && typed.name.trim()) return { clientId: null, client: { name: typed.name.trim(), phone: typed.phone.trim() } };
+  return { clientId: null, client: null };
+}
+
+/** Comparable snapshot of the "Nouvelle vente" sheet: the sheet asks before closing when it differs from the opening one. */
+export function saleSheetSnapshot(s: {
+  lines: readonly { productId: string; variantId: string | null; quantity: number; unitPrice: string }[];
+  discount: string;
+  discountMode: DiscountMode;
+  clientId: string | null;
+  newClient: { open: boolean; name: string; phone: string };
+  method: string;
+  received: string | null;
+}): string {
+  return JSON.stringify([
+    s.lines.map((l) => [l.productId, l.variantId, l.quantity, int(l.unitPrice)]),
+    int(s.discount),
+    s.discountMode,
+    s.clientId,
+    s.newClient.open ? [s.newClient.name.trim(), s.newClient.phone.trim()] : null,
+    s.method,
+    s.received === null ? null : int(s.received),
+  ]);
+}
+
+/**
+ * Variants offered on a purchase / draft-sale line being edited: the product's active variants once loaded, plus the
+ * line's current variant when it is no longer listed (inactive), so the select never loses the saved value.
+ */
+export function lineVariants<V extends { id: string }>(current: readonly V[], loaded: readonly V[] | undefined): V[] {
+  if (!loaded) return [...current];
+  return [...loaded, ...current.filter((c) => !loaded.some((l) => l.id === c.id))];
+}
+
 /* ---------- receive dialog (GDS-07) ---------- */
 export type ReceiveLineDraft = { ordered: number; alreadyReceived: number; now: number; added?: boolean };
 export function receiveSummary(lines: readonly ReceiveLineDraft[]) {

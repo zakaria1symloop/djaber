@@ -288,5 +288,11 @@ describe('ADM-09 audit · ADM-17 viewers · ADM-01 overview', () => {
       expect(alerts[0]).toMatchObject({ code: 'ai_error_rate', severity: 'critical', link: '/admin/ai' });
       await db.aiRoute.update({ where: { id: route.id }, data: { failoverActive: false, failoverSince: null } });
     }
+    // overview alert links open screens that read them: moderation "urgent" tab (MOD_SPEC tabs), not `?priority=`
+    const ws = await db.workspace.findFirstOrThrow({ select: { id: true } });
+    const late = await db.moderationItem.create({ data: { workspaceId: ws.id, type: 'agent_prompt', snapshot: {}, slaDueAt: new Date(Date.now() - 3_600_000) } });
+    const withSla = (await sa.get('/admin/alerts').expect(200)).body.data;
+    expect(withSla).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'moderation_sla', link: '/admin/moderation?tab=urgent' })]));
+    await db.moderationItem.delete({ where: { id: late.id } });
   });
 });

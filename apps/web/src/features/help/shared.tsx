@@ -80,7 +80,7 @@ export function ServiceStatusCard({ statusHref }: { statusHref: string }) {
   const t = useT();
   const q = useStatus();
   return (
-    <HelpCard title={t('help.status.title')} sub={<a href={statusHref} className="hover:underline">status.djaber.ai</a>} data-testid="service-status">
+    <HelpCard title={t('help.status.title')} sub={<a href={statusHref} className="hover:underline">{t('help.status.open')}</a>} data-testid="service-status">
       {q.isPending ? (
         <div role="status" aria-label={t('common.loading')} className="flex flex-col gap-2">
           {Array.from({ length: 6 }).map((_, i) => (

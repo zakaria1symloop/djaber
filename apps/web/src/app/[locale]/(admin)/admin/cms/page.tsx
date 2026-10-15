@@ -6,6 +6,7 @@ import type { AdminCmsCounts, CmsEntryAdminDto, CmsPreviewLinkDto } from '@djabe
 import { ActionsMenu, Button, Checkbox, Field, Input, PillTabs, Select, toast, type Column } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { useConfirmAction } from '@/components/confirm-action';
 import { AdminPage } from '@/features/admin/admin-page';
 import { adminWrite, useAdminGet, useAdminInvalidate, useAdminJobToast, useAdminList } from '@/features/admin/api';
 import { CmsEditor } from '@/features/admin/cms/editor';
@@ -69,6 +70,7 @@ export default function AdminCmsPage() {
       toast({ tone: 'danger', message: errorMessage(err, t) });
     }
   };
+  const confirm = useConfirmAction();
   const menu = (e: CmsEntryAdminDto) => (
     <ActionsMenu
       label={t('action.actions')}
@@ -79,7 +81,7 @@ export default function AdminCmsPage() {
           edit: { label: t('admin.cms.action.edit'), onSelect: () => list.openSheet(e.id) },
           publish: { label: t('admin.cms.action.publish'), onSelect: () => void act(() => adminWrite(`/admin/cms/${e.id}/publish`, 'POST', {}), t('admin.cms.publishedToast')), hidden: !write },
           schedule: { label: t('admin.cms.action.schedule'), onSelect: () => list.openSheet(e.id), hidden: !write },
-          unpublish: { label: t('admin.cms.action.unpublish'), onSelect: () => void act(() => adminWrite(`/admin/cms/${e.id}/unpublish`, 'POST', {}), t('admin.cms.unpublished')), destructive: true, hidden: !write },
+          unpublish: { label: t('admin.cms.action.unpublish'), onSelect: () => confirm.ask({ title: t('admin.cms.unpublishConfirm.title', { key: e.key }), description: t('admin.cms.unpublishConfirm.description'), confirmLabel: t('admin.cms.action.unpublish'), destructive: true, run: () => act(() => adminWrite(`/admin/cms/${e.id}/unpublish`, 'POST', {}), t('admin.cms.unpublished')) }), destructive: true, hidden: !write },
           translate: { label: t('admin.cms.action.translate'), onSelect: () => void track(() => adminWrite<{ jobId: string }>(`/admin/cms/${e.id}/translate`, 'POST', {}), { running: t('admin.cms.translating'), done: t('admin.cms.translated') }), hidden: !write },
           preview: { label: t('admin.cms.action.preview'), onSelect: () => void preview(e) },
           versions: { label: t('admin.cms.action.versions'), onSelect: () => list.openSheet(e.id) },
@@ -120,6 +122,7 @@ export default function AdminCmsPage() {
       <AdminListBody testId="cms-list" query={query} list={list} columns={columns} rowKey={(e) => e.id} label={t('nav.admin.cms')} entity={t('admin.cms.entity')} empty={{ title: t('admin.cms.empty', { type: t(`admin.cms.type.${type}`) }), action: write ? { label: t('admin.cms.new'), onClick: () => setCreate(true) } : undefined }} rowActions={menu} onRowClick={(e) => list.openSheet(e.id)} />
       {list.state.sheet && open.data ? <CmsEditor key={`${open.data.id}:${open.data.updatedAt}`} entry={open.data} canWrite={write} onClose={() => list.openSheet(null)} /> : null}
       <NewCmsDialog open={create} type={type} onClose={() => setCreate(false)} onCreated={(id, ty) => list.set({ tab: ty === 'announcement' ? null : ty, sheet: id })} />
+      {confirm.element}
     </AdminPage>
   );
 }

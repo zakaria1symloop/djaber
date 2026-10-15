@@ -81,6 +81,9 @@ export function SuppliersPage() {
 }
 
 /** Supplier dialogs of a screen (edit, payment, delete / deactivate) driven by one state. */
+const withInactiveReason = (s: Pick<SupplierRow, 'isActive'>, reason: string, items: MenuAction[]): MenuAction[] =>
+  s.isActive ? items : items.map((a) => (a.key === 'new_purchase' && !a.disabledReason ? { ...a, onSelect: undefined, disabledReason: reason } : a));
+
 export function useSupplierActions() {
   const t = useT();
   const router = useRouter();
@@ -100,7 +103,8 @@ export function useSupplierActions() {
     }
   };
   const menu = (s: SupplierRow, o: { onOpen?: () => void } = {}): MenuAction[] =>
-    toMenuActions(
+    // an inactive supplier is not offered in the purchase form: "Nouvel achat" stays visible, greyed with its reason
+    withInactiveReason(s, t('suppliers.inactivePurchaseReason'), toMenuActions(
       s.actions,
       {
         open: { label: t('action.open'), onSelect: () => o.onOpen?.(), hidden: !o.onOpen },
@@ -112,7 +116,7 @@ export function useSupplierActions() {
         delete: { label: t('action.delete'), onSelect: () => setDel(s), destructive: true },
       },
       t,
-    );
+    ));
   const element = (
     <>
       <SupplierDialog open={edit !== null} supplier={edit === 'new' ? null : edit} onClose={() => setEdit(null)} />
@@ -318,7 +322,7 @@ function SupplierSheet({
         s ? (
           <div className="flex items-center gap-1.5">
             {actions.canWrite ? (
-              <Button size="sm" variant="ghost" onClick={() => actions.edit(s)} disabled={offline} data-testid="supplier-edit">
+              <Button size="sm" variant="ghost" onClick={() => actions.edit(s)} disabledReason={offline ? t('banner.offline') : undefined} data-testid="supplier-edit">
                 {t('action.edit')}
               </Button>
             ) : null}
@@ -386,9 +390,15 @@ function SupplierSheet({
           </SheetSection>
           <div className="flex flex-wrap items-center gap-2">
             {actions.canWrite ? (
-              <Link href={`/purchases/new?supplierId=${s.id}`} className={buttonClass({ variant: 'primary' })} aria-disabled={offline || undefined} data-testid="supplier-new-purchase">
-                {t('suppliers.action.newPurchaseHere')}
-              </Link>
+              writeReason || !s.isActive ? (
+                <Button variant="primary" disabled disabledReason={writeReason ?? t('suppliers.inactivePurchaseReason')} data-testid="supplier-new-purchase">
+                  {t('suppliers.action.newPurchaseHere')}
+                </Button>
+              ) : (
+                <Link href={`/purchases/new?supplierId=${s.id}`} className={buttonClass({ variant: 'primary' })} data-testid="supplier-new-purchase">
+                  {t('suppliers.action.newPurchaseHere')}
+                </Link>
+              )
             ) : null}
             <Button onClick={() => actions.pay(s)} disabledReason={writeReason ?? (s.balance <= 0 ? t('suppliers.payment.nothingDue') : undefined)} data-testid="supplier-pay">
               {t('action.recordPayment')}
@@ -406,7 +416,7 @@ function SupplierSheet({
           </div>
           {actions.canWrite ? (
             <div>
-              <Button variant={s.isActive ? 'danger' : 'secondary'} onClick={() => void actions.toggle(s)} disabled={offline} data-testid="supplier-toggle">
+              <Button variant={s.isActive ? 'danger' : 'secondary'} onClick={() => void actions.toggle(s)} disabledReason={offline ? t('banner.offline') : undefined} data-testid="supplier-toggle">
                 {s.isActive ? t('action.disable') : t('action.enable')}
               </Button>
               <p className="ts-label-micro mt-2 !normal-case text-text-muted">{t('suppliers.sheet.deleteNote')}</p>

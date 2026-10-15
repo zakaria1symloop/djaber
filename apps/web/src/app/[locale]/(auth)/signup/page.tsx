@@ -4,15 +4,19 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { RegisterSchema, type RegisterInput } from '@djaber/shared';
 import { Button, EmailInput, Field, FormAlert, Input, PasswordInput } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { AuthCard, AuthLink, LocaleSwitch } from '@/components/auth/auth-card';
 import { authApi } from '@/features/auth/api';
+import { planIntentOf } from '@/features/public/logic';
 import { Link } from '@/i18n/navigation';
 import { ApiError } from '@/lib/api';
 import { formatClock, retryAfterSeconds, useCooldown } from '@/lib/countdown';
 import { applyServerErrors, fieldError } from '@/lib/forms';
+import { authHref } from '@/lib/guards';
 import { useLocaleCode, useT } from '@/lib/i18n';
+import { savePlanIntent } from '@/lib/plan-intent';
 import { useSession } from '@/lib/session';
 
 const FIELDS = ['firstName', 'lastName', 'email', 'password'] as const;
@@ -26,13 +30,19 @@ export default function SignupPage() {
   const [emailTaken, setEmailTaken] = useState(false);
   const [lockedFor, lock] = useCooldown();
   const register = useMutation({ mutationFn: authApi.register });
+  const search = useSearchParams();
+  const returnTo = search.get('returnTo');
+  // pricing CTA `/signup?plan=&cycle=`: the trial is always Pro (D60); the chosen plan is offered afterwards
+  const intent = planIntentOf(search.get('plan'), search.get('cycle'));
 
   const submit = form.handleSubmit(async (values) => {
     setFormError(null);
     setEmailTaken(false);
     try {
       // the owned workspace starts at onboarding step 1: the (app) layout redirects to /onboarding/welcome
-      signIn(await register.mutateAsync({ ...values, locale }));
+      const session = await register.mutateAsync({ ...values, locale });
+      savePlanIntent(intent);
+      signIn(session);
     } catch (e) {
       const wait = retryAfterSeconds(e);
       if (wait > 0) return lock(wait);
@@ -55,13 +65,18 @@ export default function SignupPage() {
             <AuthLink href="/legal/privacy">{t('auth.signup.legal.privacy')}</AuthLink>.
           </p>
           <p className="mt-4">
-            {t('auth.signup.haveAccount')} <AuthLink href="/login">{t('action.login')}</AuthLink>
+            {t('auth.signup.haveAccount')} <AuthLink href={authHref('/login', { returnTo })}>{t('action.login')}</AuthLink>
           </p>
           <LocaleSwitch className="mt-5" />
         </>
       }
     >
       <form onSubmit={submit} noValidate className="flex flex-col gap-4" aria-busy={busy}>
+        {intent ? (
+          <FormAlert tone="info">
+            <span data-testid="signup-plan-intent">{t('auth.signup.planIntent', { cycle: t(`auth.signup.planIntent.${intent.cycle}`) })}</span>
+          </FormAlert>
+        ) : null}
         <div className="grid grid-cols-2 gap-3">
           <Field label={t('auth.field.firstName')} htmlFor="firstName" required error={fieldError(t, errors.firstName?.message, { max: 80 })}>
             <Input id="firstName" autoComplete="given-name" disabled={busy} aria-invalid={!!errors.firstName} {...form.register('firstName')} />
@@ -83,11 +98,11 @@ export default function SignupPage() {
           {emailTaken ? (
             <p role="alert" className="ts-label-meta text-accent-alert">
               {t('auth.signup.emailTaken')} —{' '}
-              <Link href="/login" className="underline underline-offset-2">
+              <Link href={authHref('/login', { returnTo })} className="underline underline-offset-2">
                 {t('action.login')}
               </Link>
               {' · '}
-              <Link href="/forgot-password" className="underline underline-offset-2">
+              <Link href={authHref('/forgot-password', { email: form.getValues('email') })} className="underline underline-offset-2">
                 {t('auth.login.forgot')}
               </Link>
             </p>

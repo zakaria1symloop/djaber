@@ -120,5 +120,6 @@ test('AT-DLG-73 / AT-ERR-10 Nouvelle entrée CMS: CMS_SLUG_INVALID, CMS_SLUG_TAK
   await expect(row).toContainText('PUBLIÉ');
   await row.getByRole('button', { name: 'Actions' }).click();
   await page.getByRole('menuitem', { name: 'Dépublier' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Dépublier' }).click();
   await expect(page.getByText('Entrée dépubliée (404 côté public).')).toBeVisible();
 });

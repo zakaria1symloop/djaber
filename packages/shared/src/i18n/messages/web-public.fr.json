@@ -42,7 +42,7 @@
   "public.meta.accountDeletion": "Supprimer mon compte Djaber",
   "public.meta.accountDeletion.description": "Demandez la suppression de votre compte Djaber et de vos données personnelles sans ouvrir l’application.",
   "public.landing.cta.trial": "Essai gratuit",
-  "public.landing.cta.demo": "Voir une démo",
+  "public.landing.cta.features": "Voir les fonctionnalités",
   "public.landing.features.title": "Fonctionnalités",
   "public.landing.features.more": "Toutes les fonctionnalités",
   "public.landing.pricing.title": "Un vendeur IA pour votre page, à partir de {price} DA",
@@ -147,6 +147,9 @@
   "public.deletion.blocked.pending.title": "Suppression déjà programmée",
   "public.deletion.blocked.pending.text": "Votre compte sera supprimé définitivement le {date}.",
   "public.deletion.blocked.settings": "Ouvrir la zone de danger",
+  "public.deletion.blocked.billing": "Voir la facture à régler",
   "public.captcha.loading": "Vérification anti-robot…",
-  "public.captcha.error": "La vérification anti-robot n’a pas pu se charger. Fermez puis rouvrez la fenêtre."
+  "public.captcha.error": "La vérification anti-robot n’a pas pu se charger. Fermez puis rouvrez la fenêtre.",
+  "public.contact.subject": "Contact Djaber",
+  "public.contact.subjectDeletion": "Suppression de compte"
 }
