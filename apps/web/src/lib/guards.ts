@@ -13,6 +13,11 @@ export const stepNumber = (slug: OnboardingSlug) => ONBOARDING_STEPS.indexOf(slu
 /** Slug of a stored `Workspace.onboardingStep` (0 and 1 both mean "welcome"). */
 export const stepSlug = (step: number): OnboardingSlug => ONBOARDING_STEPS[Math.min(ONBOARDING_STEPS.length, Math.max(1, Math.trunc(step))) - 1]!;
 export const onboardingPath = (step: number) => `/onboarding/${stepSlug(step)}`;
+/**
+ * Value to write when the merchant leaves step `leaving` (Continue, "Plus tard"): the next step, but never less than
+ * the saved progress — a step reopened from the stepper must not move the resume point back. `null` = nothing to write.
+ */
+export const onboardingWrite = (saved: number, leaving: number): number | null => (leaving + 1 > saved ? leaving + 1 : null);
 
 /** The tunnel is shown to the Owner only: it writes workspace settings (`PATCH /workspace/onboarding`). */
 export const needsOnboarding = (w: { onboardingStep: number } | null | undefined, role: MemberRole | null | undefined) =>
@@ -73,11 +78,19 @@ export const decideApp = (i: GuardInput): GuardDecision => {
   if (i.workspaceLoading || !i.workspace) return { kind: 'wait' };
   // a suspended workspace keeps Settings and Help reachable (api-contract §1.3: /workspace, /me*, /support/*)
   if (i.workspace.status === 'suspended' && !/^\/(settings|help)(\/|$)/.test(i.pathname)) return { kind: 'state', state: 'suspended' };
-  // the connect flow's return leg is a transit page: it must run during the tunnel too (step 5 connects a page)
-  if (needsOnboarding(i.workspace, i.role) && i.pathname !== CONNECT_RETURN_PATH) return { kind: 'redirect', to: onboardingPath(i.workspace.onboardingStep) };
+  if (needsOnboarding(i.workspace, i.role) && !isTunnelTransit(i.pathname, i.workspace.onboardingStep)) return { kind: 'redirect', to: onboardingPath(i.workspace.onboardingStep) };
   return { kind: 'render' };
 };
 export const CONNECT_RETURN_PATH = '/channels/connect/return';
+/** Agent wizard steps that run inside the tunnel ("Partir de zéro", step 4); channels and activation come after step 5. */
+export const TUNNEL_WIZARD_STEPS = ['identity', 'knowledge', 'behaviour'] as const;
+const TUNNEL_WIZARD = new RegExp(`^/agents/new(/(${TUNNEL_WIZARD_STEPS.join('|')}))?/?$`);
+/**
+ * (app) pages that run during the tunnel: the connect flow's return leg (step 5 connects a page) and, at step 4, the
+ * first three steps of the agent wizard (the from-scratch agent; it comes back to the tunnel when done).
+ */
+export const isTunnelTransit = (pathname: string, step: number): boolean =>
+  pathname === CONNECT_RETURN_PATH || (stepSlug(step) === 'agent' && TUNNEL_WIZARD.test(pathname));
 
 /** `(onboarding)` layout: session + owner; a finished or skipped tunnel goes home. */
 export const decideOnboarding = (i: GuardInput & { slug: string }): GuardDecision => {

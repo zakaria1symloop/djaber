@@ -18,6 +18,8 @@ export type SectionProps = {
   /** Operator, or the form is being saved: fields greyed */
   readOnly?: boolean;
   badge?: ReactNode;
+  /** the wizard runs inside the onboarding tunnel: links to other app pages are hidden (the tunnel guard sends them back) */
+  inTunnel?: boolean;
 };
 export const issueText = (t: TFunction, issue: Issue | undefined): string | undefined => (issue ? t(issue.key, issue.params) : undefined);
 
