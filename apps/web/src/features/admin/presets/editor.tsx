@@ -77,7 +77,8 @@ export function PresetEditor({ preset, locale, onLocale, canWrite }: { preset: A
     setError(null);
     try {
       await run.mutateAsync(fn);
-      void refresh();
+      // the saved version becomes the baseline before the button is released (no "unsaved" flash after saving)
+      await refresh();
       toast(done);
     } catch (e) {
       if (e instanceof ApiError && e.code === 'PRESET_LOCALE_INCOMPLETE') setError(t('admin.presets.localeIncomplete', { locales: String(e.body.params.locales ?? '').toUpperCase() }));

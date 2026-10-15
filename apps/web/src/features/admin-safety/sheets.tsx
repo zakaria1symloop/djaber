@@ -26,9 +26,10 @@ export function BlockedWordsSheet({ open, onClose, canWrite }: { open: boolean; 
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const initial = (q.data ?? []).map((w: PlatformBlockedWordDto) => w.word);
+  // (re)opening the sheet starts from the saved list: closing it drops the unsaved edits
   useEffect(() => {
-    if (q.data) setWords(q.data.map((w) => w.word));
-  }, [q.data]);
+    if (open && q.data) setWords(q.data.map((w) => w.word));
+  }, [open, q.data]);
   const dirty = JSON.stringify([...words].sort()) !== JSON.stringify([...initial].sort());
   const { guard } = useLeaveGuard(open && dirty, t('adminSafety.header.words'));
   const save = useMutation({ mutationFn: () => safetyApi.saveWords({ words: words.map((word) => ({ word })), reason: reason.trim() || undefined }) });

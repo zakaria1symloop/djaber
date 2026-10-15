@@ -31,9 +31,11 @@ export default function ProfilePage() {
     defaultValues: { firstName: me?.firstName ?? '', lastName: me?.lastName ?? '', locale: me?.locale ?? locale },
   });
   const { reset } = form;
+  // a fresh /me (avatar change, refetch) re-seeds the form only while it is untouched: typed names are never wiped
   useEffect(() => {
-    if (me) reset({ firstName: me.firstName, lastName: me.lastName, locale: me.locale });
-  }, [me, reset]);
+    if (me && !form.formState.isDirty) reset({ firstName: me.firstName, lastName: me.lastName, locale: me.locale });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the profile fields only
+  }, [me?.firstName, me?.lastName, me?.locale, reset]);
 
   const save = useMutation({ mutationFn: authApi.updateMe });
   const avatar = useImageUpload('avatar', async (avatarUploadId) => qc.setQueryData(meKey, await authApi.updateMe({ avatarUploadId })));

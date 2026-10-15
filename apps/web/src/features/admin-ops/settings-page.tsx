@@ -76,29 +76,31 @@ export function SettingsPage() {
     setSaving(true);
     setErrors({});
     const next: Record<string, string> = {};
+    // each section is its own setting: a saved one leaves the dirty state even when the other one is refused
+    const ok = { limits: false, contacts: false };
     try {
       if (limitsDirty) {
         const value = { ...base.limitsValue, ...Object.fromEntries(LIMIT_FIELDS.map((f) => [f, Number(formLimits[f] || 0)])) };
         try {
           await opsApi.putSetting('limits', value, why);
+          ok.limits = true;
         } catch (e) {
           next.limits = errorMessage(e, t);
         }
       }
       if (contactsDirty) {
         try {
-          await opsApi.putSetting('legal_contacts', { accountDeletionUrl: formContacts.accountDeletionUrl.trim(), dpoEmail: formContacts.dpoEmail.trim() }, why);
+          await opsApi.putSetting('legal_contacts', { accountDeletionUrl: formContacts.accountDeletionUrl.trim(), dpoEmail: formContacts.dpoEmail.trim().toLowerCase() }, why);
+          ok.contacts = true;
         } catch (e) {
           next.contacts = errorMessage(e, t);
         }
       }
       setErrors(next);
-      if (!next.limits && !next.contacts) {
-        toast({ tone: 'success', message: t('adminSettings.saved') });
-        await qc.invalidateQueries({ queryKey: opsKeys.settings });
-        setLimits(null);
-        setContacts(null);
-      }
+      if (ok.limits || ok.contacts) await qc.invalidateQueries({ queryKey: opsKeys.settings });
+      if (ok.limits) setLimits(null);
+      if (ok.contacts) setContacts(null);
+      if (!next.limits && !next.contacts) toast({ tone: 'success', message: t('adminSettings.saved') });
     } finally {
       setSaving(false);
     }

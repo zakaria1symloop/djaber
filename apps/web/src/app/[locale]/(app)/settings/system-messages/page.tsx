@@ -29,6 +29,8 @@ export default function SystemMessagesPage() {
   const query = useSystemMessages();
   const [locale, setLocale] = useState<AppLocale>(uiLocale);
   const [draft, setDraft] = useState<SystemMessages | null>(null);
+  /** the version the draft started from: dirty = draft ≠ base (not ≠ the live server value) */
+  const [base, setBase] = useState<SystemMessages | null>(null);
   const [resetKey, setResetKey] = useState<SystemMessageKey | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -36,11 +38,16 @@ export default function SystemMessagesPage() {
   const reset = useMutation({ mutationFn: workspaceApi.resetSystemMessage });
 
   const server = query.data;
+  // a fresh server version (first load, someone else saved) is taken while the draft is untouched only
+  const clean = !draft || !base || JSON.stringify(draft) === JSON.stringify(base);
   useEffect(() => {
-    if (server) setDraft((d) => d ?? structuredClone(server));
+    if (!server || !clean) return;
+    setDraft(structuredClone(server));
+    setBase(server);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the server value
   }, [server]);
 
-  const dirty = useMemo(() => !!draft && !!server && JSON.stringify(draft) !== JSON.stringify(server), [draft, server]);
+  const dirty = useMemo(() => !!draft && !!base && JSON.stringify(draft) !== JSON.stringify(base), [draft, base]);
   const { guard } = useLeaveGuard(dirty, t('nav.settings.systemMessages'));
   const tooLong = !!draft && SYSTEM_MESSAGE_KEYS.some((k) => routing.locales.some((l) => (draft[k][l] ?? '').length > MAX));
 
@@ -52,6 +59,7 @@ export default function SystemMessagesPage() {
       const next = await save.mutateAsync(draft);
       qc.setQueryData(systemMessagesKey(ws), next);
       setDraft(structuredClone(next));
+      setBase(next);
       toast(t('toast.saved'));
     } catch (e) {
       setError(errorMessage(e, t));
@@ -65,6 +73,7 @@ export default function SystemMessagesPage() {
       qc.setQueryData(systemMessagesKey(ws), next);
       // only the reset key is replaced: unsaved edits of the other keys stay in the draft
       setDraft((d) => (d ? { ...d, [resetKey]: { ...next[resetKey] } } : structuredClone(next)));
+      setBase((b) => (b ? { ...b, [resetKey]: { ...next[resetKey] } } : next));
       setResetKey(null);
       toast(t('settings.systemMessages.resetDone'));
     } catch (e) {
