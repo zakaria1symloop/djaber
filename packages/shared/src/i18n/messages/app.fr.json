@@ -3891,7 +3891,7 @@
  "onboarding.continuing": "Continuer…",
  "onboarding.product.aiFill": "Remplir avec l’IA",
  "onboarding.product.category": "CATÉGORIE",
- "onboarding.product.description": "Le minimum pour que l’agent puisse le vendre : un nom, un prix, un stock, une photo. Vous pourrez importer tout votre catalogue (CSV/XLSX) ou l’extraire de votre page ensuite.",
+ "onboarding.product.description": "Le minimum pour que l’agent puisse le vendre : un nom, un prix, un stock, une photo. Le reste du catalogue s’importe (CSV/XLSX) ou s’extrait de votre page depuis Produits, une fois la configuration terminée.",
  "onboarding.product.extract": "Extraire depuis ma page Facebook (après l’étape 5)",
  "onboarding.product.importFile": "Importer un fichier CSV/XLSX",
  "onboarding.product.namePlaceholder": "La Robe satin",
@@ -6273,5 +6273,14 @@
  "units.title": "UNITÉS",
  "validation.id": "Identifiant invalide",
  "validation.invalid": "Valeur invalide",
- "validation.shortcut": "Format : /mot (lettres minuscules, chiffres, tirets)"
+ "validation.shortcut": "Format : /mot (lettres minuscules, chiffres, tirets)",
+ "onboarding.product.existing": "Votre catalogue contient déjà « {name} ». Continuez, ou ajoutez un autre produit.",
+ "onboarding.product.addAnother": "Ajouter un autre produit",
+ "onboarding.agent.existing": "Votre agent « {name} » est déjà créé. Continuez avec lui, ou choisissez un modèle ci-dessous pour en créer un autre.",
+ "onboarding.agent.continueWith": "Continuer avec « {name} »",
+ "onboarding.connect.existing": "{count, plural, one {Page déjà connectée :} other {Pages déjà connectées :}}",
+ "onboarding.ready.noAgent": "Aucun agent pour l’instant : créez-le à l’étape Agent.",
+ "onboarding.ready.membersResource": "membres",
+ "agents.wizard.tunnelFinish": "Enregistrer et passer à la page",
+ "agents.wizard.tunnelNote": "Canaux et activation : après la connexion de votre page"
 }

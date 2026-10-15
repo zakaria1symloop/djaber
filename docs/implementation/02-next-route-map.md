@@ -81,12 +81,12 @@ Sidebar items exactly as frame `ADM-01 — Platform admin — overview`: Vue d'e
 |---|---|---|
 | `/onboarding/welcome` | `PATCH /workspace/onboarding {step:1}` | default |
 | `/onboarding/stock-mode` | `PATCH /workspace {stockMode}` + onboarding step | two Option Cards · saving |
-| `/onboarding/first-product` | `POST /products` | minimal form · validation · "plus tard" |
-| `/onboarding/agent` | `GET /agents/presets`, `POST /agents { presetKey \| fromScratch }` (draft) | 4 Preset Cards + scratch · saving |
+| `/onboarding/first-product` | `POST /products`, `POST /products/ai-fill` ("Remplir avec l’IA") | minimal form (name, price, stock, photo — no category, no import / extraction: they come after the setup) · validation · product already created (Continuer / Ajouter un autre) · "plus tard" |
+| `/onboarding/agent` | `GET /agents/presets`, `POST /agents { presetKey }` (draft), `GET /agents` | 4 Preset Cards · saving · agent already created (Continuer avec « nom ») · "Partir de zéro" → agent wizard `/agents/new?start=scratch` (steps 1–3 inside the tunnel, then back at step 5) |
 | `/onboarding/connect` | `GET /channels/connect/facebook`, callback via popup `postMessage`, `GET /channels/app-review-status` | explainer · popup blocked · waiting · OAuth refused · state invalid · e-mail unverified · approval pending · per-page report · plan limit rows |
-| `/onboarding/ready` | `GET /workspace/onboarding` (checklist) | summary done/skipped |
+| `/onboarding/ready` | `GET /workspace/onboarding` (checklist), `GET /agents` | summary done/skipped · next actions: Tester mon agent (playground; disabled without agent) · Importer (`/products/import`) · Inviter (`/settings/members`), disabled with their reason at the plan limit |
 
-Resume rule: `(app)/layout` redirects to `/onboarding/<step>` when `workspace.onboardingStep < 6` and the user did not click "Passer la configuration" (`onboardingStep = 99` on skip).
+Resume rule: `(app)/layout` redirects to `/onboarding/<step>` when `workspace.onboardingStep < 6` and the user did not click "Passer la configuration" (`onboardingStep = 99` on skip). Transit pages that run during the tunnel: `/channels/connect/return` (step 5) and, while the saved step is 4, `/agents/new` + its steps identity / knowledge / behaviour ("Partir de zéro"). Leaving a step never moves the saved step back.
 
 ### 3.4 Merchant app `(app)`
 

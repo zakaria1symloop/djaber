@@ -27,10 +27,12 @@ const FAQ_FILE_MAX = 5 * 1024 * 1024;
 const FAQ_FILE_TYPES = /\.(docx|txt|md|csv)$/i;
 const SOURCE_TONE: Record<FaqSource, 'neutral' | 'info' | 'success'> = { manual: 'neutral', page_extraction: 'info', ai_suggested: 'success', file_import: 'neutral' };
 
-export function KnowledgeFields({ draft: d, set, errors, readOnly, badge, agentId, productCount, hasInsights }: SectionProps & { agentId: string | null; productCount?: number | null; hasInsights?: boolean }) {
+export function KnowledgeFields({ draft: d, set, errors, readOnly, badge, inTunnel, agentId, productCount, hasInsights }: SectionProps & { agentId: string | null; productCount?: number | null; hasInsights?: boolean }) {
   const t = useT();
   const categories = useCategories();
   const flat = flattenCategories(categories.data ?? []);
+  // in the tunnel a new shop has no category and no way to create one: the "by category" scope cannot be chosen
+  const noCategories = !!inTunnel && categories.isSuccess && flat.length === 0 && d.catalogScope !== 'categories';
   const toggleCategory = (id: string, on: boolean) => set({ scopeCategoryIds: on ? [...d.scopeCategoryIds, id] : d.scopeCategoryIds.filter((x) => x !== id) });
   const radio = 'mt-0.5 size-4 accent-white';
   return (
@@ -46,11 +48,11 @@ export function KnowledgeFields({ draft: d, set, errors, readOnly, badge, agentI
               <span className="ts-label-meta mt-1 block text-text-muted">{t('agents.catalog.all.hint')}</span>
             </span>
           </label>
-          <label className="flex cursor-pointer items-start gap-3">
-            <input type="radio" name="catalogScope" className={radio} checked={d.catalogScope === 'categories'} disabled={readOnly} onChange={() => set({ catalogScope: 'categories' })} />
+          <label className={noCategories ? 'flex cursor-not-allowed items-start gap-3 opacity-60' : 'flex cursor-pointer items-start gap-3'} title={noCategories ? t('agents.catalog.noCategory') : undefined}>
+            <input type="radio" name="catalogScope" className={radio} checked={d.catalogScope === 'categories'} disabled={readOnly || noCategories} onChange={() => set({ catalogScope: 'categories' })} />
             <span>
               <span className="block text-[14px]">{t('agents.catalog.categories')}</span>
-              <span className="ts-label-meta mt-1 block text-text-muted">{t('agents.catalog.categories.hint')}</span>
+              <span className="ts-label-meta mt-1 block text-text-muted">{noCategories ? t('agents.catalog.noCategory') : t('agents.catalog.categories.hint')}</span>
             </span>
           </label>
         </div>
@@ -66,10 +68,15 @@ export function KnowledgeFields({ draft: d, set, errors, readOnly, badge, agentI
               </div>
             ) : (
               <p className="text-[13px] text-text-muted">
-                {t('agents.catalog.noCategory')}{' '}
-                <Link href="/categories" className="text-accent-inbound hover:underline">
-                  {t('nav.categories')}
-                </Link>
+                {t('agents.catalog.noCategory')}
+                {inTunnel ? null : (
+                  <>
+                    {' '}
+                    <Link href="/categories" className="text-accent-inbound hover:underline">
+                      {t('nav.categories')}
+                    </Link>
+                  </>
+                )}
               </p>
             )}
             {errors.scopeCategoryIds ? (

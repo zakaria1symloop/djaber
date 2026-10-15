@@ -24,6 +24,15 @@ test('AT-ONB-01 closing the browser at step 3 resumes at step 3; every step is s
   await p1.getByRole('button', { name: 'Continuer' }).click();
   await expectUrl(p1, '**/fr/onboarding/first-product');
   await expect(p1.getByRole('heading', { name: 'Ajoutez votre premier produit' })).toBeVisible();
+  // step 3 is the minimal form: no import / page extraction (they come after the setup, from Produits) and no
+  // category (a new shop has none); "Remplir avec l'IA" opens the photo analysis
+  await expect(p1.locator('#p-name')).toBeVisible();
+  await expect(p1.getByRole('button', { name: /Importer un fichier/ })).toHaveCount(0);
+  await expect(p1.getByRole('button', { name: /Extraire depuis ma page/ })).toHaveCount(0);
+  await expect(p1.locator('#p-cat')).toHaveCount(0);
+  await p1.getByTestId('first-product-ai').click();
+  await expect(p1.getByRole('dialog', { name: 'Créer depuis une photo' })).toBeVisible();
+  await p1.keyboard.press('Escape');
   // a later step cannot be opened ahead of the progress
   await p1.goto('/fr/onboarding/ready');
   await expectUrl(p1, '**/fr/onboarding/first-product');
@@ -40,6 +49,15 @@ test('AT-ONB-01 closing the browser at step 3 resumes at step 3; every step is s
   await expect(steps.locator('[data-state="done"]')).toHaveCount(2);
   await expect(steps.locator('[aria-current="step"]')).toHaveText('Produit');
 
+  // a step reopened from the stepper never moves the saved progress back
+  await steps.getByRole('button', { name: 'Bienvenue' }).click();
+  await expectUrl(p2, '**/fr/onboarding/welcome');
+  await p2.getByRole('button', { name: 'Commencer' }).click();
+  await expectUrl(p2, '**/fr/onboarding/stock-mode');
+  await p2.goto('/fr/onboarding/first-product');
+  await expect(p2.getByRole('heading', { name: 'Ajoutez votre premier produit' })).toBeVisible();
+  await expect(p2).toHaveURL(/\/fr\/onboarding\/first-product$/);
+
   // "← Stock" goes back, "Plus tard" skips each remaining step
   await p2.getByRole('link', { name: 'Stock', exact: true }).click();
   await expectUrl(p2, '**/fr/onboarding/stock-mode');
@@ -54,6 +72,10 @@ test('AT-ONB-01 closing the browser at step 3 resumes at step 3; every step is s
   // step 5 is blocked while the e-mail is unverified (resend offered), "Plus tard" still works
   await expect(p2.getByRole('alert').filter({ hasText: 'Vérifiez votre e-mail pour connecter une page' })).toBeVisible();
   await expect(p2.getByRole('button', { name: 'Continuer avec Facebook' })).toBeDisabled();
+  // the Instagram choice gets its own button, blocked the same way
+  await p2.getByRole('radio', { name: /Instagram seul/ }).click();
+  await expect(p2.getByRole('button', { name: 'Continuer avec Instagram' })).toBeDisabled();
+  await expect(p2.getByTestId('onboarding-connect')).toHaveAttribute('title', 'Vérifiez votre e-mail pour continuer.');
   await p2.getByRole('button', { name: 'Plus tard' }).click();
   await expectUrl(p2, '**/fr/onboarding/ready');
 
@@ -64,6 +86,11 @@ test('AT-ONB-01 closing the browser at step 3 resumes at step 3; every step is s
   await expect(p2.locator('[data-step="agent"] [data-done="false"]')).toBeVisible();
   await expect(p2.locator('[data-step="page"] [data-done="false"]')).toBeVisible();
   await expect(p2.locator('[data-step="sale"] [data-done="false"]')).toBeVisible();
+  // next actions: no agent yet ⇒ "Tester mon agent" is disabled with its reason; import and invite open their screens
+  await expect(p2.getByTestId('ready-test-agent')).toBeDisabled();
+  await expect(p2.getByTestId('ready-test-agent')).toHaveAttribute('title', 'Aucun agent pour l’instant : créez-le à l’étape Agent.');
+  await expect(p2.getByTestId('ready-import')).toHaveAttribute('href', /\/fr\/products\/import$/);
+  await expect(p2.getByTestId('ready-invite')).toHaveAttribute('href', /\/fr\/settings\/members$/);
   await p2.getByRole('link', { name: 'Aller à l’accueil' }).click();
   await expectUrl(p2, '**/fr/home');
   await expect(p2.getByTestId('checklist-count')).toHaveText('0 / 4');

@@ -345,7 +345,13 @@ test('AT-ONB-01 the "first product" step creates the product, with inline errors
   const list = await request.get(`${API}/products?pageSize=25`, { headers: authHeaders(fresh) });
   const rows = ((await list.json()) as { data: { name: string; price: number; stock: number }[] }).data;
   expect(rows.map((r) => [r.name, r.price, r.stock])).toEqual([['La Robe satin', 4900, 14]]);
-  // the step stays skippable: back, then "Plus tard" creates nothing
+  // reopened: the product created is shown, "Continuer" creates nothing; the step stays skippable ("Plus tard")
+  await page.getByRole('link', { name: 'Produit', exact: true }).click();
+  await expectUrl(page, '**/fr/onboarding/first-product');
+  await expect(page.getByTestId('first-product-existing')).toContainText('« La Robe satin »');
+  await expect(page.getByTestId('first-product-submit')).toHaveCount(0);
+  await page.getByTestId('first-product-continue').click();
+  await expectUrl(page, '**/fr/onboarding/agent');
   await page.getByRole('link', { name: 'Produit', exact: true }).click();
   await expectUrl(page, '**/fr/onboarding/first-product');
   await page.getByRole('button', { name: 'Plus tard' }).click();

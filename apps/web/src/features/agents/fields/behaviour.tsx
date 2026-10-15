@@ -24,7 +24,7 @@ const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 export const renderCardTemplate = (template: string, sample: { name: string; price: string; description: string; stock: string }): string =>
   template.replace(/\[PRODUCT_CARD\]/g, '').replace(/\{(name|price|description|stock)\}/g, (_m, k: keyof typeof sample) => sample[k]).trim();
 
-export function BehaviourFields({ draft: d, set, errors, readOnly, badge }: SectionProps) {
+export function BehaviourFields({ draft: d, set, errors, readOnly, badge, inTunnel }: SectionProps) {
   const t = useT();
   const locale = useLocaleCode() as AppLocale;
   const { workspace, can } = useSession();
@@ -112,8 +112,8 @@ export function BehaviourFields({ draft: d, set, errors, readOnly, badge }: Sect
           </Field>
         ) : null}
         <div className="grid gap-4 lg:grid-cols-2">
-          <SystemMessage label={t('agents.handoff.message')} text={system('handoff')} canEdit={can('workspace.settings')} />
-          <SystemMessage label={t('agents.handoff.outOfHours')} text={system('out_of_hours')} canEdit={can('workspace.settings')} />
+          <SystemMessage label={t('agents.handoff.message')} text={system('handoff')} canEdit={!inTunnel && can('workspace.settings')} />
+          <SystemMessage label={t('agents.handoff.outOfHours')} text={system('out_of_hours')} canEdit={!inTunnel && can('workspace.settings')} />
         </div>
         <ScheduleEditor
           value={d.businessHours}

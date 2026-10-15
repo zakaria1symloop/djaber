@@ -4,6 +4,8 @@
 // created at the first save (`POST /agents`, status draft — drafts never count toward `maxAgents`) and auto-saved after
 // every change ("Brouillon enregistré il y a 12 s"); it resumes from the list (`?draft=<id>`). Back is always allowed.
 // Before the draft exists the form is kept in sessionStorage (session-expired recovery, 02-next-route-map §6).
+// Inside the onboarding tunnel (step 4 "Partir de zéro", `?start=scratch`) only steps 1–3 run: channels and activation
+// need the page of step 5, so finishing step 3 moves the tunnel on to the page step; cancel / save & quit go back to it.
 import { Button, buttonClass, FormAlert, OptionCard, Skeleton, SummaryRail, toast, ValidationSummary, WizardFrame, type WizardStep } from '@djaber/ui';
 import { formatNumber, PLAYGROUND_TURNS_PER_HOUR } from '@djaber/shared';
 import { useQueryClient } from '@tanstack/react-query';
@@ -12,9 +14,11 @@ import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppPage } from '@/components/app-page';
 import { ConflictDialog, QueryError } from '@/components/global-states';
+import { useOnboardingStep } from '@/features/workspace/api';
 import { Link, useRouter } from '@/i18n/navigation';
 import { conflictOf } from '@/lib/conflict';
 import { errorMessage, useLeaveGuard } from '@/lib/forms';
+import { needsOnboarding, onboardingPath, onboardingWrite, stepNumber, TUNNEL_WIZARD_STEPS } from '@/lib/guards';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { useSession, useWorkspaceId } from '@/lib/session';
 import { relativeTime } from '@/lib/time';
@@ -69,12 +73,20 @@ const store = (d: AgentDraft | null) => {
   } catch {}
 };
 const sectionOf = (step: WizardStepKey): SectionKey | null => (step === 'identity' || step === 'knowledge' || step === 'behaviour' ? step : null);
+const TUNNEL_STEP = stepNumber('agent');
+const TUNNEL_PATH = onboardingPath(TUNNEL_STEP);
+const inTunnelSteps = (k: WizardStepKey) => (TUNNEL_WIZARD_STEPS as readonly string[]).includes(k);
 
 export function AgentWizard({ step }: { step: WizardStepKey }) {
   const t = useT();
   const locale = useLocaleCode();
   const router = useRouter();
-  const draftId = useSearchParams().get('draft');
+  const params = useSearchParams();
+  const draftId = params.get('draft');
+  const { workspace, role } = useSession();
+  const inTunnel = needsOnboarding(workspace, role);
+  const exitTo = inTunnel ? TUNNEL_PATH : '/agents';
+  const initialStart = !draftId && params.get('start') === 'scratch' ? SCRATCH : null;
   const q = useAgent(draftId);
   const agent = q.data ?? null;
   // status the agent had when this step opened: a draft activated from step 5 leaves through the activation itself
@@ -91,8 +103,8 @@ export function AgentWizard({ step }: { step: WizardStepKey }) {
 
   const crumb = (
     <nav aria-label={t('agents.wizard.breadcrumb')} className="ts-label-meta text-text-muted">
-      <Link href="/agents" className="text-accent-inbound underline underline-offset-2">
-        {t('nav.agents')}
+      <Link href={exitTo} className="text-accent-inbound underline underline-offset-2">
+        {inTunnel ? t('onboarding.stepsLabel') : t('nav.agents')}
       </Link>{' '}
       / {agent?.name || t('agents.wizard.new')}
     </nav>
@@ -101,7 +113,7 @@ export function AgentWizard({ step }: { step: WizardStepKey }) {
     return (
       <AppPage wide permission={['agents.read', 'agents.manage']} title={t('agents.wizard.new')} breadcrumb={crumb}>
         {q.isError ? (
-          <QueryError error={q.error} onRetry={() => q.refetch()} backHref={`/${locale}/agents`} />
+          <QueryError error={q.error} onRetry={() => q.refetch()} backHref={`/${locale}${exitTo}`} />
         ) : (
           <div role="status" aria-label={t('common.loading')} className="flex flex-col gap-4">
             <Skeleton className="h-8 w-2/3" />
@@ -111,10 +123,10 @@ export function AgentWizard({ step }: { step: WizardStepKey }) {
       </AppPage>
     );
   }
-  return <WizardBody key={agent?.id ?? 'new'} step={step} agent={agent} crumb={crumb} />;
+  return <WizardBody key={agent?.id ?? 'new'} step={step} agent={agent} crumb={crumb} inTunnel={inTunnel} exitTo={exitTo} initialStart={initialStart} />;
 }
 
-function WizardBody({ step, agent, crumb }: { step: WizardStepKey; agent: Agent | null; crumb: React.ReactNode }) {
+function WizardBody({ step, agent, crumb, inTunnel, exitTo, initialStart }: { step: WizardStepKey; agent: Agent | null; crumb: React.ReactNode; inTunnel: boolean; exitTo: string; initialStart: string | null }) {
   const t = useT();
   const locale = useLocaleCode();
   const router = useRouter();
@@ -126,7 +138,8 @@ function WizardBody({ step, agent, crumb }: { step: WizardStepKey; agent: Agent 
 
   const [base, setBase] = useState<AgentDraft | null>(() => (agent ? draftFromAgent(agent) : null));
   const [draft, setDraft] = useState<AgentDraft>(() => (agent ? draftFromAgent(agent) : defaultDraft()));
-  const [start, setStart] = useState<string | null>(null);
+  // "Partir de zéro" of the tunnel arrives with the starting point already chosen
+  const [start, setStart] = useState<string | null>(initialStart);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [saving, setSaving] = useState<'auto' | 'next' | 'quit' | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(agent?.updatedAt ? Date.parse(agent.updatedAt) : null);
@@ -154,7 +167,7 @@ function WizardBody({ step, agent, crumb }: { step: WizardStepKey; agent: Agent 
     return () => window.clearInterval(id);
   }, []);
 
-  const dirty = useMemo(() => (base ? dirtySections(base, draft).length > 0 : draft.name.trim() !== '' || start !== null), [base, draft, start]);
+  const dirty = useMemo(() => (base ? dirtySections(base, draft).length > 0 : draft.name.trim() !== '' || (start !== null && start !== initialStart)), [base, draft, start, initialStart]);
   const { guard } = useLeaveGuard(dirty && saving === null, draft.name || t('agents.wizard.new'));
 
   // a newer version of the draft arrived (WS refetch after a save made elsewhere): a form without unsaved changes takes
@@ -260,18 +273,39 @@ function WizardBody({ step, agent, crumb }: { step: WizardStepKey; agent: Agent 
     if (changed && !(await save('quit'))) return;
     go(to);
   };
-  const next = async () => {
-    const saved = await save('next');
-    if (!saved) return;
+  // the tunnel's last wizard step: the draft is saved, the tunnel moves on to the page step (channels need a page)
+  const tunnelLast = inTunnel && step === TUNNEL_WIZARD_STEPS[TUNNEL_WIZARD_STEPS.length - 1];
+  const onboarding = useOnboardingStep();
+  const [finishing, setFinishing] = useState(false);
+  const finishTunnel = async (saved: Agent) => {
+    setFinishing(true);
+    toast(t('agents.wizard.savedDraft', { name: saved.name }));
+    const write = onboardingWrite(workspace?.onboardingStep ?? TUNNEL_STEP, TUNNEL_STEP);
+    try {
+      if (write !== null) await onboarding.mutateAsync(write);
+      router.push(onboardingPath(TUNNEL_STEP + 1));
+    } catch (e) {
+      // the agent is saved: the tunnel's agent step shows it with "Continuer"
+      toast({ tone: 'danger', message: errorMessage(e, t) });
+      setFinishing(false);
+      router.push(TUNNEL_PATH);
+    }
+  };
+  const proceed = (saved: Agent) => {
+    if (tunnelLast) return void finishTunnel(saved);
     const to = nextStep(step);
     if (to) go(to, saved.id);
   };
+  const next = async () => {
+    const saved = await save('next');
+    if (saved) proceed(saved);
+  };
   const quit = async () => {
-    if (!agent && !draft.name.trim() && start === null) return router.push('/agents');
+    if (!agent && !draft.name.trim() && (start === null || start === initialStart)) return router.push(exitTo);
     const saved = await save('quit');
     if (!saved) return;
     toast(t('agents.wizard.savedDraft', { name: saved.name }));
-    router.push('/agents');
+    router.push(exitTo);
   };
   const reload = async () => {
     const fresh = conflict?.current ?? (agent ? await agentsApi.get(agent.id).catch(() => null) : null);
@@ -294,10 +328,11 @@ function WizardBody({ step, agent, crumb }: { step: WizardStepKey; agent: Agent 
     key: k,
     label: t(`agents.wizard.step.${k}`),
     state: stepState(k, step, savedStep),
-    onSelect: canOpenStep(k, savedStep, !!agent) && k !== step ? () => void leaveTo(k) : undefined,
+    // in the tunnel, channels and activation are not reachable before a page is connected (tunnel step 5)
+    onSelect: canOpenStep(k, savedStep, !!agent) && k !== step && (!inTunnel || inTunnelSteps(k)) ? () => void leaveTo(k) : undefined,
   }));
   const errors = issueMap(issues);
-  const fields = { draft, set, errors, readOnly: saving === 'next' || saving === 'quit' };
+  const fields = { draft, set, errors, readOnly: saving === 'next' || saving === 'quit' || finishing, inTunnel };
   const presetName = draft.presetKey ? (presets.data?.find((p) => p.key === draft.presetKey)?.name ?? agent?.preset?.name ?? draft.presetKey) : agent || start === SCRATCH ? t('agents.start.scratch') : '';
   const conversations = workspace?.plan?.usage.conversationsThisMonth || 1_200;
   const perConv = creditsPerConversation(draft);
@@ -344,7 +379,7 @@ function WizardBody({ step, agent, crumb }: { step: WizardStepKey; agent: Agent 
         footer={{
           back:
             step === 'identity' ? (
-              <Link href="/agents" className={buttonClass({ variant: 'ghost' })} data-testid="wizard-cancel">
+              <Link href={exitTo} className={buttonClass({ variant: 'ghost' })} data-testid="wizard-cancel">
                 {t('action.cancel')}
               </Link>
             ) : (
@@ -353,17 +388,17 @@ function WizardBody({ step, agent, crumb }: { step: WizardStepKey; agent: Agent 
                 {t('agents.wizard.back')}
               </Button>
             ),
-          status: step === 'activate' ? t('agents.activate.blockedNote') : status,
+          status: step === 'activate' ? t('agents.activate.blockedNote') : tunnelLast ? `${status} · ${t('agents.wizard.tunnelNote')}` : status,
           secondary:
             step === 'activate' ? null : (
-              <Button variant="ghost" onClick={() => void quit()} loading={saving === 'quit'} disabled={saving === 'next'} data-testid="wizard-save-quit">
+              <Button variant="ghost" onClick={() => void quit()} loading={saving === 'quit'} disabled={saving === 'next' || finishing} data-testid="wizard-save-quit">
                 {t('action.saveAndQuit')}
               </Button>
             ),
           primary:
             step === 'activate' ? null : (
-              <Button variant="primary" onClick={() => void next()} loading={saving === 'next'} disabled={saving === 'quit'} data-testid="wizard-next">
-                {t('agents.wizard.next')}
+              <Button variant="primary" onClick={() => void next()} loading={saving === 'next' || finishing} disabled={saving === 'quit'} data-testid="wizard-next">
+                {tunnelLast ? t('agents.wizard.tunnelFinish') : t('agents.wizard.next')}
                 <ArrowRight className="size-4 rtl:-scale-x-100" aria-hidden />
               </Button>
             ),
@@ -401,7 +436,7 @@ function WizardBody({ step, agent, crumb }: { step: WizardStepKey; agent: Agent 
         {step === 'activate' && agent ? <ActivateStep agent={agent} activation={activation} /> : null}
       </WizardFrame>
       {guard}
-      <ConflictDialog open={conflict !== null} name={conflict?.by || '—'} ago={conflict?.at ? relativeTime(conflict.at, locale) : '—'} onReload={() => void reload()} onOverwrite={conflict?.current ? () => (setConflict(null), void save('next', conflict.current!.version).then((s) => s && nextStep(step) && go(nextStep(step)!, s.id))) : undefined} onClose={() => setConflict(null)} />
+      <ConflictDialog open={conflict !== null} name={conflict?.by || '—'} ago={conflict?.at ? relativeTime(conflict.at, locale) : '—'} onReload={() => void reload()} onOverwrite={conflict?.current ? () => (setConflict(null), void save('next', conflict.current!.version).then((s) => s && proceed(s))) : undefined} onClose={() => setConflict(null)} />
     </AppPage>
   );
 }

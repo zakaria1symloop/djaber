@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideApp, decideAuth, decideOnboarding, loginHref, needsOnboarding, ONBOARDING_SKIPPED, onboardingPath, safeReturnTo, stepNumber, stepSlug, type GuardInput } from './guards';
+import { decideApp, decideAuth, decideOnboarding, isTunnelTransit, loginHref, needsOnboarding, ONBOARDING_SKIPPED, onboardingPath, onboardingWrite, safeReturnTo, stepNumber, stepSlug, type GuardInput } from './guards';
 
 const base: GuardInput = {
   status: 'authenticated',
@@ -18,6 +18,15 @@ describe('onboarding steps (ONB-01)', () => {
     expect(stepSlug(99)).toBe('ready');
     expect(onboardingPath(5)).toBe('/onboarding/connect');
     expect(stepNumber('stock-mode')).toBe(2);
+  });
+  it('never moves the saved progress back when a reopened step is left', () => {
+    expect(onboardingWrite(3, 3)).toBe(4);
+    expect(onboardingWrite(0, 1)).toBe(2);
+    // step 1 reopened from the stepper while the progress is at step 5: nothing is written
+    expect(onboardingWrite(5, 1)).toBeNull();
+    expect(onboardingWrite(5, 4)).toBeNull();
+    expect(onboardingWrite(5, 5)).toBe(6);
+    expect(onboardingWrite(6, 2)).toBeNull();
   });
   it('is shown to the owner until step 6 or skip (99)', () => {
     expect(needsOnboarding({ onboardingStep: 3 }, 'owner')).toBe(true);
@@ -72,6 +81,19 @@ describe('(app) guard', () => {
   it('lets the connect return page run during the tunnel (the page step needs it)', () => {
     expect(decideApp({ ...base, pathname: '/channels/connect/return', workspace: { onboardingStep: 5, status: 'active' } })).toEqual({ kind: 'render' });
     expect(decideApp({ ...base, pathname: '/channels', workspace: { onboardingStep: 5, status: 'active' } })).toEqual({ kind: 'redirect', to: '/onboarding/connect' });
+  });
+  it('lets the first three agent-wizard steps run at the agent step only ("Partir de zéro")', () => {
+    const at = (step: number, pathname: string) => decideApp({ ...base, pathname, workspace: { onboardingStep: step, status: 'active' } });
+    for (const p of ['/agents/new', '/agents/new/identity', '/agents/new/knowledge', '/agents/new/behaviour']) expect(at(4, p)).toEqual({ kind: 'render' });
+    // channels and activation need a connected page (step 5): back to the tunnel
+    expect(at(4, '/agents/new/channels')).toEqual({ kind: 'redirect', to: '/onboarding/agent' });
+    expect(at(4, '/agents/new/activate')).toEqual({ kind: 'redirect', to: '/onboarding/agent' });
+    expect(at(4, '/agents')).toEqual({ kind: 'redirect', to: '/onboarding/agent' });
+    expect(at(4, '/agents/new-thing')).toEqual({ kind: 'redirect', to: '/onboarding/agent' });
+    // at another step the wizard is not part of the tunnel
+    expect(at(3, '/agents/new')).toEqual({ kind: 'redirect', to: '/onboarding/first-product' });
+    expect(at(5, '/agents/new/knowledge')).toEqual({ kind: 'redirect', to: '/onboarding/connect' });
+    expect(isTunnelTransit('/channels/connect/return', 2)).toBe(true);
   });
   it('lets skipped or finished tunnels and non-owners through', () => {
     expect(decideApp({ ...base, workspace: { onboardingStep: 99, status: 'active' } })).toEqual({ kind: 'render' });

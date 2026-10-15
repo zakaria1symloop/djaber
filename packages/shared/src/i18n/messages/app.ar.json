@@ -3891,7 +3891,7 @@
  "onboarding.continuing": "متابعة…",
  "onboarding.product.aiFill": "تعبئة بالذكاء الاصطناعي",
  "onboarding.product.category": "الفئة",
- "onboarding.product.description": "الحد الأدنى ليتمكن الوكيل من بيعه: اسم، سعر، مخزون، صورة. يمكنك لاحقًا استيراد كامل الكتالوغ (CSV/XLSX) أو استخراجه من صفحتك.",
+ "onboarding.product.description": "الحد الأدنى ليتمكن الوكيل من بيعه: اسم، سعر، مخزون، صورة. يُستورد باقي الكتالوغ (CSV/XLSX) أو يُستخرج من صفحتك من قسم المنتجات بعد انتهاء الإعداد.",
  "onboarding.product.extract": "الاستخراج من صفحتي على فيسبوك (بعد الخطوة 5)",
  "onboarding.product.importFile": "استيراد ملف CSV/XLSX",
  "onboarding.product.namePlaceholder": "فستان ساتان",
@@ -6273,5 +6273,14 @@
  "units.title": "الوحدات",
  "validation.id": "معرّف غير صالح",
  "validation.invalid": "قيمة غير صالحة",
- "validation.shortcut": "الصيغة: ‎/كلمة (أحرف لاتينية صغيرة، أرقام، شرطات)"
+ "validation.shortcut": "الصيغة: ‎/كلمة (أحرف لاتينية صغيرة، أرقام، شرطات)",
+ "onboarding.product.existing": "يحتوي كتالوغك بالفعل على « {name} ». تابع، أو أضف منتجًا آخر.",
+ "onboarding.product.addAnother": "إضافة منتج آخر",
+ "onboarding.agent.existing": "وكيلك « {name} » تم إنشاؤه بالفعل. تابع به، أو اختر نموذجًا أدناه لإنشاء وكيل آخر.",
+ "onboarding.agent.continueWith": "المتابعة مع « {name} »",
+ "onboarding.connect.existing": "{count, plural, zero {لا صفحات متصلة:} one {صفحة متصلة بالفعل:} two {صفحتان متصلتان بالفعل:} few {صفحات متصلة بالفعل:} many {صفحات متصلة بالفعل:} other {صفحات متصلة بالفعل:}}",
+ "onboarding.ready.noAgent": "لا يوجد وكيل حاليًا: أنشئه في خطوة الوكيل.",
+ "onboarding.ready.membersResource": "أعضاء",
+ "agents.wizard.tunnelFinish": "حفظ والانتقال إلى خطوة الصفحة",
+ "agents.wizard.tunnelNote": "القنوات والتفعيل: بعد ربط صفحتك"
 }
