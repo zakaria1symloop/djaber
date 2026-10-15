@@ -42,7 +42,7 @@
   "public.meta.accountDeletion": "Delete my Djaber account",
   "public.meta.accountDeletion.description": "Request the deletion of your Djaber account and personal data without opening the app.",
   "public.landing.cta.trial": "Free trial",
-  "public.landing.cta.demo": "See a demo",
+  "public.landing.cta.features": "See the features",
   "public.landing.features.title": "Features",
   "public.landing.features.more": "All features",
   "public.landing.pricing.title": "An AI salesperson for your page, from {price} DA",
@@ -148,5 +148,7 @@
   "public.deletion.blocked.pending.text": "Your account will be permanently deleted on {date}.",
   "public.deletion.blocked.settings": "Open the danger zone",
   "public.captcha.loading": "Anti-robot check…",
-  "public.captcha.error": "The anti-robot check could not load. Close and reopen the window."
+  "public.captcha.error": "The anti-robot check could not load. Close and reopen the window.",
+  "public.contact.subject": "Contact Djaber",
+  "public.contact.subjectDeletion": "Account deletion"
 }

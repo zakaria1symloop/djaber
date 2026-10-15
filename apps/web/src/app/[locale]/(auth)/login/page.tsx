@@ -13,6 +13,7 @@ import { ApiError } from '@/lib/api';
 import { isMfaChallenge } from '@/lib/contracts';
 import { formatClock, retryAfterSeconds, useCooldown, useCountdown } from '@/lib/countdown';
 import { errorMessage, fieldError } from '@/lib/forms';
+import { authHref } from '@/lib/guards';
 import { useT } from '@/lib/i18n';
 import { useSession } from '@/lib/session';
 
@@ -60,6 +61,9 @@ function CredentialsStep({ notice, onMfa }: { notice: string | null; onMfa: (tok
   const busy = login.isPending;
   const errors = form.formState.errors;
   const expired = status === 'expired' || search.get('reason') === 'expired';
+  // "Créer un compte" keeps the destination (an invitation…), "Mot de passe oublié" the e-mail already typed
+  const returnTo = search.get('returnTo');
+  const typedEmail = form.watch('email');
   return (
     <AuthCard
       title={t('auth.login.title')}
@@ -67,7 +71,7 @@ function CredentialsStep({ notice, onMfa }: { notice: string | null; onMfa: (tok
       footer={
         <>
           <p>
-            {t('auth.login.noAccount')} <AuthLink href="/signup">{t('auth.login.createAccount')}</AuthLink>
+            {t('auth.login.noAccount')} <AuthLink href={authHref('/signup', { returnTo })}>{t('auth.login.createAccount')}</AuthLink>
           </p>
           <LocaleSwitch className="mt-5" />
         </>
@@ -100,7 +104,7 @@ function CredentialsStep({ notice, onMfa }: { notice: string | null; onMfa: (tok
               {...form.register('password')}
             />
           </Field>
-          <MetaLink href="/forgot-password">{t('auth.login.forgot')}</MetaLink>
+          <MetaLink href={authHref('/forgot-password', { email: typedEmail })}>{t('auth.login.forgot')}</MetaLink>
         </div>
         {formError ? <FormAlert>{formError}</FormAlert> : null}
         {lockedFor > 0 ? <FormAlert>{t('auth.login.rateLimited', { time: formatClock(lockedFor) })}</FormAlert> : null}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideApp, decideAuth, decideOnboarding, loginHref, needsOnboarding, ONBOARDING_SKIPPED, onboardingPath, safeReturnTo, stepNumber, stepSlug, type GuardInput } from './guards';
+import { authHref, decideApp, decideAuth, decideOnboarding, loginHref, needsOnboarding, ONBOARDING_SKIPPED, onboardingPath, safeReturnTo, stepNumber, stepSlug, type GuardInput } from './guards';
 
 const base: GuardInput = {
   status: 'authenticated',
@@ -121,5 +121,16 @@ describe('(auth) guard', () => {
   it('requires a session for /workspaces/new', () => {
     expect(decideAuth({ status: 'anonymous', pathname: '/workspaces/new', ownedWorkspaceId: null })).toEqual({ kind: 'redirect', to: '/login?returnTo=%2Fworkspaces%2Fnew' });
     expect(decideAuth({ status: 'authenticated', pathname: '/workspaces/new', ownedWorkspaceId: null })).toEqual({ kind: 'render' });
+  });
+});
+
+describe('links between the auth pages', () => {
+  it('"Créer un compte" keeps returnTo (invitation), "Mot de passe oublié" the typed e-mail; unsafe or empty values are dropped', () => {
+    expect(authHref('/signup', { returnTo: '/invitations/abc' })).toBe('/signup?returnTo=%2Finvitations%2Fabc');
+    expect(authHref('/signup', { returnTo: null })).toBe('/signup');
+    expect(authHref('/signup', { returnTo: '//evil.example' })).toBe('/signup');
+    expect(authHref('/login', { returnTo: '/signup' })).toBe('/login');
+    expect(authHref('/forgot-password', { email: ' amina@shop.dz ' })).toBe('/forgot-password?email=amina%40shop.dz');
+    expect(authHref('/forgot-password', { email: '' })).toBe('/forgot-password');
   });
 });

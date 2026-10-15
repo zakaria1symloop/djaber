@@ -20,7 +20,7 @@ import {
 } from '@djaber/shared';
 import { ActionsMenu, Button, ConfirmDialog, DataTable, Dialog, Field, Input, Ltr, NumberInput, OpsPanel, Skeleton, StatePill, Switch, toast, type Column, type OpsState } from '@djaber/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { OfflineBanner } from '@/components/global-states';
 import { AdminPage, AdminQueryError } from '@/features/admin/admin-page';
 import { ADMIN_KEY } from '@/features/admin/platform';
@@ -467,6 +467,11 @@ function MetaPanel({ permissions }: { permissions: MetaPermissionDto[] }) {
   const app = useMetaApp();
   const [edit, setEdit] = useState<MetaPermissionDto | null>(null);
   const [appDialog, setAppDialog] = useState(false);
+  // `/admin/settings#meta` (overview alert "Instagram en revue Meta"): the panel renders after the data, so it is
+  // brought into view once mounted
+  useEffect(() => {
+    if (window.location.hash === '#meta') document.getElementById('meta')?.scrollIntoView({ block: 'start' });
+  }, []);
   const columns: Column<MetaPermissionDto>[] = [
     { key: 'scope', header: t('adminSettings.meta.col.permission'), cell: (p) => <span className="font-mono text-[13px]">{p.scope}</span>, hideable: false },
     {
@@ -494,7 +499,7 @@ function MetaPanel({ permissions }: { permissions: MetaPermissionDto[] }) {
     </div>
   );
   return (
-    <OpsPanel title={t('adminSettings.meta.title')} sub={t('adminSettings.meta.sub')} data-testid="meta">
+    <OpsPanel id="meta" title={t('adminSettings.meta.title')} sub={t('adminSettings.meta.sub')} className="scroll-mt-4" data-testid="meta">
       {permissions.length ? (
         <DataTable
           label={t('adminSettings.meta.title')}

@@ -23,10 +23,10 @@ import { useT } from '@/lib/i18n';
 import { moneyDigits } from '@/lib/money';
 import { useSession, useWorkspaceId } from '@/lib/session';
 import { uuid } from '@/lib/uuid';
-import { gdsApi, useGdsRefresh, usePurchase, useSuppliers } from './api';
+import { gdsApi, useGdsRefresh, usePurchase, useSupplier, useSuppliers } from './api';
 import { PAYMENT_METHODS, type CashMethod, type Purchase } from './contracts';
-import { int, purchaseTotals } from './logic';
-import { ProductPicker, toPicked, type PickedProduct } from './product-picker';
+import { int, lineVariants, purchaseTotals } from './logic';
+import { ProductPicker, toPicked, useProductVariants, type PickedProduct } from './product-picker';
 import { SupplierDialog } from './suppliers';
 import { AdvancedOnly } from './ui';
 
@@ -106,6 +106,14 @@ function PurchaseForm({ purchase }: { purchase?: Purchase }) {
   const { can } = useSession();
   const suppliers = useSuppliers({ pageSize: 100, sort: 'name', isActive: true });
   const [f, setF] = useState<Form>(() => (purchase ? fromPurchase(purchase) : { ...empty(), supplierId: params.get('supplierId') ?? '' }));
+  // a preset supplier (`?supplierId`, "Nouvel achat chez ce fournisseur") missing from the active list is read and kept as an option
+  const presetId = !purchase ? params.get('supplierId') : null;
+  const preset = useSupplier(presetId && suppliers.data && !suppliers.data.rows.some((x) => x.id === presetId) ? presetId : null);
+  // a saved line only carries its variant: the product's other variants are read to offer them again
+  useEffect(() => {
+    if (preset.data && !preset.data.isActive) setF((x) => (x.supplierId === preset.data.id ? { ...x, supplierId: '' } : x));
+  }, [preset.data]);
+  const loadedVariants = useProductVariants(f.lines.filter((l) => l.hasVariants).map((l) => l.productId));
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState<'draft' | 'pending' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -203,7 +211,7 @@ function PurchaseForm({ purchase }: { purchase?: Purchase }) {
     >
       <Card className="flex flex-col gap-5 p-5" data-testid="purchase-form">
         <div className="grid gap-3 md:grid-cols-3">
-          <Field label={t('purchases.col.supplier')} htmlFor="pf-supplier" required error={shown('supplierId')}>
+          <Field label={t('purchases.col.supplier')} htmlFor="pf-supplier" required error={shown('supplierId')} hint={preset.data && !preset.data.isActive && !f.supplierId ? `${preset.data.name} · ${t('suppliers.inactivePurchaseReason')}` : undefined}>
             <div className="flex gap-2">
               <Select id="pf-supplier" value={f.supplierId} onChange={(e) => (e.target.value === '__new' ? setNewSupplier(true) : set({ supplierId: e.target.value }))} aria-invalid={!!shown('supplierId') || undefined}>
                 <option value="">{t('purchases.form.pickSupplier')}</option>
@@ -213,6 +221,7 @@ function PurchaseForm({ purchase }: { purchase?: Purchase }) {
                   </option>
                 ))}
                 {purchase?.supplier && !supplierOptions.some((s) => s.id === purchase.supplier!.id) ? <option value={purchase.supplier.id}>{purchase.supplier.name}</option> : null}
+                {preset.data?.isActive && !supplierOptions.some((s) => s.id === preset.data.id) ? <option value={preset.data.id}>{preset.data.name}</option> : null}
                 <option value="__new">{t('suppliers.new')}</option>
               </Select>
             </div>
@@ -226,7 +235,13 @@ function PurchaseForm({ purchase }: { purchase?: Purchase }) {
         </div>
 
         <div className="flex flex-col gap-2">
-          <ProductPicker id="purchase-product" onPick={(p) => set({ lines: [...f.lines, lineOf(p)] })} placeholder={t('purchases.form.search')} invalid={!!shown('items')} />
+          <ProductPicker
+            id="purchase-product"
+            onPick={(p) => set({ lines: [...f.lines, lineOf(p)] })}
+            placeholder={t('purchases.form.search')}
+            invalid={!!shown('items')}
+            refuse={(p) => (p.trackStock ? null : t('error.PURCHASE_UNTRACKED_PRODUCT', { product: p.name }))}
+          />
           {shown('items') ? (
             <p role="alert" className="text-[12px] text-accent-alert">
               {shown('items')}
@@ -246,6 +261,7 @@ function PurchaseForm({ purchase }: { purchase?: Purchase }) {
                 </thead>
                 <tbody className="divide-y divide-line-hairline">
                   {f.lines.map((l, i) => {
+                    const variants = lineVariants(l.variants, loadedVariants[l.productId]);
                     const lineErr = shown(`items.${i}.productId`) ?? shown(`items.${i}.variantId`) ?? shown(`items.${i}.quantity`) ?? shown(`items.${i}.unitCost`);
                     return (
                       <tr key={l.key} data-line={l.productId} data-invalid={lineErr ? true : undefined}>
@@ -255,9 +271,9 @@ function PurchaseForm({ purchase }: { purchase?: Purchase }) {
                             {!l.trackStock ? <AlertTriangle className="size-3.5 text-accent-starred" aria-label={t('enum.Product.state.service')} /> : null}
                           </div>
                           {l.hasVariants ? (
-                            <Select aria-label={t('orderForm.items.variant', { name: l.name })} value={l.variantId ?? ''} onChange={(e) => { const v = l.variants.find((x) => x.id === e.target.value); patchLine(i, { variantId: e.target.value || null, unitCost: v && v.costPrice !== null ? moneyDigits(v.costPrice) : l.unitCost }); }} className="mt-1 !h-7 w-auto min-w-36 text-[12px]" aria-invalid={!!shown(`items.${i}.variantId`) || undefined}>
+                            <Select aria-label={t('orderForm.items.variant', { name: l.name })} value={l.variantId ?? ''} onChange={(e) => { const v = variants.find((x) => x.id === e.target.value); patchLine(i, { variantId: e.target.value || null, unitCost: v && v.costPrice !== null ? moneyDigits(v.costPrice) : l.unitCost }); }} className="mt-1 !h-7 w-auto min-w-36 text-[12px]" aria-invalid={!!shown(`items.${i}.variantId`) || undefined}>
                               <option value="">{t('orderForm.items.pickVariant')}</option>
-                              {l.variants.map((v) => (
+                              {variants.map((v) => (
                                 <option key={v.id} value={v.id}>
                                   {v.name}
                                 </option>

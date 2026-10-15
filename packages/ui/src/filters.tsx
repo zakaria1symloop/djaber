@@ -17,21 +17,18 @@ const chipClass = (on: boolean) =>
     on ? 'border-line-lit bg-ink-raised-high text-text-primary' : 'border-line-edge bg-ink-surface text-text-secondary hover:text-text-primary',
   );
 
-/* ---------- Group frame: mono label + model source note on the end side ---------- */
+/* ---------- Group frame: mono label (the model source note stays a data attribute) ---------- */
+/**
+ * `source` is the Figma annotation of the field a group filters on (`Shipment.status · null = non envoyée`): a note for
+ * developers, never shown to merchants — it is kept only as `data-source` on the group.
+ */
 export function FilterGroup({ label, source, children, className }: { label: string; source?: string; children: React.ReactNode; className?: string }) {
   const id = React.useId();
   return (
-    <div role="group" aria-labelledby={id} className={cn('flex flex-col gap-2', className)}>
-      <div className="flex items-baseline justify-between gap-3">
-        <span id={id} className="ts-label-section text-text-muted">
-          {label}
-        </span>
-        {source ? (
-          <span aria-hidden className="ts-label-micro truncate !normal-case text-text-muted" dir="ltr">
-            {source}
-          </span>
-        ) : null}
-      </div>
+    <div role="group" aria-labelledby={id} data-source={source} className={cn('flex flex-col gap-2', className)}>
+      <span id={id} className="ts-label-section text-text-muted">
+        {label}
+      </span>
       {children}
     </div>
   );

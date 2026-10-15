@@ -4,7 +4,7 @@
 // The FR · AR · EN switch is repeated here on phones (the header hides it below 640 px).
 import { Suspense } from 'react';
 import { LocaleSwitch } from '@/components/auth/auth-card';
-import { LEGAL_FOOTER_KEYS } from '@/features/public/logic';
+import { LEGAL_FOOTER_KEYS, supportMailto } from '@/features/public/logic';
 import { Link } from '@/i18n/navigation';
 import { useT } from '@/lib/i18n';
 
@@ -28,9 +28,10 @@ export function PublicFooter() {
           <Link href="/status" className={link}>
             {t('public.footer.status')}
           </Link>
-          <Link href="/help/contact" className={link}>
+          {/* visitors: /help/contact needs a session, the support mailbox does not */}
+          <a href={supportMailto(t('public.contact.subject'))} className={link} data-testid="footer-contact">
             {t('public.footer.contact')}
-          </Link>
+          </a>
         </nav>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2" aria-label={t('public.footer.stores')} role="group">

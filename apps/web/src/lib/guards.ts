@@ -24,6 +24,20 @@ export const safeReturnTo = (raw: string | null | undefined, fallback = '/home')
   return raw;
 };
 
+/**
+ * Link between the auth pages keeping what the visitor already gave: `returnTo` (invitation, deep link) on "Créer un
+ * compte" / "Se connecter", the typed e-mail on "Mot de passe oublié" (`/forgot-password?email=`). Empty values are dropped.
+ */
+export const authHref = (path: string, params: Record<string, string | null | undefined>): string => {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    const value = k === 'returnTo' ? safeReturnTo(v?.trim(), '') : (v ?? '').trim();
+    if (value) p.set(k, value);
+  }
+  const qs = p.toString();
+  return qs ? `${path}?${qs}` : path;
+};
+
 export const loginHref = (pathname: string, search = '') => {
   const target = `${pathname}${search}`;
   return target === '/' || target === '/home' ? '/login' : `/login?returnTo=${encodeURIComponent(target)}`;

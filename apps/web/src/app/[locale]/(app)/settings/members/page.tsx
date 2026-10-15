@@ -26,6 +26,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { ListEmpty, ListLoading, QueryError } from '@/components/global-states';
 import { SettingsPage } from '@/features/settings/common';
+import { Link } from '@/i18n/navigation';
 import { invitationsKey, membersKey, useInvitations, useMembers, workspaceApi } from '@/features/workspace/api';
 import { ApiError } from '@/lib/api';
 import type { InvitationDto, MemberDto } from '@/lib/contracts';
@@ -47,7 +48,7 @@ export default function MembersPage() {
   const canTransfer = can('workspace.transfer');
   const members = useMembers();
   const invitations = useInvitations(true);
-  const [dialog, setDialog] = useState<{ kind: 'invite' } | { kind: 'roles' } | { kind: 'transfer' } | { kind: 'remove'; member: MemberDto } | null>(null);
+  const [dialog, setDialog] = useState<{ kind: 'invite' } | { kind: 'roles' } | { kind: 'transfer' } | { kind: 'remove'; member: MemberDto } | { kind: 'demote'; member: MemberDto } | null>(null);
   const role = useMutation({ mutationFn: (v: { id: string; role: 'admin' | 'operator' }) => workspaceApi.updateMember(v.id, { role: v.role }) });
   const remove = useMutation({ mutationFn: workspaceApi.removeMember });
   const [removeError, setRemoveError] = useState<string | null>(null);
@@ -57,6 +58,7 @@ export default function MembersPage() {
     try {
       await role.mutateAsync({ id: m.id, role: next });
       await refresh();
+      setDialog(null);
       toast(t('settings.members.roleChanged', { name: fullName(m), role: t(`enum.Membership.role.${next}`) }));
     } catch (e) {
       toast({ tone: 'danger', message: errorMessage(e, t) });
@@ -67,7 +69,9 @@ export default function MembersPage() {
   const max = plan?.limits.maxMembers ?? -1;
   const count = members.data?.length ?? plan?.usage.members ?? 0;
   const pending = invitations.data?.length ?? 0;
+  // inviting at the plan limit is refused (403 PLAN_LIMIT, 02 §plan limits): the buttons say so and lead to the plans
   const atLimit = max !== -1 && count + pending >= max;
+  const limitReason = atLimit ? t('settings.members.invite.limitReason', { count: count + pending, max }) : undefined;
   const admins = (members.data ?? []).filter((m) => m.role === 'admin');
 
   const actionsOf = (m: MemberDto): MenuAction[] => {
@@ -87,7 +91,7 @@ export default function MembersPage() {
     return [
       m.role === 'operator'
         ? { key: 'admin', label: t('settings.members.makeAdmin'), primary: true, onSelect: () => void changeRole(m, 'admin') }
-        : { key: 'operator', label: t('settings.members.makeOperator'), primary: true, onSelect: () => void changeRole(m, 'operator') },
+        : { key: 'operator', label: t('settings.members.makeOperator'), primary: true, onSelect: () => setDialog({ kind: 'demote', member: m }) },
       { key: 'remove', label: t('action.remove'), destructive: true, onSelect: () => (setRemoveError(null), setDialog({ kind: 'remove', member: m })) },
     ];
   };
@@ -106,8 +110,13 @@ export default function MembersPage() {
           <Button variant="ghost" onClick={() => setDialog({ kind: 'roles' })}>
             {t('settings.members.seeRoles')}
           </Button>
+          {canWrite && atLimit && can('billing.write') ? (
+            <Link href="/settings/billing" className="text-[13px] text-text-secondary underline-offset-2 hover:text-text-primary hover:underline" data-testid="members-change-plan">
+              {t('settings.members.invite.changePlan')}
+            </Link>
+          ) : null}
           {canWrite ? (
-            <Button variant="primary" onClick={() => setDialog({ kind: 'invite' })}>
+            <Button variant="primary" onClick={() => setDialog({ kind: 'invite' })} disabledReason={limitReason} data-testid="members-invite">
               {t('dialog.inviteMember.title')}
             </Button>
           ) : null}
@@ -157,7 +166,7 @@ export default function MembersPage() {
       ) : invitations.data.length === 0 ? (
         <ListEmpty
           title={t('settings.members.noInvitation')}
-          action={canWrite ? { label: t('dialog.inviteMember.title'), onClick: () => setDialog({ kind: 'invite' }), variant: 'secondary' } : undefined}
+          action={canWrite && !atLimit ? { label: t('dialog.inviteMember.title'), onClick: () => setDialog({ kind: 'invite' }), variant: 'secondary' } : undefined}
         />
       ) : (
         <Card>
@@ -169,7 +178,7 @@ export default function MembersPage() {
         </Card>
       )}
 
-      <InviteDialog open={dialog?.kind === 'invite'} atLimit={atLimit} count={count + pending} max={max} onClose={() => setDialog(null)} onDone={refresh} />
+      <InviteDialog open={dialog?.kind === 'invite'} atLimit={atLimit} count={count + pending} max={max} canChangePlan={can('billing.write')} onClose={() => setDialog(null)} onDone={refresh} />
       <RolesDialog open={dialog?.kind === 'roles'} onClose={() => setDialog(null)} />
       <TransferDialog
         open={dialog?.kind === 'transfer'}
@@ -177,6 +186,19 @@ export default function MembersPage() {
         onClose={() => setDialog(null)}
         onDone={async () => {
           await Promise.all([refresh(), qc.invalidateQueries({ queryKey: meKey })]);
+        }}
+      />
+      <ConfirmDialog
+        open={dialog?.kind === 'demote'}
+        onOpenChange={(o) => !o && setDialog(null)}
+        title={t('settings.members.demote.title', { name: dialog?.kind === 'demote' ? fullName(dialog.member) : '' })}
+        description={t('settings.members.roles.operator')}
+        confirmLabel={t('settings.members.makeOperator')}
+        cancelLabel={t('action.cancel')}
+        closeLabel={t('action.close')}
+        loading={role.isPending}
+        onConfirm={() => {
+          if (dialog?.kind === 'demote') void changeRole(dialog.member, 'operator');
         }}
       />
       <ConfirmDialog
@@ -217,6 +239,7 @@ function InvitationRow({ invitation: i, canWrite, onChanged }: { invitation: Inv
   const cooldown = useCountdown(until);
   const resend = useMutation({ mutationFn: workspaceApi.resendInvitation });
   const revoke = useMutation({ mutationFn: workspaceApi.revokeInvitation });
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
 
   const onResend = async () => {
     try {
@@ -233,6 +256,7 @@ function InvitationRow({ invitation: i, canWrite, onChanged }: { invitation: Inv
   const onRevoke = async () => {
     try {
       await revoke.mutateAsync(i.id);
+      setConfirmRevoke(false);
       await onChanged();
       toast(t('settings.members.invitationRevoked'));
     } catch (e) {
@@ -254,16 +278,28 @@ function InvitationRow({ invitation: i, canWrite, onChanged }: { invitation: Inv
           <Button variant="ghost" onClick={onResend} loading={resend.isPending} disabled={cooldown > 0}>
             {cooldown > 0 ? t('settings.members.resendIn', { time: formatClock(cooldown) }) : t('action.resend')}
           </Button>
-          <Button onClick={onRevoke} loading={revoke.isPending} className="border-accent-alert/60 text-accent-alert">
+          <Button onClick={() => setConfirmRevoke(true)} loading={revoke.isPending} className="border-accent-alert/60 text-accent-alert" data-testid="invitation-revoke">
             {t('action.revoke')}
           </Button>
+          <ConfirmDialog
+            open={confirmRevoke}
+            onOpenChange={setConfirmRevoke}
+            title={t('settings.members.revoke.title', { email: i.email })}
+            description={t('settings.members.revoke.description')}
+            confirmLabel={t('action.revoke')}
+            cancelLabel={t('action.cancel')}
+            closeLabel={t('action.close')}
+            destructive
+            loading={revoke.isPending}
+            onConfirm={() => void onRevoke()}
+          />
         </>
       ) : null}
     </li>
   );
 }
 
-function InviteDialog({ open, atLimit, count, max, onClose, onDone }: { open: boolean; atLimit: boolean; count: number; max: number; onClose: () => void; onDone: () => Promise<unknown> }) {
+function InviteDialog({ open, atLimit, count, max, canChangePlan, onClose, onDone }: { open: boolean; atLimit: boolean; count: number; max: number; canChangePlan: boolean; onClose: () => void; onDone: () => Promise<unknown> }) {
   const t = useT();
   const form = useForm<InviteMemberInput>({ resolver: zodResolver(InviteMemberSchema), defaultValues: { email: '', role: 'operator' } });
   const [formError, setFormError] = useState<string | null>(null);
@@ -304,7 +340,7 @@ function InviteDialog({ open, atLimit, count, max, onClose, onDone }: { open: bo
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             {t('action.cancel')}
           </Button>
-          <Button variant="primary" type="submit" form="invite-form" loading={busy}>
+          <Button variant="primary" type="submit" form="invite-form" loading={busy} disabledReason={atLimit ? t('settings.members.invite.limitReason', { count, max }) : undefined}>
             {t('settings.members.invite.submit')}
           </Button>
         </>
@@ -333,7 +369,16 @@ function InviteDialog({ open, atLimit, count, max, onClose, onDone }: { open: bo
             </span>
           </div>
         </fieldset>
-        {atLimit ? <FormAlert tone="warning">{t('settings.members.invite.limit', { count, max })}</FormAlert> : null}
+        {atLimit ? (
+          <FormAlert tone="warning">
+            {t('settings.members.invite.limit', { count, max })}{' '}
+            {canChangePlan ? (
+              <Link href="/settings/billing" className="underline underline-offset-2">
+                {t('settings.members.invite.changePlan')}
+              </Link>
+            ) : null}
+          </FormAlert>
+        ) : null}
         <p className="ts-label-meta text-text-muted">{t('settings.members.invite.note')}</p>
         {formError ? <FormAlert>{formError}</FormAlert> : null}
       </form>

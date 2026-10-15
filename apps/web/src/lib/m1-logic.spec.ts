@@ -51,6 +51,8 @@ describe('sidebar and settings sub-nav', () => {
   it('hides the advanced entries in simple mode (AT-ONB-02)', () => {
     const simple = filterNav(all, { stockMode: 'simple', can: can('owner') }).map((i) => i.key);
     expect(simple).toContain('nav.products');
+    // "Produits · Services" (08-web-screens sidebar, CAT-11): the services list is in both modes
+    expect(simple).toContain('nav.services');
     expect(simple).toContain('nav.categories');
     for (const k of ['nav.movements', 'nav.suppliers', 'nav.purchases', 'nav.sales', 'nav.cash', 'nav.inventory']) expect(simple).not.toContain(k);
     // GDS-10 "MODE SIMPLE": recommendations stay (restock / stock-out / agent subset), 03 LST-05; reports stay with the

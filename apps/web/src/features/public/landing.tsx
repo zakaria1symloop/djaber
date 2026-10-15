@@ -55,8 +55,9 @@ export function LandingView({ hero, features, plans }: { hero: CmsEntryDto | nul
           <Link href="/signup" className={buttonClass({ variant: 'primary' })} data-testid="landing-trial">
             {t('public.landing.cta.trial')}
           </Link>
-          <Link href="/features" className={buttonClass({})} data-testid="landing-demo">
-            {t('public.landing.cta.demo')}
+          {/* no demo exists: the second CTA says where it leads (assumptions-log 2026-10-15) */}
+          <Link href="/features" className={buttonClass({})} data-testid="landing-features">
+            {t('public.landing.cta.features')}
           </Link>
         </div>
       </Section>

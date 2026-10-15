@@ -2,7 +2,7 @@
 // rule (> 10 % ⇒ note), expense margin preview, cash selection (pills ↔ table ↔ KPIs use the same parameters).
 import { describe, expect, it } from 'vitest';
 import { orderImportPhase } from '@/features/orders/import/order-import';
-import { cashSelection, cashSelectionQuery, closingGap, daysList, defaultReceiveQty, int, inventoryTotals, marginPreview, periodDays, priceEdited, purchaseTotals, receiveSummary, saleTotals, selectionDay, unitsLabel, variance } from './logic';
+import { cashSelection, cashSelectionQuery, closingGap, daysList, defaultReceiveQty, int, inventoryTotals, lineVariants, marginPreview, periodDays, priceEdited, purchaseTotals, receiveSummary, saleClientBody, saleSheetSnapshot, saleTotals, selectionDay, unitsLabel, variance } from './logic';
 
 describe('money input', () => {
   it('reads digits only, never NaN', () => {
@@ -164,5 +164,32 @@ describe('order import phases (M5 carry-over, CAT-06 wizard)', () => {
     expect(orderImportPhase('j', { status: 'partial', result: result('committed') }, true)).toBe('done');
     expect(orderImportPhase('j', { status: 'failed', result: null }, true)).toBe('importFailed');
     expect(orderImportPhase('j', { status: 'failed', result: null }, false)).toBe('analysisFailed');
+  });
+});
+
+describe('new sale sheet: client body, leave guard snapshot, variants of an edited line', () => {
+  it('sends the typed new client on create AND on a draft update (SALE_PARTIAL_REQUIRES_CUSTOMER otherwise)', () => {
+    expect(saleClientBody({ id: 'c1' }, { open: true, name: 'X', phone: '0555' })).toEqual({ clientId: 'c1', client: null });
+    expect(saleClientBody(null, { open: true, name: '  Amina  ', phone: ' 0555 12 34 56 ' })).toEqual({ clientId: null, client: { name: 'Amina', phone: '0555 12 34 56' } });
+    expect(saleClientBody(null, { open: false, name: 'Amina', phone: '0555123456' })).toEqual({ clientId: null, client: null });
+    expect(saleClientBody(null, { open: true, name: '  ', phone: '0555123456' })).toEqual({ clientId: null, client: null });
+  });
+  it('the snapshot changes with the cart, the client, the payment; formatting alone does not', () => {
+    const base = { lines: [] as { productId: string; variantId: string | null; quantity: number; unitPrice: string }[], discount: '', discountMode: 'amount' as const, clientId: null, newClient: { open: false, name: '', phone: '' }, method: 'cash', received: null };
+    const empty = saleSheetSnapshot(base);
+    expect(saleSheetSnapshot({ ...base, lines: [{ productId: 'p', variantId: null, quantity: 1, unitPrice: '4500' }] })).not.toBe(empty);
+    expect(saleSheetSnapshot({ ...base, clientId: 'c1' })).not.toBe(empty);
+    expect(saleSheetSnapshot({ ...base, method: 'ccp' })).not.toBe(empty);
+    expect(saleSheetSnapshot({ ...base, newClient: { open: true, name: 'A', phone: '' } })).not.toBe(empty);
+    // a closed "new client" form with leftovers is not a change; "4 500" and "4500" are the same price
+    expect(saleSheetSnapshot({ ...base, newClient: { open: false, name: 'A', phone: '' } })).toBe(empty);
+    const one = { ...base, lines: [{ productId: 'p', variantId: null, quantity: 1, unitPrice: '4 500' }] };
+    expect(saleSheetSnapshot(one)).toBe(saleSheetSnapshot({ ...base, lines: [{ productId: 'p', variantId: null, quantity: 1, unitPrice: '4500' }] }));
+  });
+  it('an edited line offers the loaded variants and keeps its saved one when it is no longer listed', () => {
+    const saved = [{ id: 'v-old', name: 'M' }];
+    expect(lineVariants(saved, undefined)).toEqual(saved);
+    expect(lineVariants(saved, [{ id: 'v-old', name: 'M (fresh)' }, { id: 'v2', name: 'L' }])).toEqual([{ id: 'v-old', name: 'M (fresh)' }, { id: 'v2', name: 'L' }]);
+    expect(lineVariants(saved, [{ id: 'v2', name: 'L' }])).toEqual([{ id: 'v2', name: 'L' }, { id: 'v-old', name: 'M' }]);
   });
 });

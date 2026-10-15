@@ -35,7 +35,7 @@ import { X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppPage } from '@/components/app-page';
-import { ListEmpty, ListFilteredEmpty, ListLoading, OfflineBanner, QueryError } from '@/components/global-states';
+import { LeaveGuardDialog, ListEmpty, ListFilteredEmpty, ListLoading, OfflineBanner, QueryError } from '@/components/global-states';
 import { ListPagination } from '@/features/catalog/ui';
 import type { ClientListItem } from '@/features/clients/contracts';
 import { refusal } from '@/features/orders/dialogs/common';
@@ -43,6 +43,7 @@ import { useOffline } from '@/features/orders/offline';
 import { useMembers } from '@/features/workspace/api';
 import { Link, useRouter } from '@/i18n/navigation';
 import { ApiError } from '@/lib/api';
+import { useLeaveGuard } from '@/lib/forms';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { filterList, filterText, type ListSpec } from '@/lib/list-state';
 import { moneyDigits } from '@/lib/money';
@@ -51,8 +52,8 @@ import { useListState } from '@/lib/use-list-state';
 import { uuid } from '@/lib/uuid';
 import { gdsApi, useGdsRefresh, useSale, useSales, useSaleStats } from './api';
 import { GDS_PAYMENT_STATUSES, type CashMethod, type Sale, type SaleRow } from './contracts';
-import { int, priceEdited, saleTotals, type DiscountMode } from './logic';
-import { ProductPicker, type PickedProduct } from './product-picker';
+import { int, lineVariants, priceEdited, saleClientBody, saleSheetSnapshot, saleTotals, type DiscountMode } from './logic';
+import { ProductPicker, useProductVariants, type PickedProduct } from './product-picker';
 import { ClientPicker, useSaleActions } from './sale-dialogs';
 import { ListExportMenu } from './export-menu';
 import { AdvancedOnly, KpiSkeleton, PeriodDropdown, SaleStatusPill, shortName } from './ui';
@@ -133,9 +134,15 @@ function SalesList({ creating }: { creating?: boolean }) {
         <>
           <ListExportMenu path="/sales/export" filters={list.filterQuery()} entity={t('sales.export.entity')} file={t('sales.export.file')} disabledReason={offline ? t('banner.offline') : undefined} />
           {canWrite ? (
-            <Link href="/sales/new" className={buttonClass({ variant: 'primary' })} aria-disabled={offline || undefined} data-testid="sale-new">
-              {t('sales.new')}
-            </Link>
+            offline ? (
+              <Button variant="primary" disabled disabledReason={t('banner.offline')} data-testid="sale-new">
+                {t('sales.new')}
+              </Button>
+            ) : (
+              <Link href="/sales/new" className={buttonClass({ variant: 'primary' })} data-testid="sale-new">
+                {t('sales.new')}
+              </Link>
+            )
           ) : null}
         </>
       }
@@ -272,6 +279,10 @@ function NewSaleSheet({ draftId, onClose }: { draftId: string | null; onClose: (
   const [fields, setFields] = useState<Record<string, string>>({});
   const key = useRef(uuid());
   const loaded = useRef<string | null>(null);
+  // the sheet is "ready" once the draft (if any) is loaded; its state then is the baseline of the leave guard
+  const [ready, setReady] = useState(!draftId);
+  const [baseline, setBaseline] = useState<string | null>(null);
+  const [confirmClose, setConfirmClose] = useState(false);
   useEffect(() => {
     const d = draft.data;
     if (!d || loaded.current === d.id) return;
@@ -281,7 +292,18 @@ function NewSaleSheet({ draftId, onClose }: { draftId: string | null; onClose: (
     setMethod(d.paymentMethod);
     setReceived(d.amountPaid ? moneyDigits(d.amountPaid) : null);
     if (d.client) setClient({ ...d.client } as ClientListItem);
+    setReady(true);
   }, [draft.data]);
+  const snapshot = saleSheetSnapshot({ lines, discount, discountMode, clientId: client?.id ?? null, newClient, method, received });
+  useEffect(() => {
+    if (ready && baseline === null) setBaseline(snapshot);
+  }, [ready, baseline, snapshot]);
+  const dirty = baseline !== null && snapshot !== baseline;
+  const sheetName = draft.data ? t('sales.form.draftTitle', { number: draft.data.number }) : t('sales.form.title');
+  const { guard } = useLeaveGuard(dirty && busy === null, sheetName);
+  const close = () => (busy ? undefined : dirty ? setConfirmClose(true) : onClose());
+  // a draft line only carries its saved variant: the product's other variants are read to offer them again
+  const loadedVariants = useProductVariants(lines.filter((l) => l.hasVariants).map((l) => l.productId));
 
   // "MONTANT REÇU" follows the total until the seller types an amount
   const receivedValue = received ?? moneyDigits(saleTotals(lines, { discount, discountMode, received: '0' }).total);
@@ -303,9 +325,9 @@ function NewSaleSheet({ draftId, onClose }: { draftId: string | null; onClose: (
       return;
     }
     setBusy(status);
+    const who = saleClientBody(client, newClient);
     const body = {
-      clientId: client?.id ?? null,
-      client: !client && newClient.open && newClient.name.trim() ? { name: newClient.name.trim(), phone: newClient.phone.trim() } : null,
+      ...who,
       items: lines.map((l) => ({ productId: l.productId, variantId: l.variantId, quantity: l.quantity, ...(int(l.unitPrice) !== l.catalogPrice ? { unitPrice: int(l.unitPrice) } : {}) })),
       discount: live.discount || undefined,
       paymentMethod: method,
@@ -315,11 +337,12 @@ function NewSaleSheet({ draftId, onClose }: { draftId: string | null; onClose: (
     try {
       let sale: Sale;
       if (draft.data) {
-        sale = await gdsApi.updateSale(draft.data.id, { clientId: body.clientId, items: body.items, discount: body.discount ?? 0, paymentMethod: method, amountPaid: live.paid, ...(status === 'completed' ? { status: 'completed' as const } : {}) });
+        sale = await gdsApi.updateSale(draft.data.id, { ...(who.client ? { client: who.client } : { clientId: who.clientId }), items: body.items, discount: body.discount ?? 0, paymentMethod: method, amountPaid: live.paid, ...(status === 'completed' ? { status: 'completed' as const } : {}) });
       } else {
         sale = await gdsApi.createSale(body, key.current);
         key.current = uuid();
       }
+      setBaseline(null);
       await refresh();
       toast(status === 'completed' ? t('sales.form.validated', { number: sale.number, amount: formatMoney(sale.total) }) : t('sales.form.drafted', { number: sale.number }));
       if (status === 'completed') router.push(`/sales/${sale.id}`);
@@ -333,10 +356,11 @@ function NewSaleSheet({ draftId, onClose }: { draftId: string | null; onClose: (
   };
   const blocked = !can('gds.write') ? t('toast.forbidden') : offline ? t('banner.offline') : undefined;
   return (
+    <>
     <SideSheet
       open
-      onClose={onClose}
-      title={draft.data ? t('sales.form.draftTitle', { number: draft.data.number }) : t('sales.form.title')}
+      onClose={close}
+      title={sheetName}
       closeLabel={t('action.close')}
       width={460}
       footer={
@@ -363,7 +387,8 @@ function NewSaleSheet({ draftId, onClose }: { draftId: string | null; onClose: (
         {lines.length ? (
           <ul className="divide-y divide-line-hairline rounded-card border border-line-edge" data-testid="sale-lines">
             {lines.map((l, i) => {
-              const v = l.variantId ? l.variants.find((x) => x.id === l.variantId) : null;
+              const variants = lineVariants(l.variants, loadedVariants[l.productId]);
+              const v = l.variantId ? variants.find((x) => x.id === l.variantId) : null;
               const stock = v ? v.stock : l.stock;
               const err = lineErr(i);
               return (
@@ -381,10 +406,10 @@ function NewSaleSheet({ draftId, onClose }: { draftId: string | null; onClose: (
                       <X className="size-3.5" aria-hidden />
                     </button>
                   </div>
-                  {l.hasVariants && l.variants.length > 1 ? (
-                    <Select aria-label={t('orderForm.items.variant', { name: l.name })} value={l.variantId ?? ''} onChange={(e) => { const nv = l.variants.find((x) => x.id === e.target.value); patch(i, { variantId: e.target.value || null, unitPrice: nv ? moneyDigits(nv.price) : l.unitPrice, catalogPrice: nv?.price ?? l.catalogPrice }); }} className="!h-7 w-auto text-[12px]" aria-invalid={!l.variantId || undefined}>
+                  {l.hasVariants && variants.length > 1 ? (
+                    <Select aria-label={t('orderForm.items.variant', { name: l.name })} value={l.variantId ?? ''} onChange={(e) => { const nv = variants.find((x) => x.id === e.target.value); patch(i, { variantId: e.target.value || null, unitPrice: nv ? moneyDigits(nv.price) : l.unitPrice, catalogPrice: nv?.price ?? l.catalogPrice }); }} className="!h-7 w-auto text-[12px]" aria-invalid={!l.variantId || undefined}>
                       <option value="">{t('orderForm.items.pickVariant')}</option>
-                      {l.variants.map((x) => (
+                      {variants.map((x) => (
                         <option key={x.id} value={x.id}>
                           {`${x.name} (${t('sales.form.stock', { count: x.stock })})`}
                         </option>
@@ -458,5 +483,16 @@ function NewSaleSheet({ draftId, onClose }: { draftId: string | null; onClose: (
         <p className="ts-label-micro !normal-case text-text-muted">{t('sales.form.footnote', { count: lines.length })}</p>
       </div>
     </SideSheet>
+    {guard}
+    <LeaveGuardDialog
+      open={confirmClose}
+      name={sheetName}
+      onStay={() => setConfirmClose(false)}
+      onLeave={() => {
+        setConfirmClose(false);
+        onClose();
+      }}
+    />
+    </>
   );
 }
