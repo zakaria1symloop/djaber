@@ -11,7 +11,8 @@ import type { ClientListItem } from '@/features/clients/contracts';
 import { DialogFooter, refusal, useDialogSubmit, useOnOpen } from '@/features/orders/dialogs/common';
 import { useClientSearch } from '@/features/orders/form/api';
 import { useRouter } from '@/i18n/navigation';
-import { toMenuActions } from '@/lib/actions';
+import { offlineMenu, toMenuActions } from '@/lib/actions';
+import { useOffline } from '@/features/orders/offline';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { downloadUrl } from '@/lib/jobs';
 import { digitsToInt, moneyDigits } from '@/lib/money';
@@ -19,11 +20,12 @@ import { gdsApi, useGdsRefresh } from './api';
 import { PAYMENT_METHODS, type CashMethod, type Sale, type SaleRow } from './contracts';
 
 type SaleRef = Pick<SaleRow, 'id' | 'number' | 'status' | 'actions'>;
-type Dlg = { kind: 'collect' | 'cancel' | 'link' | 'edit' | 'delete'; id: string; number: string } | null;
+type Dlg = { kind: 'collect' | 'cancel' | 'link' | 'edit' | 'delete' | 'validate'; id: string; number: string } | null;
 export const CANCEL_SALE_REASONS = ['entry_error', 'customer_return', 'defective', 'other'] as const;
 
 export function useSaleActions(o: { onDeleted?: () => void; onEditDraft?: (id: string) => void } = {}) {
   const t = useT();
+  const offline = useOffline();
   const router = useRouter();
   const locale = useLocaleCode();
   const refresh = useGdsRefresh();
@@ -36,20 +38,26 @@ export function useSaleActions(o: { onDeleted?: () => void; onEditDraft?: (id: s
       toast({ tone: 'danger', message: refusal(e, t) });
     }
   };
-  const validate = async (s: SaleRef) => {
+  const [validating, setValidating] = useState(false);
+  // validating a draft takes the stock out and the money in: confirmed first (cancel / delete confirm too)
+  const validate = async (s: { id: string }) => {
+    setValidating(true);
     try {
       const r = await gdsApi.updateSale(s.id, { status: 'completed' });
       await refresh();
       toast(t('sales.validated', { number: r.number }));
+      setDlg(null);
     } catch (e) {
       toast({ tone: 'danger', message: refusal(e, t) });
+    } finally {
+      setValidating(false);
     }
   };
   const menu = (s: SaleRef): MenuAction[] =>
-    toMenuActions(
+    offlineMenu(toMenuActions(
       s.actions,
       {
-        validate: { label: t('sales.action.validate'), onSelect: () => void validate(s) },
+        validate: { label: t('sales.action.validate'), hint: t('gds.hint.dialog'), onSelect: () => setDlg({ kind: 'validate', id: s.id, number: s.number }) },
         collect: { label: t('sales.action.collect'), hint: t('gds.hint.dialog'), onSelect: () => setDlg({ kind: 'collect', id: s.id, number: s.number }) },
         open: { label: t('action.open'), hint: t('gds.hint.page'), onSelect: () => router.push(`/sales/${s.id}`) },
         receipt: { label: t('sales.action.receipt'), onSelect: () => void receipt(s.id) },
@@ -59,7 +67,7 @@ export function useSaleActions(o: { onDeleted?: () => void; onEditDraft?: (id: s
         delete: { label: t('action.delete'), destructive: true, onSelect: () => setDlg({ kind: 'delete', id: s.id, number: s.number }) },
       },
       t,
-    );
+    ), offline ? t('banner.offline') : undefined, ['open', 'receipt']);
   const close = () => setDlg(null);
   const element = (
     <>
@@ -67,6 +75,17 @@ export function useSaleActions(o: { onDeleted?: () => void; onEditDraft?: (id: s
       <CancelSaleDialog saleId={dlg?.kind === 'cancel' ? dlg.id : null} onClose={close} />
       <LinkClientDialog saleId={dlg?.kind === 'link' ? dlg.id : null} number={dlg?.number ?? ''} onClose={close} />
       <EditSaleDialog saleId={dlg?.kind === 'edit' ? dlg.id : null} onClose={close} />
+      <ConfirmDialog
+        open={dlg?.kind === 'validate'}
+        onOpenChange={(v) => !v && close()}
+        title={t('sales.validateConfirm.title', { number: dlg?.number ?? '' })}
+        description={t('sales.validateConfirm.description')}
+        confirmLabel={t('sales.action.validate')}
+        cancelLabel={t('action.cancel')}
+        closeLabel={t('action.close')}
+        loading={validating}
+        onConfirm={() => dlg?.kind === 'validate' && void validate(dlg)}
+      />
       <ConfirmDialog
         open={dlg?.kind === 'delete'}
         onOpenChange={(v) => !v && close()}

@@ -181,6 +181,8 @@ test('ADM-15 promo codes: create (inline form), duplicate code ⇒ inline error,
 
   await row.getByRole('button', { name: 'Actions' }).click();
   await page.getByRole('menuitem', { name: 'Désactiver' }).click();
+  // one-click deactivation is confirmed first
+  await page.getByRole('dialog').getByRole('button', { name: 'Désactiver' }).click();
   await expect(page.getByText(`Code ${code} désactivé.`)).toBeVisible();
   await expect(row.locator('[data-pill]')).toHaveText('DÉSACTIVÉ');
 });

@@ -6,6 +6,7 @@ import type { AiModelAdminDto, AiPricingDto, AiPricingSimulateInput, AiPricingSi
 import { ActionsMenu, AdminCard, Button, Card, DataTable, Field, FrameNote, Input, ListSkeleton, MonoChip, OpsKpiTile, OpsPanel, Skeleton, toast, type Column } from '@djaber/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { useConfirmAction } from '@/components/confirm-action';
 import { AdminPage, AdminQueryError } from '@/features/admin/admin-page';
 import { ModelDialog, PricingVersionDialog, ProviderKeyDialog, RouteDialog } from '@/features/admin/ai/dialogs';
 import { adminWrite, useAdminGet, useAdminInvalidate } from '@/features/admin/api';
@@ -33,6 +34,7 @@ export default function AdminAiPage() {
   const [keyDlg, setKeyDlg] = useState<{ provider: AiProviderAdminDto | null } | null>(null);
   const [modelDlg, setModelDlg] = useState<{ model: AiModelAdminDto | null } | null>(null);
   const [routeDlg, setRouteDlg] = useState<AiRouteDto | null>(null);
+  const confirm = useConfirmAction();
   const patch = useMutation({ mutationFn: (b: { key: string; body: unknown }) => adminWrite(`/admin/ai-providers/${b.key}`, 'PATCH', b.body) });
   const testOne = useMutation({ mutationFn: (key: string) => adminWrite<AiProviderTestDto>(`/admin/ai-providers/${key}/test`, 'POST', {}) });
   const putRoute = useMutation({ mutationFn: (b: { cap: string; body: unknown }) => adminWrite(`/admin/ai-routes/${b.cap}`, 'PUT', b.body) });
@@ -165,7 +167,13 @@ export default function AdminAiPage() {
                       <Button size="sm" onClick={() => setKeyDlg({ provider: p })}>
                         {t('admin.ai.card.replaceKey')}
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => void toggle(p)} disabled={patch.isPending}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        // disabling a provider moves every route using it to its fallback: confirmed first
+                        onClick={() => (p.isActive ? confirm.ask({ title: t('admin.ai.disableConfirm.title', { name: p.displayName }), description: t('admin.ai.disableConfirm.description'), confirmLabel: t('admin.ai.card.disable'), destructive: true, run: () => toggle(p) }) : void toggle(p))}
+                        disabled={patch.isPending}
+                      >
                         {p.isActive ? t('admin.ai.card.disable') : t('admin.ai.card.enable')}
                       </Button>
                     </>
@@ -195,6 +203,7 @@ export default function AdminAiPage() {
       <ProviderKeyDialog providers={providers.data ?? []} initial={keyDlg?.provider ?? null} open={!!keyDlg} onClose={() => setKeyDlg(null)} />
       <ModelDialog model={modelDlg?.model ?? null} providers={providers.data ?? []} open={!!modelDlg} onClose={() => setModelDlg(null)} />
       <RouteDialog route={routeDlg} models={models.data ?? []} open={!!routeDlg} onClose={() => setRouteDlg(null)} />
+      {confirm.element}
     </AdminPage>
   );
 }

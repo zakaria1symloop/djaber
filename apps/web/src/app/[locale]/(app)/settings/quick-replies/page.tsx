@@ -7,6 +7,7 @@ import { ActionsMenu, Button, Card, cn, ConfirmDialog, Dialog, Field, FormAlert,
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { GripVertical } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useCloseGuard } from '@/components/close-guard';
 import { useForm } from 'react-hook-form';
 import { ListEmpty, ListLoading, QueryError } from '@/components/global-states';
 import { LOCALE_NAMES } from '@/components/shell/merchant-shell';
@@ -192,16 +193,19 @@ function QuickReplyDialog({ target, onClose, onSaved }: { target: QuickReplyView
   const busy = save.isPending;
   const errors = form.formState.errors;
   const body = form.watch('body') ?? '';
+  // Esc / ✕ / Annuler with typed text: "Quitter sans enregistrer ?"
+  const closeGuard = useCloseGuard(open && form.formState.isDirty, initial?.title ?? t('dialog.quickReply.title'), onClose);
   return (
+    <>
     <Dialog
       open={open}
-      onOpenChange={(o) => !o && onClose()}
+      onOpenChange={(o) => !o && !busy && closeGuard.requestClose()}
       title={t('dialog.quickReply.title')}
       description={t('settings.quickReplies.dialog.context')}
       closeLabel={t('action.close')}
       footer={
         <>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
+          <Button variant="ghost" onClick={closeGuard.requestClose} disabled={busy}>
             {t('action.cancel')}
           </Button>
           <Button variant="primary" type="submit" form="quick-reply-form" loading={busy}>
@@ -247,5 +251,7 @@ function QuickReplyDialog({ target, onClose, onSaved }: { target: QuickReplyView
       </form>
       {guard}
     </Dialog>
+    {closeGuard.element}
+    </>
   );
 }

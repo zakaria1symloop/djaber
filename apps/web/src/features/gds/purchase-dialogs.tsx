@@ -8,10 +8,12 @@ import { formatMoney, formatNumber } from '@djaber/shared';
 import { Button, ConfirmDialog, Dialog, Field, FormAlert, Input, Ltr, MoneyInput, NumberInput, Pill, Select, toast, type MenuAction } from '@djaber/ui';
 import { Plus, X } from 'lucide-react';
 import { useState } from 'react';
+import { useCloseGuard, useTypedFlag } from '@/components/close-guard';
 import { algiersDay } from '@/features/catalog/stock/logic';
 import { DialogFooter, refusal, useDialogSubmit, useOnOpen } from '@/features/orders/dialogs/common';
 import { useRouter } from '@/i18n/navigation';
-import { toMenuActions } from '@/lib/actions';
+import { offlineMenu, toMenuActions } from '@/lib/actions';
+import { useOffline } from '@/features/orders/offline';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { downloadUrl } from '@/lib/jobs';
 import { digitsToInt, moneyDigits } from '@/lib/money';
@@ -28,6 +30,7 @@ type Dlg = { kind: 'receive' | 'cancel' | 'pay' | 'delete'; id: string; number: 
  */
 export function usePurchaseActions(o: { onDeleted?: () => void } = {}) {
   const t = useT();
+  const offline = useOffline();
   const router = useRouter();
   const locale = useLocaleCode();
   const refresh = useGdsRefresh();
@@ -42,7 +45,7 @@ export function usePurchaseActions(o: { onDeleted?: () => void } = {}) {
     }
   };
   const menu = (p: PurchaseRow, extra: { onOpen?: () => void } = {}): MenuAction[] =>
-    toMenuActions(
+    offlineMenu(toMenuActions(
       p.actions,
       {
         order: { label: t('purchases.action.order'), onSelect: () => void simple(() => gdsApi.orderPurchase(p.id), t('purchases.ordered', { number: p.number })) },
@@ -80,7 +83,7 @@ export function usePurchaseActions(o: { onDeleted?: () => void } = {}) {
         delete: { label: t('action.delete'), destructive: true, onSelect: () => setDlg({ kind: 'delete', id: p.id, number: p.number }) },
       },
       t,
-    );
+    ), offline ? t('banner.offline') : undefined, ['open', 'edit', 'print']);
   const close = () => setDlg(null);
   const element = (
     <>
@@ -176,6 +179,9 @@ export function ReceiveDialog({ purchaseId, onClose }: { purchaseId: string | nu
   const missingVariant = ls.some((l) => l.added && l.hasVariants && !l.variantId);
   const pay = digitsToInt(payNow) ?? 0;
   const remainingAfter = p ? Math.max(0, p.remaining - pay) : 0;
+  // the field already says "au-delà du reste dû": the submit is blocked the same way
+  const overPay = !!p && pay > p.remaining;
+  const typed = useTypedFlag(!!purchaseId);
   const s = useDialogSubmit((key) =>
     gdsApi.receivePurchase(
       purchaseId!,
@@ -190,7 +196,7 @@ export function ReceiveDialog({ purchaseId, onClose }: { purchaseId: string | nu
     ),
   );
   const submit = async () => {
-    if (sum.units <= 0 || missingVariant) return;
+    if (sum.units <= 0 || missingVariant || overPay) return;
     const r = await s.submit();
     if (!r) return;
     const over = r.warnings.filter((w) => w.code === 'PURCHASE_OVER_RECEIVE');
@@ -220,26 +226,29 @@ export function ReceiveDialog({ purchaseId, onClose }: { purchaseId: string | nu
         hasVariants: pp.hasVariants,
       },
     ]);
+  const title = p ? t('purchases.receive.title', { number: p.number, supplier: p.supplier?.name ?? '—' }) : t('purchases.action.receive');
+  const guard = useCloseGuard(typed.dirty || ls.some((l) => l.added), title, onClose);
   return (
+    <>
     <Dialog
       open={!!purchaseId}
-      onOpenChange={(o) => !o && !s.busy && onClose()}
-      title={p ? t('purchases.receive.title', { number: p.number, supplier: p.supplier?.name ?? '—' }) : t('purchases.action.receive')}
+      onOpenChange={(o) => !o && !s.busy && guard.requestClose()}
+      title={title}
       description={p ? t('purchases.receive.description', { remaining: formatNumber(sum.remainingBefore), ordered: formatNumber(sum.orderedTotal) }) : undefined}
       closeLabel={t('action.close')}
       size="xl"
       footer={
         <DialogFooter
-          onClose={onClose}
+          onClose={guard.requestClose}
           busy={s.busy}
           onSubmit={() => void submit()}
           label={t('purchases.receive.submit', { count: sum.units })}
-          disabled={!p || sum.units <= 0 || missingVariant}
+          disabled={!p || sum.units <= 0 || missingVariant || overPay}
           note={p ? t('purchases.receive.note', { count: sum.movements, number: p.number }) : undefined}
         />
       }
     >
-      <div className="flex flex-col gap-4" data-testid="receive-dialog">
+      <div className="flex flex-col gap-4" data-testid="receive-dialog" onChange={typed.onChange}>
         {loadError ? <FormAlert>{loadError}</FormAlert> : null}
         {!p && !loadError ? <p className="ts-label-meta text-text-muted">{t('common.loading')}</p> : null}
         {p ? (
@@ -344,6 +353,8 @@ export function ReceiveDialog({ purchaseId, onClose }: { purchaseId: string | nu
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}
       </div>
     </Dialog>
+    {guard.element}
+    </>
   );
 }
 

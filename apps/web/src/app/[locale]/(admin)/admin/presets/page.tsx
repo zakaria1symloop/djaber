@@ -8,6 +8,7 @@ import { ActionsMenu, Button, Card, EmptyState, Field, FrameNote, Input, ListSke
 import { useMutation } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
+import { useConfirmAction } from '@/components/confirm-action';
 import { AdminPage, AdminQueryError } from '@/features/admin/admin-page';
 import { adminWrite, useAdminGet, useAdminInvalidate } from '@/features/admin/api';
 import { AdminDialog, NO_ERRORS, toServerErrors, useOnOpen, type ServerErrors } from '@/features/admin/dialog-kit';
@@ -35,6 +36,7 @@ export default function AdminPresetsPage() {
   const invalidate = useAdminInvalidate();
   const [create, setCreate] = useState<{ copyFrom: AgentPresetAdminDto | null } | null>(null);
   const m = useMutation({ mutationFn: (fn: () => Promise<unknown>) => fn() });
+  const confirm = useConfirmAction();
   const setParam = (patch: Record<string, string | null>) => {
     const p = new URLSearchParams(params.toString());
     for (const [k, v] of Object.entries(patch)) if (v) p.set(k, v); else p.delete(k);
@@ -64,7 +66,7 @@ export default function AdminPresetsPage() {
         preview: { label: t('admin.presets.action.preview'), onSelect: () => window.open(`/${locale}/agents/new`, '_blank', 'noopener') },
         archive: { label: t('admin.presets.action.archive'), onSelect: () => void act(() => adminWrite(`/admin/agent-presets/${p.id}/archive`, 'POST', {}), t('admin.presets.archived')), hidden: !write, separated: true },
         restore: { label: t('admin.presets.action.restore'), onSelect: () => void act(() => adminWrite(`/admin/agent-presets/${p.id}/restore`, 'POST', {}), t('admin.presets.restored')), hidden: !write, separated: true },
-        delete: { label: t('admin.presets.action.delete'), destructive: true, onSelect: () => void act(() => adminWrite(`/admin/agent-presets/${p.id}`, 'DELETE'), t('admin.presets.deleted')), hidden: !write },
+        delete: { label: t('admin.presets.action.delete'), destructive: true, onSelect: () => confirm.ask({ title: t('admin.presets.deleteConfirm.title', { name: p.key }), description: t('admin.presets.deleteConfirm.description'), confirmLabel: t('admin.presets.action.delete'), destructive: true, run: () => act(() => adminWrite(`/admin/agent-presets/${p.id}`, 'DELETE'), t('admin.presets.deleted')) }), hidden: !write },
       },
       t,
     );
@@ -119,6 +121,7 @@ export default function AdminPresetsPage() {
       )}
       <FrameNote>{t('admin.presets.menuNote')}</FrameNote>
       <NewPresetDialog open={!!create} copyFrom={create?.copyFrom ?? null} presets={rows} onClose={() => setCreate(null)} onCreated={(id) => setParam({ preset: id })} />
+      {confirm.element}
     </AdminPage>
   );
 }

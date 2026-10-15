@@ -251,10 +251,14 @@ function FlagsPanel({ flags }: { flags: FeatureFlagDto[] }) {
   const [remove, setRemove] = useState<FeatureFlagDto | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const planName = (slug: string) => plans.data?.find((p) => p.slug === slug)?.name ?? slug;
-  const toggle = async (f: FeatureFlagDto, field: 'webPct' | 'mobilePct', on: boolean) => {
+  // switching a platform back on: its kept percentage, else the other platform's rollout; never a silent 100 %
+  const [fullOn, setFullOn] = useState<{ flag: FeatureFlagDto; field: 'webPct' | 'mobilePct' } | null>(null);
+  const onPct = (f: FeatureFlagDto, field: 'webPct' | 'mobilePct') => (f[field] > 0 ? f[field] : f[field === 'webPct' ? 'mobilePct' : 'webPct']);
+  const toggle = async (f: FeatureFlagDto, field: 'webPct' | 'mobilePct', on: boolean, pct?: number) => {
+    if (on && !pct && onPct(f, field) <= 0) return setFullOn({ flag: f, field });
     setBusy(`${f.key}:${field}`);
     try {
-      await opsApi.patchFlag(f.key, { [field]: on ? (f[field] > 0 ? f[field] : 100) : 0, ...(on && !f.isActive ? { isActive: true } : {}) });
+      await opsApi.patchFlag(f.key, { [field]: on ? (pct ?? onPct(f, field)) : 0, ...(on && !f.isActive ? { isActive: true } : {}) });
       await qc.invalidateQueries({ queryKey: opsKeys.settings });
     } catch (e) {
       toast({ tone: 'danger', message: errorMessage(e, t) });
@@ -349,6 +353,20 @@ function FlagsPanel({ flags }: { flags: FeatureFlagDto[] }) {
         destructive
         loading={busy === `${remove?.key}:delete`}
         onConfirm={() => void doRemove()}
+      />
+      <ConfirmDialog
+        open={!!fullOn}
+        onOpenChange={(o) => !o && setFullOn(null)}
+        title={t('adminSettings.flag.fullOn.title', { key: fullOn?.flag.key ?? '' })}
+        description={t('adminSettings.flag.fullOn.description')}
+        confirmLabel={t('adminSettings.flag.fullOn.confirm')}
+        cancelLabel={t('action.cancel')}
+        closeLabel={t('action.close')}
+        onConfirm={() => {
+          const x = fullOn;
+          setFullOn(null);
+          if (x) void toggle(x.flag, x.field, true, 100);
+        }}
       />
     </OpsPanel>
   );

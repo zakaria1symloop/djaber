@@ -147,6 +147,7 @@
   "public.deletion.blocked.pending.title": "الحذف مبرمج مسبقًا",
   "public.deletion.blocked.pending.text": "سيُحذف حسابك نهائيًا في {date}.",
   "public.deletion.blocked.settings": "فتح المنطقة الخطرة",
+  "public.deletion.blocked.billing": "عرض الفاتورة المستحقة",
   "public.captcha.loading": "التحقق من أنك لست روبوتًا…",
   "public.captcha.error": "تعذّر تحميل التحقق من الروبوت. أغلق النافذة ثم أعد فتحها.",
   "public.contact.subject": "تواصل مع Djaber",

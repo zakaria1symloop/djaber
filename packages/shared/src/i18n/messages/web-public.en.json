@@ -147,6 +147,7 @@
   "public.deletion.blocked.pending.title": "Deletion already scheduled",
   "public.deletion.blocked.pending.text": "Your account will be permanently deleted on {date}.",
   "public.deletion.blocked.settings": "Open the danger zone",
+  "public.deletion.blocked.billing": "See the invoice to pay",
   "public.captcha.loading": "Anti-robot check…",
   "public.captcha.error": "The anti-robot check could not load. Close and reopen the window.",
   "public.contact.subject": "Contact Djaber",

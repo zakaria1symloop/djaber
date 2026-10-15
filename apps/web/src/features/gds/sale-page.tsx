@@ -48,7 +48,8 @@ function SaleDetail({ id }: { id: string }) {
         <QueryError error={q.error} onRetry={() => q.refetch()} backHref="/sales" />
       </AppPage>
     );
-  const off = offline ? { present: true, enabled: false, reason: t('banner.offline') } : null;
+  // offline: the actions this document offers are greyed with the offline reason (absent ones stay absent)
+  const off = <A extends { present: boolean }>(a: A) => (offline && a.present ? { ...a, enabled: false, reason: t('banner.offline') } : a);
   const collect = actionState(s.actions, 'collect', t);
   const link = actionState(s.actions, 'link_client', t);
   const units = s.items.reduce((n, i) => n + i.quantity, 0);
@@ -64,8 +65,8 @@ function SaleDetail({ id }: { id: string }) {
       }
       actions={
         <>
-          <ActionButton action={off ?? collect} label={t('sales.action.collect')} onClick={() => actions.open({ kind: 'collect', id: s.id, number: s.number })} variant="primary" testId="sale-collect" />
-          <ActionButton action={off ?? link} label={t('sales.action.linkClient')} onClick={() => actions.open({ kind: 'link', id: s.id, number: s.number })} testId="sale-link" />
+          <ActionButton action={off(collect)} label={t('sales.action.collect')} onClick={() => actions.open({ kind: 'collect', id: s.id, number: s.number })} variant="primary" testId="sale-collect" />
+          <ActionButton action={off(link)} label={t('sales.action.linkClient')} onClick={() => actions.open({ kind: 'link', id: s.id, number: s.number })} testId="sale-link" />
           <ActionsMenu label={t('action.actions')} heading={`#${s.number}`} actions={actions.menu(s)} size="md" />
         </>
       }

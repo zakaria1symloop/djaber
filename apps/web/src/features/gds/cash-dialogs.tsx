@@ -7,6 +7,7 @@
 import { formatMoney } from '@djaber/shared';
 import { Dialog, Field, FormAlert, Input, Ltr, MoneyInput, Select, toast } from '@djaber/ui';
 import { useState } from 'react';
+import { useCloseGuard, useTypedFlag } from '@/components/close-guard';
 import { algiersDay } from '@/features/catalog/stock/logic';
 import { DialogFooter, RadioList, useDialogSubmit, useOnOpen } from '@/features/orders/dialogs/common';
 import { ApiError } from '@/lib/api';
@@ -26,6 +27,8 @@ const dateIso = (day: string, keep?: string) => (keep && algiersDay(keep) === da
 export function ManualEntryDialog({ mode, onClose, defaultDay }: { mode: ManualMode | null; onClose: () => void; defaultDay: string }) {
   const t = useT();
   const refresh = useGdsRefresh();
+  const dayLabel = useDayLabel();
+  const typed = useTypedFlag(!!mode);
   const row = mode && mode.kind !== 'new' ? mode.row : null;
   const [type, setType] = useState<CashType>('expense');
   const [amount, setAmount] = useState('');
@@ -96,16 +99,19 @@ export function ManualEntryDialog({ mode, onClose, defaultDay }: { mode: ManualM
     }
   };
   const closedError = s.error?.includes('CASH_DAY_CLOSED');
+  const title = mode?.kind === 'edit' ? t('cash.manual.editTitle') : mode?.kind === 'correct' ? t('cash.manual.correctTitle') : t('cash.manual.title');
+  const guard = useCloseGuard(typed.dirty || !!proof, title, onClose);
   return (
+    <>
     <Dialog
       open={!!mode}
-      onOpenChange={(o) => !o && !s.busy && onClose()}
-      title={mode?.kind === 'edit' ? t('cash.manual.editTitle') : mode?.kind === 'correct' ? t('cash.manual.correctTitle') : t('cash.manual.title')}
+      onOpenChange={(o) => !o && !s.busy && guard.requestClose()}
+      title={title}
       closeLabel={t('action.close')}
       size="md"
-      footer={<DialogFooter onClose={onClose} busy={s.busy || uploading} onSubmit={() => void submit()} label={t('action.save')} note={t('cash.manual.closedNote')} />}
+      footer={<DialogFooter onClose={guard.requestClose} busy={s.busy || uploading} onSubmit={() => void submit()} label={t('action.save')} note={t('cash.manual.closedNote')} />}
     >
-      <div className="flex flex-col gap-4" data-testid="cash-manual-dialog">
+      <div className="flex flex-col gap-4" data-testid="cash-manual-dialog" onChange={typed.onChange}>
         {category !== 'correction' ? (
           <RadioList<CashType>
             label={t('cash.manual.direction')}
@@ -156,9 +162,11 @@ export function ManualEntryDialog({ mode, onClose, defaultDay }: { mode: ManualM
         <Field label={t('cash.manual.proof')} htmlFor="cm-proof" hint={proof ? proof.name : t('cash.manual.proofHint')}>
           <Input id="cm-proof" type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0])} />
         </Field>
-        {s.error ? <FormAlert>{closedError ? `${t('error.CASH_DAY_CLOSED', { date: day })} (CASH_DAY_CLOSED)` : s.error}</FormAlert> : null}
+        {s.error ? <FormAlert>{closedError ? `${t('error.CASH_DAY_CLOSED', { date: dayLabel(day) })} (CASH_DAY_CLOSED)` : s.error}</FormAlert> : null}
       </div>
     </Dialog>
+    {guard.element}
+    </>
   );
 }
 

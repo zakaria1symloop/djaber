@@ -37,6 +37,7 @@ import {
 import { Lightbulb } from 'lucide-react';
 import { usePathname, useRouter as useNextRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { useCloseGuard, useTypedFlag } from '@/components/close-guard';
 import { AppPage } from '@/components/app-page';
 import { ListLoading, OfflineBanner, QueryError } from '@/components/global-states';
 import { useCategories } from '@/features/catalog/api';
@@ -66,6 +67,7 @@ export function RecommendationsPage() {
   const list = useListState(RECOS_SPEC);
   const view = filterText(list.state, 'view') || 'cards';
   const offline = useOffline();
+  const writeReason = !can('catalog.write') ? t('toast.forbidden') : offline ? t('banner.offline') : undefined;
   const simple = workspace?.stockMode !== 'advanced';
   const tabs = [
     { key: 'cards', label: t('recos.view.cards') },
@@ -73,7 +75,7 @@ export function RecommendationsPage() {
     ...(simple ? [] : [{ key: 'cross', label: t('recos.view.cross') }]),
   ];
   return (
-    <AppPage wide eyebrow={t('nav.group.stock')} title={t('nav.recommendations')} description={t('recos.subtitle')} permission="catalog.read" actions={view === 'cards' ? <RegenerateButton list={list} disabled={!can('catalog.write') || offline} /> : view === 'cross' ? <CrossSellActions disabled={!can('catalog.write') || offline} /> : undefined}>
+    <AppPage wide eyebrow={t('nav.group.stock')} title={t('nav.recommendations')} description={t('recos.subtitle')} permission="catalog.read" actions={view === 'cards' ? <RegenerateButton list={list} reason={writeReason} /> : view === 'cross' ? <CrossSellActions reason={writeReason} /> : undefined}>
       {offline ? <OfflineBanner since="—" /> : null}
       <nav aria-label={t('recos.view.label')} className="flex flex-wrap gap-1.5">
         {tabs.map((x) => (
@@ -82,7 +84,7 @@ export function RecommendationsPage() {
             type="button"
             aria-current={view === x.key ? 'page' : undefined}
             data-view={x.key}
-            onClick={() => list.set({ filters: { view: x.key === 'cards' ? null : x.key, type: null, priority: null, status: null, categoryId: null } })}
+            onClick={() => list.set({ filters: { view: x.key === 'cards' ? null : x.key, type: null, priority: null, status: null, categoryId: null, job: null } })}
             className={cn('flex h-8 items-center rounded-card border px-3 text-[13px]', view === x.key ? 'border-white bg-white font-medium text-black' : 'border-line-edge bg-ink-surface text-text-secondary hover:text-text-primary')}
           >
             {x.label}
@@ -95,7 +97,7 @@ export function RecommendationsPage() {
 }
 
 /* ---------- Régénérer maintenant (1 / 10 min) + job id in the URL ---------- */
-function RegenerateButton({ list, disabled }: { list: ReturnType<typeof useListState>; disabled: boolean }) {
+function RegenerateButton({ list, reason }: { list: ReturnType<typeof useListState>; reason?: string }) {
   const t = useT();
   const stats = useStockRecoStats();
   const [busy, setBusy] = useState(false);
@@ -117,7 +119,7 @@ function RegenerateButton({ list, disabled }: { list: ReturnType<typeof useListS
       variant="primary"
       onClick={() => void run()}
       loading={busy}
-      disabledReason={disabled ? t('toast.forbidden') : wait > 0 ? `${t('error.RECO_RATE_LIMITED', { retryAfter: `${Math.ceil(wait / 60)} min` })} (RECO_RATE_LIMITED)` : undefined}
+      disabledReason={reason ?? (wait > 0 ? `${t('error.RECO_RATE_LIMITED', { retryAfter: `${Math.ceil(wait / 60)} min` })} (RECO_RATE_LIMITED)` : undefined)}
       data-testid="reco-generate"
     >
       {t('recos.generate')}
@@ -174,8 +176,10 @@ function Cards({ list, offline, simple }: { list: ReturnType<typeof useListState
   const cats = flattenCategories(categories.data ?? []);
   const k = stats.data;
   const rows = q.data ?? [];
-  const canWrite = can('catalog.write') && !offline;
+  const writeReason = !can('catalog.write') ? t('toast.forbidden') : offline ? t('banner.offline') : undefined;
   const jobId = filterText(s, 'job') || null;
+  // "Désactiver cette règle pour ce produit" cannot be undone from the screen: confirmed first
+  const [mute, setMute] = useState<StockReco | null>(null);
 
   const act = async (run: () => Promise<unknown>, done: string) => {
     try {
@@ -217,7 +221,7 @@ function Cards({ list, offline, simple }: { list: ReturnType<typeof useListState
         open_product: { label: t('recos.action.openProduct'), onSelect: () => r.product && router.push(`/products/${r.product.id}`) },
         open_sales: { label: t('recos.action.openSales'), onSelect: () => r.product && router.push(`/sales?productId=${r.product.id}`) },
         set_threshold: { label: t('recos.action.threshold'), onSelect: () => r.product && router.push(`/products/${r.product.id}/edit`) },
-        mute: { label: t('recos.action.mute'), separated: true, onSelect: () => r.product && void act(() => gdsApi.muteStockReco(r.product!.id, r.type), t('recos.muted')) },
+        mute: { label: t('recos.action.mute'), separated: true, hint: t('gds.hint.dialog'), onSelect: () => r.product && setMute(r) },
       },
       t,
     );
@@ -324,14 +328,14 @@ function Cards({ list, offline, simple }: { list: ReturnType<typeof useListState
                   r.status === 'active' || r.status === 'snoozed' ? (
                     <>
                       {applyAction ? (
-                        <Button size="sm" variant="primary" onClick={() => void apply(r)} disabledReason={!canWrite ? t('toast.forbidden') : applyAction.enabled ? undefined : `${t(`error.${applyAction.reasonCode ?? 'FORBIDDEN'}`)} (${applyAction.reasonCode})`} data-testid="reco-apply">
+                        <Button size="sm" variant="primary" onClick={() => void apply(r)} disabledReason={writeReason ?? (applyAction.enabled ? undefined : `${t(`error.${applyAction.reasonCode ?? 'FORBIDDEN'}`)} (${applyAction.reasonCode})`)} data-testid="reco-apply">
                           {t(`recos.apply.${r.suggestedAction.kind}`)}
                         </Button>
                       ) : null}
-                      <Button size="sm" variant="ghost" onClick={() => void act(() => gdsApi.dismissStockReco(r.id), t('recos.dismissed'))} disabled={!canWrite} data-testid="reco-dismiss">
+                      <Button size="sm" variant="ghost" onClick={() => void act(() => gdsApi.dismissStockReco(r.id), t('recos.dismissed'))} disabledReason={writeReason} data-testid="reco-dismiss">
                         {t('action.dismiss')}
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => void act(() => gdsApi.snoozeStockReco(r.id, 7), t('recos.snoozed'))} disabled={!canWrite} data-testid="reco-snooze">
+                      <Button size="sm" variant="ghost" onClick={() => void act(() => gdsApi.snoozeStockReco(r.id, 7), t('recos.snoozed'))} disabledReason={writeReason} data-testid="reco-snooze">
                         {t('recos.snooze')}
                       </Button>
                     </>
@@ -343,6 +347,21 @@ function Cards({ list, offline, simple }: { list: ReturnType<typeof useListState
         </div>
       )}
       <p className="ts-label-micro !normal-case text-text-muted">{t('recos.footnote')}</p>
+      <ConfirmDialog
+        open={!!mute}
+        onOpenChange={(o) => !o && setMute(null)}
+        title={t('recos.muteConfirm.title', { product: mute?.product?.name ?? '' })}
+        description={t('recos.muteConfirm.description')}
+        confirmLabel={t('recos.action.mute')}
+        cancelLabel={t('action.cancel')}
+        closeLabel={t('action.close')}
+        destructive
+        onConfirm={() => {
+          const r = mute;
+          setMute(null);
+          if (r?.product) void act(() => gdsApi.muteStockReco(r.product!.id, r.type), t('recos.muted'));
+        }}
+      />
     </>
   );
 }
@@ -388,7 +407,7 @@ function History({ list }: { list: ReturnType<typeof useListState> }) {
 }
 
 /* ---------- cross-sell rules (REC-01…03) ---------- */
-function CrossSellActions({ disabled }: { disabled: boolean }) {
+function CrossSellActions({ reason }: { reason?: string }) {
   const t = useT();
   const params = useSearchParams();
   const pathname = usePathname();
@@ -413,10 +432,10 @@ function CrossSellActions({ disabled }: { disabled: boolean }) {
   };
   return (
     <>
-      <Button onClick={() => void generate()} loading={busy} disabledReason={disabled ? t('toast.forbidden') : undefined} data-testid="cross-generate">
+      <Button onClick={() => void generate()} loading={busy} disabledReason={reason} data-testid="cross-generate">
         {t('recos.cross.generate')}
       </Button>
-      <Button variant="primary" onClick={() => setParam('rule', 'new')} disabledReason={disabled ? t('toast.forbidden') : undefined} data-testid="cross-new">
+      <Button variant="primary" onClick={() => setParam('rule', 'new')} disabledReason={reason} data-testid="cross-new">
         {t('recos.cross.new')}
       </Button>
     </>
@@ -593,6 +612,7 @@ export function RuleDialog({ rule, onClose }: { rule: CrossSellRule | 'new' | nu
   const t = useT();
   const refresh = useGdsRefresh();
   const editing = rule && rule !== 'new' ? rule : null;
+  const typed = useTypedFlag(!!rule);
   const [product, setProduct] = useState<Pick1>(null);
   const [recommended, setRecommended] = useState<Pick1>(null);
   const [type, setType] = useState<'cross_sell' | 'up_sell'>('cross_sell');
@@ -637,17 +657,19 @@ export function RuleDialog({ rule, onClose }: { rule: CrossSellRule | 'new' | nu
     ) : (
       <ProductPicker id={id} onPick={(x: PickedProduct) => set({ id: x.id, name: x.name })} placeholder={t('recos.rule.search')} />
     );
+  const guard = useCloseGuard(typed.dirty || (!editing && (!!product || !!recommended)), t('recos.rule.title'), onClose);
   return (
+    <>
     <Dialog
       open={!!rule}
-      onOpenChange={(o) => !o && !s.busy && onClose()}
+      onOpenChange={(o) => !o && !s.busy && guard.requestClose()}
       title={t('recos.rule.title')}
       description={t('recos.rule.breadcrumb')}
       closeLabel={t('action.close')}
       size="lg"
-      footer={<DialogFooter onClose={onClose} busy={s.busy} onSubmit={() => void submit()} label={t('action.save')} note={t('recos.rule.note')} />}
+      footer={<DialogFooter onClose={guard.requestClose} busy={s.busy} onSubmit={() => void submit()} label={t('action.save')} note={t('recos.rule.note')} />}
     >
-      <div className="flex flex-col gap-4" data-testid="rule-dialog">
+      <div className="flex flex-col gap-4" data-testid="rule-dialog" onChange={typed.onChange}>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={t('recos.rule.product')} required error={touched && !product ? t('validation.required') : s.fieldError('productId')}>
             {picked(product, setProduct, 'rule-product', !!editing)}
@@ -682,5 +704,7 @@ export function RuleDialog({ rule, onClose }: { rule: CrossSellRule | 'new' | nu
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}
       </div>
     </Dialog>
+    {guard.element}
+    </>
   );
 }

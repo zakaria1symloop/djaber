@@ -12,6 +12,7 @@ import { useLocaleCode, useT } from '@/lib/i18n';
 import { useSession, useWorkspaceId } from '@/lib/session';
 import { useWsEvent } from '@/lib/ws';
 import { billingKeys, usePlans, useSubscription } from './api';
+import { usePayInvoice } from './invoices';
 import { daysLeft, isFreePlan, planBanner, type PlanState } from './logic';
 
 type WorkspacePlan = { slug: string; name: string; status: string; periodEnd: string; limits: { maxPages: number; maxAgents: number }; usage: { pages: number; agents: number } } & {
@@ -31,6 +32,8 @@ export function usePlanBanners(): ShellBanner[] {
   const { workspace, can } = useSession();
   const sub = useSubscription();
   const plans = usePlans(!!sub.data?.expiredFrom);
+  // "Payer maintenant" pays the unpaid invoice right away (Chargily checkout), like the invoices list
+  const payInvoice = usePayInvoice();
   const wp = (workspace?.plan ?? null) as WorkspacePlan | null;
   // the billing pages show the same message inline (BIL-01)
   if (pathname.startsWith('/settings/billing')) return [];
@@ -82,7 +85,7 @@ export function usePlanBanners(): ShellBanner[] {
         content: inv
           ? t('billing.banner.dunning', { number: inv.number, amount: formatNumber(inv.remaining || inv.amount), plan: s!.plan.name, date: formatDate(new Date(Date.parse(state.periodEnd) + 7 * 86_400_000).toISOString(), locale) })
           : t('billing.banner.dunningShort', { plan: wp?.name ?? s?.plan.name ?? '' }),
-        action: billing ? { label: t('billing.invoices.payNow'), onClick: open('/settings/billing') } : undefined,
+        action: inv && can('billing.write') ? { label: t('billing.invoices.payNow'), onClick: () => void payInvoice.run(inv.id), disabled: payInvoice.pending === inv.id } : billing ? { label: t('billing.banner.seeInvoice'), onClick: open('/settings/billing') } : undefined,
       },
     ];
   }

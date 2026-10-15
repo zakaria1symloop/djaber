@@ -325,9 +325,14 @@ function BlockedView({ blocked }: { blocked: Blocked }) {
         className="!border-0 !p-0"
       />
       <div className="flex flex-wrap justify-center gap-2">
-        {kind !== 'pending' ? (
+        {kind === 'owner' ? (
           <Link href="/settings/danger" className={buttonClass({ variant: 'primary' })}>
             {t('public.deletion.blocked.settings')}
+          </Link>
+        ) : kind === 'debt' ? (
+          // the unpaid invoice is paid from Plan & facturation ("Payer maintenant"), not from the danger zone
+          <Link href="/settings/billing" className={buttonClass({ variant: 'primary' })} data-testid="deletion-pay-invoice">
+            {t('public.deletion.blocked.billing')}
           </Link>
         ) : null}
         <a href={supportMailto(t('public.contact.subjectDeletion'))} className={buttonClass({})}>

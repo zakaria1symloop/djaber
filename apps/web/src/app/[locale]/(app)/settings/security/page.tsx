@@ -4,7 +4,7 @@
 // + "SAFE — Trust & safety (merchant)": blocked customers and automatic rules (features/safety).
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ChangePasswordSchema, passwordStrength, type ChangePasswordInput } from '@djaber/shared';
-import { Button, Card, Checkbox, Dialog, Field, FormAlert, OtpInput, PasswordInput, Pill, SectionLabel, Skeleton, Spinner, StrengthBar, toast } from '@djaber/ui';
+import { Button, Card, Checkbox, ConfirmDialog, Dialog, Field, FormAlert, OtpInput, PasswordInput, Pill, SectionLabel, Skeleton, Spinner, StrengthBar, toast } from '@djaber/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
@@ -399,7 +399,10 @@ function SessionsSection() {
     }
   };
   const others = (sessions.data ?? []).filter((s) => !s.current);
+  // signs out every other device at once: confirmed first
+  const [confirmAll, setConfirmAll] = useState(false);
   const revokeOthers = async () => {
+    setConfirmAll(false);
     setAll(true);
     try {
       // every other device, one by one: the current session stays signed in
@@ -450,10 +453,21 @@ function SessionsSection() {
         )}
       </div>
       {others.length > 0 ? (
-        <Button className="mt-3 border-accent-alert/60 text-accent-alert" onClick={revokeOthers} loading={all}>
+        <Button className="mt-3 border-accent-alert/60 text-accent-alert" onClick={() => setConfirmAll(true)} loading={all}>
           {t('settings.sessions.revokeOthers')}
         </Button>
       ) : null}
+      <ConfirmDialog
+        open={confirmAll}
+        onOpenChange={setConfirmAll}
+        title={t('settings.sessions.revokeOthersConfirm.title', { count: others.length })}
+        description={t('settings.sessions.revokeOthersConfirm.description')}
+        confirmLabel={t('settings.sessions.revokeOthers')}
+        cancelLabel={t('action.cancel')}
+        closeLabel={t('action.close')}
+        destructive
+        onConfirm={() => void revokeOthers()}
+      />
     </Section>
   );
 }

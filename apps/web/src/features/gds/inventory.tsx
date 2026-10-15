@@ -34,6 +34,7 @@ import {
 } from '@djaber/ui';
 import { ClipboardList } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCloseGuard, useTypedFlag } from '@/components/close-guard';
 import { AppPage } from '@/components/app-page';
 import { ListEmpty, ListLoading, OfflineBanner, QueryError } from '@/components/global-states';
 import { useCategories } from '@/features/catalog/api';
@@ -42,7 +43,7 @@ import { ListPagination } from '@/features/catalog/ui';
 import { DialogFooter, refusal, RadioList, useDialogSubmit, useOnOpen } from '@/features/orders/dialogs/common';
 import { useOffline } from '@/features/orders/offline';
 import { Link, useRouter } from '@/i18n/navigation';
-import { actionState, toMenuActions } from '@/lib/actions';
+import { actionState, offlineMenu, toMenuActions } from '@/lib/actions';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { downloadUrl } from '@/lib/jobs';
 import { type ListSpec } from '@/lib/list-state';
@@ -60,6 +61,7 @@ const lineKey = (l: Pick<InventoryLine, 'productId' | 'variantId'>) => `${l.prod
 /** Menu of a count (list row, count page header). */
 function useInventoryActions() {
   const t = useT();
+  const offline = useOffline();
   const router = useRouter();
   const locale = useLocaleCode();
   const refresh = useGdsRefresh();
@@ -74,7 +76,7 @@ function useInventoryActions() {
     }
   };
   const menu = (r: InventoryRow) =>
-    toMenuActions(
+    offlineMenu(toMenuActions(
       r.actions,
       {
         validate: { label: t('inventory.action.validate'), hint: t('gds.hint.dialog'), onSelect: () => setValidate(r.id) },
@@ -84,7 +86,7 @@ function useInventoryActions() {
         cancel: { label: t('inventory.action.cancel'), separated: true, destructive: true, onSelect: () => setCancel(r) },
       },
       t,
-    );
+    ), offline ? t('banner.offline') : undefined, ['count', 'open', 'sheet']);
   const element = (
     <>
       <ValidateInventoryDialog inventoryId={validate} onClose={() => setValidate(null)} />
@@ -506,6 +508,7 @@ function InventoryCount({ id }: { id: string }) {
 
 /* ======================================== Valider l'inventaire ======================================== */
 export function ValidateInventoryDialog({ inventoryId, onClose }: { inventoryId: string | null; onClose: () => void }) {
+  const typed = useTypedFlag(!!inventoryId);
   const t = useT();
   const refresh = useGdsRefresh();
   const q = useInventory(inventoryId);
@@ -541,17 +544,21 @@ export function ValidateInventoryDialog({ inventoryId, onClose }: { inventoryId:
     await refresh();
     onClose();
   };
+  // notes typed in the dialog are lost on close: asked first
+  const title = inv ? t('inventory.validate.title', { number: inv.number }) : t('inventory.action.validate');
+  const guard = useCloseGuard(typed.dirty, title, onClose);
   return (
+    <>
     <Dialog
       open={!!inventoryId}
-      onOpenChange={(o) => !o && !s.busy && onClose()}
-      title={inv ? t('inventory.validate.title', { number: inv.number }) : t('inventory.action.validate')}
+      onOpenChange={(o) => !o && !s.busy && guard.requestClose()}
+      title={title}
       description={inv ? t('inventory.validate.description', { counted: formatNumber(counted.length), gaps: gaps.length, value: formatMoney(totals.value) }) : undefined}
       closeLabel={t('action.close')}
       size="lg"
-      footer={<DialogFooter onClose={onClose} busy={s.busy} onSubmit={() => void submit()} label={t('inventory.validate.submit', { count: gaps.length })} closeLabel={t('inventory.validate.resume')} disabled={!inv} note={t('inventory.validate.note')} />}
+      footer={<DialogFooter onClose={guard.requestClose} busy={s.busy} onSubmit={() => void submit()} label={t('inventory.validate.submit', { count: gaps.length })} closeLabel={t('inventory.validate.resume')} disabled={!inv} note={t('inventory.validate.note')} />}
     >
-      <div className="flex flex-col gap-4" data-testid="inventory-validate-dialog">
+      <div className="flex flex-col gap-4" data-testid="inventory-validate-dialog" onChange={typed.onChange}>
         {q.isError ? <FormAlert>{refusal(q.error, t)}</FormAlert> : null}
         {gaps.length ? (
           <ul className="max-h-72 divide-y divide-line-hairline overflow-y-auto rounded-card border border-line-edge">
@@ -588,6 +595,8 @@ export function ValidateInventoryDialog({ inventoryId, onClose }: { inventoryId:
         {s.error ? <FormAlert>{s.error}</FormAlert> : null}
       </div>
     </Dialog>
+    {guard.element}
+    </>
   );
 }
 

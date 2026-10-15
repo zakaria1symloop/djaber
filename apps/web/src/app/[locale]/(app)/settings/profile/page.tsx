@@ -31,9 +31,10 @@ export default function ProfilePage() {
     defaultValues: { firstName: me?.firstName ?? '', lastName: me?.lastName ?? '', locale: me?.locale ?? locale },
   });
   const { reset } = form;
+  // follows the saved profile, but never over what the user is typing (an avatar change rewrites `me` too)
   useEffect(() => {
-    if (me) reset({ firstName: me.firstName, lastName: me.lastName, locale: me.locale });
-  }, [me, reset]);
+    if (me && !form.formState.isDirty) reset({ firstName: me.firstName, lastName: me.lastName, locale: me.locale });
+  }, [me?.firstName, me?.lastName, me?.locale, reset]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = useMutation({ mutationFn: authApi.updateMe });
   const avatar = useImageUpload('avatar', async (avatarUploadId) => qc.setQueryData(meKey, await authApi.updateMe({ avatarUploadId })));

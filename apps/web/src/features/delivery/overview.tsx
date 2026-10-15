@@ -14,6 +14,7 @@ import {
   buttonClass,
   Card,
   cn,
+  ConfirmDialog,
   DataTable,
   FilterChips,
   FilterCheckList,
@@ -34,13 +35,13 @@ import {
 } from '@djaber/ui';
 import { PackageCheck, SlidersHorizontal, Truck } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ListFilteredEmpty, ListLoading, OfflineBanner, QueryError } from '@/components/global-states';
 import { ListPagination } from '@/features/catalog/ui';
 import { useOffline } from '@/features/orders/offline';
 import { algiersTime } from '@/features/orders/logic';
 import { Link, useRouter } from '@/i18n/navigation';
-import { actionState } from '@/lib/actions';
+import { actionState, reasonText } from '@/lib/actions';
 import { useLocaleCode, useT } from '@/lib/i18n';
 import { downloadUrl, trackJob } from '@/lib/jobs';
 import { filterList, filterText, listQueryString, patchListState } from '@/lib/list-state';
@@ -79,6 +80,16 @@ export function DeliveryOverviewPage() {
     const qs = listQueryString(DELIVERY_LIST, next, [...params.entries()].filter(([key]) => key !== 'job'));
     router.replace(qs ? `/delivery?${qs}` : '/delivery', { scroll: false });
   };
+  // `?order=<orderId>` (notification / home "colis en échec", 03-events §shipment_failed): the list is narrowed to that
+  // order (`ids`, order ids) and its parcel's tracking panel opens once the row is loaded
+  const orderLink = params.get('order');
+  const pendingOrder = useRef<string | null>(null);
+  useEffect(() => {
+    if (!orderLink) return;
+    pendingOrder.current = orderLink;
+    const qs = listQueryString(DELIVERY_LIST, patchListState(s, { filters: { ids: [orderLink] } }), [...params.entries()].filter(([key]) => key !== 'order'));
+    router.replace(`/delivery?${qs}`, { scroll: false });
+  }, [orderLink]); // eslint-disable-line react-hooks/exhaustive-deps
   const tab = currentTab(s);
   const query = useMemo(() => shipmentsQuery(list.apiQuery(), tab), [list, tab]);
   const rowsQ = useShipments(query);
@@ -94,6 +105,14 @@ export function DeliveryOverviewPage() {
   const total = rowsQ.data?.total ?? 0;
   const view = JSON.stringify(query);
   useEffect(() => setSelected(new Set()), [view]);
+  useEffect(() => {
+    const id = pendingOrder.current;
+    if (!id || !rowsQ.data) return;
+    pendingOrder.current = null;
+    const hit = rows.find((r) => r.orderId === id);
+    if (hit?.shipment && !s.sheet) list.openSheet(hit.shipment.id);
+  }, [rowsQ.data, rows, s.sheet, list]);
+  const [confirmManual, setConfirmManual] = useState(false);
 
   const k = overview.data?.kpis;
   const tabs = overview.data?.tabs;
@@ -172,7 +191,7 @@ export function DeliveryOverviewPage() {
                   {t('enum.Shipment.status.failed')}
                 </Pill>
               )}
-              {code ? <span className="ts-label-micro !normal-case text-accent-alert">{code}</span> : null}
+              {code ? <span className="ts-label-micro !normal-case text-accent-alert">{sh.error?.message ? `${sh.error.message} (${code})` : reasonText(t, code)}</span> : null}
             </div>
           );
         }
@@ -217,6 +236,7 @@ export function DeliveryOverviewPage() {
   });
   const syncIds = chosen.filter((r) => r.shipment && actionState(r.actions, SHIPMENT_ACTION.sync, t).enabled).map((r) => r.shipment!.id);
   const forbidden = !canSend ? t('toast.forbidden') : offline ? t('banner.offline') : undefined;
+  const manualIds = chosen.filter((r) => actionState(r.actions, SHIPMENT_ACTION.shipManual, t).enabled).map((r) => r.orderId);
   const bulkActions: BulkAction[] = [
     { key: 'send', label: t('action.sendToCourier'), onSelect: () => setDialog('send'), disabledReason: forbidden ?? (sendTargets.every((x) => x.blocked) ? t('delivery.bulk.noneSendable') : undefined) },
     { key: 'labels', label: t('action.labels'), onSelect: () => setDialog('labels'), disabledReason: forbidden },
@@ -264,22 +284,23 @@ export function DeliveryOverviewPage() {
     {
       key: 'manual',
       label: t('delivery.bulk.shipManual'),
-      disabledReason: forbidden,
-      onSelect: async () => {
-        try {
-          const r = await deliveryApi.shipManualBulk(
-            chosen.map((x) => x.orderId),
-            uuid(),
-          );
-          await refresh();
-          toast(r.failed ? { tone: 'warning', message: t('delivery.bulk.manualPartial', { ok: r.ok, failed: r.failed }) } : t('delivery.bulk.manualDone', { count: r.ok }));
-          setSelected(new Set());
-        } catch (e) {
-          toast({ tone: 'danger', message: refusal(e, t) });
-        }
-      },
+      // only the orders whose row offers "Livraison propre" (ship_manual descriptor), after a confirmation
+      disabledReason: forbidden ?? (manualIds.length ? undefined : t('delivery.bulk.noneManual')),
+      onSelect: () => setConfirmManual(true),
     },
   ];
+  const shipManual = async () => {
+    try {
+      const r = await deliveryApi.shipManualBulk(manualIds, uuid());
+      await refresh();
+      toast(r.failed ? { tone: 'warning', message: t('delivery.bulk.manualPartial', { ok: r.ok, failed: r.failed }) } : t('delivery.bulk.manualDone', { count: r.ok }));
+      setSelected(new Set());
+    } catch (e) {
+      toast({ tone: 'danger', message: refusal(e, t) });
+    } finally {
+      setConfirmManual(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -437,6 +458,16 @@ export function DeliveryOverviewPage() {
         })()}
       />
       <BulkSendDialog open={dialog === 'send'} orders={sendTargets} onClose={() => setDialog(null)} onFinished={() => setSelected(new Set())} />
+      <ConfirmDialog
+        open={confirmManual}
+        onOpenChange={setConfirmManual}
+        title={t('delivery.bulk.manualConfirm.title', { count: manualIds.length })}
+        description={[t('delivery.bulk.manualConfirm.description'), chosen.length > manualIds.length ? t('delivery.bulk.manualConfirm.skipped', { count: chosen.length - manualIds.length }) : null].filter(Boolean).join(' ')}
+        confirmLabel={t('delivery.bulk.shipManual')}
+        cancelLabel={t('action.cancel')}
+        closeLabel={t('action.close')}
+        onConfirm={() => void shipManual()}
+      />
       <BulkSendResults
         jobId={bulkJob}
         open={!!bulkJob}
@@ -476,7 +507,7 @@ function DeliveryActiveFilters({ list }: { list: ListController }) {
     orderStatus: dict(['confirmed', 'preparing', 'shipped', 'delivered', 'returned', 'cancelled'], (v) => t(`enum.Order.status.${v}`)),
     lastEvent: dict(LAST_EVENTS, (v) => t(`delivery.filter.lastEvent.${v}`)),
     failureReason: dict(FAILURE_REASONS, (v) => t(`enum.Shipment.failureReason.${v}`)),
-    lastError: (code) => code,
+    lastError: (code) => t(`delivery.lastError.${code}`),
     range: (from, to) => t('orders.chip.range', { from: day(from), to: day(to) }),
     ids: (n) => t('orders.chip.ids', { count: n }),
   });
@@ -552,7 +583,7 @@ function DeliveryFilterPanel({ open, onClose, list, total }: { open: boolean; on
         <FilterChips label={t('delivery.filter.failureReason')} multiple options={opts(FAILURE_REASONS, (v) => t(`enum.Shipment.failureReason.${v}`))} value={filterList(s, 'failureReason')} onChange={(v) => list.setFilter('failureReason', v)} />
       </FilterGroup>
       <FilterGroup label={t('delivery.filter.lastError')} source="Shipment.lastError">
-        <FilterCheckList options={LAST_ERRORS.map((c) => ({ value: c, label: c }))} value={filterList(s, 'lastError')} onChange={(v) => list.setFilter('lastError', v)} />
+        <FilterCheckList options={LAST_ERRORS.map((c) => ({ value: c, label: t(`delivery.lastError.${c}`) }))} value={filterList(s, 'lastError')} onChange={(v) => list.setFilter('lastError', v)} />
       </FilterGroup>
       <FilterGroup label={t('delivery.filter.period')} source="Shipment.createdAt · Order.confirmedAt">
         <FilterDateRange from={filterText(s, 'from')} to={filterText(s, 'to')} onChange={(r) => list.setFilters({ from: r.from || null, to: r.to || null })} labels={{ from: t('common.from'), to: t('common.to'), presets: t('common.date') }} />

@@ -49,7 +49,8 @@ function PurchaseDetail({ id }: { id: string }) {
   const receive = actionState(p.actions, 'receive', t);
   const order = actionState(p.actions, 'order', t);
   const pay = actionState(p.actions, 'record_payment', t);
-  const off = offline ? { present: true, enabled: false, reason: t('banner.offline') } : null;
+  // offline: the actions this document offers are greyed with the offline reason (absent ones stay absent)
+  const off = <A extends { present: boolean }>(a: A) => (offline && a.present ? { ...a, enabled: false, reason: t('banner.offline') } : a);
   const history = [
     t('purchases.page.created', { date: day(p.createdAt.slice(0, 10)) }),
     p.status !== 'draft' && p.status !== 'cancelled' ? t('purchases.page.orderedOn', { date: day(p.purchasedAt.slice(0, 10)) }) : null,
@@ -71,9 +72,9 @@ function PurchaseDetail({ id }: { id: string }) {
       }
       actions={
         <>
-          <ActionButton action={off ?? order} label={t('purchases.action.order')} onClick={() => actions.menu(p).find((a) => a.key === 'order')?.onSelect?.()} variant="primary" testId="purchase-order" />
-          <ActionButton action={off ?? receive} label={t('purchases.action.receive')} onClick={() => actions.open({ kind: 'receive', id: p.id, number: p.number })} variant={order.present ? 'secondary' : 'primary'} testId="purchase-receive" />
-          {p.remaining > 0 ? <ActionButton action={off ?? pay} label={t('purchases.action.paySolde')} onClick={() => actions.open({ kind: 'pay', id: p.id, number: p.number })} testId="purchase-pay" /> : null}
+          <ActionButton action={off(order)} label={t('purchases.action.order')} onClick={() => actions.menu(p).find((a) => a.key === 'order')?.onSelect?.()} variant="primary" testId="purchase-order" />
+          <ActionButton action={off(receive)} label={t('purchases.action.receive')} onClick={() => actions.open({ kind: 'receive', id: p.id, number: p.number })} variant={order.present ? 'secondary' : 'primary'} testId="purchase-receive" />
+          {p.remaining > 0 ? <ActionButton action={off(pay)} label={t('purchases.action.paySolde')} onClick={() => actions.open({ kind: 'pay', id: p.id, number: p.number })} testId="purchase-pay" /> : null}
           <ActionsMenu label={t('action.actions')} heading={`#${p.number}`} actions={actions.menu(p)} size="md" />
         </>
       }
