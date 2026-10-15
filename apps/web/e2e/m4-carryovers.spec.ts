@@ -2,7 +2,8 @@
 //  - queue: actions of the insight cards (AT-AGT-07 UI: "Ajouter aux instructions", "Ignorer", already resolved);
 //  - products: "Ajouter à un agent" (bulk bar, row menu), the agent filter, hidden for an Operator;
 //  - "Créer depuis une photo": credits / daily limit / provider refusals of `POST /products/ai-fill`;
-//  - onboarding step 4: presets of the server, `POST /agents { presetKey, name }`, error in place, static fallback.
+//  - onboarding step 4: presets of the server, `POST /agents { presetKey, name }`, error in place, static fallback, the
+//    agent created earlier offered on a reopened step, "Partir de zéro" through the agent wizard (steps 1–3).
 // On the REAL API (fake Meta pages, deterministic fake AI, worker running): the insights are written by the AI for
 // real customer messages, the agents, products and refusals are real; what the page sends is observed. `page.route`
 // stays only for what the fake drivers cannot produce over HTTP; each use says why.
@@ -432,22 +433,70 @@ test.describe('onboarding step 4', () => {
     const posts = await planned(page, agentsUrl, 'POST', [(r) => fail(r, 500, 'INTERNAL', 'Erreur interne (réf. req_e2e). Réessayez.', { ref: 'req_e2e' })]);
     await enter(page);
     await expect(page.getByTestId('onboarding-presets')).toHaveAttribute('data-source', 'server', { timeout: 30_000 });
+    // the draft of the previous test is offered; picking a card asks for a second agent
+    await expect(page.getByTestId('onboarding-agent-existing')).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId('onboarding-presets').locator('[data-preset="vendeur-pro"]').click();
     await page.getByTestId('onboarding-agent-create').click();
     const alert = page.getByRole('alert').filter({ hasText: 'INTERNAL' });
     await expect(alert).toContainText('(INTERNAL) · vous pouvez réessayer ou continuer avec « Plus tard »', { timeout: 30_000 });
     await expect(page).toHaveURL(/\/fr\/onboarding\/agent$/);
     await expect(page.getByTestId('onboarding-agent-create')).toBeEnabled();
     expect(posts).toHaveLength(1);
-    // "Partir de zéro" asks for a blank draft and is refused the same way
-    await page.getByTestId('onboarding-agent-scratch').click();
-    await expect.poll(() => posts.length).toBe(2);
-    expect(JSON.parse(posts[1]!)).toEqual({ fromScratch: true, name: 'Mon agent' });
-    await expect(alert).toBeVisible();
-    await expect(page).toHaveURL(/\/fr\/onboarding\/agent$/);
 
     await page.getByRole('button', { name: 'Plus tard' }).click();
     await expectUrl(page, '**/fr/onboarding/connect', { timeout: 180_000 });
-    expect(posts).toHaveLength(2);
+    expect(posts).toHaveLength(1);
+  });
+
+  test('a reopened step offers the agent created earlier: "Continuer avec …" moves on without a second agent', async ({ page }) => {
+    const posts = observe(page, 'POST', agentsUrl);
+    const before = (await listAgents(page.request, newcomer)).length;
+    expect(before).toBeGreaterThan(0);
+    await enter(page);
+    await expect(page.getByTestId('onboarding-agent-existing')).toBeVisible({ timeout: 30_000 });
+    // no card is preselected: the main button continues with the existing agent
+    await expect(page.getByTestId('onboarding-presets').getByRole('radio', { checked: true })).toHaveCount(0);
+    await expect(page.getByTestId('onboarding-agent-continue')).toHaveText(/^Continuer avec « .+ »$/);
+    await page.getByTestId('onboarding-agent-continue').click();
+    await expectUrl(page, '**/fr/onboarding/connect', { timeout: 60_000 });
+    expect(posts).toEqual([]);
+    expect((await listAgents(page.request, newcomer)).length).toBe(before);
+  });
+
+  test('"Partir de zéro" opens the agent wizard: steps 1–3 run in the tunnel, then the tunnel moves on to the page step', async ({ page }) => {
+    const before = (await listAgents(page.request, newcomer)).length;
+    await enter(page);
+    await page.getByTestId('onboarding-agent-scratch').click();
+    await expectUrl(page, '**/fr/agents/new?start=scratch');
+    // the blank starting point is already chosen; "Annuler" goes back to the tunnel without creating anything
+    const start = page.getByTestId('starting-point');
+    await expect(start.locator('[data-name="scratch"]')).toHaveAttribute('aria-checked', 'true', { timeout: 30_000 });
+    await page.getByTestId('wizard-cancel').click();
+    await expectUrl(page, '**/fr/onboarding/agent');
+    expect((await listAgents(page.request, newcomer)).length).toBe(before);
+
+    await page.getByTestId('onboarding-agent-scratch').click();
+    await expectUrl(page, '**/fr/agents/new?start=scratch');
+    const name = `Agent de zéro ${Date.now().toString(36)}`;
+    await page.getByLabel('NOM INTERNE').fill(name);
+    await page.getByTestId('wizard-next').click();
+    await expect(page).toHaveURL(/\/fr\/agents\/new\/knowledge\?draft=[0-9a-f-]{36}$/, { timeout: 30_000 });
+    const id = new URL(page.url()).searchParams.get('draft')!;
+    // channels and activation need the page of step 5: not reachable from the tunnel
+    await page.goto(`/fr/agents/new/channels?draft=${id}`);
+    await expectUrl(page, '**/fr/onboarding/agent');
+    await expect(page.getByTestId('onboarding-agent-existing')).toBeVisible({ timeout: 30_000 });
+    await page.goto(`/fr/agents/new/knowledge?draft=${id}`);
+    await page.getByTestId('wizard-next').click();
+    await expect(page).toHaveURL(/\/fr\/agents\/new\/behaviour\?draft=/, { timeout: 30_000 });
+    // the last step of the tunnel: saves the draft and moves the tunnel on to the page step
+    await expect(page.getByTestId('wizard-next')).toHaveText('Enregistrer et passer à la page');
+    await page.getByTestId('wizard-next').click();
+    await expectUrl(page, '**/fr/onboarding/connect', { timeout: 60_000 });
+    const agents = await listAgents(page.request, newcomer);
+    expect(agents.length).toBe(before + 1);
+    const created = agents.find((a) => a.id === id)!;
+    expect(created).toMatchObject({ name, status: 'draft', wizardStep: 3 });
   });
 
   test('GET /agents/presets fails: the four static cards are shown and still create the agent', async ({ page }) => {
@@ -462,6 +511,10 @@ test.describe('onboarding step 4', () => {
     await expect(cards).toHaveAttribute('data-source', 'static');
     await expect(cards.locator('[data-preset]')).toHaveCount(fixturePresets.length);
     for (const key of ['vendeur-pro', 'service-client', 'conseiller-produit', 'reponse-express']) await expect(cards.locator(`[data-preset="${key}"]`)).toBeVisible();
+    // the newcomer already has agents (previous tests): nothing is preselected, a card asks for one more
+    await expect(page.getByTestId('onboarding-agent-continue')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('radio', { name: /Vendeur Pro/ })).not.toBeChecked();
+    await page.getByRole('radio', { name: /Vendeur Pro/ }).click();
     await expect(page.getByRole('radio', { name: /Vendeur Pro/ })).toBeChecked();
     await page.getByTestId('onboarding-agent-create').click();
     await expectUrl(page, '**/fr/onboarding/connect', { timeout: 180_000 });

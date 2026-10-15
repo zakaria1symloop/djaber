@@ -3891,7 +3891,7 @@
  "onboarding.continuing": "Continuing…",
  "onboarding.product.aiFill": "Fill with AI",
  "onboarding.product.category": "CATEGORY",
- "onboarding.product.description": "The minimum for the agent to sell it: a name, a price, a stock, a photo. You can import your whole catalogue (CSV/XLSX) or extract it from your page afterwards.",
+ "onboarding.product.description": "The minimum for the agent to sell it: a name, a price, a stock, a photo. The rest of the catalogue is imported (CSV/XLSX) or extracted from your page in Products, once the setup is finished.",
  "onboarding.product.extract": "Extract from my Facebook page (after step 5)",
  "onboarding.product.importFile": "Import a CSV/XLSX file",
  "onboarding.product.namePlaceholder": "Satin dress",
@@ -6273,5 +6273,14 @@
  "units.title": "UNITS",
  "validation.id": "Invalid identifier",
  "validation.invalid": "Invalid value",
- "validation.shortcut": "Format: /word (lowercase letters, digits, dashes)"
+ "validation.shortcut": "Format: /word (lowercase letters, digits, dashes)",
+ "onboarding.product.existing": "Your catalogue already has “{name}”. Continue, or add another product.",
+ "onboarding.product.addAnother": "Add another product",
+ "onboarding.agent.existing": "Your agent “{name}” is already created. Continue with it, or pick a template below to create another one.",
+ "onboarding.agent.continueWith": "Continue with “{name}”",
+ "onboarding.connect.existing": "{count, plural, one {Page already connected:} other {Pages already connected:}}",
+ "onboarding.ready.noAgent": "No agent yet: create it at the Agent step.",
+ "onboarding.ready.membersResource": "members",
+ "agents.wizard.tunnelFinish": "Save and go to the page step",
+ "agents.wizard.tunnelNote": "Channels and activation: once your page is connected"
 }
