@@ -297,7 +297,7 @@ export function ProductForm(props: Props) {
     }
     // variant rows: one call per new or changed row; a refused row keeps its values and shows its error
     const saved = new Map(from.variants.map((r) => [r.key, r]));
-    let failed = 0;
+    const refused: { key: string; error: unknown }[] = [];
     for (const [i, row] of v.variants.entries()) {
       try {
         if (!row.id) {
@@ -309,11 +309,29 @@ export function ProductForm(props: Props) {
           if (Object.keys(body).length) await catalogApi.updateVariant(product.id, row.id, body);
         }
       } catch (e) {
-        failed++;
-        applyRowError(i, row, e);
+        refused.push({ key: row.key, error: e });
       }
     }
+    const failed = refused.length;
     await refresh({ productId: product.id });
+    // The saved version becomes the baseline right here (not only through the WS / own-write heuristics of the effect
+    // above): after a successful save the form is clean — no "unsaved" note, "Enregistrer" disabled, no leave guard.
+    // A refused row keeps its values (no id yet, or still different from the server) and stays unsaved.
+    const fresh = qc.getQueryData<Product>(key);
+    if (fresh) {
+      const next = toForm(fresh);
+      const nextValues = failed ? rebaseForm(baseRef.current, next, form.getValues()) : next;
+      baseRef.current = next;
+      versionRef.current = fresh.version;
+      setBase(next);
+      form.reset(nextValues);
+    }
+    // row errors are placed after the rebase: the rows may have moved (saved rows first, unsaved ones at the end)
+    const current = form.getValues('variants');
+    for (const r of refused) {
+      const index = current.findIndex((row) => row.key === r.key);
+      if (index >= 0) applyRowError(index, current[index]!, r.error);
+    }
     setSaving(false);
     if (failed) return setFormError(t('products.form.variants.someFailed', { count: failed }));
     setExpanded(new Set());

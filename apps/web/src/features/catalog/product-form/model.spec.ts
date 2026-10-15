@@ -216,7 +216,31 @@ describe('rebaseForm (fresh server version under an open form)', () => {
     const server = toForm(product({ variants: [...product().variants, { id: 'v9', name: 'Rouge · M', sku: 'AUTO-1', attributes: {}, price: 4900, costPrice: null, stock: 0, minStock: 0, isActive: true, stockState: 'out' }] }));
     const out = rebaseForm(old, server, mine);
     expect(out.variants).toHaveLength(3);
-    expect(out.variants[2]).toMatchObject({ id: 'v9', sku: 'AUTO-1', key: mine.variants[2]!.key });
+    expect(out.variants[2]).toMatchObject({ id: 'v9', sku: 'AUTO-1', key: 'v9' });
+    // the saved row is part of the new baseline: nothing is left "unsaved" after the save
+    expect(dirtyItems(server, out, 'edit')).toEqual([]);
+  });
+  it('after a save that created variants and changed a field, the form is clean against the fresh server version', () => {
+    const old = toForm(product());
+    const mine = { ...old, price: '5100', variants: [...old.variants, { ...emptyVariantRow({ name: 'Rouge · M', price: '4900' }), id: 'v9' }, { ...emptyVariantRow({ name: 'Vert · L', price: '4900' }), id: 'v10' }] };
+    const server = toForm(
+      product({
+        price: 5100,
+        variants: [
+          ...product().variants,
+          { id: 'v9', name: 'Rouge · M', sku: null, attributes: {}, price: 4900, costPrice: null, stock: 0, minStock: 0, isActive: true, stockState: 'out' },
+          { id: 'v10', name: 'Vert · L', sku: null, attributes: {}, price: 4900, costPrice: null, stock: 0, minStock: 0, isActive: true, stockState: 'out' },
+        ],
+      }),
+    );
+    expect(dirtyItems(server, rebaseForm(old, server, mine), 'edit')).toEqual([]);
+  });
+  it('a row whose creation failed stays unsaved after the rebase', () => {
+    const old = toForm(product());
+    const failed = emptyVariantRow({ name: 'Rouge · M', price: '4900' });
+    const mine = { ...old, variants: [...old.variants, failed] };
+    const out = rebaseForm(old, old, mine);
+    expect(dirtyItems(old, out, 'edit')).toEqual([{ kind: 'variant', key: failed.key, name: 'Rouge · M' }]);
   });
 });
 

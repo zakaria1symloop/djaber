@@ -353,7 +353,9 @@ export function rebaseForm(oldBase: ProductFormValues, newBase: ProductFormValue
     const mine = n.id ? mineById.get(n.id) : undefined;
     const old = n.id ? oldById.get(n.id) : undefined;
     if (!mine) return n;
-    if (!old) return { ...n, key: mine.key }; // created by this form a moment ago
+    // created by this form a moment ago: the server row (key = id) replaces the local one. Keeping the local `new-…`
+    // key made the row unknown to the new baseline, so the form stayed "unsaved" after a successful save.
+    if (!old) return n;
     const merged: VariantRow = { ...n, key: mine.key };
     for (const f of VARIANT_FIELDS) if (f !== 'stock' && mine[f] !== old[f]) merged[f] = mine[f];
     if (mine.isActive !== old.isActive) merged.isActive = mine.isActive;

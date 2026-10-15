@@ -157,6 +157,26 @@ test('AT-CAT-03 variant product: total stock is the read-only sum, adjustments a
   await expect(page.getByTestId('variants-total')).toHaveText('11');
 });
 
+test('a new variant saved with "Enregistrer" leaves the form clean: no unsaved note, save disabled, no leave guard', async ({ page, request }) => {
+  await loginHome(page, account);
+  await openEdit(page, withVariants.id);
+  await page.getByTestId('variant-add').click();
+  const editor = page.getByTestId('variant-editor').last();
+  await editor.locator('input[id$="-name"]').fill('Rouge · L');
+  await editor.locator('input[id$="-price"]').fill('5200');
+  await expect(page.getByTestId('dirty-note')).toContainText('variante Rouge · L');
+  await page.getByTestId('form-save').click();
+  await expect(page.locator('[data-toast]').filter({ hasText: 'Enregistré' })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('dirty-note')).toHaveText('');
+  await expect(page.getByTestId('form-save')).toBeDisabled();
+  const saved = (await getProduct(request, account, withVariants.id)) as SeedProduct & { variants: { name: string }[] };
+  expect(saved.variants.map((v) => v.name)).toContain('Rouge · L');
+  // "Annuler" has nothing to discard: it leaves without the "Quitter sans enregistrer ?" dialog
+  await page.getByTestId('form-cancel').click();
+  await expect(page).toHaveURL(new RegExp(`/products/${withVariants.id}$`));
+  await expect(page.getByRole('heading', { name: 'Quitter sans enregistrer ?' })).toHaveCount(0);
+});
+
 test('AT-CAT-04 the 11th image is refused inline (IMAGES_LIMIT); deleting the primary image promotes the next one', async ({ page, request }) => {
   test.setTimeout(180_000);
   await loginHome(page, account);
