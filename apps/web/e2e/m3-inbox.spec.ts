@@ -151,10 +151,9 @@ test('AT-INB-02 / AT-INB-07 / AT-INB-09 optimistic reply, AI paused banner, auto
   await expect(thread(page).locator('[data-message="human"]')).toContainText(/Amel B./i);
   await expect(thread(page).locator('[data-message="ai"]')).toHaveCount(0);
 
-  // resume: the banner goes away
-  await page.getByTestId('resume-ai').click();
-  await expect(page.locator('[data-banner="aiPaused"]')).toHaveCount(0);
-  await expect(row(page, amina.id)).not.toContainText('IA EN PAUSE');
+  // this page has no agent yet (M3): "Reprendre l'IA" is greyed with its reason (the resume itself is covered in m4 with an agent)
+  await expect(page.getByTestId('resume-ai')).toBeDisabled();
+  await expect(page.getByTestId('resume-ai')).toHaveAttribute('title', /CONVERSATION_NO_AGENT/);
 
   // reassign from the header popover
   await page.getByTestId('assign').click();

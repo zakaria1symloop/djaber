@@ -67,7 +67,8 @@ test.describe('sign-up and login', () => {
     const alert = page.getByRole('alert').filter({ hasText: 'Cet e-mail est déjà utilisé' });
     await expect(alert).toBeVisible();
     await expect(alert.getByRole('link', { name: 'Se connecter' })).toHaveAttribute('href', '/fr/login');
-    await expect(alert.getByRole('link', { name: 'Mot de passe oublié ?' })).toHaveAttribute('href', '/fr/forgot-password');
+    // the typed e-mail is carried to the reset form
+    await expect(alert.getByRole('link', { name: 'Mot de passe oublié ?' })).toHaveAttribute('href', /^\/fr\/forgot-password\?email=/);
     await expect(page).toHaveURL(/\/fr\/signup$/);
     await expect(page.locator('#firstName')).toHaveValue('Autre');
   });

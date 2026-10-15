@@ -8,14 +8,14 @@
 // leaving a reopened step never moves the saved progress back.
 import { CreateProductSchema } from '@djaber/shared';
 import { Button, buttonClass, Card, ChecklistRow, cn, Field, FormAlert, Input, MoneyInput, NumberInput, OptionCard, Skeleton, Steps, toast, Tooltip, type StepItem } from '@djaber/ui';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Bot, Box, Check, Plus, Sparkles, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { RESEND_COOLDOWN_S } from '@/components/auth/forgot-form';
 import { QueryError } from '@/components/global-states';
 import { agentsApi, useAgents, useAgentsRefresh, usePresets } from '@/features/agents/api';
 import { authApi } from '@/features/auth/api';
-import { catalogApi, useProducts } from '@/features/catalog/api';
+import { catalogApi, catalogKeys, useProducts } from '@/features/catalog/api';
 import { useAppReviewStatus, useChannels } from '@/features/channels/api';
 import { useConnectFlow } from '@/features/channels/connect';
 import { reportCounts } from '@/features/channels/logic';
@@ -32,7 +32,7 @@ import { errorMessage, fieldError } from '@/lib/forms';
 import { ONBOARDING_STEPS, onboardingPath, onboardingWrite, stepNumber, type OnboardingSlug } from '@/lib/guards';
 import { useT } from '@/lib/i18n';
 import { digitsToInt } from '@/lib/money';
-import { useSession } from '@/lib/session';
+import { useSession, useWorkspaceId } from '@/lib/session';
 
 const STEP_LABEL: Record<OnboardingSlug, string> = {
   welcome: 'onboarding.step.welcome',
@@ -44,7 +44,8 @@ const STEP_LABEL: Record<OnboardingSlug, string> = {
 };
 
 /** first rows only: "does the workspace already have one?" */
-const FIRST: Record<string, number> = { pageSize: 1 };
+/** the smallest page the list endpoints accept (api-contract §1.6: 25 | 50 | 100); only the first row is read */
+const FIRST: Record<string, number> = { pageSize: 25 };
 
 function useAdvance(slug: OnboardingSlug) {
   const router = useRouter();
@@ -208,7 +209,10 @@ function FirstProduct() {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiOff, setAiOff] = useState(aiFillUnavailable());
   const input = useRef<HTMLInputElement>(null);
-  const create = useMutation({ mutationFn: catalogApi.createProduct });
+  const qc = useQueryClient();
+  const ws = useWorkspaceId();
+  // the cached list (15 s fresh) must know the new product: reopening the step offers it instead of a second form
+  const create = useMutation({ mutationFn: catalogApi.createProduct, onSuccess: () => qc.invalidateQueries({ queryKey: catalogKeys.products(ws) }) });
   useEffect(() => () => void (photo && URL.revokeObjectURL(photo.url)), [photo]);
 
   const pick = (file: File | undefined) => {
@@ -414,8 +418,9 @@ function AgentPreset() {
     setError(null);
     try {
       await create.mutateAsync(body);
-      void refreshAgents();
+      // progress first: the refresh refetches the workspace, and a refetch racing the PATCH would bring back step 4
       await go();
+      void refreshAgents();
     } catch (e) {
       setError(e instanceof ApiError ? `${errorMessage(e, t)} (${e.code})` : errorMessage(e, t));
     }

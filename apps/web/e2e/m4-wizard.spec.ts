@@ -398,23 +398,16 @@ test.describe('step 2 — knowledge', () => {
     await expect(page.getByTestId('scope-categories')).toHaveCount(0);
     await expectNoA11yViolations(page);
 
-    await scope.getByRole('radio', { name: /Seulement certaines catégories/ }).check();
-    // the shop has no category yet
+    // the shop has no category yet: "by category" is greyed with its reason and a link to Catégories
     expect(await realGet<unknown[]>(api(page), owner, '/categories')).toEqual([]);
-    await expect(page.getByTestId('scope-categories')).toContainText("Aucune catégorie pour l'instant.");
-    await expect(railRow(page, 'CONNAISSANCES')).toHaveText('0 catégorie · 2 règles · 0 FAQ');
-    await next(page).click();
-    await expect(summary(page)).toContainText('Validation : 1 erreur');
-    await expect(summary(page)).toContainText('Choisissez au moins une catégorie, ou « Tout le catalogue ».');
-    await expect(page.getByTestId('scope-categories').getByRole('alert')).toHaveText('Choisissez au moins une catégorie, ou « Tout le catalogue ».');
-    await expectRoute(page, stepUrl('knowledge', draft.id));
-    // an invalid step is neither saved by "Continuer" nor by the autosave
+    await expect(scope.getByRole('radio', { name: /Seulement certaines catégories/ })).toBeDisabled();
+    await expect(page.getByTestId('scope-categories-disabled')).toBeVisible();
+    await expect(page.getByTestId('scope-categories-disabled').getByRole('link')).toHaveAttribute('href', /\/categories$/);
+    await expectNoA11yViolations(page);
     await page.waitForTimeout(2_500);
     expect(writesOf(rec, PATCH)).toEqual([]);
 
-    // back to the whole catalogue: the step is accepted
-    await scope.getByRole('radio', { name: /Tout le catalogue/ }).check();
-    await expect(page.getByTestId('scope-categories')).toHaveCount(0);
+    // the whole catalogue is accepted
     await next(page).click();
     await expect(title(page, 'behaviour')).toBeVisible(NAV);
     const body = bodyOf(writesOf(rec, PATCH).at(-1)!) as { step?: number; wizard?: { catalogScope?: string; scopeCategoryIds?: string[] } };

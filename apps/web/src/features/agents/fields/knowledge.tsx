@@ -57,7 +57,7 @@ export function KnowledgeFields({ draft: d, set, errors, readOnly, badge, inTunn
               {noCategory && !inTunnel ? (
                 <span className="ts-label-meta mt-1 block text-text-muted" data-testid="scope-categories-disabled">
                   {t('gaps.agents.catalog.noCategory')}{' '}
-                  <Link href="/categories" className="text-accent-inbound hover:underline">
+                  <Link href="/categories" className="text-accent-inbound underline underline-offset-2">
                     {t('nav.categories')}
                   </Link>
                 </span>
@@ -81,7 +81,7 @@ export function KnowledgeFields({ draft: d, set, errors, readOnly, badge, inTunn
                 {inTunnel ? null : (
                   <>
                     {' '}
-                    <Link href="/categories" className="text-accent-inbound hover:underline">
+                    <Link href="/categories" className="text-accent-inbound underline underline-offset-2">
                       {t('nav.categories')}
                     </Link>
                   </>

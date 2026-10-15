@@ -110,7 +110,7 @@ test('AT-ONB-02 simple stock mode hides the advanced sidebar entries', async ({ 
   await page.goto('/fr/settings/stock-mode');
   await page.getByRole('radio', { name: /Simple/ }).click();
   // advanced → simple is confirmed first (the GDS screens leave the menu)
-  await expect(page.getByRole('radio', { name: /Simple/ })).not.toBeChecked();
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Passer en mode simple' })).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: 'Passer en mode simple' }).click();
   await expect(page.getByRole('radio', { name: /Simple/ })).toBeChecked();
   for (const hidden of ['Mouvements', 'Fournisseurs', 'Achats', 'Ventes', 'Caisse', 'Inventaires']) {
