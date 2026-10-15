@@ -16,6 +16,7 @@ import { useLocaleCode, useT } from '@/lib/i18n';
 import { digitsToInt, marginPct, moneyDigits } from '@/lib/money';
 import { useSession, useWorkspaceId } from '@/lib/session';
 import { catalogApi, catalogKeys, useCatalogRefresh, useProduct, useProductRelations } from '../api';
+import { GenerateVariantsDialog } from '../generate-variants-dialog';
 import { QuickImagesStrip } from '../product-form/images-section';
 import type { Product } from '../contracts';
 import { MovementTypePill, Num, ProductThumb, StockPill, useMovementReason } from '../ui';
@@ -195,6 +196,7 @@ function StockSection({ product, setStatus }: { product: Product; setStatus: (s:
   const refresh = useCatalogRefresh();
   const { can } = useSession();
   const [reason, setReason] = useState<StockAdjustmentInput['reason']>('inventory');
+  const [generate, setGenerate] = useState(false);
   const [pending, setPending] = useState<Record<string, number>>({});
   const timers = useRef<Record<string, number>>({});
   const reasonRef = useRef(reason);
@@ -263,9 +265,10 @@ function StockSection({ product, setStatus }: { product: Product; setStatus: (s:
       </ul>
       <div className="flex flex-wrap items-center gap-3">
         {product.hasVariants && can('catalog.write') && !product.archived ? (
-          <Link href={`/products/${product.id}/edit#variants`} className="text-[13px] text-text-secondary hover:text-text-primary">
+          // in place: the variant generator of the product page (server-side creation), not a jump to the edit form
+          <button type="button" onClick={() => setGenerate(true)} className="text-[13px] text-text-secondary hover:text-text-primary" data-testid="quick-add-variant">
             {t('products.quick.addVariant')}
-          </Link>
+          </button>
         ) : null}
         <label className="ms-auto flex items-center gap-2 whitespace-nowrap text-[13px] text-text-secondary">
           {t('products.quick.reason')}
@@ -278,6 +281,7 @@ function StockSection({ product, setStatus }: { product: Product; setStatus: (s:
           </Select>
         </label>
       </div>
+      <GenerateVariantsDialog open={generate} onClose={() => setGenerate(false)} productId={product.id} productName={product.name} existing={product.variants} defaultPrice={product.price} />
     </SheetSection>
   );
 }

@@ -253,7 +253,8 @@ const formOf = (c: CourierAccount | null, existing: CourierAccount[]): Form => (
   isActive: c ? c.isActive : true,
 });
 
-function CourierDialog({ open, account, provider: initial, providers, existing, onClose, onSaved }: { open: boolean; account: CourierAccount | null; provider: ProviderKey; providers: CourierProviderInfo[]; existing: CourierAccount[]; onClose: () => void; onSaved: (c: CourierAccount) => void }) {
+/** Add / edit a courier account; also opened in place from the send dialog when no courier is configured. */
+export function CourierDialog({ open, account, provider: initial, providers, existing, onClose, onSaved }: { open: boolean; account: CourierAccount | null; provider: ProviderKey; providers: CourierProviderInfo[]; existing: CourierAccount[]; onClose: () => void; onSaved: (c: CourierAccount) => void }) {
   const t = useT();
   const [provider, setProvider] = useState<ProviderKey>(initial);
   const [f, setF] = useState<Form>(() => formOf(account, existing));
