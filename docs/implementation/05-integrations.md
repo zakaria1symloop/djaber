@@ -265,7 +265,7 @@ SATIM direct integration is not built in v2; Chargily Pay exposes the CIB / Edah
 ## 6. E-mail, SMS, push
 
 - E-mail: Resend (`RESEND_API_KEY`, domain `djaber.ai`), `react-email` templates (03-events §5.3), `List-Unsubscribe` header for notification mails, bounce webhook `POST /webhooks/resend` (signature `svix`) ⇒ `User.emailBounced=true` (suppresses non-critical mails). `MAIL_DRIVER ∈ file | resend | smtp`: `file` (dev / test default, `.eml` + JSON line in `.local/mail`), `resend`, `smtp` (nodemailer; `SMTP_HOST`, `SMTP_PORT` default 587, port 465 ⇒ implicit TLS, `SMTP_USER` / `SMTP_PASS` optional; live: the server's own mailbox, 07 §12). Sender `MAIL_FROM` for every driver.
-- SMS (ADM-13 "SMS (OTP, relances)"): provider adapter `SmsProvider.send(to, text)` behind `SMS_PROVIDER ∈ noop|twilio` (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`); used only for dunning reminders (`invoice.unpaid`, J0 and J+3) when `PlatformProvider(key='sms').status='ok'`; default `noop`. No customer-facing SMS (OS3 keeps Meta as the customer channel).
+- SMS (ADM-13 "SMS (OTP, relances)"): provider adapter `SmsProvider.send(to, text)` behind `SMS_DRIVER ∈ fake|none` (`fake` writes each message to `SMS_LOCAL_DIR`, `none` drops it; no live SMS provider is wired yet — a real one is a new driver behind the same interface); used only for dunning reminders (`invoice.unpaid`, J0 and J+3) when `PlatformProvider(key='sms').status='ok'`; default `fake`. No customer-facing SMS (OS3 keeps Meta as the customer channel).
 - Push: FCM HTTP v1 (`FCM_SERVICE_ACCOUNT` JSON) for Android **and** iOS (APNs via FCM); payload 03-events §5.2.
 
 ---
