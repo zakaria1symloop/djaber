@@ -10,11 +10,11 @@ One scenario per rule; IDs `AT-<area>-nn`. Columns: scenario (Given / When / The
 | AT-AUTH-02 | Sign up with existing email ⇒ 409 `AUTH_EMAIL_TAKEN` inline; nothing created | AUTH-01 | I |
 | AT-AUTH-03 | Wrong password and unknown email return identical error and timing ±50 ms | AUTH-02 | I |
 | AT-AUTH-04 | 6th failed login in 15 min ⇒ 429 with retryAfter; UI countdown | AUTH-08 | I/E |
-| AT-AUTH-05 | Refresh token reused after rotation ⇒ whole family revoked; next request 401 | AUTH-02 | I |
+| AT-AUTH-05 | Refresh token reused after rotation ⇒ whole family revoked; next request 401; with `REFRESH_COOKIE_CROSS_SITE=true` the refresh cookie is `SameSite=None; Secure; Partitioned` (default `SameSite=Lax`) | AUTH-02 | I |
 | AT-AUTH-06 | Reset link: valid ⇒ form; used twice ⇒ invalid; after 61 min ⇒ expired; success logs in and revokes other sessions | AUTH-03/04 | E |
 | AT-AUTH-07 | 2FA enabled ⇒ login returns `mfaToken`; verify with code ⇒ tokens; expired/second use of `mfaToken` ⇒ 401; recovery code works once and regeneration needs password; Super Admin disable ⇒ `TWO_FA_REQUIRED_FOR_ROLE` | AUTH-05 | I |
 | AT-AUTH-08 | Unverified account (day 0) cannot connect a channel (`AUTH_EMAIL_UNVERIFIED`, resend dialog); everything else works; reminder e-mail sent at day 7 | AUTH-09, D32 | I |
-| AT-AUTH-09 | Owner invites operator; operator accepts; operator cannot delete an order (403, button hidden) | FL-13, 02 §3 | E |
+| AT-AUTH-09 | Owner invites operator; operator accepts; operator cannot delete an order (403, button hidden); at `maxMembers` (members + pending invitations) the invite is refused `403 PLAN_LIMIT {resource: members}` and the invite buttons are greyed with that reason | FL-13, 02 §3 | E |
 | AT-AUTH-10 | Removing or demoting the Owner is blocked (`OWNER_IMMUTABLE`); the only way to change the Owner is `POST /workspaces/:id/transfer-ownership` (AT-OWN-transfer); invited user signing up owns no workspace and can later `POST /workspaces` once | FL-13, D30, D51 | I |
 | AT-AUTH-11 | Every resource GET/PATCH/DELETE with an id from another workspace ⇒ 404 (table-driven over all endpoints) | 02 §1 | I |
 | AT-AUTH-12 | Workspace deletion: `Workspace.status=deletion_scheduled` (+30 d), channels disconnected, AI stops, every mutation by a member ⇒ `409 WORKSPACE_DELETION_SCHEDULED {at}` (reads allowed, Owner may cancel), purge job after 30 d | FL-14 | I |
@@ -52,7 +52,7 @@ One scenario per rule; IDs `AT-<area>-nn`. Columns: scenario (Given / When / The
 | AT-AI-09 | Voice note (fixtures FR/darija) ⇒ transcript stored, relevant reply, 3 credits; Groq down ⇒ OpenAI used; both down ⇒ `voiceFailed` message, 0 credits | AI-07 | V/I |
 | AT-AI-10 | Handoff rule "if customer mentions refund" ⇒ status HANDOFF, `needs_human`, workspace `handoff` system message once, notification `conversation.handoff` | AI-08 | V/I |
 | AT-AI-11 | Product card template set ⇒ reply text follows template; cards sent | AI-09 | V |
-| AT-AI-12 | Provider 500 ⇒ fallback model used; both fail ⇒ no charge, insight error | AI-10 | I |
+| AT-AI-12 | Provider 500 ⇒ fallback model used; both fail ⇒ no charge, insight error; a model answering 400 "`temperature` is deprecated" ⇒ same call retried without `temperature`, and the next call to that model goes without it at once (one request); every tool schema has no top-level `anyOf` / `oneOf` / `allOf` | AI-10 | I |
 | AT-AI-13 | Archived product mentioned in cart ⇒ dropped with message; never in cards | AI-14 | V/I |
 | AT-AI-14 | Credits at 1, message with text + image (per-turn cost = highest = 5) ⇒ no run, unavailable message once, `needs_human`, Owner notified; next message same day silent | FL-01 F-4, 02 §6 | I |
 | AT-AI-15 | 51 inbound messages in 10 min ⇒ handoff, AI silent | FL-01 F-8 | I |
@@ -63,7 +63,7 @@ One scenario per rule; IDs `AT-<area>-nn`. Columns: scenario (Given / When / The
 | ID | Scenario | Covers | Lvl |
 |---|---|---|---|
 | AT-INB-01 | Two browsers on the same thread: message arrives ⇒ both show it < 2 s; read mark on one clears unread on the other | INB-07 | E |
-| AT-INB-02 | Human reply ⇒ AI paused banner; customer replies ⇒ AI silent, push to assignee; Resume ⇒ AI answers next message | INB-04, FL-03 | I/E |
+| AT-INB-02 | Human reply ⇒ AI paused banner; customer replies ⇒ AI silent, push to assignee; Resume ⇒ AI answers next message; on a page without agent (and no agent ever answered) the pause / resume menu items are greyed with `CONVERSATION_NO_AGENT` (`pageHasAgent=false`) | INB-04, FL-03 | I/E |
 | AT-INB-03 | Reply outside 24 h on IG ⇒ `REPLY_OUTSIDE_WINDOW` inline, text kept | FL-06 F-1 | I |
 | AT-INB-04 | Image 6 MB ⇒ inline error; 4 MB ⇒ sent as attachment with public URL | INB-03 | I |
 | AT-INB-05 | Teammate resolves while I edit ⇒ WS updates; my stale PATCH ⇒ 409 dialog | FL-06 F-3 | I/E |
@@ -88,7 +88,7 @@ One scenario per rule; IDs `AT-<area>-nn`. Columns: scenario (Given / When / The
 | ID | Scenario | Covers | Lvl |
 |---|---|---|---|
 | AT-CLI-01 | AI collects phone of an existing client while conversation is linked to a placeholder ⇒ placeholder merged, identity re-pointed, orders/conversation on the owner, aggregates recomputed | CLI-02 | I |
-| AT-CLI-02 | Create client with "+213 555 12 34 56" when "0555123456" exists ⇒ `CLIENT_PHONE_EXISTS` with "use existing" | CLI-01, 04 §2 | I/E |
+| AT-CLI-02 | Create client with "+213 555 12 34 56" when "0555123456" exists ⇒ `CLIENT_PHONE_EXISTS` with "use existing"; e-mail " Amel@Mail.DZ " stored `amel@mail.dz` (web shows it formatted on blur), blank e-mail / phone 2 ⇒ `null`, malformed e-mail ⇒ 422 inline | CLI-01, 04 §2 | I/E |
 | AT-CLI-03 | Delete client with orders ⇒ `CUSTOMER_HAS_ORDERS`, archive ⇒ soft; orders still show the name; list hides it | CLI-05 | I |
 
 ## Orders & money
@@ -115,7 +115,7 @@ One scenario per rule; IDs `AT-<area>-nn`. Columns: scenario (Given / When / The
 
 | ID | Scenario | Covers | Lvl |
 |---|---|---|---|
-| AT-DLV-01 | Send from `new` ⇒ `DELIVERY_ORDER_NOT_CONFIRMED`; from `confirmed` ⇒ parcel created with the order's wilaya/commune/stop-desk (never sender default), tracking stored, order shipped, customer message | DLV-05, FL-08 | C/I |
+| AT-DLV-01 | Send from `new` ⇒ `DELIVERY_ORDER_NOT_CONFIRMED`; from `confirmed` ⇒ parcel created with the order's wilaya/commune/stop-desk (never sender default), tracking stored, order shipped, customer message; an order to a wilaya 59–69 (e.g. 68 Bou Saâda) is sent to the courier under its parent code and name (28 M'Sila) with the real commune name; a wilaya 59–69 without a courier rate takes its parent's rate | DLV-05, FL-08 | C/I |
 | AT-DLV-02 | Courier returns validation error (bad commune) ⇒ inline on dialog field, order unchanged | FL-08 F-2 | C |
 | AT-DLV-03 | Courier 503 ⇒ shipment pending, retries per schedule, notification after final failure, manual retry | FL-08 F-3 | I |
 | AT-DLV-04 | Status mapping tables (ZR, EcoTrack, Yalidine): every known raw status → mapped; unknown ⇒ unchanged + event | DLV-04 | U/C |
@@ -165,14 +165,14 @@ One scenario per rule; IDs `AT-<area>-nn`. Columns: scenario (Given / When / The
 
 | ID | Scenario | Covers | Lvl |
 |---|---|---|---|
-| AT-ONB-01 | Close browser at step 3 ⇒ next login resumes at step 3; every step skippable; Ready shows done/skipped | ONB-01, FL-04 F-3 | E |
-| AT-ONB-02 | Switch stock mode to simple ⇒ web sidebar and mobile nav hide the advanced items; API still serves them | ONB-03, D12 | E |
+| AT-ONB-01 | Close browser at step 3 ⇒ next login resumes at step 3; every step skippable; Ready shows done/skipped. Step 3 shows name / price / stock / photo only (no category, no import / extraction link) and "Remplir avec l'IA" opens "Créer depuis une photo"; going back from step 5 to step 3 ⇒ the product created earlier is shown ("Continuer" / "Ajouter un autre produit") and the saved step stays 5; step 4 with an agent created earlier ⇒ "Continuer avec « nom »", no card preselected; "Partir de zéro" ⇒ wizard steps 1–3 inside the tunnel, then `/onboarding/connect` at step 5; step 6 without agent ⇒ "Tester mon agent" disabled with its reason | ONB-01, FL-04 F-3, 04 §25 | E |
+| AT-ONB-02 | Switch stock mode to simple ⇒ confirmation dialog (nothing deleted) then web sidebar and mobile nav hide the advanced items; API still serves them; simple → advanced is one click | ONB-03, D12 | E |
 | AT-CHN-07 | IG Business Login with pending approval ⇒ `PAGE_INSTAGRAM_PENDING_APPROVAL` state with instructions; after approval ⇒ channel active | CHN-03 | I |
 | AT-CHN-08 | Page connected in A, connect in B ⇒ `PAGE_ALREADY_CONNECTED_ELSEWHERE`; Super Admin release ⇒ B can connect | CHN-05, ADM-02 | I |
 | AT-CHN-09 | Page overview with insights error ⇒ `INBOX_INSIGHTS_UNAVAILABLE` card; counts still shown | CHN-07 | E |
-| AT-CHN-10 | Analysis without `pages_read_user_content` ⇒ permission state + reconnect; with it ⇒ job progress, review grid validation (price > 0, qty > 0), import creates products with `FB-` SKUs; 4th run today ⇒ rate-limited | CHN-08 | I/E |
+| AT-CHN-10 | Analysis without `pages_read_engagement` and without `pages_read_user_content` ⇒ permission state + reconnect; with either of them (the live set `pages_show_list, pages_messaging, pages_read_engagement` included) ⇒ job progress, review grid validation (price > 0, qty > 0), import creates products with `FB-` SKUs; 4th run today ⇒ rate-limited | CHN-08 | I/E |
 | AT-CHN-11 | Sync imports ≤ 25 conversations × 25 messages; existing messages skipped; token error ⇒ `PAGE_SYNC_TOKEN_EXPIRED` | CHN-09 | I |
-| AT-CHN-12 | OAuth refused ⇒ "connection cancelled", nothing stored; same page reconnected ⇒ token updated, no duplicate | FL-05 F-1/F-6 | I |
+| AT-CHN-12 | OAuth refused ⇒ "connection cancelled", nothing stored; same page reconnected ⇒ token updated, no duplicate; a pop-up that reports `closed` while the merchant is on Meta does **not** cancel (waiting dialog stays, "Annuler" available); a pop-up without opener lands on `/channels/connect/return`, hands the report over the `BroadcastChannel` and the starting window shows it (no ack in 1.5 s ⇒ same-tab return); `META_FACEBOOK_SCOPES` set ⇒ the dialog URL asks exactly those permissions; `META_OAUTH_CALLBACK_PATH` ⇒ `redirect_uri` uses it | FL-05 F-1/F-6, CHN-01 | I/E |
 | AT-MSG-08 | Each inbound type (image, audio, video, file, location, sticker, postback) stored with the right attachment type and rendered in the thread | MSG-02, INB-02 | I/E |
 | AT-MSG-09 | AI reply mentions 7 products ⇒ 5 cards sent | MSG-07 | I |
 | AT-INB-08 | New customer message on a resolved conversation ⇒ `active`, AI answers; on archived ⇒ `active` | INB-05 | I |
@@ -206,7 +206,7 @@ One scenario per rule; IDs `AT-<area>-nn`. Columns: scenario (Given / When / The
 | AT-ORD-20 | Confirm dialog result step: "Prepare" ⇒ preparing; "Send to courier" enabled only when a courier exists (tooltip otherwise) | ORD-07 | E |
 | AT-ORD-21 | IG and FB AI orders identical except channel badge | ORD-11 | I |
 | AT-ORD-22 | Payment: amountPaid 300 of 1000 ⇒ partial; `paymentStatus` sent without amount ⇒ 422 | PAY-01, 04 §1.4 | I |
-| AT-DLV-09 | Fee seed creates 69 rules from the default table; "fill missing" keeps custom; "reset all" overwrites after confirm | DLV-01 | I/E |
+| AT-DLV-09 | Fee seed creates 69 rules from the default table (59–69 = their parent's default fee); "fill missing" keeps custom; "reset all" overwrites after confirm; the 2026-10-15 migration copies each workspace's parent row to 59–69 and moves open orders / addresses with their commune (idempotent) | DLV-01 | I/E |
 | AT-DLV-10 | Communes seeded; `validation.commune` rejects a commune from another wilaya | DLV-09, 04 §2 | I |
 | AT-NTF-03 | Notification list filters by each type; unread count equals server count; deep link opens the target screen (web and mobile) | NTF-01 | E |
 | AT-NTF-04 | Member disables email for `stock.low` ⇒ only in-app; push sound setting | NTF-02 | I |
@@ -263,7 +263,7 @@ One scenario per rule; IDs `AT-<area>-nn`. Columns: scenario (Given / When / The
 | AT-OPS-01 | Queue page shows BullMQ counts; "Pause" stops consumers; "Rejouer" re-enqueues DLQ jobs with the same payload; Google 403 quota ⇒ `sheets-sync` auto-paused with INCIDENT state | OPS-01/02 | I/E |
 | AT-OPS-02 | OpenAI error rate 4 % > threshold 2 % ⇒ routing uses the fallback ("bascule active" on ADM-06 and ADM-14), 0 duplicated orders over the replayed jobs | OPS-04, AI-10, 04 §5 | I |
 | AT-OPS-03 | "Déclarer un incident" ⇒ status page entry (static page rebuilt), optional CMS banner shown with the right priority, Help widget shows INCIDENT; resolve ⇒ history row with duration and post-mortem | OPS-05/06, PUB-07 | I/E |
-| AT-PUB-01 | Pricing page lists `Plan.isActive && visibleOnPricing` only (Agence hidden), yearly toggle shows −17 %, FAQ, CTA → sign-up with 14 d trial | PUB-02, D60 | E |
+| AT-PUB-01 | Pricing page lists `Plan.isActive && visibleOnPricing` only (Agence hidden), yearly toggle shows −17 %, FAQ, CTA → sign-up with 14 d trial (`/signup?plan=&cycle=` shows the plan note; after onboarding the shell offers "Voir ce plan" once); visitors' "Contact" links are `mailto:` the support mailbox | PUB-02, D60 | E |
 | AT-PUB-02 | Legal page `?lang=ar` without AR version ⇒ FR content + banner "non disponible en العربية"; unpublished slug ⇒ 404; admin signed preview link works 24 h; version history shows v3 → v4 diff | PUB-03 | E |
 | AT-PUB-03 | Meta data-deletion status: unknown code ⇒ 404 INTROUVABLE; pending ⇒ EN COURS with date; done ⇒ TERMINÉ listing anonymised items | PUB-05, MSG-08 | I/E |
 | AT-PUB-04 | Public deletion page: unknown e-mail ⇒ same "si un compte existe…" (timing ±50 ms); 4th request in an hour from one IP ⇒ `RATE_LIMITED` with the same neutral text; expired link ⇒ `ACCOUNT_DELETION_TOKEN_EXPIRED` page | PUB-06, DEL-01, FL-22 F-1/F-2 | I/E |
@@ -327,7 +327,7 @@ One scenario per rule; IDs `AT-<area>-nn`. Columns: scenario (Given / When / The
 | ID | Scenario | Covers | Lvl |
 |---|---|---|---|
 | AT-AGV-01 | Wizard: leave at step 3 ⇒ draft with step saved, list pill BROUILLON, "Reprendre" returns to step 3; draft never answers a webhook | AGV-01, FL-24 F-1 | I/E |
-| AT-AGV-02 | Activate with no channel ⇒ `AGENT_NO_CHANNEL`; with 0 languages ⇒ `AGENT_DRAFT_INCOMPLETE {languages}`; unverified e-mail ⇒ `AUTH_EMAIL_UNVERIFIED`; at plan limit ⇒ `403 PLAN_LIMIT {resource: agents}`; all ok ⇒ `active`, `AgentVersion v1` (`snapshot` holds the structured columns and the compiled prompt fields), compiled `customInstructions` contains the policies and FAQ sections, `humanHandoffRules` one line per checked rule + keywords; `Agent.modelId` set by `AiRoute`, `temperature` / `maxTokens` from the preset | AGV-02/03, 04 §18 | I |
+| AT-AGV-02 | Activate with no channel ⇒ `AGENT_NO_CHANNEL`; with 0 languages ⇒ `AGENT_DRAFT_INCOMPLETE {languages}`; unverified e-mail ⇒ `AUTH_EMAIL_UNVERIFIED`; at plan limit ⇒ `403 PLAN_LIMIT {resource: agents}`; all ok ⇒ `active`, `AgentVersion v1` (`snapshot` holds the structured columns and the compiled prompt fields), compiled `customInstructions` contains the policies and FAQ sections, `humanHandoffRules` one line per checked rule + keywords; `Agent.modelId` set by `AiRoute`, `temperature` / `maxTokens` from the preset; `POST /agents/:id/activate { at }` then `DELETE /agents/:id/activate` ⇒ `scheduledActivateAt=null`, still a draft, audit `agent.unschedule`, second DELETE idempotent, on an active agent ⇒ `409 CONFLICT`; step 5 greys "Activer maintenant" / "Activer à une date" with the failing readiness rows | AGV-02/03, 04 §18 | I/E |
 | AT-AGV-03 | Compiled behaviour: `maxQtyPerOrder=5`, customer orders 12 ⇒ tool refuses, handoff with reason `order_limit`; keyword "arnaque" in `handoffKeywords` ⇒ handoff with the workspace `handoff` message; `Agent.businessHours` 9h–20h ⇒ at 22:00 the workspace system message `out_of_hours` is sent once per conversation per 24 h and the AI still answers and takes the order | 04 §18, AI-08, D43 | V/I |
 | AT-AGV-04 | FAQ 51 entries ⇒ `AGENT_FAQ_LIMIT`; knowledge file 6 MB ⇒ `UPLOAD_TOO_LARGE`; "Extraire depuis ma page" uses CHN-08 (free, 3/day) | AGV-02 | I |
 | AT-AGV-05 | Step 5 scenarios: 8 runs in dry-run, 0 credits, 0 orders persisted; a failing scenario opens the playground turn; "Envoyer un lien de test" works for a non-member for 24 h then `AGENT_TEST_LINK_EXPIRED`; test turns count in the 60/h limit | AGV-02, 04 §18 | I/E |
@@ -431,7 +431,7 @@ One scenario per rule; IDs `AT-<area>-nn`. Columns: scenario (Given / When / The
 | AT-DLG-45 | Résoudre l'insight | instruction appends and versions the agent; FAQ created; ignore 30 d; already handled ⇒ `INSIGHT_ALREADY_RESOLVED` | I/E |
 | AT-DLG-46 | Déconnecter la page | 3 consequences executed (unsubscribe, token cleared, agent detached); history readable | I |
 | AT-DLG-47 | Réactiver (swap at limit) | lists active pages with counts; swap atomic; Comparer les plans link | I/E |
-| AT-DLG-48 | Reconnexion Meta — issues | popup blocked fallback "Ouvrir dans cet onglet"; cancelled ⇒ `OAUTH_CANCELLED` toast; invalid state; unverified e-mail dialog | E |
+| AT-DLG-48 | Reconnexion Meta — issues | popup blocked fallback "Ouvrir dans cet onglet"; pop-up that looks closed keeps the waiting dialog (no cancellation); at the page limit the explainer warns (`PLAN_LIMIT`) and still allows reconnecting; cancelled ⇒ `OAUTH_CANCELLED` toast; invalid state; unverified e-mail dialog | E |
 | AT-DLG-49 | Rapport de connexion | one row per page with the right code/state; agent selector attaches; "Plus tard" leaves pages without AI | I/E |
 | AT-DLG-50 | Connecter une page — explications / Synchroniser l'historique | permission list; sync 90 d only on Pro (`PLAN_FEATURE_REQUIRED` otherwise); expired token ⇒ `PAGE_SYNC_TOKEN_EXPIRED` | E/I |
 | AT-DLG-51 | Modèle IA indisponible | shows fallback note; wizard continues | E |

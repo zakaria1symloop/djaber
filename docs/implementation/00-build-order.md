@@ -103,7 +103,7 @@ Cross-cutting tracks that run in every milestone: i18n keys (06), WebSocket even
 
 **Exit criteria**: AT-AUTH-01…12, AT-ONB-01/02, AT-SET-01 (quick replies + system messages part), AT-UX-02 (RTL shell). Login → empty dashboard FR/AR/EN on staging (P0 exit). Meta App Review submission prepared (privacy/terms/data-deletion pages from M11 may be published early as static CMS seeds — do it here, see §5 "pulled-forward items").
 
-**Risks**: refresh-cookie across `api.` / `app.` subdomains (decided: `HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth` cookie on the API origin, web fetches with `credentials: 'include'`; mobile sends the refresh token in the body); TOTP clock drift (decided: accept ±1 step, 30 s).
+**Risks**: refresh-cookie across `api.` / `app.` subdomains (decided: `HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth` cookie on the API origin, web fetches with `credentials: 'include'`; mobile sends the refresh token in the body; web and API on two different sites — the live Vercel + VPS split — set `REFRESH_COOKIE_CROSS_SITE=true` ⇒ `SameSite=None; Secure; Partitioned`, specs 07 §6 / §12); TOTP clock drift (decided: accept ±1 step, 30 s).
 
 ---
 

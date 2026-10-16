@@ -54,7 +54,9 @@ GET|PUT /workspace/system-messages { handoff, out_of_hours, out_of_stock, welcom
 ### Channels
 ```
 GET /channels · GET /channels/:id · PATCH /channels/:id { status: active|paused, swapWithChannelId? } · DELETE /channels/:id
-GET /channels/connect/facebook → url · GET /channels/callback/facebook · GET /channels/connect/reports/:id → ConnectReport (kept 10 min, same-tab return)
+GET /channels/connect/facebook → url · GET /channels/callback/facebook · GET /channels/connect/reports/:id → ConnectReport (kept 10 min, same-tab return and pop-up hand-off)
+# callback path = META_OAUTH_CALLBACK_PATH (default /api/v1/channels/callback/{platform}); with META_LEGACY_PATHS the V1 path /api/pages/callback/{facebook|instagram} reaches it (§3)
+# Facebook scopes = META_FACEBOOK_SCOPES when set, else the full list (05-integrations §1.5)
 GET /channels/connect/instagram → url · GET /channels/callback/instagram
 POST /channels/:id/reconnect → url
 GET /channels/:id/insights · GET /channels/:id/summary · GET /channels/:id/messages?direction&from&to
@@ -67,6 +69,7 @@ GET /channels/app-review-status
 ```
 GET /conversations?channelId&status&q&assigneeId&unread · GET /conversations/counts?channelId → { all, active, needs_human, resolved, archived, unread }
 GET /conversations/:id · PATCH /conversations/:id { status, aiPaused, assigneeId, version } · DELETE /conversations/:id
+# list rows carry pageHasAgent; actions.pauseAi / resumeAi disabled with CONVERSATION_NO_AGENT when the page has no agent and none answered the conversation
 GET /conversations/:id/messages?cursor · POST /conversations/:id/messages { text, uploadId? } | { templateKey } (§8.8)
 POST /conversations/:id/read
 GET|POST /conversations/:id/notes
@@ -122,7 +125,7 @@ POST /orders/:id/payment-link (P2, link valid 15 min) · POST /orders/:id/refund
 
 ### Delivery
 ```
-GET /geo/wilayas · GET /geo/wilayas/:id/communes
+GET /geo/wilayas (69 rows, Cache-Control max-age=86400) · GET /geo/wilayas/:id/communes
 GET /delivery/fees · PUT /delivery/fees/:wilayaId { homePrice, stopdeskPrice, returnPrice?, freeAbove?, isActive? } · DELETE /delivery/fees/:wilayaId (back to the default grid; FEE_RULE_NOT_FOUND when no custom row) · POST /delivery/fees/seed { overwrite } · GET /delivery/fees/quote?wilayaId&stopdesk&subtotal
 GET /delivery/couriers/providers (P2) · GET|POST /delivery/couriers · PATCH|DELETE /delivery/couriers/:id · POST /delivery/couriers/:id/test (P2)
 POST /orders/:id/shipments { courierAccountId?, wilayaId, communeId|communeText, address, isStopdesk, stopdeskId? (required when isStopdesk and the provider has stop-desks), weight? } (P2)
@@ -141,7 +144,7 @@ GET|POST /recommendations · PATCH|DELETE /recommendations/:id · POST /recommen
 ```
 GET|POST /suppliers · GET|PATCH|DELETE /suppliers/:id
 GET|POST /purchases · GET|PATCH|DELETE /purchases/:id · POST /purchases/:id/receive { items[{id, receivedQty}] } (over-receipt accepted: line quantity raised to receivedQty, `200 ⚠ PURCHASE_OVER_RECEIVE {ordered, received}`; cost price = weighted average, integer DA half-up) · POST /purchases/:id/cancel · GET /purchases/stats
-GET|POST /sales · GET|PATCH|DELETE /sales/:id · GET /sales/stats
+GET|POST /sales · GET|PATCH|DELETE /sales/:id · GET /sales/stats   (PATCH on a draft accepts client { name, phone } — found by phone or created — instead of clientId; both ⇒ 422)
 GET|POST /cash · PATCH|DELETE /cash/:id · GET /cash/stats   (rows = CashTransaction)
 GET /reports · GET /reports/:key?from&to&format=json|xlsx|pdf (→ 202 when > 5 000 rows; range ≤ 732 days, REPORT_RANGE_TOO_LONG) · POST|DELETE /reports/:key/schedule (§8.6)
 ```
@@ -210,6 +213,8 @@ New admin modules (moderation, reports, support, platform settings, jobs & healt
 | `POST /webhooks/couriers/:courierAccountId` | couriers that offer webhooks | per-account secret; status re-fetched before applying |
 | `POST /webhooks/store/google-play` · `POST /webhooks/store/app-store` | store server notifications (IAP refunds) | store signature (§8.9) |
 | `POST /webhooks/google` (optional) | Google push | channel token |
+
+**V1 paths (cutover, `META_LEGACY_PATHS=true`)**: the paths registered in the V1 Meta app are rewritten to their V2 routes before routing — `/api/webhooks/meta` → `/api/v1/webhooks/meta`, `/api/webhooks/meta/data-deletion` → `/api/v1/webhooks/meta/data-deletion`, `/api/pages/callback/{facebook|instagram}` → `/api/v1/channels/callback/{platform}` (query string kept; the raw body is captured by the body parser, so signatures still verify). Off by default; on in the live deployment (07 §12) so the Meta app settings did not change at go-live.
 
 ## 4. Outbound webhooks `[CDC §8.3]`
 
@@ -330,7 +335,7 @@ GET /stock-recommendations?type&priority&status&categoryId · POST /stock-recomm
 POST /agents { presetKey | fromScratch, ...step1 } → draft (status=draft; drafts do not count toward maxAgents) · PATCH /agents/:id { step, ...fields, version } (each save ⇒ AgentVersion and server-side compilation of customInstructions / humanHandoffRules; 409 CONFLICT merge by section)   `[FIG AGT-02, AGT-04]`
 GET /agents/:id/readiness → checklist { catalog, productsWithoutPhoto[], feeGrid, policies, channels[], emailVerified, credits, pendingModeration }   `[FIG AGT-02 step 5]`
 POST /agents/:id/test-scenarios → 202 (8 scenarios, free) · GET /agents/:id/test-scenarios
-POST /agents/:id/activate { at? } (AGENT_NO_CHANNEL; PLAN_LIMIT {resource: agents} counted on agents with status ∈ active|paused; AUTH_EMAIL_UNVERIFIED) · POST /agents/:id/pause (AGENT_PAUSED_WITH_OPEN_THREADS confirm) · POST /agents/:id/duplicate
+POST /agents/:id/activate { at? } (AGENT_NO_CHANNEL; PLAN_LIMIT {resource: agents} counted on agents with status ∈ active|paused; AUTH_EMAIL_UNVERIFIED) · DELETE /agents/:id/activate (cancels a scheduled activation: scheduledActivateAt → null, idempotent, agents.manage, audit agent.unschedule; not a draft any more ⇒ 409 CONFLICT) · POST /agents/:id/pause (AGENT_PAUSED_WITH_OPEN_THREADS confirm) · POST /agents/:id/duplicate
 POST /agents/bulk/{pause|resume|delete} { ids[] } → per-item results (same rules as the single endpoints; AGENT_HAS_CHANNELS on delete)   `[FIG MECH Agents multi-select]`
 GET /agents/:id/versions · GET /agents/:id/versions/:v · GET /agents/:id/versions/:v/diff?against · POST /agents/:id/versions/:v/restore   `[FIG AGT-03 Versions]`
 POST /agents/:id/apply-preset-update { presetVersion } → new version · GET /agents/:id/export (JSON, no secrets)
