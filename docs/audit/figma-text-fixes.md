@@ -166,3 +166,8 @@ Applied on 2026-10-11 by script to the Figma file: **95 / 95 rows** (Web V2: 86 
 | Web V2 | PUB — Legal (CMS) · Landing & help · Meta data-deletion status | `Voir une démo` | `Voir les fonctionnalités` (no demo exists; the button opens `/features`) |
 | Web V2 | HELP — Help & support (merchant) | `Visite guidée` | `Bien démarrer` (opens the getting-started guides; no guided tour exists) |
 | Web V2 | SET — Settings — Members & invitations | `le membre sera créé en lecture seule` | `changez de plan ou retirez un membre pour inviter (PLAN_LIMIT members)` |
+| Web V2 | ONB-01 — Onboarding — step 3 | `Importer un fichier CSV/XLSX` | (remove — not built in the tunnel: the import comes from Produits once the setup is finished; 04 §25, assumptions-log 2026-10-15) |
+| Web V2 | ONB-01 — Onboarding — step 3 | `Extraire depuis ma page Facebook (après l’étape 5)` | (remove — no page is connected at step 3; page extraction is offered from Produits after the setup) |
+| Web V2 | ONB-01 — Onboarding — step 3 | `CATÉGORIE` (select) | (remove — a new shop has no category; the step keeps name, price, stock, photo) |
+| Web V2 | GLOBAL — States, toasts, banners & system dialogs catalogue (banner "Suppression programmée le …") | action `Annuler` | `Annuler la suppression` (calls `POST /workspace/deletion/cancel` directly) |
+| Web V2 | HELP — Help & support (merchant) (status card link) | `status.djaber.ai` | `Page de statut publique` |

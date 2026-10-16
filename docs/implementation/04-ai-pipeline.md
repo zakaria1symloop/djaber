@@ -116,11 +116,10 @@ Validation inside every tool uses `packages/shared` validators; a validation fai
 { "name": "quote_delivery", "aliases": ["get_shipping_fee"],
   "description": "Delivery fee for a wilaya from the merchant's grid (home or stop-desk). Apply free-delivery threshold.",
   "parameters": { "type": "object", "additionalProperties": false,
-    "properties": { "wilayaId": { "type": "integer", "minimum": 1, "maximum": 58 }, "wilayaName": { "type": "string" }, "isStopdesk": { "type": "boolean", "default": false }, "subtotal": { "type": "integer", "minimum": 0 } },
-    "anyOf": [ { "required": ["wilayaId"] }, { "required": ["wilayaName"] } ] },
+    "properties": { "wilayaId": { "type": "integer", "minimum": 1, "maximum": 69 }, "wilayaName": { "type": "string" }, "isStopdesk": { "type": "boolean", "default": false }, "subtotal": { "type": "integer", "minimum": 0 } } },
   "returns": { "ok": true, "wilayaId": 19, "wilayaName": "Sétif", "isStopdesk": false, "fee": 400, "free": false, "freeFrom": 5000, "stopdeskAvailable": true, "stopdeskFee": 350, "etaDays": "2–5" } }
 ```
-`wilayaName` resolved by normalised match on `Wilaya.nameFr|nameAr` (+ common darija spellings table `geo/wilaya-aliases.ts`); `DeliveryFeeRule.isActive=false` ⇒ `{ ok:false, error:{ code:'WILAYA_NOT_SERVED', stopdeskAvailable } }` (FL-02 F-2).
+One of `wilayaId` / `wilayaName` is required, but **not** through a top-level `anyOf` (Anthropic refuses `anyOf` / `oneOf` / `allOf` at the top level of a tool schema; §6 "Provider compatibility"): the handler answers `{ ok:false, error:{ code:'INVALID_ARGS' } }` when both are missing. `wilayaName` resolved by normalised match on `Wilaya.nameFr|nameAr` (+ darija / arabizi / Arabic spellings table `modules/ai/tools/wilaya-aliases.ts`, including the wilayas 59–69); inside a sentence the **longest** official name or spelling it contains wins ("Ksar El Boukhari"); `DeliveryFeeRule.isActive=false` ⇒ `{ ok:false, error:{ code:'WILAYA_NOT_SERVED', stopdeskAvailable } }` (FL-02 F-2).
 
 ```json
 { "name": "create_order", "description": "Create a cash-on-delivery order ONLY after the customer explicitly confirmed the recap.",
@@ -130,7 +129,7 @@ Validation inside every tool uses `packages/shared` validators; a validation fai
       "clientName": { "type": "string", "minLength": 3, "maxLength": 80 },
       "clientPhone": { "type": "string", "pattern": "^(\\+213|00213|0)?[5-7][0-9]{8}$" },
       "secondPhone": { "type": "string" },
-      "wilayaId": { "type": "integer", "minimum": 1, "maximum": 58 },
+      "wilayaId": { "type": "integer", "minimum": 1, "maximum": 69 },
       "communeName": { "type": "string", "maxLength": 100 },
       "address": { "type": "string", "maxLength": 500 },
       "isStopdesk": { "type": "boolean", "default": false },
@@ -201,6 +200,7 @@ finish:           AiRun { status: ok|unclear|unknown|handoff, inputTokens, outpu
 - Failure classes: `provider_error` (5xx, network, 429 after SDK retry 2×, timeout 45 s) ⇒ one retry on the fallback model within the same attempt; `provider_rejected` (401/403) ⇒ `AI_PROVIDER_KEY_REJECTED` platform alert, fallback immediately; `content/format` ⇒ format retry (§4.1) then F-6.
 - Circuit breaker per model: Redis window counters; error rate over `errorRateThresholdPct` in `windowMin` ⇒ route to fallback for 5 min (ADM-01 alert "bascule Anthropic active"); half-open after.
 - Cost: `AiRun.costUsd = inputTokens × inputPricePerM/1e6 + outputTokens × outputPricePerM/1e6` computed at finish (ANA-02 consumption, ADM-01).
+- **Provider compatibility** (live, 2026-10-14, `LiveAiGateway`): (a) the SDK always sends a `temperature`; a model that answers 400 "`temperature` is deprecated for this model" (Claude 5.x) is asked again without it, and its `provider:modelId` is remembered in the process so later calls omit it at once (one request per reply, not two; the memory is per process and resets on restart); (b) tool input schemas never use `anyOf` / `oneOf` / `allOf` at the top level (Anthropic answers 400 "input_schema does not support oneOf, allOf, or anyOf at the top level"); required-one-of rules are checked by the handler (`INVALID_ARGS`), and a unit test (`tool-registry.spec.ts`) keeps every tool schema provider-safe; (c) a failed call logs the provider's error type and the parameters it cites, never its free text (PII). Live routes: text + vision on `claude-haiku-5-5`, fallback `claude-haiku-4-5` (07 §12).
 
 ---
 

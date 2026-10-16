@@ -810,7 +810,7 @@ const move = (ids: string[], id: string, delta: number) => { const i = ids.index
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
-import { Field, TextInput, TextArea, Button, FormErrorSummary } from '@djaber/ui';
+import { Field, TextInput, TextArea, Button, FormErrorSummary, CodeInput } from '@djaber/ui';
 import { CreateQuickReplySchema, type CreateQuickReply, type QuickReplyView } from '@djaber/shared/schemas/quick-reply';
 import { useCreateQuickReply, useUpdateQuickReply } from './api';
 import { applyServerErrors } from '@web/lib/forms';
@@ -836,7 +836,7 @@ export function QuickReplyForm({ initial, onSaved }: { initial?: QuickReplyView;
         <TextArea {...form.register('body')} disabled={busy} maxLength={1000} rows={5} counter />
       </Field>
       <Field label={t('settings.quickReplies.field.shortcut')} error={form.formState.errors.shortcut?.message}>
-        <TextInput {...form.register('shortcut')} disabled={busy} dir="ltr" placeholder="/livr" />
+        <CodeInput {...form.register('shortcut')} disabled={busy} placeholder="/livr" />   {/* codes, SKUs, references: CodeInput (LTR, no autofill / spell check); e-mails EmailInput, phones PhoneInput, URLs UrlInput — specs 04 §2 */}
       </Field>
       <div className="mt-auto flex justify-end gap-2">
         <Button type="submit" variant="primary" loading={busy}>{t('action.save')}</Button>

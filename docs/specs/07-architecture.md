@@ -11,13 +11,13 @@
 | Cache / queues | Redis 7 + BullMQ | CDC §10.1 |
 | Real-time | Socket.IO (`@nestjs/websockets`) + Redis adapter | 06 §6 |
 | Storage | S3-compatible (MinIO / R2) + `sharp` thumbnails; public https URLs for Meta sends | CDC §10.3 |
-| AI | **Vercel AI SDK** (D25) — OpenAI, Anthropic, Google, Groq; structured output + tool steps | V1 |
+| AI | **Vercel AI SDK** (D25) — OpenAI, Anthropic, Google, Groq; structured output + tool steps. Provider compatibility (live 2026-10-14): a model that refuses `temperature` (Claude 5.x: "`temperature` is deprecated for this model") is asked again without it and remembered per process (`provider:modelId`), so later calls go without it at once; tool input schemas never use `anyOf` / `oneOf` / `allOf` at the top level (Anthropic refuses them; a unit test keeps every tool schema provider-safe); failed calls log the provider's error type and the parameters it cites, never its free text | V1, `docs/implementation/04-ai-pipeline.md` §6 |
 | Speech | Groq Whisper, runtime fallback OpenAI Whisper | V1 **fix** |
-| E-mail | Resend, react-email templates fr/ar/en | V1 |
+| E-mail | `MailService` drivers: `file` (dev / test, `.local/mail`), `resend` (`RESEND_API_KEY`), `smtp` (`SMTP_HOST`, `SMTP_PORT` default 587 — 465 ⇒ implicit TLS —, `SMTP_USER`, `SMTP_PASS`; the server's own mailbox, used live); sender `MAIL_FROM`; react-email templates fr/ar/en | V1 |
 | Payments | **Chargily Pay** (CIB / Edahabia rails; signed webhooks, raw body) behind the `PaymentGateway` interface; `ChargilyGateway` is the only implementation; `PAYMENT_PROVIDER=chargily`. Manual payments are recorded by platform finance (`BillingProvider.manual`, D71). Mobile credit packs = store IAP (Google Play / App Store receipts validated server-side); no subscription checkout on mobile | D4, D40, CDC |
 | Couriers | ZR Express, EcoTrack, Yalidine via `CourierAdapter` | PH2 #05–07, CDC |
 | Google | Sheets API v4 + Picker; OAuth verification | PH2 #03 |
-| Hosting | Docker, VPS (DZ/EU) behind Caddy/Nginx TLS or managed PaaS | CDC §10.3 |
+| Hosting | Docker images for staging / production, VPS (DZ/EU) behind Caddy/Nginx TLS or managed PaaS; the live deployment (2026-10-14) is Vercel (web) + VPS (API, worker), §12 | CDC §10.3 |
 | CI/CD | GitHub Actions: lint, typecheck, unit, integration (embedded Postgres + redis-memory-server (no Docker, see root CLAUDE.md)), e2e, build, `prisma migrate deploy`, deploy | CDC §10.1 |
 | Observability | Pino, Sentry (API/web/mobile), `/health` + uptime check, BullMQ board, metrics (queue depth, AI latency, send failures) | CDC §10.1 |
 
@@ -68,13 +68,13 @@ Flutter; same API/WS; secure storage; FCM deep links for every notification type
 
 ## 6. Security `[CDC §11]`
 
-HTTPS/HSTS/TLS 1.2+ · argon2id · JWT access 15 min (EdDSA) + rotating refresh with reuse detection · TOTP 2FA · AES-256-GCM secrets with key rotation · hashed API keys with scopes · all inbound webhooks signature-verified on the **raw body** (`express.raw` for `/webhooks/*`) · tenant guard + Prisma extension injecting `workspaceId` + cross-workspace e2e test per resource · DTO whitelist validation, file type/size checks, image re-encoding, CMS HTML sanitised · `@nestjs/throttler` with Redis · Helmet, strict CORS allowlist (no wildcard `*.vercel.app` — V1 **fix**) · PII masked in logs · AuditLog for admin/sensitive actions (2 y) · admin impersonation **read-only only** (`ImpersonationSession`: reason ≥ 10 chars, 30 min, roles `super_admin` + `support`, every non-GET request under `X-Impersonation-Session` ⇒ `403 ADMIN_IMPERSONATION_FORBIDDEN_ACTION`, expiry ⇒ `401 ADMIN_IMPERSONATION_EXPIRED`, audit `impersonation.start` / `impersonation.action` per request / `impersonation.stop`) · no card data (Chargily hosts the checkout) · dependency audit + ZAP baseline in CI.
+HTTPS/HSTS/TLS 1.2+ · argon2id · JWT access 15 min (EdDSA) + rotating refresh with reuse detection (web refresh cookie `HttpOnly; Path=/api/v1/auth; SameSite=Lax`, `Secure` in production; with `REFRESH_COOKIE_CROSS_SITE=true` — web and API on two different sites, e.g. `djaber.vercel.app` + the VPS host — `SameSite=None; Secure; Partitioned` (CHIPS), else the browser drops the cookie and a reload logs out) · TOTP 2FA · AES-256-GCM secrets with key rotation · hashed API keys with scopes · all inbound webhooks signature-verified on the **raw body** (`express.raw` for `/webhooks/*`) · tenant guard + Prisma extension injecting `workspaceId` + cross-workspace e2e test per resource · DTO whitelist validation, file type/size checks, image re-encoding, CMS HTML sanitised · `@nestjs/throttler` with Redis · Helmet, strict CORS allowlist (no wildcard `*.vercel.app` — V1 **fix**) · PII masked in logs · AuditLog for admin/sensitive actions (2 y) · admin impersonation **read-only only** (`ImpersonationSession`: reason ≥ 10 chars, 30 min, roles `super_admin` + `support`, every non-GET request under `X-Impersonation-Session` ⇒ `403 ADMIN_IMPERSONATION_FORBIDDEN_ACTION`, expiry ⇒ `401 ADMIN_IMPERSONATION_EXPIRED`, audit `impersonation.start` / `impersonation.action` per request / `impersonation.stop`) · no card data (Chargily hosts the checkout) · dependency audit + ZAP baseline in CI.
 
 ## 7. Platform compliance (new, from audit)
 
 | Item | Requirement |
 |---|---|
-| Meta App Review (D13) | Reuse V1 app ID; submit `pages_messaging`, `pages_read_user_content`, `instagram_manage_messages`, Human Agent; prerequisites: privacy, terms, data-deletion pages live (P0), screencast, business verification. "Approval pending" states in UI. |
+| Meta App Review (D13) | Reuse V1 app ID; submit `pages_messaging`, `pages_read_user_content`, `instagram_manage_messages`, Human Agent; prerequisites: privacy, terms, data-deletion pages live (P0), screencast, business verification. "Approval pending" states in UI. Live state (2026-10-14): the V1 Meta app has 4 permissions enabled — `pages_show_list, pages_manage_metadata, pages_messaging, pages_read_engagement` — so the live API sets `META_FACEBOOK_SCOPES` to them (asking a permission the app does not have makes Facebook Login fail); page analysis works with `pages_read_engagement` (03 CHN-08); Instagram permissions are not enabled in that app yet, the UI follows `GET /channels/app-review-status`. The Meta webhook, OAuth return and data-deletion URLs registered for V1 are unchanged (`META_LEGACY_PATHS`, 06 §3). |
 | Meta messaging policy | 24 h window rules (MSG-06); `POST_PURCHASE_UPDATE` only for order updates; no promotional sends; Instagram outside window ⇒ skipped. |
 | Google OAuth verification | Sensitive scope `spreadsheets`; verification task in P2 with privacy page; ≤ 100 test users before approval. |
 | Chargily | Signed webhooks on the raw body; test vs live mode by env (`PAYMENT_PROVIDER=chargily`); the only payment gateway of v2 (subscriptions, web credit packs, order payment links). |
@@ -97,7 +97,7 @@ API p95 < 500 ms (non-AI) · AI p50 < 3 s · 1 000 concurrent conversations, > 1
 | Security | ZAP baseline, dependency audit | staging |
 | Migration | dry-run on anonymised prod copy; counts/totals equal | before cut-over |
 
-Environments: local (Docker Compose), staging (anonymised prod copy, Meta test app users), production.
+Environments: local (no Docker: embedded Postgres 16 + Redis 7 via `pnpm infra:up`, root CLAUDE.md), staging (anonymised prod copy, Meta test app users), production; the current live deployment is described in §12.
 
 ## 10. Deliverables `[CDC §15]`
 
@@ -105,4 +105,18 @@ Repo, specs, OpenAPI + Postman, Docker/compose + deploy scripts, runbook (backup
 
 ## 11. V1 migration (D3)
 
-`packages/db/migrate-v1`: reads V1 MySQL, writes v2 per 05 §10; dry-run report; page tokens re-encrypted; webhooks re-pointed at cut-over (same Meta app); V1 kept read-only 30 days.
+`packages/db/migrate-v1`: reads V1 MySQL, writes v2 per 05 §10; dry-run report; page tokens re-encrypted; V1 kept read-only 30 days. At the 2026-10-14 cut-over the webhooks were **not** re-pointed: v2 answers the V1 URLs on the same host (`META_LEGACY_PATHS`, §12), and V1 merchants' data was not migrated (v2 started on its own database; merchants reconnect their pages).
+
+## 12. Live deployment (since 2026-10-14)
+
+v2 replaced V1 at the **same public addresses registered in Meta** (owner decision: no change in the Meta app settings).
+
+| Part | Where | Notes |
+|---|---|---|
+| Web | Vercel, project root `apps/web`, Node 22 — https://djaber.vercel.app | build settings in `apps/web/vercel.json`: install `REDISMS_DISABLE_POSTINSTALL=1 pnpm install --frozen-lockfile` from the repo root (skips the test-only Redis build), build `pnpm turbo run build --filter=@djaber/web`; env `NEXT_PUBLIC_API_URL` = the API host below, `NEXT_PUBLIC_SUPPORT_EMAIL` |
+| API + worker | VPS, two pm2 processes (API, worker) — API host `https://djaber.72-60-190-211.sslip.io` | Nginx TLS reverse proxy in front of the API port; `.env` on the server (never committed) with `NODE_ENV=staging`, `PUBLIC_API_URL`, `PUBLIC_WEB_URL`, `WEB_ORIGINS` (includes the Vercel origin) |
+| Postgres 16, Redis 7 | Docker containers on the VPS, bound to `127.0.0.1` only | `DATABASE_URL`, `REDIS_URL`; migrations by `prisma migrate deploy` |
+
+Live settings (names only; values in the server `.env`): `META_LEGACY_PATHS=true` and `META_OAUTH_CALLBACK_PATH=/api/pages/callback/{platform}` (V1 webhook, OAuth return and data-deletion paths answered by v2, 06 §3); `META_FACEBOOK_SCOPES` = the 4 permissions of the Meta app (§7); `REFRESH_COOKIE_CROSS_SITE=true` (web and API on two sites, §6); `MAIL_DRIVER=smtp` with `SMTP_*` (the server's mailbox); live AI driver with `ANTHROPIC_API_KEY` — text and vision routes on Claude Haiku (primary `claude-haiku-5-5`, fallback `claude-haiku-4-5`, ADM-06 routes); no OpenAI / Groq key, so voice-note transcription is unavailable. Other providers follow their `*_DRIVER` / `*_ALLOW_LIVE` variables (`.env.example`).
+
+Update: on the VPS pull the deployed branch, install with `REDISMS_DISABLE_POSTINSTALL=1 pnpm install --frozen-lockfile`, build, `prisma migrate deploy`, restart the two pm2 processes; Vercel builds the web from the repository. Rollback: V1 still runs on the same VPS (other port, its own database): point the Nginx upstream back to V1 and promote the last V1 deployment on Vercel. The VPS hosts other applications: only the Djaber processes and containers are touched.
