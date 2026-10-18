@@ -24,7 +24,7 @@ Frame names in brackets `[FIG …]` point at the Figma page "Web V2" (id `898:24
 
 | Client | Mechanism |
 |---|---|
-| Users (web) | `Authorization: Bearer <access JWT>`; access token **15 min**; refresh token in `httpOnly; Secure; SameSite=Lax` cookie `djaber_rt` (`Path=/api/v1/auth`; `Secure` in production; `REFRESH_COOKIE_CROSS_SITE=true` — web and API on two sites, as live (Vercel + VPS) — ⇒ `SameSite=None; Secure; Partitioned`), rotated on every `POST /auth/refresh` (family id + reuse detection ⇒ whole family revoked, `AUTH_REFRESH_REUSED`) |
+| Users (web) | `Authorization: Bearer <access JWT>`; access token **15 min**; refresh token in `httpOnly; Secure; SameSite=Lax` cookie `djaber_rt` (`Path=/api/v1/auth`; `Secure` in production; `REFRESH_COOKIE_CROSS_SITE=true` — web and API on two sites, as live (Vercel + VPS) — ⇒ `SameSite=None; Secure; Partitioned`), rotated on every `POST /auth/refresh`; revoking a session (logout, revoke-all, admin `POST /admin/users/:id/revoke-sessions`, block) puts its family id (`sid` claim) on a Redis denylist (`auth:revoked-sid:<familyId>`, TTL = access TTL + 60 s) ⇒ its access token gets 401 `UNAUTHORIZED` at once (family id + reuse detection ⇒ whole family revoked, `AUTH_REFRESH_REUSED`) |
 | Users (mobile) | Same JWT; refresh token returned in the body and kept in secure storage; `POST /auth/refresh { refreshToken }` |
 | 2FA | `POST /auth/login` → `{ mfaToken }` (5 min, single use) when `totpEnabled`; `POST /auth/2fa/verify { mfaToken, code | recoveryCode }` → tokens. Platform roles **must** have 2FA (`TWO_FA_REQUIRED_FOR_ROLE`) |
 | Sensitive actions | Re-authentication by `password` and/or `totpCode` in the body (role changes, force update, ownership transfer, account deletion, 2FA disable) — never via a second token |
@@ -446,6 +446,8 @@ type NotificationPreferenceDto = { type: NotificationType; inApp: true; email: b
 ```
 
 ### 3.13 Platform admin (main resources)
+
+Localized names in admin responses (plan, credit pack: `plan.name`, `planName`, `pack.name`, `PlanAdminDto.name`) are in the request language (`Accept-Language` / `?lang`, the language the admin is viewed in), French when that translation is empty; a workspace without subscription shows the free plan's name in that language (`Gratuit` / `Free` / `مجاني`).
 
 ```ts
 type AdminWorkspaceRowDto = { id: string; name: string; owner: UserRef & { email: string; emailVerified: boolean; totpEnabled: boolean }; plan: { slug: string; name: string }; subscriptionStatus: SubscriptionStatus; status: 'active'|'suspended'|'deletion_scheduled'; trustLevel: string; credits: { used: number; limit: number; exhausted: boolean }; pages: { count: number; platforms: string[] }; orders30d: number; conversations30d: number; createdAt: string; lastActivityAt: string | null; actions: ActionDescriptor[] };

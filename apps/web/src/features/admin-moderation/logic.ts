@@ -101,10 +101,14 @@ export function refusableFields(item: Pick<ModerationItemDto, 'product'>): strin
   item.product.images.forEach((_, i) => fields.push(`image:${i + 1}`));
   return fields;
 }
-/** Default refused fields = the fields the AI flagged (`aiFlags[].field`) and the flagged images. */
+/**
+ * Default refused fields = the fields the AI flagged (`aiFlags[].field`) and the flagged images. A flag on the images as a
+ * whole (`field: 'images'`, e.g. `single_image`, `logo_in_image`) names no picture, so it pre-ticks none: only the image
+ * carrying its own flag is pre-ticked.
+ */
 export function flaggedFields(item: Pick<ModerationItemDto, 'aiFlags' | 'product'>): string[] {
   const out = new Set<string>();
-  for (const f of item.aiFlags) if (f.field) out.add(normaliseField(f.field));
+  for (const f of item.aiFlags) if (f.field && !/^images?$/i.test(f.field.trim())) out.add(normaliseField(f.field));
   item.product?.images.forEach((img, i) => {
     if (img.flag) out.add(`image:${i + 1}`);
   });

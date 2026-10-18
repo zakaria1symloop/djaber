@@ -162,7 +162,7 @@ function PanelBody({
 
         {p && unflaggedImages ? (
           <div className="mt-4 grid grid-cols-4 gap-2">
-            {p.images.slice(0, 4).map((img, i) => (
+            {p.images.map((img, i) => (
               <div key={i} className="flex flex-col gap-1">
                 <FlagImageTile src={img.url} alt={t('adminMod.panel.image', { n: i + 1 })} flag={img.flag} />
                 {fieldToggle(`image:${i + 1}`) ? (

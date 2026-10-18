@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { prisma, TenantContext, type Tx, type User } from '@djaber/db';
 import { AuditService } from '../../core/audit/audit.service';
 import { TokenService } from '../../core/auth/token.service';
+import { SessionDenylistService } from '../../core/auth/session-denylist.service';
 import { ConfigService } from '../../core/config/config.service';
 import { CryptoService } from '../../core/crypto/crypto.service';
 import { dbOf } from '../../core/db';
@@ -28,6 +29,7 @@ export class SessionService {
     private readonly crypto: CryptoService,
     private readonly config: ConfigService,
     private readonly audit: AuditService,
+    private readonly denylist: SessionDenylistService,
   ) {}
 
   private get refreshTtlMs() {
@@ -137,17 +139,20 @@ export class SessionService {
     const r = await TenantContext.runSystem(() =>
       dbOf(tx).refreshToken.updateMany({ where: { userId, familyId, revokedAt: null }, data: { revokedAt: new Date() } }),
     );
+    await this.denylist.deny([familyId]);
     return r.count;
   }
 
-  /** "Log out all devices", password change / reset, member removal, account deletion. */
+  /** "Log out all devices", password change / reset, member removal, account deletion, admin revoke / block. */
   async revokeAll(userId: string, opts: { exceptFamilyId?: string } = {}, tx?: Tx): Promise<number> {
-    const r = await TenantContext.runSystem(() =>
-      dbOf(tx).refreshToken.updateMany({
-        where: { userId, revokedAt: null, ...(opts.exceptFamilyId ? { familyId: { not: opts.exceptFamilyId } } : {}) },
-        data: { revokedAt: new Date() },
-      }),
-    );
+    const where = { userId, revokedAt: null, ...(opts.exceptFamilyId ? { familyId: { not: opts.exceptFamilyId } } : {}) };
+    const r = await TenantContext.runSystem(async () => {
+      const open = await dbOf(tx).refreshToken.findMany({ where, select: { familyId: true }, distinct: ['familyId'] });
+      const out = await dbOf(tx).refreshToken.updateMany({ where, data: { revokedAt: new Date() } });
+      // the open sessions' access tokens stop now, not at their expiry (AuthGuard + SessionDenylistService)
+      await this.denylist.deny(open.map((o) => o.familyId));
+      return out;
+    });
     return r.count;
   }
 

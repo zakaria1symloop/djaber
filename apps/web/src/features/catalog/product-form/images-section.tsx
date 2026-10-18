@@ -1,7 +1,8 @@
 'use client';
 // IMAGES · n / 10 of the product form — Figma "CAT-01 — Product form" + DLG GDS II "Images — erreurs inline".
 // Edit: every operation is immediate (upload with progress, "ENVOI…" until the re-encode is done, retry, delete,
-// primary, reorder); errors sit under the tile concerned and never block the form. New product: the pictures stay in
+// primary, reorder) and the hint says so (`products.form.images.savedNow`, unlike the fields that wait for
+// "Enregistrer"); errors sit under the tile concerned and never block the form. New product: the pictures stay in
 // the browser until `POST /products` answered, then they are uploaded (see `uploadLocalImages`).
 import { PRODUCT_IMAGES_MAX } from '@djaber/shared';
 import { cn, ImageTileGrid, SectionLabel, toast, type ImageGridLabels, type ImageTile } from '@djaber/ui';
@@ -284,7 +285,7 @@ export function ProductImagesSection({ product, disabled, rejected, footer }: { 
         onMakePrimary={editor.makePrimary}
         onReorder={editor.reorder}
         onRetry={editor.retry}
-        hint={t('products.form.images.hint')}
+        hint={`${t('products.form.images.hint')} · ${t('products.form.images.savedNow')}`}
       />
     </Frame>
   );

@@ -136,7 +136,11 @@ export class ModerationHookService implements OnModuleInit {
     return approve ? 'approved' : 'pending';
   }
 
-  /** Creates the item of the product's next content version and pre-screens it. Runs in the caller's transaction. */
+  /**
+   * Creates the item of the product's next content version and pre-screens it. Runs in the caller's transaction.
+   * One open item per product (04 §12): while an item is still pending, a new change refreshes it in place (new snapshot
+   * and content version, pre-screen re-run; submission time, SLA and assignee kept) instead of adding a row to the queue.
+   */
   async submit(tx: Tx, productId: string, source: ModerationSource) {
     const p = await tx.product.findFirst({
       where: { id: productId },
@@ -147,20 +151,28 @@ export class ModerationHookService implements OnModuleInit {
     const contentVersion = Math.max(p.contentVersion, last + 1);
     const snapshot: Snapshot = { title: p.name, description: p.description, price: p.price, categoryId: p.categoryId, images: p.images.map((i) => i.url) };
     const now = new Date();
-    const item = await tx.moderationItem.create({
-      data: {
-        workspaceId: p.workspaceId,
-        type: 'product',
-        productId: p.id,
-        contentVersion,
-        snapshot: snapshot as unknown as Prisma.InputJsonValue,
-        status: 'pending',
-        aiFlags: [],
-        slaDueAt: moderationSlaDueAt(now),
-        submittedAt: now,
-        source,
-      } as Prisma.ModerationItemUncheckedCreateInput,
-    });
+    const open = await tx.moderationItem.findFirst({ where: { productId: p.id, type: 'product', status: 'pending' }, orderBy: { submittedAt: 'desc' }, select: { id: true } });
+    // older duplicates written before this rule (several pending rows for one product) are dropped: never decided, no appeal
+    if (open) await tx.moderationItem.deleteMany({ where: { productId: p.id, type: 'product', status: 'pending', id: { not: open.id } } });
+    const item = open
+      ? await tx.moderationItem.update({
+          where: { id: open.id },
+          data: { contentVersion, snapshot: snapshot as unknown as Prisma.InputJsonValue, aiScore: null, aiFlags: [] },
+        })
+      : await tx.moderationItem.create({
+          data: {
+            workspaceId: p.workspaceId,
+            type: 'product',
+            productId: p.id,
+            contentVersion,
+            snapshot: snapshot as unknown as Prisma.InputJsonValue,
+            status: 'pending',
+            aiFlags: [],
+            slaDueAt: moderationSlaDueAt(now),
+            submittedAt: now,
+            source,
+          } as Prisma.ModerationItemUncheckedCreateInput,
+        });
     // pending until decided; a previously approved snapshot keeps selling (approvedSnapshot untouched)
     await tx.product.update({ where: { id: p.id }, data: { moderationItemId: item.id, moderationStatus: 'pending', contentVersion } });
     let status: 'approved' | 'pending' = 'pending';
@@ -200,6 +212,10 @@ export class ModerationHookService implements OnModuleInit {
     const ws = TenantContext.workspaceId();
     const now = new Date();
     const due = moderationSlaDueAt(now);
+    // one open item per product (see `submit`): a bulk resubmission replaces the products' undecided items
+    await tx.$executeRaw`
+      DELETE FROM "ModerationItem" WHERE "workspaceId" = ${ws}::uuid AND "type" = 'product'::"ModerationItemType"
+        AND "status" = 'pending'::"ModerationItemStatus" AND "productId" = ANY(${productIds}::uuid[])`;
     await tx.$executeRaw`
       INSERT INTO "ModerationItem" ("id","workspaceId","type","productId","contentVersion","snapshot","status","aiFlags","priority","slaDueAt","submittedAt","source","rejectedFields")
       SELECT uuid_generate_v7(), p."workspaceId", 'product'::"ModerationItemType", p."id", p."contentVersion",

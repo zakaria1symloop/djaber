@@ -131,7 +131,7 @@ Africa/Algiers for "today", periods, buckets, numbering; stored UTC. Date-only `
 | Conversation | soft (Admin+); messages purged after 12 months (D28); Meta deletion = hard for that sender |
 | Agent | hard; channel links removed; conversations keep `agentId` null; pending insights dismissed |
 | Channel | disconnect = unsubscribe + token cleared + status `disconnected`; conversations/orders kept; agent link removed; hard purge only with workspace |
-| Member | removed ⇒ sessions revoked; assignments cleared; authored notes/replies kept |
+| Member | removed ⇒ sessions revoked (a revoked session — logout, "Déconnecter toutes les sessions" in Settings or in the admin user sheet, block, password change — also stops its access token at once: the family id is denylisted in Redis for one access-token lifetime and the API answers 401 `UNAUTHORIZED`); assignments cleared; authored notes/replies kept |
 | Workspace | soft, AI stops, channels unsubscribed, purge after 30 days (D31) |
 | Payment logs 5 y · Audit logs 2 y · Webhook deliveries 30 d · Raw inbound events 7 d |
 
@@ -153,7 +153,7 @@ Sections 12–24 implement decisions D36–D71 (README Decisions, all DECIDED, c
 
 | Rule | |
 |---|---|
-| Trigger | `ModerationItem` created on product create and on update of `name`, `images`, `categoryId`, `description`, or `price` when `|new − old| / old ≥ 0.5`. Stock, variants, minStock, keywords, weight, unit, isActive do not trigger. Duplicate, import rows, page-analysis imports, restore of an archived product whose content is > 90 d old: trigger. |
+| Trigger | `ModerationItem` created on product create and on update of `name`, `images`, `categoryId`, `description`, or `price` when `|new − old| / old ≥ 0.5`. Stock, variants, minStock, keywords, weight, unit, isActive do not trigger. Duplicate, import rows, page-analysis imports, restore of an archived product whose content is > 90 d old: trigger. **One open item per product**: while the product's item is still `pending`, a further change (each image added / removed, a field edit, a bulk change) refreshes that item in place — new snapshot and content version, pre-screen re-run, submission time / SLA / assignee kept — so the admin queue lists each product once with its current content; a bulk resubmission replaces the undecided item. A decision therefore always applies to the product's current item (rejected ⇒ product `rejected` on both the product status pill and the "Revue Djaber" panel). |
 | Pre-screen | job `moderation-prescreen` (free): `aiScore ∈ [0,1]`, `aiFlags[] ⊂ {protected_brand, prohibited_category, misleading_price, logo_in_image, health_claim, counterfeit_wording, single_image, missing_warranty}`; market reference price from the category median when available. |
 | Auto-approval | `aiScore ≥ 0.9 ∧ trustLevel ∈ {standard, trusted} ∧ category ∉ sensitive` ⇒ `approved` at once; 5 % random sample flagged `sampled=true` for the "Auto-approuvés (échantillon)" tab. Otherwise `pending` in the human queue. Sensitive categories = platform list (electronics, health/supplements, children, cosmetics) editable by super admin. |
 | Visibility while pending | New product: hidden from AI grounding, cards, search, recommendations, public tracking page; visible in the merchant's lists with pill EN ATTENTE; counter sales and stock operations allowed. Changed product: the **last approved snapshot** keeps selling (pill ANCIENNE VERSION on the IA column) until the decision. |

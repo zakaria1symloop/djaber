@@ -7,7 +7,7 @@ import { Prisma, prisma, TenantContext } from '@djaber/db';
 import { ProcessorRegistry } from '../../core/queue/processor.registry';
 import { algiersDay, algiersDayEnd, algiersDayStart } from '../../core/time/algiers';
 import { CURRENT_STATUSES } from '../billing/billing.util';
-import { DAY, pickFr } from './admin.util';
+import { DAY, freePlanName, pickLocal } from './admin.util';
 
 export type PlatformMetrics = {
   signups: number;
@@ -161,7 +161,7 @@ export class AdminOverviewService implements OnModuleInit {
         mrr: {
           amount: live.mrr,
           deltaPct: prevMrr ? Math.round(((live.mrr - prevMrr) / prevMrr) * 100) : null,
-          byPlan: plans.filter((p) => p.slug !== 'free').map((p) => ({ slug: p.slug, name: pickFr(p.name), count: byPlan.find((b) => b.planId === p.id)?._count._all ?? 0 })),
+          byPlan: plans.filter((p) => p.slug !== 'free').map((p) => ({ slug: p.slug, name: pickLocal(p.name), count: byPlan.find((b) => b.planId === p.id)?._count._all ?? 0 })),
           free: byPlan.find((b) => plans.find((p) => p.id === b.planId)?.slug === 'free')?._count._all ?? 0,
         },
         credits: { consumed, aiCostUsd: aiCost, marginPct: revenueDzd > 0 ? Math.round(((revenueDzd - costDzd) / revenueDzd) * 100) : null },
@@ -172,7 +172,7 @@ export class AdminOverviewService implements OnModuleInit {
       topWorkspaces: top.map((t) => {
         const w = topWs.find((x) => x.id === t.workspaceId);
         const p = w?.subscriptions[0]?.plan;
-        return { id: t.workspaceId, name: w?.name ?? '—', planSlug: p?.slug ?? 'free', planName: p ? pickFr(p.name) : 'Gratuit', credits: Number(t.credits) };
+        return { id: t.workspaceId, name: w?.name ?? '—', planSlug: p?.slug ?? 'free', planName: p ? pickLocal(p.name) : freePlanName(), credits: Number(t.credits) };
       }),
       aiCostByModel: [...aiByModel.values()].sort((a, b) => b.costUsd - a.costUsd),
       trialsExpiring: trials.map((t) => ({ id: t.workspace.id, name: t.workspace.name, trialEndsAt: t.trialEndsAt!.toISOString(), orders: tOrders.find((o) => o.workspaceId === t.workspaceId)?._count._all ?? 0, pagesConnected: tPages.find((o) => o.workspaceId === t.workspaceId)?._count._all ?? 0, conversations: tConvs.find((o) => o.workspaceId === t.workspaceId)?._count._all ?? 0 })),

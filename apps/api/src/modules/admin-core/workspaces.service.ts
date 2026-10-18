@@ -38,7 +38,7 @@ import { ChannelService } from '../channels/channel.service';
 import { CreditService } from '../credits/credit.service';
 import { NotificationProducer } from '../notifications/notification.producer';
 import { ProvisioningService } from '../workspace/provisioning.service';
-import { DAY, assertUuid, iso, pickFr, requireReason, userSelect, type AdminActor } from './admin.util';
+import { DAY, assertUuid, iso, freePlanName, pickLocal, requireReason, userSelect, type AdminActor } from './admin.util';
 
 const ROW_SORTS = ['createdAt', 'name'] as const;
 type CreditFig = { planNet: number; planLimit: number; planUsed: number; pack: number };
@@ -174,7 +174,7 @@ export class AdminWorkspacesService {
         id,
         name: w.name,
         owner: owner ? { id: owner.id, firstName: owner.firstName, lastName: owner.lastName, email: owner.email, avatarUrl: owner.avatarUrl, emailVerified: !!owner.emailVerifiedAt, totpEnabled: owner.totpEnabled } : { id: '', firstName: '', lastName: '', email: '', avatarUrl: null, emailVerified: false, totpEnabled: false },
-        plan: { slug: plan?.slug ?? 'free', name: plan ? pickFr(plan.name) : 'Gratuit' },
+        plan: { slug: plan?.slug ?? 'free', name: plan ? pickLocal(plan.name) : freePlanName() },
         subscriptionStatus,
         status: w.status,
         trustLevel: w.trustLevel,
@@ -252,7 +252,7 @@ export class AdminWorkspacesService {
       suspendNote: w.suspendNote,
       deletionScheduledAt: iso(w.deletionScheduledAt),
       assistedOnboarding: w.assistedOnboarding,
-      subscription: sub ? { id: sub.id, planName: pickFr(sub.plan.name), cycle: sub.billingCycle, appliedPrice: sub.appliedPrice, currentPeriodEnd: sub.currentPeriodEnd.toISOString(), trialEndsAt: iso(sub.trialEndsAt), dunningStage: sub.dunningStage, method: (lastPay?.raw as { manual?: { method?: string } } | null)?.manual?.method ?? (lastPay ? lastPay.provider : null) } : null,
+      subscription: sub ? { id: sub.id, planName: pickLocal(sub.plan.name), cycle: sub.billingCycle, appliedPrice: sub.appliedPrice, currentPeriodEnd: sub.currentPeriodEnd.toISOString(), trialEndsAt: iso(sub.trialEndsAt), dunningStage: sub.dunningStage, method: (lastPay?.raw as { manual?: { method?: string } } | null)?.manual?.method ?? (lastPay ? lastPay.provider : null) } : null,
       creditsDetail: { plan: Math.max(0, f?.planNet ?? 0), packs: Math.max(0, f?.pack ?? 0), packsBought, lastGrant: grant ? { credits: grant.credits, reason: grant.reason, at: grant.createdAt.toISOString() } : null },
       channels,
       agents,

@@ -46,7 +46,7 @@ import { PlanService } from '../billing/plan.service';
 import { SubscriptionService } from '../billing/subscription.service';
 import { CreditService } from '../credits/credit.service';
 import { NotificationProducer } from '../notifications/notification.producer';
-import { DAY, assertUuid, fromLocalized, iso, pickFr, requireReason, toLocalized, userRef, userSelect, type AdminActor } from './admin.util';
+import { DAY, assertUuid, fromLocalized, adminLocale, iso, pickLocal, requireReason, toLocalized, userRef, userSelect, type AdminActor } from './admin.util';
 
 const LIMIT_KEYS = ['maxPages', 'maxAgents', 'maxProducts', 'maxConversationsPerMonth', 'maxMembers', 'maxApiKeys', 'maxWebhooks', 'monthlyCredits'] as const;
 const PLAN_SNAPSHOT_KEYS = ['name', 'description', 'priceMonthly', 'priceYearly', 'trialDays', ...LIMIT_KEYS, 'syncHistoryDays', 'features', 'isVisible', 'isFeatured', 'sortOrder'] as const;
@@ -89,7 +89,7 @@ export class AdminBillingCatalogService {
 
   private planDto(p: Plan, subscribers: number, actor: AdminActor): PlanAdminDto {
     return {
-      ...this.plans.toDto(p, 'fr'),
+      ...this.plans.toDto(p, adminLocale()),
       nameI18n: fromLocalized(p.name),
       descriptionI18n: fromLocalized(p.description),
       version: p.version,
@@ -314,7 +314,7 @@ export class AdminBillingCatalogService {
       out.push({
         id: s.id,
         workspace: s.workspace,
-        plan: { id: s.plan.id, slug: s.plan.slug, name: pickFr(s.plan.name) },
+        plan: { id: s.plan.id, slug: s.plan.slug, name: pickLocal(s.plan.name) },
         status: s.status,
         dunningStage: s.dunningStage,
         cycle: s.billingCycle,
@@ -628,7 +628,7 @@ export class AdminBillingCatalogService {
       ...(q.q ? { workspace: { name: { contains: q.q, mode: 'insensitive' } } } : {}),
     };
     const [total, rows] = await Promise.all([prisma.creditPackPurchase.count({ where }), prisma.creditPackPurchase.findMany({ where, include: { workspace: { select: { id: true, name: true } }, pack: true }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...toSkipTake(q) })]);
-    return page(rows.map((r) => ({ id: r.id, workspace: r.workspace, pack: { id: r.pack.id, slug: r.pack.slug, name: pickFr(r.pack.name), credits: r.pack.credits }, channel: r.channel, status: r.status, amount: r.amount, storeTransactionId: r.storeTransactionId, createdAt: r.createdAt.toISOString(), creditedAt: iso(r.creditedAt), refundedAt: iso(r.refundedAt) })), total, q);
+    return page(rows.map((r) => ({ id: r.id, workspace: r.workspace, pack: { id: r.pack.id, slug: r.pack.slug, name: pickLocal(r.pack.name), credits: r.pack.credits }, channel: r.channel, status: r.status, amount: r.amount, storeTransactionId: r.storeTransactionId, createdAt: r.createdAt.toISOString(), creditedAt: iso(r.creditedAt), refundedAt: iso(r.refundedAt) })), total, q);
   }
 
   async pricingVersions(): Promise<CreditPricingDto[]> {

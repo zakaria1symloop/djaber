@@ -20,6 +20,7 @@ export class RequestContextMiddleware implements NestMiddleware {
       workspaceId: '',
       readOnly: false,
       locale: req.locale,
+      requestLocale: req.locale,
       stockMode: 'simple',
       suspended: false,
       limits: NO_LIMITS,

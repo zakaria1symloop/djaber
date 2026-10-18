@@ -76,6 +76,10 @@ describe('ADM-10 decisions', () => {
     expect(refusableFields(item)).toEqual(['name', 'description', 'price', 'category', 'image:1', 'image:2']);
     expect(refusableFields({ product: null })).toEqual([]);
   });
+  it('pre-ticks no picture for a flag on the images as a whole (single_image)', () => {
+    const item = { product: { images: [{ url: 'a', flag: null }, { url: 'b', flag: null }] } as never, aiFlags: [{ code: 'counterfeit_wording', field: 'name', message: 'm' }, { code: 'single_image', field: 'images', message: '1' }] };
+    expect(flaggedFields(item)).toEqual(['name']);
+  });
   it('needs a reason and a message before a reject', () => {
     expect(rejectReady({ decision: 'counterfeit', message: 'Marque protégée', fields: [] })).toBe(true);
     expect(rejectReady({ decision: null, message: 'x', fields: [] })).toBe(false);

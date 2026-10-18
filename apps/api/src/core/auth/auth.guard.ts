@@ -4,6 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { AppException } from '../errors/app.exception';
 import { ApiKeyAuthService, rawApiKeyOf } from './api-key-auth.service';
 import { IS_PUBLIC } from './decorators';
+import { SessionDenylistService } from './session-denylist.service';
 import { TokenService } from './token.service';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class AuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly tokens: TokenService,
     private readonly apiKeys: ApiKeyAuthService,
+    private readonly denylist: SessionDenylistService,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -34,6 +36,8 @@ export class AuthGuard implements CanActivate {
     if (header?.startsWith('Bearer ')) {
       try {
         const claims = await this.tokens.verifyAccess(header.slice('Bearer '.length).trim());
+        // a revoked session (logout, "Déconnecter toutes les sessions", block) stops its access token at once
+        if (await this.denylist.isDenied(claims.sid)) throw new Error('session revoked');
         req.user = { id: claims.sub, platformRole: claims.pr ?? 'none', sessionId: claims.sid };
         req.claims = claims;
         return true;

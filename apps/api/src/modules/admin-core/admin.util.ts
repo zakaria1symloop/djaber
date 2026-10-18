@@ -59,7 +59,15 @@ export const fromLocalized = (v: unknown): { fr: string; ar: string; en: string 
   const o = (v ?? {}) as Record<string, unknown>;
   return { fr: String(o.fr ?? ''), ar: String(o.ar ?? ''), en: String(o.en ?? '') };
 };
-export const pickFr = (v: unknown) => fromLocalized(v).fr;
+/** Language the admin is viewed in (request `Accept-Language`), French by default. */
+export const adminLocale = (): 'fr' | 'ar' | 'en' => TenantContext.maybe()?.requestLocale ?? 'fr';
+/** Localized name in the admin's language, French when that translation is empty. */
+export const pickLocal = (v: unknown) => {
+  const l = fromLocalized(v);
+  return l[adminLocale()] || l.fr;
+};
+/** Name of the free plan when a workspace has no subscription row. */
+export const freePlanName = () => pickLocal({ fr: 'Gratuit', ar: 'مجاني', en: 'Free' });
 
 /** Africa/Algiers day `YYYY-MM-DD` of an instant. */
 export const algiersDay = (d: Date) => new Date(d.getTime() + 3600_000).toISOString().slice(0, 10);

@@ -21,6 +21,8 @@ export type TenantInfo = {
   readOnly: boolean;
   platformRole?: string;
   locale: 'fr' | 'ar' | 'en';
+  /** language of the request (`?lang` / `Accept-Language`); `locale` becomes the account's or workspace's once resolved */
+  requestLocale?: 'fr' | 'ar' | 'en';
   stockMode: 'simple' | 'advanced';
   suspended: boolean;
   deletionScheduledAt?: Date | null;
@@ -68,13 +70,14 @@ export const TenantContext = {
   /** System / platform code that must read across workspaces (schedulers, admin lists, auth before a workspace is known). */
   runSystem: <T>(fn: () => T) =>
     als.run(
-      { workspaceId: '', readOnly: false, locale: 'fr', stockMode: 'simple', suspended: false, limits: NO_LIMITS, bypass: true },
+      // the request's language survives the switch (admin lists show names in the language they are viewed in)
+      { workspaceId: '', readOnly: false, locale: 'fr', stockMode: 'simple', suspended: false, limits: NO_LIMITS, bypass: true, requestLocale: als.getStore()?.requestLocale },
       () => settleInside(fn),
     ),
   /** Runs `fn` scoped to one workspace (worker jobs, admin acting on a target workspace). */
   runAs: <T>(workspaceId: string, fn: () => T, extra: Partial<TenantInfo> = {}) =>
     als.run(
-      { workspaceId, readOnly: false, locale: 'fr', stockMode: 'simple', suspended: false, limits: NO_LIMITS, ...extra },
+      { workspaceId, readOnly: false, locale: 'fr', stockMode: 'simple', suspended: false, limits: NO_LIMITS, requestLocale: als.getStore()?.requestLocale, ...extra },
       () => settleInside(fn),
     ),
 };
