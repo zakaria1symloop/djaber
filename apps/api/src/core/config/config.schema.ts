@@ -97,6 +97,9 @@ export const ConfigSchema = z.object({
   GOOGLE_OAUTH_VERIFIED: bool.default(false),
   GOOGLE_PICKER_KEY: z.string().optional(),
   GOOGLE_PICKER_APP_ID: z.string().optional(),
+  // D41 testing exemption: comma-separated e-mails of platform users who may open the admin without 2FA. Ignored when
+  // NODE_ENV=production (the rule then applies to everyone); meant for the staging test super admin only.
+  PLATFORM_2FA_EXEMPT_EMAILS: z.string().default(''),
   // outbound merchant webhooks (M11): in development / test only local / LAN receivers are called unless this is true
   WEBHOOKS_ALLOW_LIVE: bool.default(false),
   // captcha of the public forms (M11): none | fake (token `fake-pass`) | turnstile (refused in development / test unless CAPTCHA_ALLOW_LIVE)

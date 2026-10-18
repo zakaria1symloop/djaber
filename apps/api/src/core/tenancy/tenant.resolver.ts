@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { prisma, TenantContext, NO_LIMITS, type TenantInfo, type TenantLimits, type MembershipRole } from '@djaber/db';
 import { AppException } from '../errors/app.exception';
 import { RedisService } from '../redis/redis.provider';
+import { loadConfig } from '../config/config.service';
 import type { AuthUser } from '../auth/decorators';
 
 type WorkspaceCtx = {
@@ -20,6 +21,13 @@ type WorkspaceCtx = {
 
 const CURRENT = ['trial', 'active', 'dunning'] as const;
 const SUSPENDED_ALLOWED = [/^\/api\/v1\/workspace$/, /^\/api\/v1\/billing\//, /^\/api\/v1\/credits$/, /^\/api\/v1\/me(\/|$)/, /^\/api\/v1\/help\//, /^\/api\/v1\/support\//];
+
+/** D41 testing exemption (`PLATFORM_2FA_EXEMPT_EMAILS`); never in production. */
+export const twoFaExempt = (email: string): boolean => {
+  const cfg = loadConfig();
+  if (cfg.NODE_ENV === 'production') return false;
+  return cfg.PLATFORM_2FA_EXEMPT_EMAILS.split(',').map((e) => e.trim().toLowerCase()).filter(Boolean).includes(email.toLowerCase());
+};
 
 @Injectable()
 export class TenantResolver {
@@ -149,6 +157,7 @@ export class TenantResolver {
         limits: NO_LIMITS,
         emailVerified: !!u.emailVerifiedAt,
         totpEnabled: u.totpEnabled,
+        twoFaExempt: twoFaExempt(u.email),
         bypass: true,
       };
     });

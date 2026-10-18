@@ -27,6 +27,8 @@ export type TenantInfo = {
   emailVerified?: boolean;
   /** platform routes: D41 — every platform role needs 2FA (`TWO_FA_REQUIRED_FOR_ROLE`) */
   totpEnabled?: boolean;
+  /** outside production, a platform user listed in `PLATFORM_2FA_EXEMPT_EMAILS` (testing) skips the D41 2FA check */
+  twoFaExempt?: boolean;
   limits: TenantLimits;
   impersonation?: { sessionId: string; adminId: string };
   /** When true the tenant extension lets queries through without a workspace filter (platform/system code only). */
