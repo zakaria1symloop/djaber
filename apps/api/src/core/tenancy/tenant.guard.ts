@@ -32,8 +32,9 @@ export class TenantGuard implements CanActivate {
       info = await this.resolver.forImpersonation(req.user, String(imp), req.claims, { method: req.method, path: req.path, ip: req.ip ?? null, userAgent: req.headers['user-agent'] ?? null });
       if (req.method !== 'GET' && req.method !== 'HEAD') throw new AppException('ADMIN_IMPERSONATION_FORBIDDEN_ACTION');
       const s = TenantContext.get();
+      const requestLocale = s.requestLocale;
       for (const k of Object.keys(s)) delete (s as Record<string, unknown>)[k];
-      Object.assign(s, info);
+      Object.assign(s, info, { requestLocale });
       req.tenant = s;
       return true;
     }
@@ -60,8 +61,10 @@ export class TenantGuard implements CanActivate {
     }
     // Fill the store opened by RequestContextMiddleware so the whole request runs with this tenant.
     const store = TenantContext.get();
+    // the request's language (middleware) outlives the reset: admin names are shown in the language the page is viewed in
+    const requestLocale = store.requestLocale;
     for (const k of Object.keys(store)) delete (store as Record<string, unknown>)[k];
-    Object.assign(store, info);
+    Object.assign(store, info, { requestLocale });
     // M11 (M2 carry-over): the session of the request tags the WS events it causes (`originSessionId`)
     if (req.user?.sessionId) (store as TenantInfo & { sessionId?: string }).sessionId = String(req.user.sessionId);
     req.tenant = store;
